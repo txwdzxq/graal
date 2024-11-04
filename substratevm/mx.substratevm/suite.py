@@ -1407,7 +1407,8 @@ suite = {
                 "jdk.internal.vm.ci" : [
                     "jdk.vm.ci.services",
                     "jdk.vm.ci.runtime",
-                    "jdk.vm.ci.code"
+                    "jdk.vm.ci.code",
+                    "jdk.vm.ci.hotspot"
                 ],
             },
             "annotationProcessors": [
