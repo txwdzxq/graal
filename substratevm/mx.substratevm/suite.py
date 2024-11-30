@@ -1375,6 +1375,7 @@ suite = {
             ],
             "requiresConcealed" : {
                 "java.base" : [
+                    "jdk.internal.module",
                     "jdk.internal.misc",
                 ],
                 "jdk.internal.vm.ci" : [
