@@ -15,6 +15,7 @@ CLSS public final jdk.graal.nativeimage.LibGraalRuntime
 meth public static long getIsolateID()
 meth public static void notifyLowMemoryPoint(boolean)
 meth public static void processReferences()
+meth public static void fatalError(java.lang.String)
 supr java.lang.Object
 
 CLSS public final jdk.graal.nativeimage.hosted.GlobalData
