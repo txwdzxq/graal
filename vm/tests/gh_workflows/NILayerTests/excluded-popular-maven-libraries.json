@@ -328,5 +328,47 @@
     "artifact_id": "cats-effect_3",
     "version": "3.6-0142603",
     "reason": "GR-59420"
+  },
+  {
+    "group_id": "org.mockito",
+    "artifact_id": "mockito-core",
+    "version": "5.13.0",
+    "reason": "GR-60601"
+  },
+  {
+    "group_id": "org.assertj",
+    "artifact_id": "assertj-core",
+    "version": "3.26.3",
+    "reason": "GR-60601"
+  },
+  {
+    "group_id": "org.easymock",
+    "artifact_id": "easymock",
+    "version": "5.4.0",
+    "reason": "GR-60601"
+  },
+  {
+    "group_id": "net.bytebuddy",
+    "artifact_id": "byte-buddy",
+    "version": "1.15.1",
+    "reason": "GR-60601"
+  },
+  {
+    "group_id": "org.powermock",
+    "artifact_id": "powermock-core",
+    "version": "2.0.9",
+    "reason": "GR-60601"
+  },
+  {
+    "group_id": "org.infinispan",
+    "artifact_id": "infinispan-core",
+    "version": "15.0.8.Final",
+    "reason": "GR-60601"
+  },
+  {
+    "group_id": "org.hibernate.orm",
+    "artifact_id": "hibernate-core",
+    "version": "6.6.0.Final",
+    "reason": "GR-60601"
   }
 ]
