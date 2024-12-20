@@ -358,5 +358,11 @@
     "artifact_id": "java-driver-core",
     "version": "4.18.1",
     "reason": "GR-57711, also requires user 'initialize-at-build-time' and 'initialize-at-run-time' input"
+  },
+  {
+    "group_id": "com.microsoft.sqlserver",
+    "artifact_id": "mssql-jdbc",
+    "version": "12.8.1.jre11",
+    "reason": "GR-57711, also requires user 'initialize-at-build-time' and 'initialize-at-run-time' input"
   }
 ]
