@@ -352,5 +352,11 @@
     "artifact_id": "hibernate-core",
     "version": "6.6.0.Final",
     "reason": "GR-60601"
+  },
+  {
+    "group_id": "org.apache.cassandra",
+    "artifact_id": "java-driver-core",
+    "version": "4.18.1",
+    "reason": "GR-57711, also requires user 'initialize-at-build-time' and 'initialize-at-run-time' input"
   }
 ]
