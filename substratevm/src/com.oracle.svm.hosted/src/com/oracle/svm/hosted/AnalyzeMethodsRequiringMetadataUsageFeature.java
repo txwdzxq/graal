@@ -56,10 +56,6 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @AutomaticallyRegisteredFeature
 public final class AnalyzeMethodsRequiringMetadataUsageFeature implements InternalFeature {
-    public static final String METHODTYPE_REFLECTION = "reflection";
-    public static final String METHODTYPE_RESOURCE = "resource";
-    public static final String METHODTYPE_SERIALIZATION = "serialization";
-    public static final String METHODTYPE_PROXY = "proxy";
     private final Set<String> jarPaths;
     private final Map<String, Map<String, Map<String, List<String>>>> callsByJar;
     private final Set<FoldEntry> foldEntries = ConcurrentHashMap.newKeySet();
@@ -101,8 +97,8 @@ public final class AnalyzeMethodsRequiringMetadataUsageFeature implements Intern
                         var builder = writer.objectBuilder()) {
             for (Map.Entry<String, Map<String, List<String>>> callEntry : calls.entrySet()) {
                 try (JsonBuilder.ObjectBuilder methodsByTypeBuilder = builder.append(callEntry.getKey()).object()) {
-                    Map<String, List<String>> nestedMap = callEntry.getValue();
-                    for (Map.Entry<String, List<String>> entry : nestedMap.entrySet()) {
+                    Map<String, List<String>> methodsByType = callEntry.getValue();
+                    for (Map.Entry<String, List<String>> entry : methodsByType.entrySet()) {
                         try (JsonBuilder.ArrayBuilder array = methodsByTypeBuilder.append(entry.getKey()).array()) {
                             for (String call : entry.getValue()) {
                                 array.append(call);

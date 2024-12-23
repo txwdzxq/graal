@@ -61,11 +61,6 @@ import java.util.ResourceBundle;
 import java.util.Set;
 import java.util.random.RandomGeneratorFactory;
 
-import static com.oracle.svm.hosted.AnalyzeMethodsRequiringMetadataUsageFeature.METHODTYPE_PROXY;
-import static com.oracle.svm.hosted.AnalyzeMethodsRequiringMetadataUsageFeature.METHODTYPE_REFLECTION;
-import static com.oracle.svm.hosted.AnalyzeMethodsRequiringMetadataUsageFeature.METHODTYPE_RESOURCE;
-import static com.oracle.svm.hosted.AnalyzeMethodsRequiringMetadataUsageFeature.METHODTYPE_SERIALIZATION;
-
 /**
  * This phase detects usages of any calls that might require metadata in reached parts of the
  * project, given the JAR files in which to search, and outputs and serializes them to the
@@ -76,6 +71,11 @@ import static com.oracle.svm.hosted.AnalyzeMethodsRequiringMetadataUsageFeature.
  */
 
 public class AnalyzeMethodsRequiringMetadataUsagePhase extends BasePhase<CoreProviders> {
+    public static final String METHODTYPE_REFLECTION = "reflection";
+    public static final String METHODTYPE_RESOURCE = "resource";
+    public static final String METHODTYPE_SERIALIZATION = "serialization";
+    public static final String METHODTYPE_PROXY = "proxy";
+
     private static final Map<String, Set<String>> reflectMethodNames = new HashMap<>();
     private static final Map<String, Set<String>> resourceMethodNames = new HashMap<>();
     private static final Map<String, Set<String>> serializationMethodNames = new HashMap<>();
