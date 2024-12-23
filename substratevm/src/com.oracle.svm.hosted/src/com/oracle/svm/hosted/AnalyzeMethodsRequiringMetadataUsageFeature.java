@@ -98,10 +98,10 @@ public final class AnalyzeMethodsRequiringMetadataUsageFeature implements Intern
             for (Map.Entry<String, Map<String, List<String>>> callEntry : calls.entrySet()) {
                 try (JsonBuilder.ObjectBuilder methodsByTypeBuilder = builder.append(callEntry.getKey()).object()) {
                     Map<String, List<String>> methodsByType = callEntry.getValue();
-                    for (Map.Entry<String, List<String>> entry : methodsByType.entrySet()) {
-                        try (JsonBuilder.ArrayBuilder array = methodsByTypeBuilder.append(entry.getKey()).array()) {
-                            for (String call : entry.getValue()) {
-                                array.append(call);
+                    for (Map.Entry<String, List<String>> methodByTypeEntry : methodsByType.entrySet()) {
+                        try (JsonBuilder.ArrayBuilder callsByMethodName = methodsByTypeBuilder.append(methodByTypeEntry.getKey()).array()) {
+                            for (String call : methodByTypeEntry.getValue()) {
+                                callsByMethodName.append(call);
                             }
                         }
                     }
@@ -127,11 +127,9 @@ public final class AnalyzeMethodsRequiringMetadataUsageFeature implements Intern
 
     public String extractLibraryName(String path) {
         String fileName = path.substring(path.lastIndexOf("/") + 1);
-
         if (fileName.endsWith(".jar")) {
             fileName = fileName.substring(0, fileName.length() - 4);
         }
-
         return fileName;
     }
 

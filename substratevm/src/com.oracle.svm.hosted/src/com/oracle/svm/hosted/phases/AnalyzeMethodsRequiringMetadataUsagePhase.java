@@ -200,6 +200,10 @@ public class AnalyzeMethodsRequiringMetadataUsagePhase extends BasePhase<CorePro
         }
     }
 
+    /*
+     * Returns the name and type of a method if it exists in the predetermined set, based on its
+     * graph and MethodCallTargetNode; otherwise, returns null.
+     */
     public Pair<String, String> getMethod(StructuredGraph graph, MethodCallTargetNode callTarget) {
         String methodName = callTarget.targetMethod().getName();
         String declaringClass = callTarget.targetMethod().getDeclaringClass().toJavaName();
@@ -216,6 +220,10 @@ public class AnalyzeMethodsRequiringMetadataUsagePhase extends BasePhase<CorePro
         return null;
     }
 
+    /*
+     * Returns the jar path of the caller class if it is on the path given to the option, otherwise
+     * returns null.
+     */
     private String getJarPath(AnalysisType callerClass) {
         try {
             CodeSource jarPathSource = callerClass.getJavaClass().getProtectionDomain().getCodeSource();
