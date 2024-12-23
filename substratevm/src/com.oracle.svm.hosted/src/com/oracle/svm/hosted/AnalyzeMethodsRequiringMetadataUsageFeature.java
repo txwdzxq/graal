@@ -90,7 +90,7 @@ public final class AnalyzeMethodsRequiringMetadataUsageFeature implements Intern
     }
 
     public void dumpReportForJar(String jarPath) {
-        String fileName = extractLibraryName(jarPath) + "-method-calls.json";
+        String fileName = extractLibraryName(jarPath) + "_method_calls.json";
         Map<String, Map<String, List<String>>> calls = callsByJar.get(jarPath);
         Path targetPath = NativeImageGenerator.generatedFiles(HostedOptionValues.singleton()).resolve(fileName);
         try (var writer = new JsonWriter(targetPath);
