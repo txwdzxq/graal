@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package jdk.graal.compiler.hotspot.libgraal;
+package jdk.graal.compiler.libgraal;
 
 import java.lang.reflect.Field;
 import java.nio.file.Files;
@@ -49,6 +49,8 @@ import jdk.graal.compiler.options.OptionValues;
 import jdk.graal.compiler.truffle.hotspot.HotSpotTruffleCompilerImpl;
 import jdk.graal.compiler.util.ObjectCopier;
 import jdk.vm.ci.hotspot.HotSpotJVMCIRuntime;
+import org.graalvm.nativeimage.Platform;
+import org.graalvm.nativeimage.Platforms;
 
 /**
  * A command line program that initializes the compiler data structures to be serialized into the
@@ -61,6 +63,7 @@ import jdk.vm.ci.hotspot.HotSpotJVMCIRuntime;
  * {@link jdk.graal.compiler.hotspot.HotSpotForeignCallLinkage.Stubs#initStubs}</li>
  * </ul>
  */
+@Platforms(Platform.HOSTED_ONLY.class)
 public class CompilerConfig {
 
     /**
@@ -74,7 +77,7 @@ public class CompilerConfig {
         HotSpotReplacementsImpl replacements = (HotSpotReplacementsImpl) hostProviders.getReplacements();
         OptionValues options = graalRuntime.getCapability(OptionValues.class);
 
-        List<ForeignCallSignature> foreignCallSignatures = getForeignCallSignatures(replacements, options, graalRuntime);
+        List<ForeignCallSignature> foreignCallSignatures = getForeignCallSignatures(replacements, options);
         EncodedSnippets encodedSnippets = getEncodedSnippets(replacements, options);
         List<Field> externalValueFields = ObjectCopier.getExternalValueFields();
 
@@ -103,7 +106,7 @@ public class CompilerConfig {
         return snippetEncoder.encodeSnippets(options);
     }
 
-    private static List<ForeignCallSignature> getForeignCallSignatures(HotSpotReplacementsImpl replacements, OptionValues options, HotSpotGraalRuntimeProvider graalRuntime) {
+    private static List<ForeignCallSignature> getForeignCallSignatures(HotSpotReplacementsImpl replacements, OptionValues options) {
         List<ForeignCallSignature> sigs = new ArrayList<>();
         EconomicMap<ForeignCallSignature, HotSpotForeignCallLinkage> foreignCalls = collectForeignCalls(replacements, options);
         MapCursor<ForeignCallSignature, HotSpotForeignCallLinkage> cursor = foreignCalls.getEntries();

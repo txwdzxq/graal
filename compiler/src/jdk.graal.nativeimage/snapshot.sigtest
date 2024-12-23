@@ -5,6 +5,7 @@ CLSS public abstract interface jdk.graal.nativeimage.LibGraalFeatureComponent
 meth public abstract void duringAnalysis(org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess)
 
 CLSS public abstract interface jdk.graal.nativeimage.LibGraalLoader
+meth public abstract java.nio.file.Path getJavaHome()
 meth public abstract java.util.Set getServicesModules()
 meth public abstract java.lang.ClassLoader getRuntimeClassLoader()
 meth public abstract java.util.Map getModuleMap()
@@ -17,6 +18,8 @@ meth public static void notifyLowMemoryPoint(boolean)
 meth public static void processReferences()
 meth public static void fatalError(java.lang.String)
 supr java.lang.Object
+
+CLSS public jdk.graal.nativeimage.FoldNodePlugin
 
 CLSS public final jdk.graal.nativeimage.hosted.GlobalData
 meth public static java.util.function.Supplier<java.lang.Long> createGlobal(long)
