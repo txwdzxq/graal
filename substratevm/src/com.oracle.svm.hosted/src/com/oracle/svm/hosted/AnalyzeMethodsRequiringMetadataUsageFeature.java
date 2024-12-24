@@ -32,23 +32,20 @@ import com.oracle.svm.core.option.HostedOptionKey;
 import com.oracle.svm.core.option.HostedOptionValues;
 import com.oracle.svm.hosted.phases.AnalyzeMethodsRequiringMetadataUsagePhase;
 import jdk.graal.compiler.options.Option;
-import jdk.graal.compiler.util.json.JsonBuilder;
-import jdk.graal.compiler.util.json.JsonWriter;
+import jdk.graal.compiler.util.json.JsonPrettyWriter;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import org.graalvm.nativeimage.ImageSingletons;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
  * This is a support class that keeps track of calls requiring metadata usage detected during
@@ -61,7 +58,7 @@ public final class AnalyzeMethodsRequiringMetadataUsageFeature implements Intern
     private final Set<FoldEntry> foldEntries = ConcurrentHashMap.newKeySet();
 
     public AnalyzeMethodsRequiringMetadataUsageFeature() {
-        this.callsByJar = new ConcurrentHashMap<>();
+        this.callsByJar = new ConcurrentSkipListMap<>();
         this.jarPaths = Set.copyOf(Options.TrackMethodsRequiringMetadata.getValue().values());
     }
 
@@ -70,7 +67,7 @@ public final class AnalyzeMethodsRequiringMetadataUsageFeature implements Intern
     }
 
     public void addCall(String jarPath, String methodType, String call, String callLocation) {
-        this.callsByJar.computeIfAbsent(jarPath, k -> new HashMap<>());
+        this.callsByJar.computeIfAbsent(jarPath, k -> new TreeMap<>());
         this.callsByJar.get(jarPath).computeIfAbsent(methodType, k -> new TreeMap<>());
         this.callsByJar.get(jarPath).get(methodType).computeIfAbsent(call, k -> new ArrayList<>());
         this.callsByJar.get(jarPath).get(methodType).get(call).add(callLocation);
@@ -93,20 +90,8 @@ public final class AnalyzeMethodsRequiringMetadataUsageFeature implements Intern
         String fileName = extractLibraryName(jarPath) + "_method_calls.json";
         Map<String, Map<String, List<String>>> calls = callsByJar.get(jarPath);
         Path targetPath = NativeImageGenerator.generatedFiles(HostedOptionValues.singleton()).resolve(fileName);
-        try (var writer = new JsonWriter(targetPath);
-                        var builder = writer.objectBuilder()) {
-            for (Map.Entry<String, Map<String, List<String>>> callEntry : calls.entrySet()) {
-                try (JsonBuilder.ObjectBuilder methodsByTypeBuilder = builder.append(callEntry.getKey()).object()) {
-                    Map<String, List<String>> methodsByType = callEntry.getValue();
-                    for (Map.Entry<String, List<String>> methodByTypeEntry : methodsByType.entrySet()) {
-                        try (JsonBuilder.ArrayBuilder callsByMethodName = methodsByTypeBuilder.append(methodByTypeEntry.getKey()).array()) {
-                            for (String call : methodByTypeEntry.getValue()) {
-                                callsByMethodName.append(call);
-                            }
-                        }
-                    }
-                }
-            }
+        try (var writer = new JsonPrettyWriter(targetPath)) {
+            writer.print(calls);
             BuildArtifacts.singleton().add(BuildArtifacts.ArtifactType.BUILD_INFO, targetPath);
         } catch (IOException e) {
             System.out.println("Failed to print JSON to " + targetPath + ":");
@@ -116,8 +101,10 @@ public final class AnalyzeMethodsRequiringMetadataUsageFeature implements Intern
 
     public void reportMethodUsage() {
         for (String jarPath : jarPaths) {
-            printReportForJar(jarPath);
-            dumpReportForJar(jarPath);
+            if (callsByJar.containsKey(jarPath)) {
+                printReportForJar(jarPath);
+                dumpReportForJar(jarPath);
+            }
         }
     }
 
