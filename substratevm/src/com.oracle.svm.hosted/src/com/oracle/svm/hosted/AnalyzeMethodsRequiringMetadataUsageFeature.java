@@ -62,7 +62,7 @@ public final class AnalyzeMethodsRequiringMetadataUsageFeature implements Intern
 
     public AnalyzeMethodsRequiringMetadataUsageFeature() {
         this.callsByJar = new ConcurrentHashMap<>();
-        this.jarPaths = Collections.unmodifiableSet(new HashSet<>(AnalyzeMethodsRequiringMetadataUsageFeature.Options.TrackMethodsRequiringMetadata.getValue().values()));
+        this.jarPaths = Set.copyOf(Options.TrackMethodsRequiringMetadata.getValue().values());
     }
 
     public static AnalyzeMethodsRequiringMetadataUsageFeature instance() {
