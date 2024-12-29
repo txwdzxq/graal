@@ -63,6 +63,8 @@ import jdk.vm.ci.code.TargetDescription;
 import jdk.vm.ci.meta.MetaAccessProvider;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
+import org.graalvm.nativeimage.Platform;
+import org.graalvm.nativeimage.Platforms;
 
 /**
  * Filters certain method substitutions based on whether there is underlying hardware support for
@@ -71,11 +73,17 @@ import jdk.vm.ci.meta.ResolvedJavaType;
 public class HotSpotReplacementsImpl extends ReplacementsImpl {
     public HotSpotReplacementsImpl(HotSpotProviders providers, BytecodeProvider bytecodeProvider, TargetDescription target) {
         super(new GraalDebugHandlersFactory(providers.getSnippetReflection()), providers, bytecodeProvider, target);
+        if (inImageBuildtimeCode()) {
+            registeredSnippets = EconomicSet.create();
+        }
     }
 
     HotSpotReplacementsImpl(HotSpotReplacementsImpl replacements, HotSpotProviders providers) {
         super(new GraalDebugHandlersFactory(replacements.getProviders().getSnippetReflection()), providers,
                         replacements.getDefaultReplacementBytecodeProvider(), replacements.target);
+        if (inImageBuildtimeCode()) {
+            registeredSnippets = EconomicSet.create();
+        }
     }
 
     @Override
@@ -83,15 +91,11 @@ public class HotSpotReplacementsImpl extends ReplacementsImpl {
         return (HotSpotProviders) super.getProviders();
     }
 
+    @Platforms(Platform.HOSTED_ONLY.class)
     public SymbolicSnippetEncoder maybeInitializeEncoder() {
-        if (inImageRuntimeCode()) {
-            return null;
-        }
-        if (inImageBuildtimeCode()) {
-            synchronized (HotSpotReplacementsImpl.class) {
-                if (snippetEncoder == null) {
-                    snippetEncoder = new SymbolicSnippetEncoder(this);
-                }
+        synchronized (HotSpotReplacementsImpl.class) {
+            if (snippetEncoder == null) {
+                snippetEncoder = new SymbolicSnippetEncoder(this);
             }
         }
         return snippetEncoder;
@@ -184,18 +188,18 @@ public class HotSpotReplacementsImpl extends ReplacementsImpl {
     // When assertions are enabled, these fields are used to ensure all snippets are
     // registered during Graal initialization which in turn ensures that native image
     // building will not miss any snippets.
-    private EconomicSet<ResolvedJavaMethod> registeredSnippets = EconomicSet.create();
+    @Platforms(Platform.HOSTED_ONLY.class)//
+    private EconomicSet<ResolvedJavaMethod> registeredSnippets;
+    @Platforms(Platform.HOSTED_ONLY.class)//
     private boolean snippetRegistrationClosed;
 
     @Override
     public void registerSnippet(ResolvedJavaMethod method, ResolvedJavaMethod original, Object receiver, boolean trackNodeSourcePosition, OptionValues options) {
         assert method.isStatic() || receiver != null : "must have a constant type for the receiver";
-        if (!inImageRuntimeCode()) {
+        if (inImageBuildtimeCode()) {
             assert !snippetRegistrationClosed || System.getProperty("GraalUnitTest") != null : "Cannot register snippet after registration is closed: " + method.format("%H.%n(%p)");
             if (registeredSnippets.add(method)) {
-                if (inImageBuildtimeCode()) {
-                    snippetEncoder.registerSnippet(method, original, receiver, trackNodeSourcePosition);
-                }
+                snippetEncoder.registerSnippet(method, original, receiver, trackNodeSourcePosition);
             }
         }
     }
@@ -218,7 +222,9 @@ public class HotSpotReplacementsImpl extends ReplacementsImpl {
 
     @Override
     public void closeSnippetRegistration() {
-        snippetRegistrationClosed = true;
+        if (inImageBuildtimeCode()) {
+            snippetRegistrationClosed = true;
+        }
     }
 
     public static EncodedSnippets getEncodedSnippets() {
@@ -228,29 +234,19 @@ public class HotSpotReplacementsImpl extends ReplacementsImpl {
         return encodedSnippets;
     }
 
+    @Platforms(Platform.HOSTED_ONLY.class)//
     public static boolean snippetsAreEncoded() {
         return encodedSnippets != null;
     }
 
-    public void clearSnippetParameterNames() {
-        assert snippetEncoder != null;
-        snippetEncoder.clearSnippetParameterNames();
-    }
-
+    @Platforms(Platform.HOSTED_ONLY.class)//
     public static void setEncodedSnippets(EncodedSnippets encodedSnippets) {
         HotSpotReplacementsImpl.encodedSnippets = encodedSnippets;
     }
 
-    public boolean encode(OptionValues options) {
-        SymbolicSnippetEncoder encoder = snippetEncoder;
-        if (encoder != null) {
-            return encoder.encode(options);
-        }
-        return false;
-    }
-
     private static volatile EncodedSnippets encodedSnippets;
 
+    @Platforms(Platform.HOSTED_ONLY.class)//
     private static SymbolicSnippetEncoder snippetEncoder;
 
     @SuppressWarnings("try")
@@ -269,7 +265,7 @@ public class HotSpotReplacementsImpl extends ReplacementsImpl {
             }
         }
 
-        assert registeredSnippets == null || registeredSnippets.contains(method) : "Asking for snippet method that was never registered: " + method.format("%H.%n(%p)");
+        assert !inImageBuildtimeCode() || registeredSnippets == null || registeredSnippets.contains(method) : "Asking for snippet method that was never registered: " + method.format("%H.%n(%p)");
         return super.getSnippet(method, original, args, nonNullParameters, trackNodeSourcePosition, replaceePosition, options);
     }
 
@@ -282,6 +278,7 @@ public class HotSpotReplacementsImpl extends ReplacementsImpl {
         return super.getInjectedArgument(capability);
     }
 
+    @Platforms(Platform.HOSTED_ONLY.class)
     public ResolvedJavaMethod findSnippetMethod(ResolvedJavaMethod thisMethod) {
         if (snippetEncoder == null) {
             throw new GraalError("findSnippetMethod called before initialization of Replacements");

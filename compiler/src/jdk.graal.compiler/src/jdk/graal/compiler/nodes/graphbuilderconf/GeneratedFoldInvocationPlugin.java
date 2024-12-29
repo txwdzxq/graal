@@ -24,10 +24,14 @@
  */
 package jdk.graal.compiler.nodes.graphbuilderconf;
 
+import jdk.graal.compiler.api.replacements.Fold;
 import jdk.graal.nativeimage.FoldNodePlugin;
 
 import java.lang.reflect.Type;
 
+/**
+ * Abstract class for a plugin generated for a method annotated by {@link Fold}.
+ */
 public abstract class GeneratedFoldInvocationPlugin extends GeneratedInvocationPlugin implements FoldNodePlugin {
 
     public GeneratedFoldInvocationPlugin(String name, Type... argumentTypes) {

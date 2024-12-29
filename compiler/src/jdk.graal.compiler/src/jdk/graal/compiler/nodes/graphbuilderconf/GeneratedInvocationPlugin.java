@@ -32,6 +32,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 
 import jdk.graal.compiler.api.replacements.Fold;
+import jdk.graal.compiler.api.replacements.Fold.InjectedParameter;
 import jdk.graal.compiler.debug.GraalError;
 import jdk.graal.compiler.graph.Node.NodeIntrinsic;
 import jdk.graal.compiler.nodes.ValueNode;
@@ -72,6 +73,12 @@ public abstract class GeneratedInvocationPlugin extends RequiredInlineOnlyInvoca
         throw new GraalError("could not find method named \"execute\" in " + c.getName());
     }
 
+    /**
+     * Determines if the {@linkplain InjectedParameter} value in {@code arg} allows folding of a
+     * call to {@code foldAnnotatedMethod} in the compilation context represented by {@code b}.
+     * 
+     * @return true if the folding being attempted by the caller can proceed
+     */
     protected boolean checkInjectedArgument(GraphBuilderContext b, ValueNode arg, ResolvedJavaMethod foldAnnotatedMethod) {
         if (arg.isNullConstant()) {
             return true;
@@ -87,8 +94,8 @@ public abstract class GeneratedInvocationPlugin extends RequiredInlineOnlyInvoca
         }
 
         if (inImageBuildtimeCode()) {
-            // The use of this plugin in the plugin itself shouldn't be folded since that defeats
-            // the purpose of the fold.
+            // The use of this plugin in the plugin itself shouldn't be folded since that
+            // defeats the purpose of the fold.
             ResolvedJavaType foldNodeClass = b.getMetaAccess().lookupJavaType(FoldNodePlugin.class);
             if (foldNodeClass.isAssignableFrom(b.getMethod().getDeclaringClass())) {
                 return false;

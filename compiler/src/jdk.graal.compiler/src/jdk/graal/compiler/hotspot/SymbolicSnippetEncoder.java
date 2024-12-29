@@ -136,6 +136,8 @@ import jdk.vm.ci.meta.ResolvedJavaType;
 import jdk.vm.ci.meta.Signature;
 import jdk.vm.ci.meta.SpeculationLog;
 import jdk.vm.ci.meta.UnresolvedJavaType;
+import org.graalvm.nativeimage.Platform;
+import org.graalvm.nativeimage.Platforms;
 
 /**
  * This class performs graph encoding using {@link GraphEncoder} but also converts JVMCI type and
@@ -144,6 +146,7 @@ import jdk.vm.ci.meta.UnresolvedJavaType;
  * <p>
  * An instance of this class only exist when building libgraal.
  */
+@Platforms(Platform.HOSTED_ONLY.class)
 public class SymbolicSnippetEncoder {
 
     /**
@@ -215,12 +218,6 @@ public class SymbolicSnippetEncoder {
 
     void addDelayedInvocationPluginMethod(ResolvedJavaMethod method) {
         delayedInvocationPluginMethods.add(method);
-    }
-
-    public void clearSnippetParameterNames() {
-        for (SnippetParameterInfo info : snippetParameterInfos.getValues()) {
-            info.clearNames();
-        }
     }
 
     protected class SnippetInlineInvokePlugin implements InlineInvokePlugin {
@@ -540,7 +537,7 @@ public class SymbolicSnippetEncoder {
             graphDatas.put(keyString, data);
         }
 
-        // Ensure a few types are available
+        // Ensure a few well known types are available
         lookupSnippetType(GraalHotSpotVMConfig.class);
         lookupSnippetType(NamedLocationIdentity.class);
         lookupSnippetType(SnippetTemplate.EagerSnippetInfo.class);

@@ -67,7 +67,6 @@ import org.graalvm.nativeimage.hosted.RuntimeClassInitialization;
 import org.graalvm.nativeimage.hosted.RuntimeReflection;
 
 import jdk.graal.compiler.core.common.Fields;
-import jdk.graal.compiler.debug.DebugContext;
 import jdk.graal.compiler.debug.GraalError;
 import jdk.graal.compiler.graph.Edges;
 import jdk.graal.compiler.options.OptionDescriptor;
@@ -309,8 +308,6 @@ public final class LibGraalFeature implements Feature {
         RuntimeClassInitialization.initializeAtRunTime(HotSpotModifiers.class);
         RuntimeClassInitialization.initializeAtRunTime(LibGraalUtil.lookupClass("jdk.vm.ci.hotspot.HotSpotCompiledCodeStream"));
         RuntimeClassInitialization.initializeAtRunTime(LibGraalUtil.lookupClass("jdk.vm.ci.hotspot.HotSpotCompiledCodeStream$Tag"));
-        /* ThreadLocal in static field jdk.graal.compiler.debug.DebugContext.activated */
-        RuntimeClassInitialization.initializeAtRunTime(DebugContext.class);
 
         /* Needed for runtime calls to BoxingSnippets.Templates.getCacheClass(JavaKind) */
         RuntimeReflection.registerAllDeclaredClasses(Character.class);
@@ -356,7 +353,7 @@ public final class LibGraalFeature implements Feature {
      * JDK-8346781.
      */
     private void doLegacyJVMCIInitialization() {
-        if (has8346781()) {
+        if (!BeforeJDK8346781.VALUE) {
             return;
         }
         try {
@@ -395,7 +392,7 @@ public final class LibGraalFeature implements Feature {
      * Determines if the JDK runtime includes JDK-8346781. Without it, initialization of some JVMCI
      * static cache fields must be done explicitly by {@link LibGraalFeature}.
      */
-    private static boolean has8346781() {
+    static boolean has8346781() {
         try {
             Services.class.getField("IS_BUILDING_NATIVE_IMAGE");
             return false;

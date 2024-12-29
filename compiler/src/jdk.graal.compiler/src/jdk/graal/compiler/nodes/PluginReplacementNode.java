@@ -33,10 +33,14 @@ import jdk.graal.compiler.nodeinfo.NodeCycles;
 import jdk.graal.compiler.nodeinfo.NodeInfo;
 import jdk.graal.compiler.nodeinfo.NodeSize;
 import jdk.graal.compiler.nodeinfo.Verbosity;
+import jdk.graal.compiler.nodes.graphbuilderconf.GeneratedInvocationPlugin;
 import jdk.graal.compiler.nodes.graphbuilderconf.GraphBuilderContext;
 import jdk.graal.compiler.nodes.spi.Replacements;
 import jdk.graal.nativeimage.FoldNodePlugin;
 
+/**
+ * Used to defer the execution of a {@link GeneratedInvocationPlugin} until libgraal runtime.
+ */
 @NodeInfo(nameTemplate = "PluginReplacement/{p#pluginName}", cycles = NodeCycles.CYCLES_IGNORED, size = NodeSize.SIZE_IGNORED)
 public final class PluginReplacementNode extends FixedWithNextNode implements PluginReplacementInterface {
     public static final NodeClass<PluginReplacementNode> TYPE = NodeClass.create(PluginReplacementNode.class);
@@ -57,6 +61,9 @@ public final class PluginReplacementNode extends FixedWithNextNode implements Pl
         return function.replace(b, injection, stamp, args);
     }
 
+    /**
+     * Functional interface for generated code that executes the plugin at libgraal runtime.
+     */
     public interface ReplacementFunction extends FoldNodePlugin {
         boolean replace(GraphBuilderContext b, Replacements injection, Stamp stamp, NodeInputList<ValueNode> args);
     }
