@@ -735,11 +735,15 @@ def _sl_jvm_comiler_on_upgrade_module_path_gate_tests(jdk):
         # Ignore tests for Truffle LTS gate using GraalVM as a base JDK
         mx.log(f'Ignoring SL JVM Optimized with Compiler on Upgrade Module Path on {jdk.home} because JDK is GraalVM')
         return
-    compiler = mx.distribution('compiler:GRAAL')
+    compiler_cp = os.pathsep.join((mx.distribution(name).classpath_repr() for name in (
+        'compiler:GRAAL',
+        'compiler:GRAAL_NATIVEIMAGE',
+        'sdk:NATIVEBRIDGE'
+    )))
     vm_args = [
         '-XX:+UnlockExperimentalVMOptions',
         '-XX:+EnableJVMCI',
-        f'--upgrade-module-path={compiler.classpath_repr()}',
+        f'--upgrade-module-path={compiler_cp}',
     ]
 
     def run_jvm_optimized(test_file):
