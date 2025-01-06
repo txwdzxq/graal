@@ -86,8 +86,8 @@ public interface FieldValueTransformer {
 
     /**
      * Returns true when the value for this custom computation is available.
-     * 
-     * @since 24.2
+     *
+     * @since 25
      */
     default boolean isAvailable() {
         return true;

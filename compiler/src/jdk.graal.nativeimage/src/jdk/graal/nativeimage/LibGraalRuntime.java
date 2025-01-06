@@ -35,7 +35,7 @@ import org.graalvm.nativeimage.hosted.RuntimeSystemProperties;
 /**
  * LibGraal specific extensions to {@link org.graalvm.nativeimage}.
  *
- * @since 24.2
+ * @since 25
  */
 public final class LibGraalRuntime {
 
@@ -43,6 +43,12 @@ public final class LibGraalRuntime {
      * Prefix to be used when {@linkplain RuntimeSystemProperties#register registering} properties
      * describing the image configuration for libgraal. This is analogous to the configuration info
      * displayed by {@code -XshowSettings}.
+     *
+     * For example:
+     * 
+     * <pre>
+     * RuntimeSystemProperties.register(NATIVE_IMAGE_SETTING_KEY_PREFIX + "gc", "serial");
+     * </pre>
      */
     public static String NATIVE_IMAGE_SETTING_KEY_PREFIX = "org.graalvm.nativeimage.setting.";
 
@@ -51,8 +57,6 @@ public final class LibGraalRuntime {
      * executes pending cleaners.
      *
      * If automatic reference handling is enabled, this method is a no-op.
-     *
-     * @since 24.2
      */
     public static void processReferences() {
         ImageSingletons.lookup(LibGraalRuntimeSupport.class).processReferences();
@@ -65,8 +69,6 @@ public final class LibGraalRuntime {
      * @param suggestFullGC if a GC is performed, then suggests a full GC is done. This is true when
      *            the caller believes the heap occupancy is close to the minimal set of live objects
      *            for Graal (e.g. after a compilation).
-     *
-     * @since 24.2
      */
     public static void notifyLowMemoryPoint(boolean suggestFullGC) {
         ImageSingletons.lookup(LibGraalRuntimeSupport.class).notifyLowMemoryPoint(suggestFullGC);
@@ -77,7 +79,6 @@ public final class LibGraalRuntime {
      * {@code 2^64 - 1} isolates in the process.
      *
      * @return a non-zero value
-     * @since 24.2
      */
     public static long getIsolateID() {
         return ImageSingletons.lookup(LibGraalRuntimeSupport.class).getIsolateID();

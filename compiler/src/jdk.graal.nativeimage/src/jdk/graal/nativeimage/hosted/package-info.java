@@ -30,6 +30,6 @@
 /**
  * Extensions to the GraalVM SDK Native Image API to customize building libgraal.
  *
- * @since 24.2
+ * @since 25
  */
 package jdk.graal.nativeimage.hosted;
