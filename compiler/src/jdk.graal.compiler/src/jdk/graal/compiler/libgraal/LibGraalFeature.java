@@ -76,12 +76,26 @@ import jdk.graal.compiler.core.common.FeatureComponent;
 import jdk.graal.nativeimage.LibGraalLoader;
 import jdk.graal.nativeimage.hosted.GlobalData;
 import jdk.vm.ci.hotspot.HotSpotModifiers;
+import org.graalvm.nativeimage.hosted.RuntimeSystemProperties;
 
 /**
  * This feature builds the libgraal shared library (e.g., libjvmcicompiler.so on linux).
  */
 @Platforms(Platform.HOSTED_ONLY.class)
 public final class LibGraalFeature implements Feature {
+
+    /**
+     * Prefix to be used when {@linkplain RuntimeSystemProperties#register registering} properties
+     * describing the image configuration for libgraal. This is analogous to the configuration info
+     * displayed by {@code -XshowSettings}.
+     *
+     * For example:
+     *
+     * <pre>
+     * RuntimeSystemProperties.register(NATIVE_IMAGE_SETTING_KEY_PREFIX + "gc", "serial");
+     * </pre>
+     */
+    public static final String NATIVE_IMAGE_SETTING_KEY_PREFIX = "org.graalvm.nativeimage.setting.";
 
     private static LibGraalFeature singleton;
 
@@ -98,6 +112,7 @@ public final class LibGraalFeature implements Feature {
      *         null
      */
     public static LibGraalFeature singleton() {
+        // Cannot use ImageSingletons here as it is not initialized early enough.
         return singleton;
     }
 

@@ -30,7 +30,6 @@ import java.lang.ref.ReferenceQueue;
 import org.graalvm.nativeimage.ImageSingletons;
 
 import jdk.graal.nativeimage.impl.LibGraalRuntimeSupport;
-import org.graalvm.nativeimage.hosted.RuntimeSystemProperties;
 
 /**
  * LibGraal specific extensions to {@link org.graalvm.nativeimage}.
@@ -38,19 +37,6 @@ import org.graalvm.nativeimage.hosted.RuntimeSystemProperties;
  * @since 25
  */
 public final class LibGraalRuntime {
-
-    /**
-     * Prefix to be used when {@linkplain RuntimeSystemProperties#register registering} properties
-     * describing the image configuration for libgraal. This is analogous to the configuration info
-     * displayed by {@code -XshowSettings}.
-     *
-     * For example:
-     * 
-     * <pre>
-     * RuntimeSystemProperties.register(NATIVE_IMAGE_SETTING_KEY_PREFIX + "gc", "serial");
-     * </pre>
-     */
-    public static String NATIVE_IMAGE_SETTING_KEY_PREFIX = "org.graalvm.nativeimage.setting.";
 
     /**
      * Enqueues pending {@link Reference}s into their corresponding {@link ReferenceQueue}s and
