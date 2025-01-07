@@ -1,9 +1,6 @@
 #Signature file v4.1
 #Version 
 
-CLSS public abstract interface jdk.graal.nativeimage.LibGraalFeatureComponent
-meth public abstract void duringAnalysis(org.graalvm.nativeimage.hosted.Feature$DuringAnalysisAccess)
-
 CLSS public abstract interface jdk.graal.nativeimage.LibGraalLoader
 meth public abstract java.nio.file.Path getJavaHome()
 meth public abstract java.util.Set getServicesModules()

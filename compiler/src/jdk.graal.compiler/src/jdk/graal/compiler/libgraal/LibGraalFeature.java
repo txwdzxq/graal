@@ -72,7 +72,7 @@ import jdk.graal.compiler.graph.Edges;
 import jdk.graal.compiler.options.OptionDescriptor;
 import jdk.graal.compiler.options.OptionKey;
 import jdk.graal.compiler.serviceprovider.GlobalAtomicLong;
-import jdk.graal.nativeimage.LibGraalFeatureComponent;
+import jdk.graal.compiler.core.common.FeatureComponent;
 import jdk.graal.nativeimage.LibGraalLoader;
 import jdk.graal.nativeimage.hosted.GlobalData;
 import jdk.vm.ci.hotspot.HotSpotModifiers;
@@ -82,6 +82,24 @@ import jdk.vm.ci.hotspot.HotSpotModifiers;
  */
 @Platforms(Platform.HOSTED_ONLY.class)
 public final class LibGraalFeature implements Feature {
+
+    private static LibGraalFeature singleton;
+
+    public LibGraalFeature() {
+        synchronized (LibGraalFeature.class) {
+            GraalError.guarantee(singleton == null, "only a single " + LibGraalFeature.class.getName() + " instance should be created");
+            singleton = this;
+        }
+    }
+
+    /**
+     * @return the singleton {@link LibGraalFeature} instance if called within the context of the
+     *         class loader used to load the code being compiled into the libgraal image, otherwise
+     *         null
+     */
+    public static LibGraalFeature singleton() {
+        return singleton;
+    }
 
     public static final class IsEnabled implements BooleanSupplier {
         @Override
@@ -101,9 +119,13 @@ public final class LibGraalFeature implements Feature {
     final LibGraalLoader libgraalLoader = (LibGraalLoader) getClass().getClassLoader();
 
     /**
-     * Set of {@link LibGraalFeatureComponent}s created during analysis.
+     * Set of {@link FeatureComponent}s created during analysis.
      */
-    private final Set<LibGraalFeatureComponent> libGraalFeatureComponents = ConcurrentHashMap.newKeySet();
+    private final Set<FeatureComponent> libGraalFeatureComponents = ConcurrentHashMap.newKeySet();
+
+    public void addFeatureComponent(FeatureComponent fc) {
+        libGraalFeatureComponents.add(fc);
+    }
 
     @Override
     public void afterRegistration(AfterRegistrationAccess access) {
@@ -331,8 +353,6 @@ public final class LibGraalFeature implements Feature {
             }
         }
 
-        Fields.setLibGraalFeatureComponents(libGraalFeatureComponents);
-
         EconomicMap<String, Object> libgraalObjects = (EconomicMap<String, Object>) ObjectCopier.decode(configResult.encodedConfig(), libgraalLoader.getClassLoader());
         EncodedSnippets encodedSnippets = (EncodedSnippets) libgraalObjects.get("encodedSnippets");
 
@@ -404,7 +424,7 @@ public final class LibGraalFeature implements Feature {
     @Override
     public void duringAnalysis(DuringAnalysisAccess access) {
         for (var c : libGraalFeatureComponents) {
-            c.duringAnalysis(access);
+            c.duringAnalysis(this, access);
         }
     }
 

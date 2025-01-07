@@ -47,8 +47,9 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import jdk.graal.compiler.libgraal.LibGraalFeature;
 import jdk.graal.compiler.serviceprovider.GraalServices;
-import jdk.graal.nativeimage.LibGraalFeatureComponent;
+import jdk.graal.compiler.core.common.FeatureComponent;
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.Equivalence;
 
@@ -76,6 +77,7 @@ import jdk.graal.compiler.nodeinfo.NodeInfo;
 import jdk.graal.compiler.nodeinfo.NodeSize;
 import jdk.graal.compiler.nodeinfo.Verbosity;
 import jdk.internal.misc.Unsafe;
+import org.graalvm.nativeimage.ImageInfo;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.hosted.Feature;
@@ -88,7 +90,7 @@ import org.graalvm.nativeimage.hosted.Feature;
  * <li>The identifier for an {@link IterableNodeType} class.</li>
  * </ul>
  */
-public final class NodeClass<T> extends FieldIntrospection<T> implements LibGraalFeatureComponent {
+public final class NodeClass<T> extends FieldIntrospection<T> implements FeatureComponent {
 
     private static final Unsafe UNSAFE = Unsafe.getUnsafe();
     // Timers for creation of a NodeClass instance
@@ -284,7 +286,9 @@ public final class NodeClass<T> extends FieldIntrospection<T> implements LibGraa
         }
         assert verifyMemoryEdgeInvariant(fs) : "Nodes participating in the memory graph should have at most 1 optional memory input.";
 
-        Fields.addLibGraalFeatureComponents(this);
+        if (ImageInfo.inImageBuildtimeCode() && LibGraalFeature.singleton() != null) {
+            LibGraalFeature.singleton().addFeatureComponent(this);
+        }
 
         // All NodeClass instances must be constructed at libgraal build time
         GraalError.guarantee(!GraalServices.isInLibgraal(), getClazz().getName());
@@ -402,10 +406,12 @@ public final class NodeClass<T> extends FieldIntrospection<T> implements LibGraa
     }
 
     @Override
-    public void duringAnalysis(Feature.DuringAnalysisAccess access) {
-        if (!Modifier.isAbstract(getClazz().getModifiers())) {
-            /* Support for NodeClass.allocateInstance. */
-            access.registerAsUnsafeAllocated(getClazz());
+    public void duringAnalysis(Feature feature, Feature.DuringAnalysisAccess access) {
+        if (feature == LibGraalFeature.singleton()) {
+            if (!Modifier.isAbstract(getClazz().getModifiers())) {
+                /* Support for NodeClass.allocateInstance. */
+                access.registerAsUnsafeAllocated(getClazz());
+            }
         }
     }
 

@@ -22,14 +22,19 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package jdk.graal.nativeimage;
+package jdk.graal.compiler.core.common;
 
 import org.graalvm.nativeimage.hosted.Feature;
 
 /**
- * A subset of {@link Feature} interception points specific to building LibGraal.
+ * Implemented by classes that have logic specific to a {@link Feature}s.
  */
-public interface LibGraalFeatureComponent {
+public interface FeatureComponent {
 
-    void duringAnalysis(Feature.DuringAnalysisAccess access);
+    /**
+     * Called during analysis of {@code feature}.
+     * 
+     * @see Feature#duringAnalysis(Feature.DuringAnalysisAccess)
+     */
+    void duringAnalysis(Feature feature, Feature.DuringAnalysisAccess access);
 }

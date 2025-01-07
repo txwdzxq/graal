@@ -27,21 +27,20 @@ package jdk.graal.compiler.core.common;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import jdk.graal.compiler.debug.GraalError;
-import jdk.graal.compiler.options.ExcludeFromJacocoGeneratedReport;
-import jdk.graal.nativeimage.LibGraalFeatureComponent;
+import jdk.graal.compiler.libgraal.LibGraalFeature;
 import jdk.internal.misc.Unsafe;
+import org.graalvm.nativeimage.ImageInfo;
 import org.graalvm.nativeimage.hosted.Feature;
 
 /**
  * Describes fields in a class, primarily for access via {@link Unsafe}.
  */
-public class Fields implements LibGraalFeatureComponent {
+public class Fields implements FeatureComponent {
 
     private static final Unsafe UNSAFE = Unsafe.getUnsafe();
     private static final Fields EMPTY_FIELDS = new Fields(Collections.emptyList());
@@ -63,24 +62,6 @@ public class Fields implements LibGraalFeatureComponent {
 
     private final Class<?>[] declaringClasses;
 
-    @ExcludeFromJacocoGeneratedReport("only called when building libgraal")
-    public static void setLibGraalFeatureComponents(Collection<LibGraalFeatureComponent> components) {
-        GraalError.guarantee(libGraalFeatureComponents == null, "already initialized");
-        Fields.libGraalFeatureComponents = components;
-    }
-
-    /**
-     * Registers {@code c} if in a context where a registry
-     * {@linkplain #setLibGraalFeatureComponents exists}.
-     */
-    public static void addLibGraalFeatureComponents(LibGraalFeatureComponent c) {
-        if (libGraalFeatureComponents != null) {
-            libGraalFeatureComponents.add(c);
-        }
-    }
-
-    private static Collection<LibGraalFeatureComponent> libGraalFeatureComponents;
-
     @SuppressWarnings("this-escape")
     protected Fields(List<? extends FieldsScanner.FieldInfo> fields) {
         Collections.sort(fields);
@@ -96,8 +77,9 @@ public class Fields implements LibGraalFeatureComponent {
             declaringClasses[index] = f.declaringClass;
             index++;
         }
-        if (libGraalFeatureComponents != null) {
-            libGraalFeatureComponents.add(this);
+
+        if (ImageInfo.inImageBuildtimeCode() && LibGraalFeature.singleton() != null) {
+            LibGraalFeature.singleton().addFeatureComponent(this);
         }
     }
 
@@ -120,10 +102,12 @@ public class Fields implements LibGraalFeatureComponent {
     }
 
     @Override
-    public void duringAnalysis(Feature.DuringAnalysisAccess access) {
-        for (int i = 0; i < offsets.length; i++) {
-            Field field = getField(i);
-            access.registerAsUnsafeAccessed(field);
+    public void duringAnalysis(Feature feature, Feature.DuringAnalysisAccess access) {
+        if (feature == LibGraalFeature.singleton()) {
+            for (int i = 0; i < offsets.length; i++) {
+                Field field = getField(i);
+                access.registerAsUnsafeAccessed(field);
+            }
         }
     }
 
