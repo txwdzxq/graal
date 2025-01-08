@@ -106,6 +106,19 @@ public class EncodedGraph {
                         sourceGraph.trackNodeSourcePosition());
     }
 
+    public EncodedGraph(EncodedGraph original) {
+        this(original.encoding,
+                        original.startOffset,
+                        original.objects,
+                        original.types,
+                        original.assumptions,
+                        original.inlinedMethods,
+                        original.hasUnsafeAccess,
+                        original.trackNodeSourcePosition);
+        /* The nodeStartOffsets is not copied to avoid having inconsistent caching information */
+        this.nodeStartOffsets = null;
+    }
+
     public EncodedGraph(byte[] encoding, int startOffset, Object[] objects, NodeClass<?>[] types, Assumptions assumptions, List<ResolvedJavaMethod> inlinedMethods,
                     boolean hasUnsafeAccess, boolean trackNodeSourcePosition) {
         this.encoding = encoding;
