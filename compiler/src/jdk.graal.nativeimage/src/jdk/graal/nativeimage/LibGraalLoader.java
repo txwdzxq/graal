@@ -43,19 +43,17 @@ public interface LibGraalLoader {
     Path getJavaHome();
 
     /**
-     * @return ClassLoader that implements this interface.
-     */
-    ClassLoader getClassLoader();
-
-    /**
-     * @return loader that should be seen at image-runtime if a class was loaded at image-buildtime
-     *         by {@link #getClassLoader()}
+     * Gets the ClassLoader that should be seen at image runtime if a class was loaded at image
+     * build-time by this loader.
      */
     ClassLoader getRuntimeClassLoader();
 
     /**
-     * Gets an unmodifiable map from the {@linkplain Class#forName(String) name} of a class to the
-     * name of its enclosing module.
+     * Gets a map from the {@linkplain Class#forName(String) name} of a class to the name of its
+     * enclosing module. There is one entry in the map for each class available for loading by this
+     * loader.
+     *
+     * @return an unmodifiable map
      */
     Map<String, String> getModuleMap();
 
@@ -64,11 +62,4 @@ public interface LibGraalLoader {
      * {@code LibGraalService}.
      */
     Set<String> getServicesModules();
-
-    /**
-     * Get unmodifiable set of fully qualified names of all classes this loader can load.
-     */
-    default Set<String> getAllClassNames() {
-        return getModuleMap().keySet();
-    }
 }

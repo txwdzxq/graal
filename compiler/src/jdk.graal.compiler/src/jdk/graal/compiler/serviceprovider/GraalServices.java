@@ -120,7 +120,7 @@ public final class GraalServices {
             Map<String, String> modules = libgraalLoader.getModuleMap();
             String arch = getJVMCIArch();
             modules.entrySet().stream()//
-                            .filter(e -> libgraalServicesModules.contains(e.getValue()))
+                            .filter(e -> libgraalServicesModules.contains(e.getValue()))//
                             .map(Map.Entry::getKey)//
                             .map(GraalServices::loadClassOrNull)//
                             .filter(c -> c != null && c.getAnnotation(LibGraalService.class) != null)//
@@ -153,7 +153,7 @@ public final class GraalServices {
     /**
      * An escape hatch for calling {@link System#getProperties()} without falling afoul of
      * {@code VerifySystemPropertyUsage}.
-     * 
+     *
      * @param justification explains why {@link #getSavedProperties()} cannot be used
      */
     public static Properties getSystemProperties(String justification) {

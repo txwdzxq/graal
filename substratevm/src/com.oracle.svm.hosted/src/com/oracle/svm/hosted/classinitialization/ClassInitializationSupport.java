@@ -194,7 +194,7 @@ public class ClassInitializationSupport implements RuntimeClassInitializationSup
         Thread thread = Thread.currentThread();
         ClassLoader restoreCCL = null;
         ClassLoader clazzLoader = clazz.getClassLoader();
-        if (libGraalLoader != null && libGraalLoader.getClassLoader() == clazzLoader) {
+        if (libGraalLoader != null && (ClassLoader) libGraalLoader == clazzLoader) {
             // Graal and JVMCI make use of ServiceLoader which uses the
             // context class loader so it needs to be the libgraal loader.
             restoreCCL = thread.getContextClassLoader();

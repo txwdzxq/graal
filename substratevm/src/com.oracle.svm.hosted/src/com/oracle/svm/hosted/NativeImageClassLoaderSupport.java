@@ -274,9 +274,9 @@ public final class NativeImageClassLoaderSupport {
         LibGraalLoader loader = getLibGraalLoader();
         if (loader != null) {
             /* If we have a LibGraalLoader, register its classes to the image builder */
-            for (String fqn : loader.getAllClassNames()) {
+            for (String fqn : loader.getModuleMap().keySet()) {
                 try {
-                    var clazz = loader.getClassLoader().loadClass(fqn);
+                    var clazz = ((ClassLoader) loader).loadClass(fqn);
                     imageClassLoader.handleClass(clazz);
                 } catch (ClassNotFoundException e) {
                     throw GraalError.shouldNotReachHere(e, loader + " could not load class " + fqn);
@@ -580,7 +580,7 @@ public final class NativeImageClassLoaderSupport {
                     throw VMError.shouldNotReachHere("Class named by " + nameOption + " does not implement " + LibGraalLoader.class + '.');
                 }
                 libGraalLoader = Optional.of((LibGraalLoader) ReflectionUtil.newInstance(loaderClass));
-                classLoaders = List.of(libGraalLoader.get().getClassLoader(), getClassLoader());
+                classLoaders = List.of((ClassLoader) libGraalLoader.get(), getClassLoader());
             } catch (ClassNotFoundException e) {
                 throw VMError.shouldNotReachHere("Class named by " + nameOption + " could not be found.", e);
             }

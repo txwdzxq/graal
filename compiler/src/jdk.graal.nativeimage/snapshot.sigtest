@@ -6,8 +6,6 @@ meth public abstract java.nio.file.Path getJavaHome()
 meth public abstract java.util.Set getServicesModules()
 meth public abstract java.lang.ClassLoader getRuntimeClassLoader()
 meth public abstract java.util.Map getModuleMap()
-meth public abstract java.lang.ClassLoader getClassLoader()
-meth public java.util.Set getAllClassNames()
 
 CLSS public final jdk.graal.nativeimage.LibGraalRuntime
 meth public static long getIsolateID()

@@ -323,11 +323,6 @@ public final class HostedLibGraalClassLoader extends ClassLoader implements LibG
     }
 
     @Override
-    public ClassLoader getClassLoader() {
-        return this;
-    }
-
-    @Override
     public ClassLoader getRuntimeClassLoader() {
         return LibGraalClassLoader.singleton;
     }

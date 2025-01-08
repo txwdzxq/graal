@@ -24,6 +24,12 @@
  */
 package jdk.graal.compiler.libgraal.loader;
 
+import org.graalvm.nativeimage.hosted.Feature.DuringSetupAccess;
+
+/**
+ * The image runtime class loader that {@linkplain DuringSetupAccess#registerObjectReplacer
+ * replaces} the build-time instance of {@link HostedLibGraalClassLoader}.
+ */
 public final class LibGraalClassLoader extends ClassLoader {
 
     static final String LOADER_NAME = "LibGraalClassLoader";

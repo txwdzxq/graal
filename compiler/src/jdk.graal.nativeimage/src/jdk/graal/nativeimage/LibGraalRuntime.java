@@ -70,6 +70,14 @@ public final class LibGraalRuntime {
         return ImageSingletons.lookup(LibGraalRuntimeSupport.class).getIsolateID();
     }
 
+    /**
+     * Called to signal a fatal, non-recoverable error. This method does not return or throw an
+     * exception. A typical implementation will delegate to an OS function that kills the process.
+     * In the context of libgraal, it will call the HotSpot fatal crash routine that produces an
+     * hs-err crash log.
+     *
+     * @param message a description of the error condition
+     */
     public static void fatalError(String message) {
         ImageSingletons.lookup(LibGraalRuntimeSupport.class).fatalError(message);
     }

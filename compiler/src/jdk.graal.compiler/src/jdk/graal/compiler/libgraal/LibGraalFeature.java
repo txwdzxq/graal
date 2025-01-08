@@ -120,12 +120,7 @@ public final class LibGraalFeature implements Feature {
         @Override
         public boolean getAsBoolean() {
             Class<LibGraalFeature> clazz = LibGraalFeature.class;
-            if (ImageSingletons.contains(clazz)) {
-                GraalError.guarantee("LibGraalClassLoader".equals(IsEnabled.class.getClassLoader().getName()),
-                                "Only ever return true when LibGraalFeature got loaded by HostedLibGraalClassLoader");
-                return true;
-            }
-            return false;
+            return ImageSingletons.contains(clazz);
         }
     }
 
@@ -181,13 +176,9 @@ public final class LibGraalFeature implements Feature {
 
     @Override
     public void duringSetup(DuringSetupAccess access) {
-        ClassLoader runtimeLoader = libgraalLoader.getRuntimeClassLoader();
-        ClassLoader cl = libgraalLoader.getClassLoader();
-        access.registerObjectReplacer(obj -> obj == cl ? runtimeLoader : obj);
-
         optionCollector = new OptionCollector();
         access.registerObjectReachabilityHandler(optionCollector::accept, OptionKey.class);
-        GetJNIConfig.register(cl);
+        GetJNIConfig.register((ClassLoader) libgraalLoader);
     }
 
     private OptionCollector optionCollector;
@@ -368,7 +359,7 @@ public final class LibGraalFeature implements Feature {
             }
         }
 
-        EconomicMap<String, Object> libgraalObjects = (EconomicMap<String, Object>) ObjectCopier.decode(configResult.encodedConfig(), libgraalLoader.getClassLoader());
+        EconomicMap<String, Object> libgraalObjects = (EconomicMap<String, Object>) ObjectCopier.decode(configResult.encodedConfig(), (ClassLoader) libgraalLoader);
         EncodedSnippets encodedSnippets = (EncodedSnippets) libgraalObjects.get("encodedSnippets");
 
         // Mark all the Node classes as allocated so they are available during graph decoding.
@@ -401,7 +392,7 @@ public final class LibGraalFeature implements Feature {
                 default -> throw new GraalError("Unknown or unsupported arch: %s", rawArch);
             };
 
-            ClassLoader cl = libgraalLoader.getClassLoader();
+            ClassLoader cl = (ClassLoader) libgraalLoader;
             Field cachedHotSpotJVMCIBackendFactoriesField = ObjectCopier.getField(HotSpotJVMCIRuntime.class, "cachedHotSpotJVMCIBackendFactories");
             GraalError.guarantee(cachedHotSpotJVMCIBackendFactoriesField.get(null) == null, "Expect cachedHotSpotJVMCIBackendFactories to be null");
             ServiceLoader<HotSpotJVMCIBackendFactory> load = ServiceLoader.load(HotSpotJVMCIBackendFactory.class, cl);

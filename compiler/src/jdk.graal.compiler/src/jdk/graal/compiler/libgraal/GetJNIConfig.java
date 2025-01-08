@@ -95,8 +95,7 @@ final class GetJNIConfig implements AutoCloseable {
         }
 
         String nl = System.lineSeparator();
-        String out = new BufferedReader(new InputStreamReader(p.getInputStream()))
-                        .lines().collect(Collectors.joining(nl));
+        String out = new BufferedReader(new InputStreamReader(p.getInputStream())).lines().collect(Collectors.joining(nl));
 
         int exitValue;
         try {
