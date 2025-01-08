@@ -41,6 +41,10 @@ import java.util.function.Predicate;
 
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.EconomicSet;
+
+import com.oracle.svm.util.ClassUtil;
+import com.oracle.svm.util.StringUtil;
+
 import jdk.graal.compiler.options.EnumMultiOptionKey;
 import jdk.graal.compiler.options.OptionDescriptor;
 import jdk.graal.compiler.options.OptionDescriptors;
@@ -48,12 +52,10 @@ import jdk.graal.compiler.options.OptionKey;
 import jdk.graal.compiler.options.OptionType;
 import jdk.graal.compiler.options.OptionsParser;
 
-import com.oracle.svm.util.ClassUtil;
-import com.oracle.svm.util.StringUtil;
-
 public class CommonOptionParser {
     public static final String HOSTED_OPTION_PREFIX = "-H:";
     public static final String RUNTIME_OPTION_PREFIX = "-R:";
+    public static final char PLUS_MINUS_BOOLEAN_OPTION_PREFIX = '\u00b1';
 
     public static final int PRINT_OPTION_INDENTATION = 2;
     public static final int PRINT_OPTION_WIDTH = 45;
@@ -542,7 +544,7 @@ public class CommonOptionParser {
                         helpMsg += "Default: - (disabled).";
                     }
                 }
-                printOption(out, prefix + "\u00b1" + descriptor.getName(), helpMsg + verboseHelp, verbose, wrapWidth);
+                printOption(out, prefix + PLUS_MINUS_BOOLEAN_OPTION_PREFIX + descriptor.getName(), helpMsg + verboseHelp, verbose, wrapWidth);
             } else { // print all other options
                 if (defaultValue == null) {
                     if (helpLen != 0) {
