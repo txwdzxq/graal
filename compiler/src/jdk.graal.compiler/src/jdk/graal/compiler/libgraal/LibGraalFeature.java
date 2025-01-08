@@ -101,7 +101,7 @@ public final class LibGraalFeature implements Feature {
 
     public LibGraalFeature() {
         synchronized (LibGraalFeature.class) {
-            GraalError.guarantee(singleton == null, "only a single " + LibGraalFeature.class.getName() + " instance should be created");
+            GraalError.guarantee(singleton == null, "only a single %s instance should be created", LibGraalFeature.class.getName());
             singleton = this;
         }
     }
