@@ -234,7 +234,6 @@ suite = {
       "jacoco" : "include",
       "jacocoExcludePackages" : [
         "jdk.graal.compiler.test",
-        "org.graalvm.libgraal.jni",
         "jdk.graal.compiler.replacements",
         "jdk.graal.compiler.hotspot.test",
         "jdk.graal.compiler.replacements.test",
