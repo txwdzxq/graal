@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -128,7 +128,7 @@ final class LibGraalEntryPoints {
      * @param stackTraceAddress a native buffer in which a serialized stack trace can be returned.
      *            The caller will only read from this buffer if this method returns 0. A returned
      *            serialized stack trace is returned in this buffer with the following format:
-     * 
+     *
      *            <pre>
      *               struct {
      *                   int   length;

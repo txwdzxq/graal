@@ -31,7 +31,7 @@ import java.util.Set;
 /**
  * The class loader used to load the Graal and JVMCI classes compiled into libgraal implements this
  * interface to provide extra information about the libgraal classes.
- * 
+ *
  * @since 25
  */
 public interface LibGraalLoader {

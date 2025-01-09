@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -109,8 +109,9 @@ final class GetJNIConfig implements AutoCloseable {
         try {
             lines = Files.readAllLines(configFilePath);
         } catch (IOException e) {
+            Path cfp = configFilePath;
             configFilePath = null;
-            throw new GraalError("Reading JNI config in %s dumped by command: %s%n%s", configFilePath, quotedCommand, out);
+            throw new GraalError("Reading JNI config in %s dumped by command: %s%n%s", cfp, quotedCommand, out);
         }
     }
 
@@ -137,24 +138,15 @@ final class GetJNIConfig implements AutoCloseable {
 
     public static Class<?> forPrimitive(String name) {
         return switch (name) {
-            case "Z" -> boolean.class;
-            case "boolean" -> boolean.class;
-            case "C" -> char.class;
-            case "char" -> char.class;
-            case "F" -> float.class;
-            case "float" -> float.class;
-            case "D" -> double.class;
-            case "double" -> double.class;
-            case "B" -> byte.class;
-            case "byte" -> byte.class;
-            case "S" -> short.class;
-            case "short" -> short.class;
-            case "I" -> int.class;
-            case "int" -> int.class;
-            case "J" -> long.class;
-            case "long" -> long.class;
-            case "V" -> void.class;
-            case "void" -> void.class;
+            case "Z", "boolean" -> boolean.class;
+            case "C", "char" -> char.class;
+            case "F", "float" -> float.class;
+            case "D", "double" -> double.class;
+            case "B", "byte" -> byte.class;
+            case "S", "short" -> short.class;
+            case "I", "int" -> int.class;
+            case "J", "long" -> long.class;
+            case "V", "void" -> void.class;
             default -> null;
         };
     }
@@ -175,6 +167,7 @@ final class GetJNIConfig implements AutoCloseable {
             try {
                 return Class.forName(externalName, false, loader);
             } catch (ClassNotFoundException e3) {
+                // ignore
             }
             throw new GraalError(e, "Cannot find class %s during LibGraal JNIConfiguration registration", name);
         }

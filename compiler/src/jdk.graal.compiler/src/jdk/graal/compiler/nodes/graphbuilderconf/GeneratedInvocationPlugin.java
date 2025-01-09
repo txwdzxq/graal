@@ -76,7 +76,7 @@ public abstract class GeneratedInvocationPlugin extends RequiredInlineOnlyInvoca
     /**
      * Determines if the {@linkplain InjectedParameter} value in {@code arg} allows folding of a
      * call to {@code foldAnnotatedMethod} in the compilation context represented by {@code b}.
-     * 
+     *
      * @return true if the folding being attempted by the caller can proceed
      */
     protected boolean checkInjectedArgument(GraphBuilderContext b, ValueNode arg, ResolvedJavaMethod foldAnnotatedMethod) {

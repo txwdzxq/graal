@@ -62,7 +62,7 @@ final class HSTruffleCompilerRuntime extends HSIndirectHandle implements Truffle
 
     private final ResolvedJavaType classLoaderDelegate;
 
-    public HSTruffleCompilerRuntime(Object hsHandle, long runtimeClass) {
+    HSTruffleCompilerRuntime(Object hsHandle, long runtimeClass) {
         super(hsHandle);
         this.classLoaderDelegate = HotSpotJVMCIRuntime.runtime().asResolvedJavaType(runtimeClass);
         if (this.classLoaderDelegate == null) {

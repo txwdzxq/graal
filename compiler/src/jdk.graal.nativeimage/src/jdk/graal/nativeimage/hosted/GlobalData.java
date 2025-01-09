@@ -33,7 +33,7 @@ import java.util.function.Supplier;
 
 /**
  * Methods for creating initialized, off-heap data that is shared across all isolates in a process.
- * 
+ *
  * @since 25
  */
 @Platforms(Platform.HOSTED_ONLY.class)

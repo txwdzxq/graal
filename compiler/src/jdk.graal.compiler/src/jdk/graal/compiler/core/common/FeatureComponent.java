@@ -33,7 +33,7 @@ public interface FeatureComponent {
 
     /**
      * Called during analysis of {@code feature}.
-     * 
+     *
      * @see Feature#duringAnalysis(Feature.DuringAnalysisAccess)
      */
     void duringAnalysis(Feature feature, Feature.DuringAnalysisAccess access);
