@@ -1493,34 +1493,15 @@ def prevent_build_path_in_libgraal():
             return ['-H:NativeLinkerOption=-pdbaltpath:%_PDB%']
     return []
 
-libgraal_features = [
-    'jdk.graal.compiler.libgraal.LibGraalFeature'
-]
-
 libgraal_build_args = [
-    '--features=' + ','.join(libgraal_features),
+    '--features=jdk.graal.compiler.libgraal.LibGraalFeature',
 
-    ## Pass via JVM args opening up of packages needed for image builder early on
-    '-J--add-exports=jdk.graal.compiler/jdk.graal.compiler.hotspot=ALL-UNNAMED',
-    '-J--add-exports=jdk.graal.compiler/jdk.graal.compiler.hotspot.libgraal=ALL-UNNAMED',
-    '-J--add-exports=jdk.graal.compiler/jdk.graal.compiler.options=ALL-UNNAMED',
-    '-J--add-exports=jdk.graal.compiler/jdk.graal.compiler.truffle=ALL-UNNAMED',
-    '-J--add-exports=jdk.graal.compiler/jdk.graal.compiler.truffle.hotspot=ALL-UNNAMED',
-    '-J--add-exports=org.graalvm.truffle.compiler/com.oracle.truffle.compiler.hotspot.libgraal=ALL-UNNAMED',
-    '-J--add-exports=org.graalvm.truffle.compiler/com.oracle.truffle.compiler.hotspot=ALL-UNNAMED',
-    '-J--add-exports=org.graalvm.truffle.compiler/com.oracle.truffle.compiler=ALL-UNNAMED',
-    '-J--add-exports=org.graalvm.nativeimage/com.oracle.svm.core.annotate=ALL-UNNAMED',
-    '-J--add-exports=org.graalvm.nativeimage.builder/com.oracle.svm.core.option=ALL-UNNAMED',
+    # Need jdk.internal.module.Modules to do exporting
     '-J--add-exports=java.base/jdk.internal.module=ALL-UNNAMED',
-    '-J--add-exports=org.graalvm.word/org.graalvm.word.impl=ALL-UNNAMED',
-    ## Packages used after option-processing can be opened by the builder (`-J`-prefix not needed)
-    '--add-exports=org.graalvm.nativeimage.builder/com.oracle.svm.core.feature=ALL-UNNAMED',
-    # Make jdk.internal.module.Modules accessible to do the remaining opening-up in LibGraalFeature constructor
-    '--add-exports=java.base/jdk.internal.module=ALL-UNNAMED',
-    # TruffleLibGraalJVMCIServiceLocator needs access to JVMCIServiceLocator
-    '--add-exports=jdk.internal.vm.ci/jdk.vm.ci.services=ALL-UNNAMED',
 
-    '--initialize-at-build-time=jdk.graal.compiler,org.graalvm.libgraal,com.oracle.truffle',
+    # This is the truffle:TRUFFLE_COMPILER dependency that defines
+    # the Truffle compiler API.
+    '--initialize-at-build-time=com.oracle.truffle.compiler',
 
     '-H:+ReportExceptionStackTraces',
 
@@ -1538,6 +1519,7 @@ libgraal_build_args = [
     '-H:InitialCollectionPolicy=LibGraal',
 
     # Needed for initializing jdk.vm.ci.services.Services.IS_BUILDING_NATIVE_IMAGE.
+    # Remove after JDK-8346781.
     '-Djdk.vm.ci.services.aot=true',
 
     # These 2 arguments provide walkable call stacks for a crash in libgraal.

@@ -55,7 +55,6 @@ import jdk.graal.compiler.hotspot.CompilationContext;
 import jdk.graal.compiler.hotspot.HotSpotGraalServices;
 import jdk.graal.compiler.libgraal.LibGraalFeature;
 import jdk.graal.compiler.libgraal.LibGraalJNIMethodScope;
-import jdk.graal.compiler.libgraal.LibGraalUtil;
 import jdk.graal.compiler.truffle.TruffleCompilerOptions;
 import jdk.graal.compiler.truffle.hotspot.HotSpotTruffleCompilationSupport;
 import jdk.graal.compiler.truffle.hotspot.HotSpotTruffleCompilerImpl;
@@ -73,7 +72,7 @@ public class LibGraalTruffleEntryPoints {
 
     private static JNIMethodScope openScope(Enum<?> id, JNIEnv env) {
         Objects.requireNonNull(id, "Id must be non null.");
-        String scopeName = LibGraalUtil.getUnqualifiedName(LibGraalTruffleEntryPoints.class) + "::" + id;
+        String scopeName = LibGraalTruffleEntryPoints.class.getSimpleName() + "::" + id;
         int offset = lastJavaPCOffset;
         if (offset == -1) {
             HotSpotVMConfigAccess configAccess = new HotSpotVMConfigAccess(HotSpotJVMCIRuntime.runtime().getConfigStore());

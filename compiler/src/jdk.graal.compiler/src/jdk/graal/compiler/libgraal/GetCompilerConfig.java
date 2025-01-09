@@ -119,7 +119,7 @@ public class GetCompilerConfig {
                         // Required to use Modules class
                         "--add-exports=java.base/jdk.internal.module=jdk.graal.compiler",
                         addExports,
-                        "-Djdk.vm.ci.services.aot=true",
+                        "-Djdk.vm.ci.services.aot=true", // Remove after JDK-8346781
                         "-D%s=%s".formatted(ImageInfo.PROPERTY_IMAGE_CODE_KEY, ImageInfo.PROPERTY_IMAGE_CODE_VALUE_BUILDTIME)));
 
         for (var e : opens.entrySet()) {

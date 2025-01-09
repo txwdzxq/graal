@@ -32,7 +32,7 @@ import com.oracle.truffle.compiler.TruffleCompilable;
 import com.oracle.truffle.compiler.TruffleCompilerRuntime;
 
 import jdk.graal.compiler.debug.GraalError;
-import jdk.graal.compiler.libgraal.LibGraalUtil;
+import jdk.graal.compiler.libgraal.LibGraalFeature;
 import jdk.graal.compiler.truffle.hotspot.HotSpotTruffleCompilationSupport;
 import jdk.graal.compiler.word.Word;
 import jdk.vm.ci.code.InstalledCode;
@@ -58,7 +58,7 @@ final class HSTruffleCompilerRuntime extends HSIndirectHandle implements Truffle
     static final String COMPILER_VERSION = HotSpotTruffleCompilationSupport.readCompilerVersion();
 
     // TranslatedException is package-private
-    private static final Class<?> TRANSLATED_EXCEPTION = LibGraalUtil.lookupClass("jdk.internal.vm.TranslatedException");
+    private static final Class<?> TRANSLATED_EXCEPTION = LibGraalFeature.lookupClass("jdk.internal.vm.TranslatedException");
 
     private final ResolvedJavaType classLoaderDelegate;
 

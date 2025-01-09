@@ -197,9 +197,6 @@ final class GetJNIConfig implements AutoCloseable {
      */
     @SuppressWarnings("try")
     public static void register(ClassLoader loader) {
-        // Export all JVMCI packages to this class
-        LibGraalFeature.exportModulesToLibGraal("jdk.internal.vm.ci");
-
         try (GetJNIConfig source = new GetJNIConfig(loader)) {
             Map<String, Class<?>> classes = new HashMap<>();
             for (String line : source.lines) {

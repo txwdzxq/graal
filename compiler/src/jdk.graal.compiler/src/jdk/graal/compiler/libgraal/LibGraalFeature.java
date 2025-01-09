@@ -24,12 +24,8 @@
  */
 package jdk.graal.compiler.libgraal;
 
-import static java.lang.invoke.MethodType.methodType;
-
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
+import java.lang.module.ModuleDescriptor;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -52,10 +48,10 @@ import jdk.graal.compiler.options.OptionsParser;
 import jdk.graal.compiler.serviceprovider.GraalServices;
 import jdk.graal.compiler.truffle.host.TruffleHostEnvironment;
 import jdk.graal.compiler.util.ObjectCopier;
+import jdk.internal.module.Modules;
 import jdk.vm.ci.hotspot.HotSpotJVMCIBackendFactory;
 import jdk.vm.ci.hotspot.HotSpotJVMCIRuntime;
 import jdk.vm.ci.services.JVMCIServiceLocator;
-import jdk.vm.ci.services.Services;
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.jniutils.NativeBridgeSupport;
 import org.graalvm.nativeimage.ImageSingletons;
@@ -116,6 +112,35 @@ public final class LibGraalFeature implements Feature {
         return singleton;
     }
 
+    /**
+     * Looks up a class in the libgraal class loader.
+     *
+     * @throws Error if the lookup fails
+     */
+    public static Class<?> lookupClass(String className) {
+        try {
+            return Class.forName(className, false, LibGraalFeature.class.getClassLoader());
+        } catch (ClassNotFoundException ex) {
+            throw new GraalError(ex);
+        }
+    }
+
+    /**
+     * Looks up a field via reflection and makes it accessible for reading.
+     *
+     * @throws Error if the operation fails
+     */
+    public static Field lookupField(Class<?> declaringClass, String fieldName) {
+        try {
+            Field result = declaringClass.getDeclaredField(fieldName);
+            Modules.addOpensToAllUnnamed(declaringClass.getModule(), declaringClass.getPackageName());
+            result.setAccessible(true);
+            return result;
+        } catch (ReflectiveOperationException ex) {
+            throw new GraalError(ex);
+        }
+    }
+
     public static final class IsEnabled implements BooleanSupplier {
         @Override
         public boolean getAsBoolean() {
@@ -123,8 +148,6 @@ public final class LibGraalFeature implements Feature {
             return ImageSingletons.contains(clazz);
         }
     }
-
-    final MethodHandles.Lookup mhl = MethodHandles.lookup();
 
     final LibGraalLoader libgraalLoader = (LibGraalLoader) getClass().getClassLoader();
 
@@ -139,39 +162,19 @@ public final class LibGraalFeature implements Feature {
 
     @Override
     public void afterRegistration(AfterRegistrationAccess access) {
-        // LibGraalEntryPoints uses a number of classes in org.graalvm.nativeimage.builder
-        exportModulesToLibGraal("org.graalvm.nativeimage.builder");
-
-        // LibGraalFeature accesses a few Graal classes (see import statements above)
-        exportModulesToLibGraal("jdk.graal.compiler");
-
-        // LibGraalTruffleToLibGraalEntryPoints access TruffleToLibGraal.Id
-        exportModulesToLibGraal("org.graalvm.truffle.compiler");
-
         ImageSingletons.add(NativeBridgeSupport.class, new LibGraalNativeBridgeSupport());
 
-        // Guest JVMCI and Graal need access to some JDK internal packages
-        String[] basePackages = {
-                        "jdk.internal.misc",
-                        "jdk.internal.util",
-                        "jdk.internal.vm"};
-        LibGraalUtil.accessPackagesToClass(LibGraalUtil.Access.EXPORT, null, false, "java.base", basePackages);
-    }
-
-    static void exportModulesToLibGraal(String... moduleNames) {
-        accessModulesToClass(LibGraalUtil.Access.EXPORT, LibGraalFeature.class, moduleNames);
-    }
-
-    static void accessModulesToClass(LibGraalUtil.Access access, Class<?> accessingClass, String... moduleNames) {
-        for (String moduleName : moduleNames) {
-            var module = getBootModule(moduleName);
-            LibGraalUtil.accessPackagesToClass(access, accessingClass, false,
-                            module.getName(), module.getPackages().toArray(String[]::new));
+        // The qualified exports from java.base to jdk.internal.vm.ci
+        // and jdk.graal.compiler need to be expressed as exports to
+        // ALL-UNNAMED so that access is also possible when these classes
+        // are loaded via the libgraal loader.
+        Module javaBase = ModuleLayer.boot().findModule("java.base").orElseThrow();
+        Set<ModuleDescriptor.Exports> exports = javaBase.getDescriptor().exports();
+        for (ModuleDescriptor.Exports e : exports) {
+            if (e.targets().contains("jdk.internal.vm.ci") || e.targets().contains("jdk.graal.compiler")) {
+                Modules.addExportsToAllUnnamed(javaBase, e.source());
+            }
         }
-    }
-
-    static Module getBootModule(String moduleName) {
-        return ModuleLayer.boot().findModule(moduleName).orElseThrow();
     }
 
     @Override
@@ -247,18 +250,12 @@ public final class LibGraalFeature implements Feature {
          */
         private final Map<Object, Map.Entry<long[], Long>> replacements = new IdentityHashMap<>();
 
-        final Class<?> edgesClass;
-        final Class<?> fieldsClass;
         final Field fieldsOffsetsField;
         final Field edgesIterationMaskField;
-        final Method recomputeOffsetsAndIterationMaskMethod;
 
         FieldOffsetsTransformer() {
-            edgesClass = Edges.class;
-            fieldsClass = Fields.class;
-            fieldsOffsetsField = LibGraalUtil.lookupField(fieldsClass, "offsets");
-            edgesIterationMaskField = LibGraalUtil.lookupField(edgesClass, "iterationMask");
-            recomputeOffsetsAndIterationMaskMethod = LibGraalUtil.lookupMethod(fieldsClass, "recomputeOffsetsAndIterationMask", BeforeCompilationAccess.class);
+            fieldsOffsetsField = lookupField(Fields.class, "offsets");
+            edgesIterationMaskField = lookupField(Edges.class, "iterationMask");
         }
 
         void register(BeforeAnalysisAccess access) {
@@ -286,13 +283,9 @@ public final class LibGraalFeature implements Feature {
             }
         }
 
-        @SuppressWarnings("unchecked")
         private Map.Entry<long[], Long> computeReplacement(Object receiver) {
-            try {
-                return (Map.Entry<long[], Long>) recomputeOffsetsAndIterationMaskMethod.invoke(receiver, beforeCompilationAccess);
-            } catch (Throwable e) {
-                throw GraalError.shouldNotReachHere(e);
-            }
+            Fields fields = (Fields) receiver;
+            return fields.recomputeOffsetsAndIterationMask(beforeCompilationAccess);
         }
     }
 
@@ -300,24 +293,18 @@ public final class LibGraalFeature implements Feature {
      * Transforms {@code GlobalAtomicLong.addressSupplier} by replacing it with a {@link GlobalData}
      * backed address supplier.
      */
-    class GlobalAtomicLongTransformer implements FieldValueTransformer {
-        private MethodHandle globalAtomicLongGetInitialValue;
+    static class GlobalAtomicLongTransformer implements FieldValueTransformer {
 
         void register(BeforeAnalysisAccess access) {
-            Field addressSupplierField = LibGraalUtil.lookupField(GlobalAtomicLong.class, "addressSupplier");
+            Field addressSupplierField = lookupField(GlobalAtomicLong.class, "addressSupplier");
             access.registerFieldValueTransformer(addressSupplierField, this);
-            try {
-                globalAtomicLongGetInitialValue = mhl.findVirtual(GlobalAtomicLong.class, "getInitialValue", methodType(long.class));
-            } catch (Throwable e) {
-                GraalError.shouldNotReachHere(e);
-            }
         }
 
         @Override
         public Object transform(Object receiver, Object originalValue) {
             long initialValue;
             try {
-                initialValue = (long) globalAtomicLongGetInitialValue.invoke(receiver);
+                initialValue = ((GlobalAtomicLong) receiver).getInitialValue();
             } catch (Throwable e) {
                 throw GraalError.shouldNotReachHere(e);
             }
@@ -334,28 +321,29 @@ public final class LibGraalFeature implements Feature {
 
         /* Contains static fields that depend on HotSpotJVMCIRuntime */
         RuntimeClassInitialization.initializeAtRunTime(HotSpotModifiers.class);
-        RuntimeClassInitialization.initializeAtRunTime(LibGraalUtil.lookupClass("jdk.vm.ci.hotspot.HotSpotCompiledCodeStream"));
-        RuntimeClassInitialization.initializeAtRunTime(LibGraalUtil.lookupClass("jdk.vm.ci.hotspot.HotSpotCompiledCodeStream$Tag"));
+        RuntimeClassInitialization.initializeAtRunTime(lookupClass("jdk.vm.ci.hotspot.HotSpotCompiledCodeStream"));
+        RuntimeClassInitialization.initializeAtRunTime(lookupClass("jdk.vm.ci.hotspot.HotSpotCompiledCodeStream$Tag"));
 
         /* Needed for runtime calls to BoxingSnippets.Templates.getCacheClass(JavaKind) */
         RuntimeReflection.registerAllDeclaredClasses(Character.class);
-        RuntimeReflection.register(LibGraalUtil.lookupField(LibGraalUtil.lookupClass("java.lang.Character$CharacterCache"), "cache"));
+        RuntimeReflection.register(lookupField(lookupClass("java.lang.Character$CharacterCache"), "cache"));
         RuntimeReflection.registerAllDeclaredClasses(Byte.class);
-        RuntimeReflection.register(LibGraalUtil.lookupField(LibGraalUtil.lookupClass("java.lang.Byte$ByteCache"), "cache"));
+        RuntimeReflection.register(lookupField(lookupClass("java.lang.Byte$ByteCache"), "cache"));
         RuntimeReflection.registerAllDeclaredClasses(Short.class);
-        RuntimeReflection.register(LibGraalUtil.lookupField(LibGraalUtil.lookupClass("java.lang.Short$ShortCache"), "cache"));
+        RuntimeReflection.register(lookupField(lookupClass("java.lang.Short$ShortCache"), "cache"));
         RuntimeReflection.registerAllDeclaredClasses(Integer.class);
-        RuntimeReflection.register(LibGraalUtil.lookupField(LibGraalUtil.lookupClass("java.lang.Integer$IntegerCache"), "cache"));
+        RuntimeReflection.register(lookupField(lookupClass("java.lang.Integer$IntegerCache"), "cache"));
         RuntimeReflection.registerAllDeclaredClasses(Long.class);
-        RuntimeReflection.register(LibGraalUtil.lookupField(LibGraalUtil.lookupClass("java.lang.Long$LongCache"), "cache"));
+        RuntimeReflection.register(lookupField(lookupClass("java.lang.Long$LongCache"), "cache"));
 
         doLegacyJVMCIInitialization();
 
         Path libGraalJavaHome = libgraalLoader.getJavaHome();
         GetCompilerConfig.Result configResult = GetCompilerConfig.from(libGraalJavaHome);
         for (var e : configResult.opens().entrySet()) {
+            Module module = ModuleLayer.boot().findModule(e.getKey()).orElseThrow();
             for (String source : e.getValue()) {
-                LibGraalUtil.accessPackagesToClass(LibGraalUtil.Access.OPEN, getClass(), false, e.getKey(), source);
+                Modules.addOpensToAllUnnamed(module, source);
             }
         }
 
@@ -385,8 +373,7 @@ public final class LibGraalFeature implements Feature {
         try {
             String rawArch = GraalServices.getSavedProperty("os.arch");
             String arch = switch (rawArch) {
-                case "x86_64" -> "AMD64";
-                case "amd64" -> "AMD64";
+                case "x86_64", "amd64" -> "AMD64";
                 case "aarch64" -> "aarch64";
                 case "riscv64" -> "riscv64";
                 default -> throw new GraalError("Unknown or unsupported arch: %s", rawArch);
@@ -411,19 +398,6 @@ public final class LibGraalFeature implements Feature {
             jvmciServiceLocatorCachedLocatorsField.set(null, cachedLocators);
         } catch (Throwable e) {
             throw new GraalError(e);
-        }
-    }
-
-    /**
-     * Determines if the JDK runtime includes JDK-8346781. Without it, initialization of some JVMCI
-     * static cache fields must be done explicitly by {@link LibGraalFeature}.
-     */
-    static boolean has8346781() {
-        try {
-            Services.class.getField("IS_BUILDING_NATIVE_IMAGE");
-            return false;
-        } catch (NoSuchFieldException e) {
-            return true;
         }
     }
 
