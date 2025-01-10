@@ -39,6 +39,7 @@ import org.graalvm.nativeimage.ImageSingletons;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
@@ -76,7 +77,7 @@ public final class AnalyzeMethodsRequiringMetadataUsageFeature implements Intern
     public void printReportForJar(String jarPath) {
         System.out.println("Dynamic method usage detected in " + jarPath + ":");
         for (String methodType : callsByJar.get(jarPath).keySet()) {
-            System.out.println("    " + methodType.substring(0, 1).toUpperCase() + methodType.substring(1) + " calls detected:");
+            System.out.println("    " + methodType.substring(0, 1).toUpperCase(Locale.ROOT) + methodType.substring(1) + " calls detected:");
             for (String call : callsByJar.get(jarPath).get(methodType).keySet()) {
                 System.out.println("        " + call + ":");
                 for (String callLocation : callsByJar.get(jarPath).get(methodType).get(call)) {
@@ -112,7 +113,7 @@ public final class AnalyzeMethodsRequiringMetadataUsageFeature implements Intern
         return jarPaths;
     }
 
-    public String extractLibraryName(String path) {
+    public static String extractLibraryName(String path) {
         String fileName = path.substring(path.lastIndexOf("/") + 1);
         if (fileName.endsWith(".jar")) {
             fileName = fileName.substring(0, fileName.length() - 4);

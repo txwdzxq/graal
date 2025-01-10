@@ -66,7 +66,7 @@ import java.util.random.RandomGeneratorFactory;
  * project, given the JAR files in which to search, and outputs and serializes them to the
  * image-build output. It is an optional phase that happens before
  * {@link com.oracle.graal.pointsto.results.StrengthenGraphs} by using the
- * {@link AnalyzeMethodsRequiringMetadataUsageFeature.Options#TrackMethodsRequiringMetadata} option
+ * {@link com.oracle.svm.hosted.AnalyzeMethodsRequiringMetadataUsageFeature.Options#TrackMethodsRequiringMetadata} option
  * and providing the desired JAR path/s.
  */
 
@@ -180,7 +180,7 @@ public class AnalyzeMethodsRequiringMetadataUsagePhase extends BasePhase<CorePro
         for (MethodCallTargetNode callTarget : callTargetNodes) {
             AnalysisType callerClass = (AnalysisType) graph.method().getDeclaringClass();
             String jarPath = getJarPath(callerClass);
-            Pair<String, String> methodDetails = getMethod(graph, callTarget);
+            Pair<String, String> methodDetails = getMethod(callTarget);
             if (methodDetails != null && jarPath != null) {
                 String methodType = methodDetails.getLeft();
                 String methodName = methodDetails.getRight();
@@ -204,7 +204,7 @@ public class AnalyzeMethodsRequiringMetadataUsagePhase extends BasePhase<CorePro
      * Returns the name and type of a method if it exists in the predetermined set, based on its
      * graph and MethodCallTargetNode; otherwise, returns null.
      */
-    public Pair<String, String> getMethod(StructuredGraph graph, MethodCallTargetNode callTarget) {
+    public Pair<String, String> getMethod(MethodCallTargetNode callTarget) {
         String methodName = callTarget.targetMethod().getName();
         String declaringClass = callTarget.targetMethod().getDeclaringClass().toJavaName();
 
@@ -224,7 +224,7 @@ public class AnalyzeMethodsRequiringMetadataUsagePhase extends BasePhase<CorePro
      * Returns the jar path of the caller class if it is on the path given to the option, otherwise
      * returns null.
      */
-    private String getJarPath(AnalysisType callerClass) {
+    private static String getJarPath(AnalysisType callerClass) {
         try {
             CodeSource jarPathSource = callerClass.getJavaClass().getProtectionDomain().getCodeSource();
             if (jarPathSource == null) {
