@@ -66,8 +66,8 @@ import java.util.random.RandomGeneratorFactory;
  * project, given the JAR files in which to search, and outputs and serializes them to the
  * image-build output. It is an optional phase that happens before
  * {@link com.oracle.graal.pointsto.results.StrengthenGraphs} by using the
- * {@link com.oracle.svm.hosted.AnalyzeMethodsRequiringMetadataUsageFeature.Options#TrackMethodsRequiringMetadata} option
- * and providing the desired JAR path/s.
+ * {@link com.oracle.svm.hosted.AnalyzeMethodsRequiringMetadataUsageFeature.Options#TrackMethodsRequiringMetadata}
+ * option and providing the desired JAR path/s.
  */
 
 public class AnalyzeMethodsRequiringMetadataUsagePhase extends BasePhase<CoreProviders> {
