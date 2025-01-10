@@ -23,10 +23,8 @@
 
 package com.oracle.truffle.espresso.impl;
 
-import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.espresso.classfile.ClasspathFile;
 import com.oracle.truffle.espresso.classfile.descriptors.Symbol;
-import com.oracle.truffle.espresso.classfile.descriptors.Symbol.Name;
 import com.oracle.truffle.espresso.classfile.descriptors.Symbol.Type;
 import com.oracle.truffle.espresso.classfile.descriptors.Types;
 import com.oracle.truffle.espresso.classfile.perf.DebugCloseable;
@@ -80,11 +78,6 @@ public final class BootClassRegistry extends ClassRegistry {
         context.getRegistries().recordConstraint(type, result, getClassLoader());
         result.packageEntry().setBootClasspathLocation(classpathFile.classpathEntry.path());
         return result;
-    }
-
-    @TruffleBoundary
-    public Symbol<Name>[] getPackages() {
-        return packages().getKeys();
     }
 
     @Override
