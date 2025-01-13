@@ -38,7 +38,7 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.regex.Pattern;
 
-import jdk.graal.compiler.debug.GraalError;
+import jdk.graal.nativeimage.LibGraalLoader;
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.EconomicSet;
 import org.graalvm.collections.MapCursor;
@@ -68,7 +68,7 @@ public class OptionsParser {
      * Compiler options info available in libgraal. This field is only non-null when
      * {@link OptionsParser} is loaded by a {@link jdk.graal.nativeimage.LibGraalLoader}.
      */
-    private static LibGraalOptionsInfo libgraalOptions;
+    public static final LibGraalOptionsInfo libgraalOptions = OptionsParser.class.getClassLoader() instanceof LibGraalLoader ? LibGraalOptionsInfo.create() : null;
 
     /**
      * Gets an iterable of available {@link OptionDescriptors}.
@@ -95,14 +95,6 @@ public class OptionsParser {
             ClassLoader loader = ClassLoader.getSystemClassLoader();
             return ServiceLoader.load(OptionDescriptors.class, loader);
         }
-    }
-
-    @ExcludeFromJacocoGeneratedReport("only called when building libgraal")
-    public static LibGraalOptionsInfo setLibgraalOptions(LibGraalOptionsInfo info) {
-        GraalError.guarantee(inImageBuildtimeCode(), "Can only set libgraal compiler options when building libgraal");
-        GraalError.guarantee(libgraalOptions == null, "Libgraal compiler options must be set exactly once");
-        OptionsParser.libgraalOptions = info;
-        return info;
     }
 
     /**

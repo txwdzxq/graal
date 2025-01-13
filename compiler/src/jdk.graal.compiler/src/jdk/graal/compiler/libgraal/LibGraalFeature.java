@@ -188,19 +188,10 @@ public final class LibGraalFeature implements Feature {
      * Collects all instances of the LibGraalLoader loaded {@link OptionKey} class reached by the
      * static analysis.
      */
-    private class OptionCollector implements Consumer<OptionKey<?>> {
+    private final class OptionCollector implements Consumer<OptionKey<?>> {
         private final Set<OptionKey<?>> options = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-        /**
-         * Libgraal compiler options info.
-         */
-        private final OptionsParser.LibGraalOptionsInfo compilerOptionsInfo;
-
         private boolean sealed;
-
-        OptionCollector() {
-            compilerOptionsInfo = OptionsParser.setLibgraalOptions(OptionsParser.LibGraalOptionsInfo.create());
-        }
 
         @Override
         public void accept(OptionKey<?> option) {
@@ -221,11 +212,11 @@ public final class LibGraalFeature implements Feature {
                     GraalError.guarantee(access.isReachable(descriptor.getClass()), "%s", descriptor.getClass());
 
                     String name = option.getName();
-                    compilerOptionsInfo.descriptors().put(name, descriptor);
+                    OptionsParser.libgraalOptions.descriptors().put(name, descriptor);
 
                     String module = modules.get(descriptor.getDeclaringClass().getName());
                     if (module.contains("enterprise")) {
-                        compilerOptionsInfo.enterpriseOptions().add(name);
+                        OptionsParser.libgraalOptions.enterpriseOptions().add(name);
                     }
                 }
             }
