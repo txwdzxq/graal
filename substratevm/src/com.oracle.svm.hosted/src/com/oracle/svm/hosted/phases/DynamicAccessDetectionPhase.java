@@ -63,11 +63,11 @@ import java.util.random.RandomGeneratorFactory;
 
 /**
  * This phase detects usages of any calls that might require metadata in reached parts of the
- * project, given the JAR files in which to search, and outputs and serializes them to the
+ * project, given the classpath entries in which to search, and outputs and serializes them to the
  * image-build output. It is an optional phase that happens before
  * {@link com.oracle.graal.pointsto.results.StrengthenGraphs} by using the
  * {@link DynamicAccessDetectionFeature.Options#TrackMethodsRequiringMetadata}
- * option and providing the desired JAR path/s.
+ * option and providing the desired classpath entry/s.
  */
 
 public class DynamicAccessDetectionPhase extends BasePhase<CoreProviders> {
@@ -179,9 +179,9 @@ public class DynamicAccessDetectionPhase extends BasePhase<CoreProviders> {
         List<MethodCallTargetNode> callTargetNodes = graph.getNodes(MethodCallTargetNode.TYPE).snapshot();
         for (MethodCallTargetNode callTarget : callTargetNodes) {
             AnalysisType callerClass = (AnalysisType) graph.method().getDeclaringClass();
-            String jarPath = getJarPath(callerClass);
+            String entryPath = getEntryPath(callerClass);
             Pair<String, String> methodDetails = getMethod(callTarget);
-            if (methodDetails != null && jarPath != null) {
+            if (methodDetails != null && entryPath != null) {
                 String methodType = methodDetails.getLeft();
                 String methodName = methodDetails.getRight();
 
@@ -193,7 +193,7 @@ public class DynamicAccessDetectionPhase extends BasePhase<CoreProviders> {
                     int bci = nspToShow.getBCI();
                     if (!DynamicAccessDetectionFeature.instance().containsFoldEntry(bci, nspToShow.getMethod())) {
                         String callLocation = nspToShow.getMethod().asStackTraceElement(bci).toString();
-                        DynamicAccessDetectionFeature.instance().addCall(jarPath, methodType, methodName, callLocation);
+                        DynamicAccessDetectionFeature.instance().addCall(entryPath, methodType, methodName, callLocation);
                     }
                 }
             }
@@ -221,24 +221,24 @@ public class DynamicAccessDetectionPhase extends BasePhase<CoreProviders> {
     }
 
     /*
-     * Returns the jar path of the caller class if it is on the path given to the option, otherwise
-     * returns null.
+     * Returns the classpath entry path of the caller class if it is included in the path specified by the option,
+     * otherwise returns null.
      */
-    private static String getJarPath(AnalysisType callerClass) {
+    private static String getEntryPath(AnalysisType callerClass) {
         try {
-            CodeSource jarPathSource = callerClass.getJavaClass().getProtectionDomain().getCodeSource();
-            if (jarPathSource == null) {
+            CodeSource entryPathSource = callerClass.getJavaClass().getProtectionDomain().getCodeSource();
+            if (entryPathSource == null) {
                 return null;
             }
 
-            URL jarPathURL = jarPathSource.getLocation();
-            if (jarPathURL == null) {
+            URL entryPathURL = entryPathSource.getLocation();
+            if (entryPathURL == null) {
                 return null;
             }
 
-            String jarPath = jarPathURL.toURI().getPath();
-            if (DynamicAccessDetectionFeature.instance().getJarPaths().contains(jarPath)) {
-                return jarPath;
+            String entryPath = entryPathURL.toURI().getPath();
+            if (DynamicAccessDetectionFeature.instance().getClasspathEntries().contains(entryPath)) {
+                return entryPath;
             }
             return null;
         } catch (URISyntaxException e) {
