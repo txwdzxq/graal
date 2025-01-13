@@ -54,6 +54,13 @@ import java.util.concurrent.ConcurrentSkipListMap;
  */
 @AutomaticallyRegisteredFeature
 public final class AnalyzeMethodsRequiringMetadataUsageFeature implements InternalFeature {
+
+    public static class Options {
+        @Option(help = "Output all metadata requiring call usages in the reached parts of the project, limited to the provided comma-separated list of JAR files.")//
+        public static final HostedOptionKey<AccumulatingLocatableMultiOptionValue.Strings> TrackMethodsRequiringMetadata = new HostedOptionKey<>(
+                AccumulatingLocatableMultiOptionValue.Strings.buildWithCommaDelimiter());
+    }
+
     private final Set<String> jarPaths;
     private final Map<String, Map<String, Map<String, List<String>>>> callsByJar;
     private final Set<FoldEntry> foldEntries = ConcurrentHashMap.newKeySet();
@@ -167,11 +174,5 @@ public final class AnalyzeMethodsRequiringMetadataUsageFeature implements Intern
     @Override
     public void beforeCompilation(BeforeCompilationAccess access) {
         AnalyzeMethodsRequiringMetadataUsageFeature.instance().reportMethodUsage();
-    }
-
-    public static class Options {
-        @Option(help = "Output all metadata requiring call usages in the reached parts of the project, limited to the provided comma-separated list of JAR files.")//
-        public static final HostedOptionKey<AccumulatingLocatableMultiOptionValue.Strings> TrackMethodsRequiringMetadata = new HostedOptionKey<>(
-                        AccumulatingLocatableMultiOptionValue.Strings.buildWithCommaDelimiter());
     }
 }
