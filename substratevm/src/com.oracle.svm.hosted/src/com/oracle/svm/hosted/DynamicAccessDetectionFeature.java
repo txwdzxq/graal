@@ -30,7 +30,7 @@ import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.option.AccumulatingLocatableMultiOptionValue;
 import com.oracle.svm.core.option.HostedOptionKey;
 import com.oracle.svm.core.option.HostedOptionValues;
-import com.oracle.svm.hosted.phases.AnalyzeMethodsRequiringMetadataUsagePhase;
+import com.oracle.svm.hosted.phases.DynamicAccessDetectionPhase;
 import jdk.graal.compiler.options.Option;
 import jdk.graal.compiler.util.json.JsonPrettyWriter;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
@@ -50,10 +50,10 @@ import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
  * This is a support class that keeps track of calls requiring metadata usage detected during
- * {@link AnalyzeMethodsRequiringMetadataUsagePhase} and outputs them to the image-build output.
+ * {@link DynamicAccessDetectionPhase} and outputs them to the image-build output.
  */
 @AutomaticallyRegisteredFeature
-public final class AnalyzeMethodsRequiringMetadataUsageFeature implements InternalFeature {
+public final class DynamicAccessDetectionFeature implements InternalFeature {
 
     public static class Options {
         @Option(help = "Output all metadata requiring call usages in the reached parts of the project, limited to the provided comma-separated list of JAR files.")//
@@ -65,13 +65,13 @@ public final class AnalyzeMethodsRequiringMetadataUsageFeature implements Intern
     private final Map<String, Map<String, Map<String, List<String>>>> callsByJar;
     private final Set<FoldEntry> foldEntries = ConcurrentHashMap.newKeySet();
 
-    public AnalyzeMethodsRequiringMetadataUsageFeature() {
+    public DynamicAccessDetectionFeature() {
         this.callsByJar = new ConcurrentSkipListMap<>();
         this.jarPaths = Set.copyOf(Options.TrackMethodsRequiringMetadata.getValue().values());
     }
 
-    public static AnalyzeMethodsRequiringMetadataUsageFeature instance() {
-        return ImageSingletons.lookup(AnalyzeMethodsRequiringMetadataUsageFeature.class);
+    public static DynamicAccessDetectionFeature instance() {
+        return ImageSingletons.lookup(DynamicAccessDetectionFeature.class);
     }
 
     public void addCall(String jarPath, String methodType, String call, String callLocation) {
@@ -173,6 +173,6 @@ public final class AnalyzeMethodsRequiringMetadataUsageFeature implements Intern
 
     @Override
     public void beforeCompilation(BeforeCompilationAccess access) {
-        AnalyzeMethodsRequiringMetadataUsageFeature.instance().reportMethodUsage();
+        DynamicAccessDetectionFeature.instance().reportMethodUsage();
     }
 }

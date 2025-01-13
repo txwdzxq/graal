@@ -25,7 +25,7 @@
 package com.oracle.svm.hosted.phases;
 
 import com.oracle.graal.pointsto.meta.AnalysisType;
-import com.oracle.svm.hosted.AnalyzeMethodsRequiringMetadataUsageFeature;
+import com.oracle.svm.hosted.DynamicAccessDetectionFeature;
 import jdk.graal.compiler.graph.NodeSourcePosition;
 import jdk.graal.compiler.nodes.StructuredGraph;
 import jdk.graal.compiler.nodes.java.MethodCallTargetNode;
@@ -66,11 +66,11 @@ import java.util.random.RandomGeneratorFactory;
  * project, given the JAR files in which to search, and outputs and serializes them to the
  * image-build output. It is an optional phase that happens before
  * {@link com.oracle.graal.pointsto.results.StrengthenGraphs} by using the
- * {@link com.oracle.svm.hosted.AnalyzeMethodsRequiringMetadataUsageFeature.Options#TrackMethodsRequiringMetadata}
+ * {@link DynamicAccessDetectionFeature.Options#TrackMethodsRequiringMetadata}
  * option and providing the desired JAR path/s.
  */
 
-public class AnalyzeMethodsRequiringMetadataUsagePhase extends BasePhase<CoreProviders> {
+public class DynamicAccessDetectionPhase extends BasePhase<CoreProviders> {
     public static final String METHODTYPE_REFLECTION = "reflection";
     public static final String METHODTYPE_RESOURCE = "resource";
     public static final String METHODTYPE_SERIALIZATION = "serialization";
@@ -191,9 +191,9 @@ public class AnalyzeMethodsRequiringMetadataUsagePhase extends BasePhase<CorePro
                         nspToShow = nspToShow.getCaller();
                     }
                     int bci = nspToShow.getBCI();
-                    if (!AnalyzeMethodsRequiringMetadataUsageFeature.instance().containsFoldEntry(bci, nspToShow.getMethod())) {
+                    if (!DynamicAccessDetectionFeature.instance().containsFoldEntry(bci, nspToShow.getMethod())) {
                         String callLocation = nspToShow.getMethod().asStackTraceElement(bci).toString();
-                        AnalyzeMethodsRequiringMetadataUsageFeature.instance().addCall(jarPath, methodType, methodName, callLocation);
+                        DynamicAccessDetectionFeature.instance().addCall(jarPath, methodType, methodName, callLocation);
                     }
                 }
             }
@@ -237,7 +237,7 @@ public class AnalyzeMethodsRequiringMetadataUsagePhase extends BasePhase<CorePro
             }
 
             String jarPath = jarPathURL.toURI().getPath();
-            if (AnalyzeMethodsRequiringMetadataUsageFeature.instance().getJarPaths().contains(jarPath)) {
+            if (DynamicAccessDetectionFeature.instance().getJarPaths().contains(jarPath)) {
                 return jarPath;
             }
             return null;
