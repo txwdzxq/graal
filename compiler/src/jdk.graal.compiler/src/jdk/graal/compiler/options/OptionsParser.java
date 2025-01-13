@@ -54,8 +54,8 @@ public class OptionsParser {
      *
      * @param descriptors set of compiler options available in libgraal. These correspond to the
      *            reachable {@link OptionKey}s discovered during Native Image static analysis. This
-     *            field is only non-null when {@link OptionsParser} is loaded by the
-     *            LibGraalClassLoader.
+     *            field is only non-null when {@link OptionsParser} is loaded by a
+     *            {@link jdk.graal.nativeimage.LibGraalLoader}.
      * @param enterpriseOptions {@linkplain OptionKey#getName() names} of enterprise options
      */
     public record LibGraalOptionsInfo(EconomicMap<String, OptionDescriptor> descriptors, Set<String> enterpriseOptions) {
@@ -66,7 +66,7 @@ public class OptionsParser {
 
     /**
      * Compiler options info available in libgraal. This field is only non-null when
-     * {@link OptionsParser} is loaded by the LibGraalClassLoader.
+     * {@link OptionsParser} is loaded by a {@link jdk.graal.nativeimage.LibGraalLoader}.
      */
     private static LibGraalOptionsInfo libgraalOptions;
 
@@ -81,8 +81,8 @@ public class OptionsParser {
         boolean inLibGraal = libgraalOptions != null;
         if (inLibGraal && inImageBuildtimeCode()) {
             /*
-             * Graal code is being run in the context of the LibGraalClassLoader while building
-             * libgraal so use the LibGraalClassLoader to load the OptionDescriptors.
+             * Graal code is being run is loaded by a LibGraalLoader while building libgraal so use
+             * the loader to load the OptionDescriptors.
              */
             ClassLoader myCL = OptionsParser.class.getClassLoader();
             return ServiceLoader.load(OptionDescriptors.class, myCL);

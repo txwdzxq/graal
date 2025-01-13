@@ -70,7 +70,7 @@ public final class GraalServices {
 
     /**
      * The set of services available in libgraal. This field is only non-null when
-     * {@link GraalServices} is loaded by the LibGraalClassLoader.
+     * {@link GraalServices} is loaded by a {@link LibGraalLoader}.
      */
     private static final Map<Class<?>, List<?>> libgraalServices;
 
@@ -173,7 +173,7 @@ public final class GraalServices {
     public static Map<String, String> getSavedProperties() {
         if (inImageBuildtimeCode()) {
             // Avoid calling down to JVMCI native methods as they will fail to
-            // link in a copy of JVMCI loaded by the LibGraalClassLoader.
+            // link in a copy of JVMCI loaded by a LibGraalLoader.
             return jdk.internal.misc.VM.getSavedProperties();
         }
         return Services.getSavedProperties();

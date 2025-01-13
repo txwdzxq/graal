@@ -29,9 +29,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import jdk.graal.compiler.debug.GraalError;
+import jdk.graal.nativeimage.LibGraalLoader;
 import jdk.graal.nativeimage.hosted.GlobalData;
 import jdk.internal.misc.Unsafe;
 import org.graalvm.nativeimage.ImageInfo;
+import org.graalvm.nativeimage.Platform;
+import org.graalvm.nativeimage.Platforms;
 
 /**
  * A shareable long value in the JVM process that is updated atomically. The long value is stored in
@@ -48,6 +51,7 @@ public class GlobalAtomicLong {
     /**
      * Cleaner for freeing {@link #address}.
      */
+    @Platforms(Platform.HOSTED_ONLY.class) //
     private static Cleaner cleaner;
 
     /**
@@ -83,20 +87,24 @@ public class GlobalAtomicLong {
         if (ImageInfo.inImageRuntimeCode()) {
             throw GraalError.shouldNotReachHere("Cannot create " + getClass().getName() + " objects in native image runtime");
         } else {
-            addressSupplier = () -> {
-                if (ImageInfo.inImageRuntimeCode()) {
-                    throw GraalError.shouldNotReachHere("The addressSupplier field value should have been replaced at image build time");
-                }
-                long addr = UNSAFE.allocateMemory(Long.BYTES);
-                synchronized (GlobalAtomicLong.class) {
-                    if (cleaner == null) {
-                        cleaner = Cleaner.create();
+            if (ImageInfo.inImageBuildtimeCode() && GlobalAtomicLong.class.getClassLoader() instanceof LibGraalLoader) {
+                addressSupplier = GlobalData.createGlobal(initialValue);
+            } else {
+                addressSupplier = () -> {
+                    if (ImageInfo.inImageRuntimeCode()) {
+                        throw GraalError.shouldNotReachHere("The addressSupplier field value should have been replaced at image build time");
                     }
-                    cleaner.register(GlobalAtomicLong.this, () -> UNSAFE.freeMemory(addr));
-                }
-                UNSAFE.putLongVolatile(null, addr, initialValue);
-                return addr;
-            };
+                    long addr = UNSAFE.allocateMemory(Long.BYTES);
+                    synchronized (GlobalAtomicLong.class) {
+                        if (cleaner == null) {
+                            cleaner = Cleaner.create();
+                        }
+                        cleaner.register(GlobalAtomicLong.this, () -> UNSAFE.freeMemory(addr));
+                    }
+                    UNSAFE.putLongVolatile(null, addr, initialValue);
+                    return addr;
+                };
+            }
         }
     }
 

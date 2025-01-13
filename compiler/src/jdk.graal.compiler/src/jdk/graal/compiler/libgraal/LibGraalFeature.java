@@ -67,10 +67,8 @@ import jdk.graal.compiler.debug.GraalError;
 import jdk.graal.compiler.graph.Edges;
 import jdk.graal.compiler.options.OptionDescriptor;
 import jdk.graal.compiler.options.OptionKey;
-import jdk.graal.compiler.serviceprovider.GlobalAtomicLong;
 import jdk.graal.compiler.core.common.FeatureComponent;
 import jdk.graal.nativeimage.LibGraalLoader;
-import jdk.graal.nativeimage.hosted.GlobalData;
 import jdk.vm.ci.hotspot.HotSpotModifiers;
 import org.graalvm.nativeimage.hosted.RuntimeSystemProperties;
 
@@ -187,11 +185,8 @@ public final class LibGraalFeature implements Feature {
     private OptionCollector optionCollector;
 
     /**
-     * Collects all options that are reachable at run time. Reachable options are the
-     * {@link OptionKey} instances reached by the static analysis. The VM options are instances of
-     * {@link OptionKey} loaded by the {@code com.oracle.svm.hosted.NativeImageClassLoader} and
-     * compiler options are instances of {@link OptionKey} loaded by the
-     * {@code HostedLibGraalClassLoader}.
+     * Collects all instances of the LibGraalLoader loaded {@link OptionKey} class reached by the
+     * static analysis.
      */
     private class OptionCollector implements Consumer<OptionKey<?>> {
         private final Set<OptionKey<?>> options = Collections.newSetFromMap(new ConcurrentHashMap<>());
@@ -289,35 +284,11 @@ public final class LibGraalFeature implements Feature {
         }
     }
 
-    /**
-     * Transforms {@code GlobalAtomicLong.addressSupplier} by replacing it with a {@link GlobalData}
-     * backed address supplier.
-     */
-    static class GlobalAtomicLongTransformer implements FieldValueTransformer {
-
-        void register(BeforeAnalysisAccess access) {
-            Field addressSupplierField = lookupField(GlobalAtomicLong.class, "addressSupplier");
-            access.registerFieldValueTransformer(addressSupplierField, this);
-        }
-
-        @Override
-        public Object transform(Object receiver, Object originalValue) {
-            long initialValue;
-            try {
-                initialValue = ((GlobalAtomicLong) receiver).getInitialValue();
-            } catch (Throwable e) {
-                throw GraalError.shouldNotReachHere(e);
-            }
-            return GlobalData.createGlobal(initialValue);
-        }
-    }
-
     @SuppressWarnings("unchecked")
     @Override
     public void beforeAnalysis(BeforeAnalysisAccess access) {
 
         new FieldOffsetsTransformer().register(access);
-        new GlobalAtomicLongTransformer().register(access);
 
         /* Contains static fields that depend on HotSpotJVMCIRuntime */
         RuntimeClassInitialization.initializeAtRunTime(HotSpotModifiers.class);

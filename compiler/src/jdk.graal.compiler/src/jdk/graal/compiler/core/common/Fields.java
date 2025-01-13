@@ -32,10 +32,12 @@ import java.util.List;
 import java.util.Map;
 
 import jdk.graal.compiler.debug.GraalError;
+import jdk.graal.compiler.graph.Edges;
 import jdk.graal.compiler.libgraal.LibGraalFeature;
 import jdk.internal.misc.Unsafe;
 import org.graalvm.nativeimage.ImageInfo;
 import org.graalvm.nativeimage.hosted.Feature;
+import org.graalvm.nativeimage.hosted.Feature.BeforeCompilationAccess;
 
 /**
  * Describes fields in a class, primarily for access via {@link Unsafe}.
@@ -91,6 +93,15 @@ public class Fields implements FeatureComponent {
         }
     }
 
+    /**
+     * Recomputes the {@link Unsafe} based field offsets and the {@link Edges#getIterationMask()}
+     * derived from them.
+     *
+     * @param access provides the new offsets via {@link BeforeCompilationAccess#objectFieldOffset}
+     * @return a pair (represented as a map entry) where the key is the new offsets and the value is
+     *         the iteration mask
+     *
+     */
     public Map.Entry<long[], Long> recomputeOffsetsAndIterationMask(Feature.BeforeCompilationAccess access) {
         long[] newOffsets = new long[offsets.length];
         for (int i = 0; i < offsets.length; i++) {
@@ -293,7 +304,7 @@ public class Fields implements FeatureComponent {
     /**
      * Gets the type of a field.
      *
-     * @param index index of a field
+     * @param index index of the field
      */
     public Class<?> getType(int index) {
         return types[index];

@@ -418,7 +418,7 @@ public final class NodeClass<T> extends FieldIntrospection<T> implements Feature
     /**
      * Describes a field representing an input or successor edge in a node.
      */
-    protected static class EdgeInfo extends FieldsScanner.FieldInfo {
+    public static class EdgeInfo extends FieldsScanner.FieldInfo {
 
         public EdgeInfo(long offset, String name, Class<?> type, Class<?> declaringClass) {
             super(offset, name, type, declaringClass);
