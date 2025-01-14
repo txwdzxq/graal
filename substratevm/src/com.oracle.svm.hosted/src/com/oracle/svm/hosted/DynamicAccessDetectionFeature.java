@@ -32,6 +32,7 @@ import com.oracle.svm.core.option.HostedOptionKey;
 import com.oracle.svm.core.option.HostedOptionValues;
 import com.oracle.svm.hosted.phases.DynamicAccessDetectionPhase;
 import jdk.graal.compiler.options.Option;
+import jdk.graal.compiler.util.json.JsonBuilder;
 import jdk.graal.compiler.util.json.JsonPrettyWriter;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import org.graalvm.nativeimage.ImageSingletons;
@@ -61,12 +62,40 @@ public final class DynamicAccessDetectionFeature implements InternalFeature {
                 AccumulatingLocatableMultiOptionValue.Strings.buildWithCommaDelimiter());
     }
 
+    private record MethodsByType(Map<String, CallLocationsByMethod> methodsByType){
+        MethodsByType() {
+            this(new TreeMap<>());
+        }
+
+        public Set<String> getMethodTypes() {
+            return methodsByType.keySet();
+        }
+
+        public CallLocationsByMethod getCallLocationsByMethod(String methodType) {
+            return methodsByType.getOrDefault(methodType, new CallLocationsByMethod());
+        }
+    };
+
+    private record CallLocationsByMethod(Map<String, List<String>> callLocationsByMethod){
+        CallLocationsByMethod() {
+            this(new TreeMap<>());
+        }
+
+        public Set<String> getMethods() {
+            return callLocationsByMethod.keySet();
+        }
+
+        public List<String> getMethodCallLocations(String methodName) {
+            return callLocationsByMethod.getOrDefault(methodName, new ArrayList<>());
+        }
+    };
+
     private final Set<String> classpathEntries;
-    private final Map<String, Map<String, Map<String, List<String>>>> callsByEntry;
+    private final Map<String, MethodsByType> callsByClasspathEntry;
     private final Set<FoldEntry> foldEntries = ConcurrentHashMap.newKeySet();
 
     public DynamicAccessDetectionFeature() {
-        this.callsByEntry = new ConcurrentSkipListMap<>();
+        this.callsByClasspathEntry = new ConcurrentSkipListMap<>();
         this.classpathEntries = Set.copyOf(Options.TrackMethodsRequiringMetadata.getValue().values());
     }
 
@@ -75,19 +104,37 @@ public final class DynamicAccessDetectionFeature implements InternalFeature {
     }
 
     public void addCall(String entry, String methodType, String call, String callLocation) {
-        this.callsByEntry.computeIfAbsent(entry, k -> new TreeMap<>());
-        this.callsByEntry.get(entry).computeIfAbsent(methodType, k -> new TreeMap<>());
-        this.callsByEntry.get(entry).get(methodType).computeIfAbsent(call, k -> new ArrayList<>());
-        this.callsByEntry.get(entry).get(methodType).get(call).add(callLocation);
+        MethodsByType entryContent = this.callsByClasspathEntry.computeIfAbsent(entry, k -> new MethodsByType());
+        CallLocationsByMethod methodCallLocations = entryContent.methodsByType().computeIfAbsent(methodType, k -> new CallLocationsByMethod());
+        List<String> callLocations = methodCallLocations.callLocationsByMethod().computeIfAbsent(call, k -> new ArrayList<>());
+        callLocations.add(callLocation);
+    }
+
+    private MethodsByType getMethodsByType(String entry) {
+        return this.callsByClasspathEntry.getOrDefault(entry, new MethodsByType());
+    }
+
+    public Set<String> getClasspathEntries() {
+        return classpathEntries;
+    }
+
+    public static String getEntryName(String path) {
+        String fileName = path.substring(path.lastIndexOf("/") + 1);
+        if (fileName.endsWith(".jar") || fileName.endsWith(".class")) {
+            fileName = fileName.substring(0, fileName.lastIndexOf('.'));
+        }
+        return fileName;
     }
 
     public void printReportForEntry(String entry) {
         System.out.println("Dynamic method usage detected in " + entry + ":");
-        for (String methodType : callsByEntry.get(entry).keySet()) {
+        MethodsByType methodsByType = getMethodsByType(entry);
+        for (String methodType : methodsByType.getMethodTypes()) {
             System.out.println("    " + methodType.substring(0, 1).toUpperCase(Locale.ROOT) + methodType.substring(1) + " calls detected:");
-            for (String call : callsByEntry.get(entry).get(methodType).keySet()) {
+            CallLocationsByMethod methodCallLocations = methodsByType.getCallLocationsByMethod(methodType);
+            for (String call : methodCallLocations.getMethods()) {
                 System.out.println("        " + call + ":");
-                for (String callLocation : callsByEntry.get(entry).get(methodType).get(call)) {
+                for (String callLocation : methodCallLocations.getMethodCallLocations(call)) {
                     System.out.println("            at " + callLocation);
                 }
             }
@@ -95,11 +142,24 @@ public final class DynamicAccessDetectionFeature implements InternalFeature {
     }
 
     public void dumpReportForEntry(String entry) {
-        String fileName = getLibraryName(entry) + "_method_calls.json";
-        Map<String, Map<String, List<String>>> calls = callsByEntry.get(entry);
+        String fileName = getEntryName(entry) + "_method_calls.json";
         Path targetPath = NativeImageGenerator.generatedFiles(HostedOptionValues.singleton()).resolve(fileName);
         try (var writer = new JsonPrettyWriter(targetPath)) {
-            writer.print(calls);
+            try (JsonBuilder.ObjectBuilder dynamicAccessBuilder = writer.objectBuilder()) {
+                MethodsByType methodsByType = getMethodsByType(entry);
+                for (String methodType : methodsByType.getMethodTypes()) {
+                    try (JsonBuilder.ObjectBuilder methodsByTypeBuilder = dynamicAccessBuilder.append(methodType).object()) {
+                        for (String methodName : methodsByType.getCallLocationsByMethod(methodType).getMethods()) {
+                            try (JsonBuilder.ArrayBuilder methodCallLocationBuilder = methodsByTypeBuilder.append(methodName).array()) {
+                                for (String methodLocation : methodsByType.getCallLocationsByMethod(methodType).getMethodCallLocations(methodName)) {
+                                    methodCallLocationBuilder.append(methodLocation);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             BuildArtifacts.singleton().add(BuildArtifacts.ArtifactType.BUILD_INFO, targetPath);
         } catch (IOException e) {
             System.out.println("Failed to print JSON to " + targetPath + ":");
@@ -109,23 +169,11 @@ public final class DynamicAccessDetectionFeature implements InternalFeature {
 
     public void reportDynamicAccess() {
         for (String entry : classpathEntries) {
-            if (callsByEntry.containsKey(entry)) {
+            if (callsByClasspathEntry.containsKey(entry)) {
                 printReportForEntry(entry);
                 dumpReportForEntry(entry);
             }
         }
-    }
-
-    public Set<String> getClasspathEntries() {
-        return classpathEntries;
-    }
-
-    public static String getLibraryName(String path) {
-        String fileName = path.substring(path.lastIndexOf("/") + 1);
-        if (fileName.endsWith(".jar")) {
-            fileName = fileName.substring(0, fileName.length() - 4);
-        }
-        return fileName;
     }
 
     /*
