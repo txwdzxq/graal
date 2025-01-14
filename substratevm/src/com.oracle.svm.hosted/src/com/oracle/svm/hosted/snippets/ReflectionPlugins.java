@@ -122,7 +122,7 @@ public final class ReflectionPlugins {
     private final FallbackFeature fallbackFeature;
     private final ClassInitializationSupport classInitializationSupport;
 
-    private final boolean analyzeMethodsRequiringMetadataUsage;
+    private final boolean trackDynamicAccess;
 
     private ReflectionPlugins(ImageClassLoader imageClassLoader, AnnotationSubstitutionProcessor annotationSubstitutions,
                     ClassInitializationPlugin classInitializationPlugin, AnalysisUniverse aUniverse, ParsingReason reason, FallbackFeature fallbackFeature) {
@@ -132,7 +132,7 @@ public final class ReflectionPlugins {
         this.aUniverse = aUniverse;
         this.reason = reason;
         this.fallbackFeature = fallbackFeature;
-        this.analyzeMethodsRequiringMetadataUsage = DynamicAccessDetectionFeature.Options.TrackMethodsRequiringMetadata.hasBeenSet();
+        this.trackDynamicAccess = DynamicAccessDetectionFeature.Options.TrackDynamicAccess.hasBeenSet();
 
         this.classInitializationSupport = (ClassInitializationSupport) ImageSingletons.lookup(RuntimeClassInitializationSupport.class);
     }
@@ -578,7 +578,7 @@ public final class ReflectionPlugins {
 
         b.add(ReachabilityRegistrationNode.create(() -> {
             registerForRuntimeReflection((T) receiverValue, registrationCallback);
-            if (analyzeMethodsRequiringMetadataUsage) {
+            if (trackDynamicAccess) {
                 DynamicAccessDetectionFeature.instance().addFoldEntry(b.bci(), b.getMethod());
             }
         }, reason));

@@ -50,19 +50,19 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 /**
- * This is a support class that keeps track of calls requiring metadata usage detected during
- * {@link DynamicAccessDetectionPhase} and outputs them to the image-build output.
+ * This is a support class that keeps track of dynamic access calls requiring metadata usage
+ * detected during {@link DynamicAccessDetectionPhase} and outputs them to the image-build output.
  */
 @AutomaticallyRegisteredFeature
 public final class DynamicAccessDetectionFeature implements InternalFeature {
 
     public static class Options {
-        @Option(help = "Output all metadata requiring call usages in the reached parts of the project, limited to the provided comma-separated list of classpath entries.")//
-        public static final HostedOptionKey<AccumulatingLocatableMultiOptionValue.Strings> TrackMethodsRequiringMetadata = new HostedOptionKey<>(
-                AccumulatingLocatableMultiOptionValue.Strings.buildWithCommaDelimiter());
+        @Option(help = "Output all metadata requiring dynamic access call usages in the reached parts of the project, limited to the provided comma-separated list of classpath entries.")//
+        public static final HostedOptionKey<AccumulatingLocatableMultiOptionValue.Strings> TrackDynamicAccess = new HostedOptionKey<>(
+                        AccumulatingLocatableMultiOptionValue.Strings.buildWithCommaDelimiter());
     }
 
-    private record MethodsByType(Map<String, CallLocationsByMethod> methodsByType){
+    private record MethodsByType(Map<String, CallLocationsByMethod> methodsByType) {
         MethodsByType() {
             this(new TreeMap<>());
         }
@@ -76,7 +76,7 @@ public final class DynamicAccessDetectionFeature implements InternalFeature {
         }
     };
 
-    private record CallLocationsByMethod(Map<String, List<String>> callLocationsByMethod){
+    private record CallLocationsByMethod(Map<String, List<String>> callLocationsByMethod) {
         CallLocationsByMethod() {
             this(new TreeMap<>());
         }
@@ -96,7 +96,7 @@ public final class DynamicAccessDetectionFeature implements InternalFeature {
 
     public DynamicAccessDetectionFeature() {
         this.callsByClasspathEntry = new ConcurrentSkipListMap<>();
-        this.classpathEntries = Set.copyOf(Options.TrackMethodsRequiringMetadata.getValue().values());
+        this.classpathEntries = Set.copyOf(Options.TrackDynamicAccess.getValue().values());
     }
 
     public static DynamicAccessDetectionFeature instance() {

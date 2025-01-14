@@ -62,20 +62,20 @@ import jdk.vm.ci.meta.JavaMethodProfile;
 import jdk.vm.ci.meta.JavaTypeProfile;
 
 public class SubstrateStrengthenGraphs extends StrengthenGraphs {
-    private final Boolean trackMetadataRequiringMethodUsage;
+    private final Boolean trackDynamicAccess;
     private final Boolean trackJavaHomeAccess;
     private final Boolean trackJavaHomeAccessDetailed;
 
     public SubstrateStrengthenGraphs(Inflation bb, Universe converter) {
         super(bb, converter);
-        trackMetadataRequiringMethodUsage = DynamicAccessDetectionFeature.Options.TrackMethodsRequiringMetadata.hasBeenSet();
+        trackDynamicAccess = DynamicAccessDetectionFeature.Options.TrackDynamicAccess.hasBeenSet();
         trackJavaHomeAccess = AnalyzeJavaHomeAccessFeature.Options.TrackJavaHomeAccess.getValue();
         trackJavaHomeAccessDetailed = AnalyzeJavaHomeAccessFeature.Options.TrackJavaHomeAccessDetailed.getValue();
     }
 
     @Override
     protected void preStrengthenGraphs(StructuredGraph graph, AnalysisMethod method) {
-        if (trackMetadataRequiringMethodUsage) {
+        if (trackDynamicAccess) {
             new DynamicAccessDetectionPhase().apply(graph, bb.getProviders(method));
         }
     }
