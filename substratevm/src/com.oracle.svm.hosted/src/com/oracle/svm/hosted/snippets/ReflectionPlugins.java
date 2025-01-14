@@ -576,10 +576,12 @@ public final class ReflectionPlugins {
             return false;
         }
 
-        b.add(ReachabilityRegistrationNode.create(() -> registerForRuntimeReflection((T) receiverValue, registrationCallback), reason));
-        if (analyzeMethodsRequiringMetadataUsage) {
-            DynamicAccessDetectionFeature.instance().addFoldEntry(b.bci(), b.getMethod());
-        }
+        b.add(ReachabilityRegistrationNode.create(() -> {
+            registerForRuntimeReflection((T) receiverValue, registrationCallback);
+            if (analyzeMethodsRequiringMetadataUsage) {
+                DynamicAccessDetectionFeature.instance().addFoldEntry(b.bci(), b.getMethod());
+            }
+        }, reason));
         return true;
     }
 
