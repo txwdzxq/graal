@@ -48,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.stream.Collectors;
 
 /**
  * This is a support class that keeps track of dynamic access calls requiring metadata usage
@@ -57,7 +58,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 public final class DynamicAccessDetectionFeature implements InternalFeature {
 
     public static class Options {
-        @Option(help = "Output all metadata requiring dynamic access call usages in the reached parts of the project, limited to the provided comma-separated list of classpath entries.")//
+        @Option(help = "Output all metadata requiring dynamic access call usages in the reached parts of the project, limited to the provided comma-separated list of class path or module path entries.")//
         public static final HostedOptionKey<AccumulatingLocatableMultiOptionValue.Strings> TrackDynamicAccess = new HostedOptionKey<>(
                         AccumulatingLocatableMultiOptionValue.Strings.buildWithCommaDelimiter());
     }
@@ -90,13 +91,13 @@ public final class DynamicAccessDetectionFeature implements InternalFeature {
         }
     };
 
-    private final Set<String> classpathEntries;
-    private final Map<String, MethodsByType> callsByClasspathEntry;
+    private final Set<String> pathEntries; // Class or module path entries
+    private final Map<String, MethodsByType> callsByPathEntry;
     private final Set<FoldEntry> foldEntries = ConcurrentHashMap.newKeySet();
 
     public DynamicAccessDetectionFeature() {
-        this.callsByClasspathEntry = new ConcurrentSkipListMap<>();
-        this.classpathEntries = Set.copyOf(Options.TrackDynamicAccess.getValue().values());
+        this.callsByPathEntry = new ConcurrentSkipListMap<>();
+        this.pathEntries = Set.copyOf(Options.TrackDynamicAccess.getValue().values().stream().map(String::stripTrailing).collect(Collectors.toSet()));
     }
 
     public static DynamicAccessDetectionFeature instance() {
@@ -104,18 +105,18 @@ public final class DynamicAccessDetectionFeature implements InternalFeature {
     }
 
     public void addCall(String entry, String methodType, String call, String callLocation) {
-        MethodsByType entryContent = this.callsByClasspathEntry.computeIfAbsent(entry, k -> new MethodsByType());
+        MethodsByType entryContent = this.callsByPathEntry.computeIfAbsent(entry, k -> new MethodsByType());
         CallLocationsByMethod methodCallLocations = entryContent.methodsByType().computeIfAbsent(methodType, k -> new CallLocationsByMethod());
         List<String> callLocations = methodCallLocations.callLocationsByMethod().computeIfAbsent(call, k -> new ArrayList<>());
         callLocations.add(callLocation);
     }
 
     private MethodsByType getMethodsByType(String entry) {
-        return this.callsByClasspathEntry.getOrDefault(entry, new MethodsByType());
+        return this.callsByPathEntry.getOrDefault(entry, new MethodsByType());
     }
 
-    public Set<String> getClasspathEntries() {
-        return classpathEntries;
+    public Set<String> getPathEntries() {
+        return pathEntries;
     }
 
     public static String getEntryName(String path) {
@@ -168,8 +169,8 @@ public final class DynamicAccessDetectionFeature implements InternalFeature {
     }
 
     public void reportDynamicAccess() {
-        for (String entry : classpathEntries) {
-            if (callsByClasspathEntry.containsKey(entry)) {
+        for (String entry : pathEntries) {
+            if (callsByPathEntry.containsKey(entry)) {
                 printReportForEntry(entry);
                 dumpReportForEntry(entry);
             }

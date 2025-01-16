@@ -63,11 +63,11 @@ import java.util.random.RandomGeneratorFactory;
 
 /**
  * This phase detects usages of any dynamic access calls that might require metadata in reached
- * parts of the project, given the classpath entries in which to search, and outputs and serializes
- * them to the image-build output. It is an optional phase that happens before
+ * parts of the project, given the class or module path entries in which to search, and outputs and
+ * serializes them to the image-build output. It is an optional phase that happens before
  * {@link com.oracle.graal.pointsto.results.StrengthenGraphs} by using the
  * {@link DynamicAccessDetectionFeature.Options#TrackDynamicAccess} option and providing the desired
- * classpath entry/s.
+ * class or module path entry/s.
  */
 
 public class DynamicAccessDetectionPhase extends BasePhase<CoreProviders> {
@@ -221,8 +221,8 @@ public class DynamicAccessDetectionPhase extends BasePhase<CoreProviders> {
     }
 
     /*
-     * Returns the classpath entry path of the caller class if it is included in the path specified
-     * by the option, otherwise returns null.
+     * Returns the class or module path entry path of the caller class if it is included in the path
+     * specified by the option, otherwise returns null.
      */
     private static String getEntryPath(AnalysisType callerClass) {
         try {
@@ -236,8 +236,8 @@ public class DynamicAccessDetectionPhase extends BasePhase<CoreProviders> {
                 return null;
             }
 
-            String entryPath = entryPathURL.toURI().getPath();
-            if (DynamicAccessDetectionFeature.instance().getClasspathEntries().contains(entryPath)) {
+            String entryPath = entryPathURL.toURI().getPath().stripTrailing();
+            if (DynamicAccessDetectionFeature.instance().getPathEntries().contains(entryPath)) {
                 return entryPath;
             }
             return null;
