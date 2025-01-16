@@ -236,7 +236,10 @@ public class DynamicAccessDetectionPhase extends BasePhase<CoreProviders> {
                 return null;
             }
 
-            String entryPath = entryPathURL.toURI().getPath().stripTrailing();
+            String entryPath = entryPathURL.toURI().getPath();
+            if (entryPath.endsWith("/")) {
+                entryPath = entryPath.substring(0, entryPath.length() - 1);
+            }
             if (DynamicAccessDetectionFeature.instance().getPathEntries().contains(entryPath)) {
                 return entryPath;
             }
