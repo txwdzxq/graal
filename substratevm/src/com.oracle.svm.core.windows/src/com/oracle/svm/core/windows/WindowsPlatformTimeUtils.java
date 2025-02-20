@@ -24,24 +24,20 @@
  */
 package com.oracle.svm.core.windows;
 
-import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
+import static com.oracle.svm.core.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 import static com.oracle.svm.core.windows.headers.SysinfoAPI.GetSystemTimeAsFileTime;
 
 import org.graalvm.nativeimage.StackValue;
-import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.shared.Uninterruptible;
-import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
-import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
-import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
-import com.oracle.svm.shared.singletons.traits.BuiltinTraits.RuntimeAccessOnly;
-import com.oracle.svm.shared.singletons.traits.SingletonTraits;
-import com.oracle.svm.shared.util.BasedOnJDKFile;
+import com.oracle.svm.core.Uninterruptible;
+import com.oracle.svm.core.feature.AutomaticallyRegisteredImageSingleton;
+import com.oracle.svm.core.util.BasedOnJDKFile;
 import com.oracle.svm.core.util.PlatformTimeUtils;
 import com.oracle.svm.core.windows.headers.WinBase.FILETIME;
 
+import jdk.graal.compiler.word.Word;
+
 @AutomaticallyRegisteredImageSingleton(PlatformTimeUtils.class)
-@SingletonTraits(access = RuntimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class, other = Disallowed.class)
 public final class WindowsPlatformTimeUtils extends PlatformTimeUtils {
 
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-24+3/src/hotspot/os/windows/os_windows.cpp#L1123") //
@@ -64,12 +60,14 @@ public final class WindowsPlatformTimeUtils extends PlatformTimeUtils {
     @Override
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-24+3/src/hotspot/os/windows/os_windows.cpp#L1198-L1205")
     @Uninterruptible(reason = "Must not migrate platform threads when executing on a virtual thread.")
-    public SecondsNanos javaTimeSystemUTC() {
+    public void javaTimeSystemUTC(SecondsNanos secondsNanos) {
         FILETIME wt = StackValue.get(FILETIME.class);
         GetSystemTimeAsFileTime(wt);
         long ticks = windowsToTimeTicks(wt); // 10th of micros
         long secs = ticks / 10000000L; // 10000 * 1000
         long nanos = (ticks - (secs * 10000000L)) * 100L;
-        return allocateSecondsNanosInterruptibly(secs, nanos);
+
+        secondsNanos.setNanos(nanos);
+        secondsNanos.setSeconds(secs);
     }
 }

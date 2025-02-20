@@ -26,12 +26,14 @@
 
 package com.oracle.svm.core.jfr.oldobject;
 
+import static com.oracle.svm.core.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
+
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.StackValue;
 import org.graalvm.word.Pointer;
-import org.graalvm.word.impl.Word;
 
+import com.oracle.svm.core.Uninterruptible;
 import com.oracle.svm.core.graal.stackvalue.UnsafeStackValue;
 import com.oracle.svm.core.jdk.UninterruptibleUtils;
 import com.oracle.svm.core.jfr.JfrBuffer;
@@ -46,7 +48,8 @@ import com.oracle.svm.core.jfr.JfrType;
 import com.oracle.svm.core.jfr.SubstrateJVM;
 import com.oracle.svm.core.jfr.traceid.JfrTraceIdEpoch;
 import com.oracle.svm.core.locks.VMMutex;
-import com.oracle.svm.shared.Uninterruptible;
+
+import jdk.graal.compiler.word.Word;
 
 public final class JfrOldObjectRepository implements JfrRepository {
     private static final int OBJECT_DESCRIPTION_MAX_LENGTH = 100;
@@ -67,7 +70,7 @@ public final class JfrOldObjectRepository implements JfrRepository {
         epochData1.teardown();
     }
 
-    @Uninterruptible(reason = "Locking without transition and result is only valid until epoch changes. Accesses a native JFR buffer.", callerMustBe = true)
+    @Uninterruptible(reason = "Locking without transition and result is only valid until epoch changes.", callerMustBe = true)
     public long serializeOldObject(Object obj) {
         mutex.lockNoTransition();
         try {
@@ -77,12 +80,12 @@ public final class JfrOldObjectRepository implements JfrRepository {
             }
 
             long id = JfrOldObjectEpochData.nextId;
-            Word pointer = Word.objectToUntrackedWord(obj);
+            Word pointer = Word.objectToUntrackedPointer(obj);
             JfrNativeEventWriterData data = StackValue.get(JfrNativeEventWriterData.class);
             JfrNativeEventWriterDataAccess.initialize(data, epochData.buffer);
             JfrNativeEventWriter.putLong(data, id);
             JfrNativeEventWriter.putLong(data, pointer.rawValue());
-            JfrNativeEventWriter.putLong(data, SubstrateJVM.getTypeRepository().getClassId(obj.getClass()));
+            JfrNativeEventWriter.putClass(data, obj.getClass());
             writeDescription(obj, data);
             JfrNativeEventWriter.putLong(data, 0L); // GC root
             if (!JfrNativeEventWriter.commit(data)) {
@@ -99,7 +102,7 @@ public final class JfrOldObjectRepository implements JfrRepository {
         }
     }
 
-    @Uninterruptible(reason = "Accesses a native JFR buffer.", callerMustBe = true)
+    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     private static void writeDescription(Object obj, JfrNativeEventWriterData data) {
         if (obj instanceof ThreadGroup group) {
             writeDescription(data, "Thread Group: ", group.getName());
@@ -113,7 +116,7 @@ public final class JfrOldObjectRepository implements JfrRepository {
         }
     }
 
-    @Uninterruptible(reason = "Accesses a native JFR buffer.", callerMustBe = true)
+    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     private static void writeDescription(JfrNativeEventWriterData data, String prefix, String text) {
         if (text == null || text.isEmpty()) {
             JfrNativeEventWriter.putString(data, text);
