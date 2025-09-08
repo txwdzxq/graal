@@ -2843,7 +2843,8 @@ suite = {
                     "org.graalvm.collections",
                 ],
                 "exports" : [
-                    "* to org.graalvm.nativeimage.builder"
+                    "* to org.graalvm.nativeimage.builder",
+                    "com.oracle.svm.hosted.foreign to jdk.graal.compiler"
                 ],
                 "requiresConcealed": {
                     "jdk.internal.vm.ci" : [

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -25,9 +25,9 @@
 package com.oracle.svm.core.foreign;
 
 import java.lang.invoke.MethodType;
-import java.util.Arrays;
-import java.util.Objects;
 
+import com.oracle.svm.core.FunctionPointerHolder;
+import com.oracle.svm.core.annotate.Alias;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
 
@@ -43,13 +43,19 @@ import jdk.internal.foreign.abi.VMStorage;
 @Substitute
 public final class Target_jdk_internal_foreign_abi_NativeEntryPoint {
 
-    private final MethodType methodType;
-    public final long downcallStubAddress;
-    public final int captureMask;
+    @Alias //
+    final MethodType methodType;
 
-    Target_jdk_internal_foreign_abi_NativeEntryPoint(MethodType methodType, long downcallStubAddress, int captureMask) {
+    final FunctionPointerHolder downcallStubPointerHolder;
+
+    final int captureMask;
+
+    final FunctionPointerHolder downcallInvokerPointerHolder;
+
+    Target_jdk_internal_foreign_abi_NativeEntryPoint(MethodType methodType, FunctionPointerHolder downcallStubPointerHolder, int captureMask) {
         this.methodType = methodType;
-        this.downcallStubAddress = downcallStubAddress;
+        this.downcallStubPointerHolder = downcallStubPointerHolder;
+        this.downcallInvokerPointerHolder = ForeignFunctionsRuntime.singleton().getDowncallStubInvokerPointerHolder(methodType);
         this.captureMask = captureMask;
     }
 
@@ -74,7 +80,13 @@ public final class Target_jdk_internal_foreign_abi_NativeEntryPoint {
          * AddressLayout, then allowHeapAccess will always be false. We ensure this is the case by
          * construction in the NativeEntryPointInfo.make function.
          */
-        boolean allowHeapAccess = Arrays.stream(argMoves).anyMatch(Objects::isNull);
+        boolean allowHeapAccess = false;
+        for (int i = 0; i < argMoves.length; i++) {
+            if (argMoves[i] == null) {
+                allowHeapAccess = true;
+                break;
+            }
+        }
         return NativeEntryPointInfo.makeEntryPoint(abi, argMoves, returnMoves, methodType, needsReturnBuffer, capturedStateMask, needsTransition, allowHeapAccess);
     }
 

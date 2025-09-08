@@ -102,6 +102,7 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
     private final AbiUtils.TrampolineTemplate trampolineTemplate;
 
     private final EconomicMap<NativeEntryPointInfo, FunctionPointerHolder> downcallStubs = ImageHeapMap.create("downcallStubs");
+    private final EconomicMap<MethodType, FunctionPointerHolder> downcallStubInvokers = ImageHeapMap.create("downcallStubInvokers");
     private final EconomicMap<Pair<DirectMethodHandleDesc, JavaEntryPointInfo>, FunctionPointerHolder> directUpcallStubs = ImageHeapMap.create("directUpcallStubs");
     private final EconomicMap<JavaEntryPointInfo, FunctionPointerHolder> upcallStubs = ImageHeapMap.create("upcallStubs");
     private final EconomicSet<ResolvedJavaType> neverAccessesSharedArenaTypes = EconomicSet.create();
@@ -162,6 +163,11 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
+    public boolean downcallStubInvokerExists(MethodType methodType) {
+        return downcallStubInvokers.containsKey(methodType);
+    }
+
+    @Platforms(Platform.HOSTED_ONLY.class)
     public int getDowncallStubsCount() {
         return downcallStubs.size();
     }
@@ -169,6 +175,11 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
     @Platforms(Platform.HOSTED_ONLY.class)
     public boolean upcallStubExists(JavaEntryPointInfo jep) {
         return upcallStubs.containsKey(jep);
+    }
+
+    @Platforms(Platform.HOSTED_ONLY.class)
+    public boolean addDowncallStubInvokerPointer(MethodType methodType, CFunctionPointer ptr) {
+        return downcallStubInvokers.putIfAbsent(methodType, new FunctionPointerHolder(ptr)) == null;
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
@@ -212,12 +223,24 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
         neverAccessesSharedArenaMethods.add(method);
     }
 
-    CFunctionPointer getDowncallStubPointer(NativeEntryPointInfo nep) {
+    FunctionPointerHolder getDowncallStubPointerHolder(NativeEntryPointInfo nep) {
         FunctionPointerHolder holder = downcallStubs.get(nep);
         if (holder == null) {
             throw reportMissingDowncall(nep);
         }
-        return holder.functionPointer;
+        return holder;
+    }
+
+    CFunctionPointer getDowncallStubPointer(NativeEntryPointInfo nep) {
+        return getDowncallStubPointerHolder(nep).functionPointer;
+    }
+
+    FunctionPointerHolder getDowncallStubInvokerPointerHolder(MethodType methodType) {
+        FunctionPointerHolder holder = downcallStubInvokers.get(methodType);
+        if (holder == null) {
+            throw reportMissingDowncall(methodType);
+        }
+        return holder;
     }
 
     CFunctionPointer getUpcallStubPointer(JavaEntryPointInfo jep) {
@@ -317,6 +340,21 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
     }
 
     /**
+     * Similar to {@link #reportMissingDowncall(NativeEntryPointInfo)} but only matches the
+     * requested {@link MethodType}.
+     */
+    private MissingForeignRegistrationError reportMissingDowncall(MethodType methodType) {
+        LinkRequest currentLinkRequest = null;
+        for (LinkRequest linkRequest : currentLinkRequests) {
+            if (methodType.equals(linkRequest.functionDescriptor.toMethodType())) {
+                currentLinkRequest = linkRequest;
+                break;
+            }
+        }
+        throw MissingForeignRegistrationUtils.report(false, currentLinkRequest, methodType);
+    }
+
+    /**
      * Similar to {@link #reportMissingDowncall} but for upcalls.
      */
     private MissingForeignRegistrationError reportMissingUpcall(JavaEntryPointInfo jep) {
@@ -399,9 +437,8 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
     @Override
     public Object linkToNative(Object... args) throws Throwable {
         Target_jdk_internal_foreign_abi_NativeEntryPoint nep = (Target_jdk_internal_foreign_abi_NativeEntryPoint) args[args.length - 1];
-        StubPointer pointer = Word.pointer(nep.downcallStubAddress);
         /* The nep argument will be dropped in the invoked function */
-        return pointer.invoke(args);
+        return ((StubInvokerPointer) nep.downcallInvokerPointerHolder.functionPointer).invoke(nep.downcallStubPointerHolder.functionPointer, args);
     }
 
     @Override
@@ -502,7 +539,8 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
     }
 }
 
-interface StubPointer extends CFunctionPointer {
+/** Invoke interface for {@code com.oracle.svm.hosted.foreign.DowncallStubInvoker}. */
+interface StubInvokerPointer extends CFunctionPointer {
     @InvokeJavaFunctionPointer
-    Object invoke(Object... args);
+    Object invoke(CFunctionPointer downcallStub, Object... args);
 }

@@ -28,6 +28,7 @@ import java.lang.invoke.MethodType;
 import java.util.Arrays;
 import java.util.Objects;
 
+import com.oracle.svm.core.FunctionPointerHolder;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.internal.foreign.abi.ABIDescriptor;
@@ -112,8 +113,8 @@ public final class NativeEntryPointInfo {
                     boolean needsTransition,
                     boolean allowHeapAccess) {
         var info = make(argMoves, returnMoves, methodType, needsReturnBuffer, capturedStateMask, needsTransition, allowHeapAccess);
-        long addr = ForeignFunctionsRuntime.singleton().getDowncallStubPointer(info).rawValue();
-        return new Target_jdk_internal_foreign_abi_NativeEntryPoint(info.methodType(), addr, capturedStateMask);
+        FunctionPointerHolder holder = ForeignFunctionsRuntime.singleton().getDowncallStubPointerHolder(info);
+        return new Target_jdk_internal_foreign_abi_NativeEntryPoint(info.methodType(), holder, capturedStateMask);
     }
 
     public MethodType methodType() {

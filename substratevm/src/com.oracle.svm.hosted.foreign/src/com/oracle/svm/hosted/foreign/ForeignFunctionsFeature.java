@@ -137,6 +137,7 @@ import jdk.graal.compiler.phases.common.CanonicalizerPhase;
 import jdk.graal.compiler.phases.common.IterativeConditionalEliminationPhase;
 import jdk.graal.compiler.phases.tiers.MidTierContext;
 import jdk.graal.compiler.phases.util.Providers;
+import jdk.graal.compiler.word.WordTypes;
 import jdk.internal.foreign.AbstractMemorySegmentImpl;
 import jdk.internal.foreign.MemorySessionImpl;
 import jdk.internal.foreign.abi.AbstractLinker;
@@ -235,7 +236,13 @@ public class ForeignFunctionsFeature implements InternalFeature {
             try {
                 LinkerOptions linkerOptions = LinkerOptions.forDowncall(desc, options);
                 SharedDesc sharedDesc = new SharedDesc(desc, linkerOptions);
-                runConditionalTask(condition, _ -> createStub(DowncallStubFactory.INSTANCE, sharedDesc));
+                runConditionalTask(condition, _ -> {
+                    NativeEntryPointInfo nepi = abiUtils.makeNativeEntrypoint(sharedDesc.fd, sharedDesc.options);
+                    DowncallStub stub = createStub(DowncallStubFactory.INSTANCE, nepi);
+                    if (stub != null) {
+                        createStub(DowncallStubInvokerFactory.INSTANCE, nepi.methodType());
+                    }
+                });
             } catch (IllegalArgumentException e) {
                 throw UserError.abort(e, "Could not register downcall");
             }
@@ -290,7 +297,7 @@ public class ForeignFunctionsFeature implements InternalFeature {
          * @param <T> The stub descriptor type (e.g. {@link SharedDesc}).
          * @param <U> The stub type (e.g. {@link DowncallStub}).
          */
-        private <S, T, U extends ResolvedJavaMethod> void createStub(StubFactory<S, T, U> factory, T descriptor) {
+        private <S, T, U extends ResolvedJavaMethod> U createStub(StubFactory<S, T, U> factory, T descriptor) {
 
             /*
              * If foreign function calls are generally not supported on this platform, we just
@@ -298,7 +305,7 @@ public class ForeignFunctionsFeature implements InternalFeature {
              */
             if (!ForeignFunctionsRuntime.areFunctionCallsSupported()) {
                 stubsRegistered = true;
-                return;
+                return null;
             }
 
             S key = factory.createKey(abiUtils, descriptor);
@@ -310,7 +317,7 @@ public class ForeignFunctionsFeature implements InternalFeature {
              * execution.
              */
             if (factory.stubExists(foreignFunctionsRuntime, key)) {
-                return;
+                return null;
             }
 
             U stub = factory.generateStub(analysisMetaAccess.getWrapped(), universe, key);
@@ -327,7 +334,9 @@ public class ForeignFunctionsFeature implements InternalFeature {
                 if (factory.registerAsEntryPoint()) {
                     analysisStub.registerAsNativeEntryPoint(CEntryPointData.createCustomUnpublished());
                 }
+                return stub;
             }
+            return null;
         }
     }
 
@@ -455,12 +464,12 @@ public class ForeignFunctionsFeature implements InternalFeature {
         boolean registerAsEntryPoint();
     }
 
-    private record DowncallStubFactory() implements StubFactory<NativeEntryPointInfo, SharedDesc, DowncallStub> {
+    private record DowncallStubFactory() implements StubFactory<NativeEntryPointInfo, NativeEntryPointInfo, DowncallStub> {
         private static final DowncallStubFactory INSTANCE = new DowncallStubFactory();
 
         @Override
-        public NativeEntryPointInfo createKey(AbiUtils abiUtils, SharedDesc registeredDescriptor) {
-            return abiUtils.makeNativeEntrypoint(registeredDescriptor.fd, registeredDescriptor.options);
+        public NativeEntryPointInfo createKey(AbiUtils abiUtils, NativeEntryPointInfo nativeEntryPointInfo) {
+            return nativeEntryPointInfo;
         }
 
         @Override
@@ -476,6 +485,36 @@ public class ForeignFunctionsFeature implements InternalFeature {
         @Override
         public boolean stubExists(ForeignFunctionsRuntime runtime, NativeEntryPointInfo key) {
             return runtime.downcallStubExists(key);
+        }
+
+        @Override
+        public boolean registerAsEntryPoint() {
+            return false;
+        }
+    }
+
+    private record DowncallStubInvokerFactory() implements StubFactory<MethodType, MethodType, DowncallStubInvoker> {
+        private static final DowncallStubInvokerFactory INSTANCE = new DowncallStubInvokerFactory();
+
+        @Override
+        public MethodType createKey(AbiUtils abiUtils, MethodType methodType) {
+            return methodType;
+        }
+
+        @Override
+        public DowncallStubInvoker generateStub(MetaAccessProvider metaAccessProvider, AnalysisUniverse universe, MethodType methodType) {
+            WordTypes wordTypes = universe.getBigbang().getWordTypes();
+            return new DowncallStubInvoker(DowncallStub.createSignature(metaAccessProvider, methodType), metaAccessProvider, wordTypes);
+        }
+
+        @Override
+        public boolean registerStub(ForeignFunctionsRuntime runtime, MethodType methodType, CFunctionPointer stubPointer) {
+            return runtime.addDowncallStubInvokerPointer(methodType, stubPointer);
+        }
+
+        @Override
+        public boolean stubExists(ForeignFunctionsRuntime runtime, MethodType methodType) {
+            return runtime.downcallStubInvokerExists(methodType);
         }
 
         @Override
@@ -830,6 +869,7 @@ public class ForeignFunctionsFeature implements InternalFeature {
 
     @Override
     public void registerGraphBuilderPlugins(Providers providers, Plugins plugins, ParsingReason reason) {
+
         /*
          * If support for shared arenas is enabled, register a graph builder plugin that replaces
          * invocations '((MemorySessionImpl)session).checkValidStateRaw' with
