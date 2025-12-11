@@ -48,11 +48,13 @@ import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.dynamicaccess.AccessCondition;
+import org.graalvm.nativeimage.hosted.RuntimeReflection;
 import org.graalvm.nativeimage.impl.RuntimeClassInitializationSupport;
 
 import com.oracle.graal.pointsto.ObjectScanner.OtherReason;
 import com.oracle.graal.pointsto.ObjectScanner.ScanReason;
 import com.oracle.svm.core.ClassLoaderSupport;
+import com.oracle.svm.core.FutureDefaultsOptions;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
@@ -271,6 +273,36 @@ public class LocalizationFeature implements InternalFeature {
         return new LocalizationSupport(allLocales, defaultCharset);
     }
 
+    private static final List<String> PROVIDER_ADAPTERS = Arrays.asList(
+                    "sun.util.locale.provider.SPILocaleProviderAdapter",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$BreakIteratorProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$CollatorProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$DateFormatProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$DateFormatSymbolsProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$NumberFormatProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$CalendarDataProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$CalendarNameProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$CurrencyNameProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$LocaleNameProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$TimeZoneNameProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$DecimalFormatSymbolsProviderDelegate",
+                    "sun.util.locale.provider.FallbackLocaleProviderAdapter",
+                    "sun.util.locale.provider.HostLocaleProviderAdapter",
+                    "sun.util.locale.provider.JRELocaleProviderAdapter",
+                    "sun.util.cldr.CLDRLocaleProviderAdapter");
+
+    public static void registerLocaleProviderAdapters() {
+        for (String providerAdapter : PROVIDER_ADAPTERS) {
+            try {
+                Class<?> clazz = Class.forName(providerAdapter);
+                RuntimeReflection.register(clazz);
+                RuntimeReflection.registerForReflectiveInstantiation(clazz);
+            } catch (Exception e) {
+                VMError.shouldNotReachHere(e);
+            }
+        }
+    }
+
     @Override
     public void beforeAnalysis(BeforeAnalysisAccess a) {
         addResourceBundles();
@@ -281,6 +313,10 @@ public class LocalizationFeature implements InternalFeature {
          */
         access.allowStableFieldFoldingBeforeAnalysis(access.findField("sun.util.locale.BaseLocale", "constantBaseLocales"));
         access.allowStableFieldFoldingBeforeAnalysis(access.findField("java.lang.CharacterDataLatin1", "sharpsMap"));
+
+        if (FutureDefaultsOptions.resourceBundlesInitializedAtRunTime()) {
+            a.registerReachabilityHandler(_ -> registerLocaleProviderAdapters(), LocaleProviderAdapter.class);
+        }
     }
 
     @Override

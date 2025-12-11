@@ -24,17 +24,12 @@
  */
 package com.oracle.svm.core.jdk.localization.substitutions;
 
-import java.util.Locale;
-import java.util.ResourceBundle;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import com.oracle.svm.core.annotate.Alias;
 import com.oracle.svm.core.annotate.RecomputeFieldValue;
-import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
-
-import sun.util.resources.Bundles.Strategy;
 
 @TargetClass(value = sun.util.resources.Bundles.class)
 @SuppressWarnings({"unused"})
@@ -42,12 +37,4 @@ final class Target_sun_util_resources_Bundles {
 
     @Alias @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.FromAlias)//
     private static ConcurrentMap<?, ?> cacheList = new ConcurrentHashMap<>();
-
-    @Alias
-    private static native ResourceBundle loadBundleOf(String baseName, Locale targetLocale, Strategy strategy);
-
-    @Substitute
-    public static ResourceBundle of(String baseName, Locale locale, Strategy strategy) {
-        return loadBundleOf(baseName, locale, strategy);
-    }
 }
