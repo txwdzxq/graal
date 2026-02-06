@@ -209,6 +209,7 @@ final class AbstractBytecodeNodeElement extends AbstractElement {
         this.add(createValidateBytecodeIndex());
         this.add(createGetSourceInformation());
         this.add(createHasSourceInformation());
+        this.add(createHasSourceInformationWithContent());
         this.add(createGetSourceInformationTree());
         this.add(createGetExceptionHandlers());
         this.add(createGetTagTree());
@@ -1005,9 +1006,9 @@ final class AbstractBytecodeNodeElement extends AbstractElement {
 
         // Source information validation
         b.declaration(arrayOf(type(int.class)), "info", "this.sourceInfo");
-        b.declaration(generic(declaredType(List.class), types.Source), "localSources", "this.sources");
 
         b.startIf().string("info != null").end().startBlock();
+        b.declaration(generic(declaredType(List.class), types.Source), "localSources", "this.sources");
         b.startFor().string("int i = 0; i < info.length; i += ").variable(parent.sourceInfoTable.entryLengthVariable).end().startBlock();
         b.declaration(type(int.class), "startBci", parent.sourceInfoTable.loadStartBci("info", "i"));
         b.declaration(type(int.class), "endBci", parent.sourceInfoTable.loadEndBci("info", "i"));
@@ -1925,6 +1926,18 @@ final class AbstractBytecodeNodeElement extends AbstractElement {
         b.end();
         b.startReturn();
         b.startNew("SourceInformationList").string("this").end();
+        b.end();
+        return ex;
+    }
+
+    private CodeExecutableElement createHasSourceInformationWithContent() {
+        CodeExecutableElement ex = GeneratorUtils.override(types.BytecodeNode, "hasSourceInformationWithContent");
+        CodeTreeBuilder b = ex.createBuilder();
+        b.startReturn().string("hasSourceInformation()");
+        if (parent.model.sourceContentSupplier != null) {
+            b.string(" && ");
+            b.string(parent.configEncoder.checkSourceContentBit("getRoot().nodes.encoding"));
+        }
         b.end();
         return ex;
     }

@@ -140,12 +140,6 @@ public final class BytecodeRootNodeElement extends AbstractElement {
     static final String COROUTINE_FRAME_INDEX = "COROUTINE_FRAME_INDEX";
     static final String EMPTY_INT_ARRAY = "EMPTY_INT_ARRAY";
 
-    // Bytecode version encoding: [tags][instrumentations][source bit]
-    static final int MAX_TAGS = 32;
-    static final int TAG_OFFSET = 32;
-    static final int MAX_INSTRUMENTATIONS = 31;
-    static final int INSTRUMENTATION_OFFSET = 1;
-
     // !Important: Keep these in sync with InstructionBytecodeSizeTest!
     // Estimated number of Java bytecodes per instruction.
     private static final int ESTIMATED_CUSTOM_INSTRUCTION_SIZE = 26;
@@ -225,6 +219,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
 
         this.model = model;
         this.virtualState = new VirtualStateElement(this);
+        this.configEncoder = this.add(new BytecodeConfigEncoderImplElement(this));
         this.builder = new BuilderElement(this);
         this.abstractBuilderType = abstractBuilderType == null ? types.BytecodeBuilder : abstractBuilderType;
         this.bytecodeBuilderType = builder.asType();
@@ -364,8 +359,6 @@ public final class BytecodeRootNodeElement extends AbstractElement {
 
         instructionDescriptorImpl.lazyInit();
         instructionImpl.lazyInit();
-
-        configEncoder = this.add(new BytecodeConfigEncoderImplElement(this));
 
         this.add(createNewConfigBuilder());
 
@@ -1666,7 +1659,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
 
         b.declaration(types.BytecodeConfig_Builder, "b", "newConfigBuilder()");
         b.lineComment("Sources are always needed for instrumentation.");
-        b.statement("b.addSource()");
+        b.statement("b.addSourceContent()");
 
         b.startFor().type(type(Class.class)).string(" tag : materializedTags").end().startBlock();
         b.statement("b.addTag((Class<? extends Tag>) tag)");

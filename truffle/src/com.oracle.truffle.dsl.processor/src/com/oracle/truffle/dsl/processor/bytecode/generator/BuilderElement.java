@@ -183,6 +183,9 @@ final class BuilderElement extends AbstractElement {
         this.add(new CodeVariableElement(Set.of(PRIVATE, FINAL), type(int.class), "tags"));
         this.add(new CodeVariableElement(Set.of(PRIVATE, FINAL), type(int.class), "instrumentations"));
         this.add(new CodeVariableElement(Set.of(PRIVATE, FINAL), type(boolean.class), "parseSources"));
+        if (parent.model.sourceContentSupplier != null) {
+            this.add(new CodeVariableElement(Set.of(PRIVATE, FINAL), type(boolean.class), "parseSourceContent"));
+        }
         this.add(new CodeVariableElement(Set.of(PRIVATE, FINAL), generic(ArrayList.class, parent.asType()), "builtNodes"));
         this.add(new CodeVariableElement(Set.of(PRIVATE, FINAL), generic(ArrayList.class, types.Source), "sources"));
         this.add(new CodeVariableElement(Set.of(PRIVATE), rootStackElement.asType(), "state"));
@@ -283,6 +286,9 @@ final class BuilderElement extends AbstractElement {
         ctor.addParameter(new CodeVariableElement(type(int.class), "tags"));
         ctor.addParameter(new CodeVariableElement(type(int.class), "instrumentations"));
         ctor.addParameter(new CodeVariableElement(type(boolean.class), "parseSources"));
+        if (parent.model.sourceContentSupplier != null) {
+            ctor.addParameter(new CodeVariableElement(type(boolean.class), "parseSourceContent"));
+        }
         ctor.addParameter(new CodeVariableElement(type(CharSequence.class), "reparseReason"));
 
         CodeTreeBuilder javadoc = ctor.createDocBuilder();
@@ -300,6 +306,9 @@ final class BuilderElement extends AbstractElement {
         b.statement("this.tags = tags");
         b.statement("this.instrumentations = instrumentations");
         b.statement("this.parseSources = parseSources");
+        if (parent.model.sourceContentSupplier != null) {
+            b.statement("this.parseSourceContent = parseSourceContent");
+        }
         b.statement("this.builtNodes = new ArrayList<>()");
         b.statement("this.sources = parseSources ? new ArrayList<>(4) : null");
 
@@ -328,9 +337,13 @@ final class BuilderElement extends AbstractElement {
         b.statement("this.nodes = nodes");
         b.statement("this.reparseReason = null");
         b.statement("long encoding = configEncoding");
-        b.statement("this.tags = (int)((encoding >> " + BytecodeRootNodeElement.TAG_OFFSET + ") & 0xFFFF_FFFF)");
-        b.statement("this.instrumentations = (int)((encoding >> " + BytecodeRootNodeElement.INSTRUMENTATION_OFFSET + ") & 0x7FFF_FFFF)");
-        b.statement("this.parseSources = (encoding & 0x1) != 0");
+        BytecodeConfigEncoderImplElement configEncoder = parent.configEncoder;
+        b.startAssign("this.tags").string(configEncoder.decodeTags("encoding")).end();
+        b.startAssign("this.instrumentations").string(configEncoder.decodeInstrumentations("encoding")).end();
+        b.startAssign("this.parseSources").string(configEncoder.checkSourceBit("encoding")).end();
+        if (parent.model.sourceContentSupplier != null) {
+            b.startAssign("this.parseSourceContent").string(configEncoder.checkSourceContentBit("encoding")).end();
+        }
         b.statement("this.parseBytecodes = true");
         b.statement("this.sources = parseSources ? new ArrayList<>(4) : null");
         b.statement("this.builtNodes = new ArrayList<>()");
@@ -1437,8 +1450,7 @@ final class BuilderElement extends AbstractElement {
         List<String> constantOperandValues = emitConstantBeginOperands(b, operation);
 
         if (operation.kind == OperationKind.CUSTOM_INSTRUMENTATION) {
-            int mask = 1 << operation.instrumentationIndex;
-            b.startIf().string("(instrumentations & ").string("0x", Integer.toHexString(mask)).string(") == 0").end().startBlock();
+            b.startIf().string(parent.configEncoder.checkInstrumentationDisabled("instrumentations", operation)).end().startBlock();
             b.returnStatement();
             b.end();
         }
@@ -1628,8 +1640,8 @@ final class BuilderElement extends AbstractElement {
         b.end();
 
         if (model.enableInstructionTracing) {
-            int mask = 1 << model.traceInstructionInstrumentationIndex;
-            b.startIf().string("(instrumentations & ").string("0x", Integer.toHexString(mask)).string(") != 0").end().startBlock();
+            int mask = model.bytecodeConfigEncoding.traceInstructionMask();
+            b.startIf().string("(instrumentations & ").string("0x", Long.toHexString(mask)).string(") != 0").end().startBlock();
             b.statement("int constantIndex = state.addConstant(findOrCreateInstructionTracer())");
             b.statement("assert constantIndex == INSTRUCTION_TRACER_CONSTANT_INDEX");
             b.end();
@@ -1834,14 +1846,31 @@ final class BuilderElement extends AbstractElement {
                 values.put(operationFields.startStackHeight, "state.currentStackHeight");
                 break;
             case SOURCE:
-                b.startIf().string(operation.getOperationBeginArgumentName(0) + ".hasBytes()").end().startBlock();
+                String source = operation.getOperationBeginArgumentName(0);
+                if (model.sourceContentSupplier != null) {
+                    b.declaration(types.Source, "newSource", source);
+                    source = "newSource";
+                }
+                b.startIf().string(source + ".hasBytes()").end().startBlock();
                 b.startThrow().startCall("state.failArgument").doubleQuote("Byte-based sources are not supported.").end(2);
                 b.end();
 
-                b.statement("int index = sources.indexOf(" + operation.getOperationBeginArgumentName(0) + ")");
+                if (model.sourceContentSupplier != null) {
+                    b.startIf().string("parseSourceContent && !").string(source).string(".hasCharacters()").end().startBlock();
+                    b.startAssign(source).startStaticCall(model.sourceContentSupplier).string("language").string(source).end(2);
+                    b.startIf().string(source).string(" == null").end().startBlock();
+                    b.startThrow().startNew(type(IllegalStateException.class)).doubleQuote("Source character supplier cannot return null.").end(2);
+                    b.end().startElseIf().string(source + ".hasBytes()").end().startBlock();
+                    b.startThrow().startNew(type(IllegalStateException.class)).doubleQuote(
+                                    "Source character supplier returned a byte-based source, but only character-based sources are supported.").end(2);
+                    b.end();
+                    b.end();
+                }
+
+                b.statement("int index = sources.indexOf(", source, ")");
                 b.startIf().string("index == -1").end().startBlock();
                 b.statement("index = sources.size()");
-                b.statement("sources.add(" + operation.getOperationBeginArgumentName(0) + ")");
+                b.statement("sources.add(", source, ")");
                 b.end();
 
                 values.put(operationFields.sourceIndex, "index");
@@ -1993,8 +2022,7 @@ final class BuilderElement extends AbstractElement {
         List<String> constantOperandValues = emitConstantOperands(b, operation);
 
         if (operation.kind == OperationKind.CUSTOM_INSTRUMENTATION) {
-            int mask = 1 << operation.instrumentationIndex;
-            b.startIf().string("(instrumentations & ").string("0x", Integer.toHexString(mask)).string(") == 0").end().startBlock();
+            b.startIf().string(parent.configEncoder.checkInstrumentationDisabled("instrumentations", operation)).end().startBlock();
             b.returnStatement();
             b.end();
         }
@@ -2637,7 +2665,7 @@ final class BuilderElement extends AbstractElement {
         b.statement("doEmitRootSourceInfo(", operationStack.read(model.rootOperation, operationFields.index), ")");
         b.startIf().string("parseSources").end().startBlock();
         b.startAssign("sourceInfo_").startCall("finalizeSourceInfoTable").string("state.sourceInfo").string("state.sourceInfoIndex").end(2);
-        b.startAssign("sources_").string("sources").end();
+        b.statement("sources_ = sources");
         b.end();
 
         b.startIf().string("parseBytecodes").end().startBlock();
@@ -2645,7 +2673,6 @@ final class BuilderElement extends AbstractElement {
         b.startAssign("bytecodes_").startStaticCall(type(Arrays.class), "copyOf").string("state.bc").string("state.bci").end().end();
         b.startAssign("constants_").string("state.toConstants()").end();
         b.startAssign("handlers_").startStaticCall(type(Arrays.class), "copyOf").string("state.handlerTable").string("state.handlerTableSize").end().end();
-        b.startAssign("sources_").string("sources").end();
         b.startAssign("numNodes_").string("state.numNodes").end();
         b.startAssign("locals_").string("state.locals == null ? " + BytecodeRootNodeElement.EMPTY_INT_ARRAY + " : ").startStaticCall(type(Arrays.class), "copyOf").string("state.locals").string(
                         "state.localsTableIndex").end().end();
@@ -2703,7 +2730,7 @@ final class BuilderElement extends AbstractElement {
             if (model.enableInstructionTracing) {
                 b.declaration(type(int.class), "oldConstantOffset", "oldBytecodeNode.isInstructionTracingEnabled() ? 1 : 0");
                 b.startDeclaration(type(int.class), "newConstantOffset");
-                int mask = 1 << model.traceInstructionInstrumentationIndex;
+                int mask = model.bytecodeConfigEncoding.traceInstructionMask();
                 b.string("(this.instrumentations & ").string("0x", Integer.toHexString(mask)).string(") != 0 ? 1 : 0");
                 b.end(); // delcaration
                 b.statement("assert constants_.length - newConstantOffset == oldBytecodeNode.constants.length - oldConstantOffset");
@@ -3308,8 +3335,7 @@ final class BuilderElement extends AbstractElement {
         List<String> constantOperandValues = emitConstantOperands(b, operation);
 
         if (operation.kind == OperationKind.CUSTOM_INSTRUMENTATION) {
-            int mask = 1 << operation.instrumentationIndex;
-            b.startIf().string("(instrumentations & ").string("0x", Integer.toHexString(mask)).string(") == 0").end().startBlock();
+            b.startIf().string(parent.configEncoder.checkInstrumentationDisabled("instrumentations", operation)).end().startBlock();
             b.returnStatement();
             b.end();
         }
@@ -4483,9 +4509,7 @@ final class BuilderElement extends AbstractElement {
             b.declaration(type(String.class), "sep", "\"\"");
             for (CustomOperationModel customOp : model.getInstrumentations()) {
                 OperationModel operation = customOp.operation;
-                int mask = 1 << operation.instrumentationIndex;
-                b.startIf();
-                b.string("(instrumentations & ").string("0x", Integer.toHexString(mask)).string(") != 0").end().startBlock();
+                b.startIf().string(parent.configEncoder.checkInstrumentationEnabled("instrumentations", operation)).end().startBlock();
                 b.startStatement().startCall("b.append").string("sep").end().end();
                 b.startStatement().startCall("b.append").doubleQuote(operation.name).end().end();
                 b.startAssign("sep").doubleQuote(",").end();
@@ -5672,7 +5696,7 @@ final class BuilderElement extends AbstractElement {
             b.end();
 
             if (model.enableInstructionTracing) {
-                int mask = 1 << model.traceInstructionInstrumentationIndex;
+                int mask = model.bytecodeConfigEncoding.traceInstructionMask();
                 b.startIf().string("(this.instrumentations & ").string("0x", Integer.toHexString(mask)).string(") != 0").end().startBlock();
                 b.statement("doEmitTraceInstruction()");
                 b.end();
@@ -5821,7 +5845,7 @@ final class BuilderElement extends AbstractElement {
 
             if (!tracing && model.enableInstructionTracing) {
                 // If tracing is enabled, call a separate tracing-specific rewrite method.
-                int mask = 1 << model.traceInstructionInstrumentationIndex;
+                int mask = model.bytecodeConfigEncoding.traceInstructionMask();
                 b.startIf().string("(this.instrumentations & ").string("0x", Integer.toHexString(mask)).string(") != 0").end().startBlock();
                 CodeExecutableElement applyRewriteRuleTracing = applyRewriteRuleMethods.get(new ApplyRewriteRuleKey(rewriteRule, true));
                 b.startReturn().startCall(null, applyRewriteRuleTracing).string("oldInstructionBci").end(2);

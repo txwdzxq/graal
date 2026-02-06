@@ -73,6 +73,7 @@ import javax.lang.model.util.Types;
 import com.oracle.truffle.dsl.processor.ProcessorContext;
 import com.oracle.truffle.dsl.processor.TruffleProcessorOptions;
 import com.oracle.truffle.dsl.processor.TruffleTypes;
+import com.oracle.truffle.dsl.processor.bytecode.model.BytecodeConfigEncoding;
 import com.oracle.truffle.dsl.processor.bytecode.model.BytecodeDSLBuiltins;
 import com.oracle.truffle.dsl.processor.bytecode.model.BytecodeDSLModel;
 import com.oracle.truffle.dsl.processor.bytecode.model.BytecodeDSLModel.IllegalLocalExceptionFactory;
@@ -112,11 +113,6 @@ public class BytecodeDSLParser extends AbstractParser<BytecodeDSLModels> {
     public static final String SYMBOL_BYTECODE_NODE = "$bytecodeNode";
     public static final String SYMBOL_BYTECODE_INDEX = "$bytecodeIndex";
     public static final String SYMBOL_CONTINUATION_ROOT = "$continuationRootNode";
-
-    private static final int MAX_TAGS = 32;
-    private static final int MAX_INSTRUMENTATIONS = 31;
-    // we reserve 14 bits for future features
-    private static final int MAX_TAGS_AND_INSTRUMENTATIONS = 50;
 
     private static final EnumSet<TypeKind> BOXABLE_TYPE_KINDS = EnumSet.of(TypeKind.BOOLEAN, TypeKind.BYTE, TypeKind.INT, TypeKind.FLOAT, TypeKind.LONG, TypeKind.DOUBLE);
 
@@ -351,15 +347,6 @@ public class BytecodeDSLParser extends AbstractParser<BytecodeDSLModels> {
                 model.enableRootBodyTagging = false;
             }
 
-            if (model.getProvidedTags().size() > MAX_TAGS) {
-                model.addError(generateBytecodeMirror, taginstrumentationValue,
-                                "Tag instrumentation is currently limited to a maximum of 32 tags. " + //
-                                                "The language '%s' provides %s tags. " +
-                                                "Reduce the number of tags to resolve this.",
-                                getQualifiedName(model.languageClass),
-                                model.getProvidedTags().size());
-            }
-
             parseTagTreeNodeLibrary(model, generateBytecodeMirror);
 
         } else {
@@ -458,6 +445,11 @@ public class BytecodeDSLParser extends AbstractParser<BytecodeDSLModels> {
 
         BytecodeDSLBuiltins.addBuiltins(model, types, context);
 
+        String sourceContentSupplierMethodName = ElementUtils.getAnnotationValue(String.class, generateBytecodeMirror, "sourceContentSupplier", false);
+        if (sourceContentSupplierMethodName != null) {
+            model.sourceContentSupplier = resolveSourceContentSupplier(model, generateBytecodeMirror, sourceContentSupplierMethodName);
+        }
+
         model.variadicStackLimitExpression = DSLExpression.parse(model, "variadicStackLimit", model.variadicStackLimit);
         if (model.variadicStackLimitExpression != null) {
             model.variadicStackLimitExpression = DSLExpression.resolve(resolver, model, "variadicStackLimit", model.variadicStackLimitExpression, model.variadicStackLimit);
@@ -543,14 +535,7 @@ public class BytecodeDSLParser extends AbstractParser<BytecodeDSLModels> {
             CustomOperationParser.forCodeGeneration(model, types.Operation).parseCustomRegularOperation(mir, te, null);
         }
 
-        if (model.getInstrumentationsCount() > MAX_INSTRUMENTATIONS) {
-            model.addError("Too many @Instrumentation annotated operations specified. The number of instrumentations is " + model.getInstrumentationsCount() +
-                            ". The maximum number of instrumentations is " + MAX_INSTRUMENTATIONS + ".");
-        } else if (model.getInstrumentationsCount() + model.getProvidedTags().size() > MAX_TAGS_AND_INSTRUMENTATIONS) {
-            model.addError("Too many @Instrumentation and provided tags specified. The number of instrumentrations is " + model.getInstrumentationsCount() + " and provided tags is " +
-                            model.getProvidedTags().size() +
-                            ". The maximum number of instrumentations and provided tags is " + MAX_TAGS_AND_INSTRUMENTATIONS + ".");
-        }
+        model.bytecodeConfigEncoding = BytecodeConfigEncoding.fromModel(model, generateBytecodeMirror);
 
         for (AnnotationMirror mir : ElementUtils.getRepeatedAnnotation(typeElement.getAnnotationMirrors(), types.OperationProxy)) {
             customOperationDeclared = true;
@@ -1324,6 +1309,26 @@ public class BytecodeDSLParser extends AbstractParser<BytecodeDSLModels> {
             params.add(resolvedParam);
         }
         return new IllegalLocalExceptionFactory(createMethod, params);
+    }
+
+    private ExecutableElement resolveSourceContentSupplier(BytecodeDSLModel model, AnnotationMirror generateBytecodeMirror, String sourceContentSupplierMethodName) {
+        AnnotationValue sourceContentSupplierValue = ElementUtils.getAnnotationValue(generateBytecodeMirror, "sourceContentSupplier");
+        if (sourceContentSupplierMethodName.isEmpty()) {
+            model.addError(generateBytecodeMirror, sourceContentSupplierValue, "The sourceContentSupplier attribute cannot be empty.");
+            return null;
+        }
+        ExecutableElement supplierMethod = ElementUtils.findMethod(model.getTemplateType(), sourceContentSupplierMethodName, new TypeMirror[]{model.languageClass, types.Source}, types.Source);
+        if (supplierMethod == null) {
+            model.addError(generateBytecodeMirror, sourceContentSupplierValue,
+                            "No method '%s' was declared on the root node with signature %s(%s, %s). Source content supplier methods must conform to this signature.", sourceContentSupplierMethodName,
+                            getSimpleName(types.Source), getSimpleName(model.languageClass), getSimpleName(types.Source));
+        } else if (!supplierMethod.getModifiers().contains(Modifier.STATIC)) {
+            model.addError(generateBytecodeMirror, sourceContentSupplierValue, "The method '%s' must be static.", sourceContentSupplierMethodName);
+        } else if (supplierMethod.getModifiers().contains(Modifier.PRIVATE)) {
+            model.addError(generateBytecodeMirror, sourceContentSupplierValue, "The method '%s' must be visible to subclasses. Remove the private modifier to resolve this.",
+                            sourceContentSupplierMethodName);
+        }
+        return supplierMethod;
     }
 
     private List<List<TypeMirror>> expandBoxingEliminatedImplicitCasts(BytecodeDSLModel model, TypeSystemData typeSystem, List<TypeMirror> signatureTypes) {

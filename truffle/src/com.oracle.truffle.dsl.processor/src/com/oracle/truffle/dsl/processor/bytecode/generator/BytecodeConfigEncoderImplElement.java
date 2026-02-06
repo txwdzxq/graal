@@ -50,7 +50,9 @@ import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 
 import com.oracle.truffle.dsl.processor.SuppressFBWarnings;
+import com.oracle.truffle.dsl.processor.bytecode.model.BytecodeConfigEncoding;
 import com.oracle.truffle.dsl.processor.bytecode.model.CustomOperationModel;
+import com.oracle.truffle.dsl.processor.bytecode.model.OperationModel;
 import com.oracle.truffle.dsl.processor.generator.GeneratorUtils;
 import com.oracle.truffle.dsl.processor.java.ElementUtils;
 import com.oracle.truffle.dsl.processor.java.model.CodeExecutableElement;
@@ -59,9 +61,13 @@ import com.oracle.truffle.dsl.processor.java.model.CodeVariableElement;
 
 final class BytecodeConfigEncoderImplElement extends AbstractElement {
 
+    final BytecodeConfigEncoding encoding;
+
     BytecodeConfigEncoderImplElement(BytecodeRootNodeElement parent) {
         super(parent, Set.of(PRIVATE, STATIC, FINAL), ElementKind.CLASS, null, "BytecodeConfigEncoderImpl");
+        this.encoding = parent.model.bytecodeConfigEncoding;
         this.setSuperClass(types.BytecodeConfigEncoder);
+        BytecodeRootNodeElement.addJavadoc(this, "Encoding: " + this.encoding.description());
 
         CodeExecutableElement constructor = this.add(new CodeExecutableElement(Set.of(), null, this.getSimpleName().toString()));
         CodeTreeBuilder b = constructor.createBuilder();
@@ -73,18 +79,7 @@ final class BytecodeConfigEncoderImplElement extends AbstractElement {
         this.add(createEncodeInstrumentation());
         this.add(createDecode1());
         this.add(createDecode2());
-
-        CodeExecutableElement encodeTag = GeneratorUtils.override(types.BytecodeConfigEncoder, "encodeTag", new String[]{"c"});
-        b = encodeTag.createBuilder();
-
-        if (parent.model.getProvidedTags().isEmpty()) {
-            parent.createFailInvalidTag(b, "c");
-        } else {
-            b.startReturn().string("((long) CLASS_TO_TAG_MASK.get(c)) << " + BytecodeRootNodeElement.TAG_OFFSET).end().build();
-        }
-
-        this.add(encodeTag);
-
+        this.add(createEncodeTag());
     }
 
     private CodeExecutableElement createDecode1() {
@@ -109,27 +104,7 @@ final class BytecodeConfigEncoderImplElement extends AbstractElement {
         b.startThrow().startNew(type(IllegalArgumentException.class)).doubleQuote("Encoded config is not compatible with this bytecode node.").end().end();
         b.end();
 
-        long mask = 1L;
-        if (parent.model.getInstrumentationsCount() > BytecodeRootNodeElement.MAX_INSTRUMENTATIONS) {
-            throw new AssertionError("Unsupported instrumentation size.");
-        }
-        if (parent.model.getProvidedTags().size() > BytecodeRootNodeElement.MAX_TAGS) {
-            throw new AssertionError("Unsupported instrumentation size.");
-        }
-
-        if (parent.model.traceInstructionInstrumentationIndex != -1) {
-            mask |= 1L << (BytecodeRootNodeElement.INSTRUMENTATION_OFFSET + parent.model.traceInstructionInstrumentationIndex);
-        }
-
-        for (int i = 0; i < parent.model.getInstrumentations().size(); i++) {
-            mask |= 1L << (BytecodeRootNodeElement.INSTRUMENTATION_OFFSET + i);
-        }
-
-        for (int i = 0; i < parent.model.getProvidedTags().size(); i++) {
-            mask |= 1L << (BytecodeRootNodeElement.TAG_OFFSET + i);
-        }
-
-        b.startReturn().string("(encoding & 0x" + Long.toHexString(mask) + "L)").end();
+        b.startReturn().string("(encoding & 0x" + Long.toHexString(encoding.completeBitsMask()) + "L)").end();
         return ex;
     }
 
@@ -143,7 +118,7 @@ final class BytecodeConfigEncoderImplElement extends AbstractElement {
             b.string("c == ").typeLiteral(types.InstructionTracer);
             b.end().startBlock();
             if (parent.model.enableInstructionTracing) {
-                b.statement("encoding |= 0x" + Integer.toHexString(1 << parent.model.traceInstructionInstrumentationIndex));
+                b.statement("encoding |= 0x" + Integer.toHexString(encoding.traceInstructionMask()));
             } else {
                 b.lineComment("Instruction tracing disabled");
             }
@@ -152,7 +127,7 @@ final class BytecodeConfigEncoderImplElement extends AbstractElement {
                 elseIf = b.startIf(elseIf);
                 b.string("c == ").typeLiteral(customOperation.operation.instruction.nodeType.asType());
                 b.end().startBlock();
-                b.statement("encoding |= 0x" + Integer.toHexString(1 << customOperation.operation.instrumentationIndex));
+                b.statement("encoding |= 0x" + Integer.toHexString(encoding.instrumentationMask(customOperation.operation)));
                 b.end();
             }
             b.startElseBlock();
@@ -162,9 +137,57 @@ final class BytecodeConfigEncoderImplElement extends AbstractElement {
                                         "Instrumentations can be specified using the @Instrumentation annotation.").string("c.getName()").end().end().end();
         if (parent.model.hasInstrumentations()) {
             b.end(); // else
-            b.startReturn().string("encoding << 1").end();
+            b.startReturn().string("encoding << ").string(encoding.instrumentationShift()).end();
         }
         return encodeInstrumentation;
     }
 
+    private CodeExecutableElement createEncodeTag() {
+        CodeExecutableElement encodeTag = GeneratorUtils.override(types.BytecodeConfigEncoder, "encodeTag", new String[]{"c"});
+        CodeTreeBuilder b = encodeTag.createBuilder();
+
+        if (parent.model.getProvidedTags().isEmpty()) {
+            parent.createFailInvalidTag(b, "c");
+        } else {
+            b.startReturn().string("((long) CLASS_TO_TAG_MASK.get(c)) << " + encoding.tagShift()).end().build();
+        }
+        return encodeTag;
+    }
+
+    public String checkSourceBit(String encoded) {
+        return String.format("(%s & 0x%s) != 0", encoded, Long.toHexString(encoding.sourceMask()));
+    }
+
+    public String checkSourceContentBit(String encoded) {
+        if (parent.model.sourceContentSupplier == null) {
+            throw new AssertionError("Tried to generate code to check the source content bit, but no source content supplier is present.");
+        }
+        return String.format("(%s & 0x%s) != 0", encoded, Long.toHexString(encoding.sourceContentMask()));
+    }
+
+    public String decodeSourceBits(String encoded) {
+        return String.format("(int) (%s & 0x%s)", encoded, Long.toHexString(encoding.sourceBitsMask()));
+    }
+
+    public String decodeInstrumentations(String encoded) {
+        return String.format("(int) ((%s >> %s) & 0x%s)", encoded, encoding.instrumentationShift(), Long.toHexString(encoding.instrumentationMask()));
+    }
+
+    public String checkInstrumentationEnabled(String encoded, OperationModel instrumentation) {
+        return checkInstrumentation(encoded, instrumentation, true);
+    }
+
+    public String checkInstrumentationDisabled(String encoded, OperationModel instrumentation) {
+        return checkInstrumentation(encoded, instrumentation, false);
+    }
+
+    private String checkInstrumentation(String encoded, OperationModel instrumentation, boolean enabled) {
+        int mask = encoding.instrumentationMask(instrumentation);
+        String comparator = enabled ? "!=" : "==";
+        return String.format("(%s & 0x%s) %s 0", encoded, Integer.toHexString(mask), comparator);
+    }
+
+    public String decodeTags(String encoded) {
+        return String.format("(int) ((%s >> %s) & 0x%s)", encoded, encoding.tagShift(), Long.toHexString(encoding.tagMask()));
+    }
 }
