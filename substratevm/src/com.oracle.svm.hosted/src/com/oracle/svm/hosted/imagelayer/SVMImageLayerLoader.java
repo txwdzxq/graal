@@ -1555,8 +1555,11 @@ public class SVMImageLayerLoader extends ImageLayerLoader {
                 }
             }
             case PRIMITIVE_DATA -> {
+                assert type.isArray() && type.getComponentType().isPrimitive() : type + " should be an array of primitives.";
                 Object array = CapnProtoAdapters.toArray(baseLayerConstant.getPrimitiveData());
-                addBaseLayerObject(id, objectOffset, () -> new ImageHeapPrimitiveArray(type, null, array, Array.getLength(array), identityHashCode, id));
+                addBaseLayerObject(id, objectOffset,
+                                () -> new ImageHeapPrimitiveArray(type, null, GuestAccess.get().getSnippetReflection().forObject(array),
+                                                Array.getLength(array), identityHashCode, id));
             }
             case RELOCATABLE -> {
                 String key = baseLayerConstant.getRelocatable().getKey().toString();

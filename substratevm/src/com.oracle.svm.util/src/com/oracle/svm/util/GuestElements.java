@@ -28,6 +28,7 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.nio.ByteOrder;
+import java.util.Objects;
 
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
@@ -79,9 +80,15 @@ public abstract sealed class GuestElements permits GuestAccess.GuestElementsImpl
     public final ResolvedJavaType java_lang_Class = lookupType(Class.class);
     public final ResolvedJavaMethod java_lang_Class_getResourceAsStream = lookupMethod(java_lang_Class, "getResourceAsStream", String.class);
 
+    public final ResolvedJavaType java_lang_Object = lookupType(Object.class);
+    public final ResolvedJavaMethod java_lang_Object_clone = lookupMethod(java_lang_Object, "clone");
+
     public final ResolvedJavaType java_lang_reflect_Field = lookupType(Field.class);
     public final ResolvedJavaMethod java_lang_reflect_Field_setAccessible = lookupMethod(java_lang_reflect_Field, "setAccessible", boolean.class);
     public final ResolvedJavaMethod java_lang_reflect_Field_set = lookupMethod(java_lang_reflect_Field, "set", Object.class, Object.class);
+
+    public final ResolvedJavaType java_lang_System = lookupType(System.class);
+    public final ResolvedJavaMethod java_lang_System_arraycopy = lookupMethod(java_lang_System, "arraycopy", Object.class, int.class, Object.class, int.class, int.class);
 
     public final ResolvedJavaType java_lang_reflect_Proxy = lookupType(Proxy.class);
     public final ResolvedJavaType jdk_internal_loader_ClassLoaders = lookupType("jdk.internal.loader.ClassLoaders");
@@ -90,6 +97,9 @@ public abstract sealed class GuestElements permits GuestAccess.GuestElementsImpl
     public final ResolvedJavaMethod java_io_Input_Stream_readAllBytesMethod = lookupMethod(java_io_InputStream, "readAllBytes");
 
     public final ResolvedJavaType java_nio_ByteOrder = lookupType(ByteOrder.class);
+
+    public final ResolvedJavaType java_util_Objects = lookupType(Objects.class);
+    public final ResolvedJavaMethod java_util_Objects_deepEquals = lookupMethod(java_util_Objects, "deepEquals", Object.class, Object.class);
 
     public final ResolvedJavaType Uninterruptible = lookupType("com.oracle.svm.shared.Uninterruptible");
     public final ResolvedJavaType CFunction = lookupType(CFunction.class);

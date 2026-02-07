@@ -337,7 +337,7 @@ public abstract class ImageHeapScanner {
         if (type.isArray()) {
             Integer length = hostedValuesProvider.readArrayLength(constant);
             if (type.getComponentType().isPrimitive()) {
-                return new ImageHeapPrimitiveArray(type, constant, snippetReflection.asObject(Object.class, constant), length);
+                return new ImageHeapPrimitiveArray(type, constant, constant, length);
             } else {
                 return createImageHeapObjectArray(constant, type, length, reason);
             }

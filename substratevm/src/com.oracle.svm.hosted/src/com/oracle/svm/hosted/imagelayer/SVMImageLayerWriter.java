@@ -943,7 +943,12 @@ public class SVMImageLayerWriter extends ImageLayerWriter {
                         FieldValueInterceptionSupport.hasFieldValueInterceptor(field);
     }
 
+    /**
+     * Persists primitive-array data from either Java collections, host primitive arrays, or guest
+     * {@link JavaConstant} arrays into the Cap'n Proto primitive array builder.
+     */
     private static void persistConstantPrimitiveArray(PrimitiveArray.Builder builder, JavaKind componentKind, Object array) {
+        GuestAccess access = GuestAccess.get();
         if (array instanceof List<?> l) {
             switch (componentKind) {
                 case Boolean -> persistList(l, builder::initZ, (b, i) -> b.set(i, (boolean) l.get(i)));
@@ -956,27 +961,43 @@ public class SVMImageLayerWriter extends ImageLayerWriter {
                 case Double -> persistList(l, builder::initD, (b, i) -> b.set(i, (double) l.get(i)));
                 default -> throw new IllegalArgumentException("Unsupported kind: " + componentKind);
             }
+        } else if (array instanceof JavaConstant constant) {
+            ConstantReflectionProvider constantReflection = access.getProviders().getConstantReflection();
+            Integer length = constantReflection.readArrayLength(constant);
+            VMError.guarantee(length != null, "%s is not an array.", constant);
+            switch (componentKind) {
+                case Boolean -> persistArray(length, builder::initZ, (b, i) -> b.set(i, constantReflection.readArrayElement(constant, i).asBoolean()));
+                case Byte -> persistArray(length, builder::initB, (b, i) -> b.set(i, (byte) constantReflection.readArrayElement(constant, i).asInt()));
+                case Short -> persistArray(length, builder::initS, (b, i) -> b.set(i, (short) constantReflection.readArrayElement(constant, i).asInt()));
+                case Char -> persistArray(length, builder::initC, (b, i) -> b.set(i, (short) (char) constantReflection.readArrayElement(constant, i).asInt()));
+                case Int -> persistArray(length, builder::initI, (b, i) -> b.set(i, constantReflection.readArrayElement(constant, i).asInt()));
+                case Long -> persistArray(length, builder::initJ, (b, i) -> b.set(i, constantReflection.readArrayElement(constant, i).asLong()));
+                case Float -> persistArray(length, builder::initF, (b, i) -> b.set(i, constantReflection.readArrayElement(constant, i).asFloat()));
+                case Double -> persistArray(length, builder::initD, (b, i) -> b.set(i, constantReflection.readArrayElement(constant, i).asDouble()));
+                default -> throw new IllegalArgumentException("Unsupported kind: " + componentKind);
+            }
         } else {
-            GuestAccess access = GuestAccess.get();
             assert access.lookupType(componentKind.toJavaClass()).equals(access.lookupType(array.getClass()).getComponentType()) : "%s != %s"
                             .formatted(access.lookupType(componentKind.toJavaClass()), access.lookupType(array.getClass()).getComponentType());
+            int length = Array.getLength(array);
             switch (array) {
-                case boolean[] a -> persistArray(a, builder::initZ, (b, i) -> b.set(i, a[i]));
-                case byte[] a -> persistArray(a, builder::initB, (b, i) -> b.set(i, a[i]));
-                case short[] a -> persistArray(a, builder::initS, (b, i) -> b.set(i, a[i]));
-                case char[] a -> persistArray(a, builder::initC, (b, i) -> b.set(i, (short) a[i]));
-                case int[] a -> persistArray(a, builder::initI, (b, i) -> b.set(i, a[i]));
-                case long[] a -> persistArray(a, builder::initJ, (b, i) -> b.set(i, a[i]));
-                case float[] a -> persistArray(a, builder::initF, (b, i) -> b.set(i, a[i]));
-                case double[] a -> persistArray(a, builder::initD, (b, i) -> b.set(i, a[i]));
+                case boolean[] a -> persistArray(length, builder::initZ, (b, i) -> b.set(i, a[i]));
+                case byte[] a -> persistArray(length, builder::initB, (b, i) -> b.set(i, a[i]));
+                case short[] a -> persistArray(length, builder::initS, (b, i) -> b.set(i, a[i]));
+                case char[] a -> persistArray(length, builder::initC, (b, i) -> b.set(i, (short) a[i]));
+                case int[] a -> persistArray(length, builder::initI, (b, i) -> b.set(i, a[i]));
+                case long[] a -> persistArray(length, builder::initJ, (b, i) -> b.set(i, a[i]));
+                case float[] a -> persistArray(length, builder::initF, (b, i) -> b.set(i, a[i]));
+                case double[] a -> persistArray(length, builder::initD, (b, i) -> b.set(i, a[i]));
                 default -> throw new IllegalArgumentException("Unsupported kind: " + componentKind);
             }
         }
     }
 
-    /** Enables concise one-liners in {@link #persistConstantPrimitiveArray}. */
-    private static <A, T extends ListBuilder> void persistArray(A array, IntFunction<T> init, ObjIntConsumer<T> setter) {
-        int length = Array.getLength(array);
+    /**
+     * Writes {@code length} values into a list builder initialized by {@code init}.
+     */
+    private static <T extends ListBuilder> void persistArray(int length, IntFunction<T> init, ObjIntConsumer<T> setter) {
         T builder = init.apply(length);
         for (int i = 0; i < length; i++) {
             setter.accept(builder, i);

@@ -57,7 +57,6 @@ import com.oracle.svm.core.meta.MethodOffset;
 import com.oracle.svm.core.meta.MethodPointer;
 import com.oracle.svm.core.meta.MethodRef;
 import com.oracle.svm.core.util.HostedByteBufferPointer;
-import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.hosted.DeadlockWatchdog;
 import com.oracle.svm.hosted.code.CEntryPointLiteralFeature;
 import com.oracle.svm.hosted.config.DynamicHubLayout;
@@ -74,6 +73,8 @@ import com.oracle.svm.hosted.meta.HostedMetaAccess;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.hosted.meta.MaterializedConstantFields;
 import com.oracle.svm.hosted.meta.PatchedWordConstant;
+import com.oracle.svm.shared.util.VMError;
+import com.oracle.svm.util.GuestAccess;
 
 import jdk.graal.compiler.api.replacements.SnippetReflectionProvider;
 import jdk.graal.compiler.core.common.CompressEncoding;
@@ -81,7 +82,6 @@ import jdk.graal.compiler.core.common.NumUtil;
 import jdk.graal.compiler.debug.Assertions;
 import jdk.graal.compiler.debug.DebugContext;
 import jdk.graal.compiler.debug.Indent;
-import jdk.internal.misc.Unsafe;
 import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.JavaKind;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
@@ -522,12 +522,12 @@ public final class NativeImageHeapWriter {
         return heapLayout.isReadOnlyRelocatable(offset);
     }
 
-    private void writePrimitiveArray(ObjectInfo info, RelocatableBuffer buffer, ObjectLayout objectLayout, JavaKind kind, Object array, int length) {
+    /**
+     * Writes primitive-array payload bytes into the image heap buffer.
+     */
+    private void writePrimitiveArray(ObjectInfo info, RelocatableBuffer buffer, ObjectLayout objectLayout, JavaKind kind, JavaConstant array, int length) {
         int elementIndex = getIndexInBuffer(info, objectLayout.getArrayElementOffset(kind, 0));
-        int elementTypeSize = Unsafe.getUnsafe().arrayIndexScale(array.getClass());
-        assert elementTypeSize == kind.getByteCount();
-        Unsafe.getUnsafe().copyMemory(array, Unsafe.getUnsafe().arrayBaseOffset(array.getClass()), buffer.getBackingArray(),
-                        Unsafe.ARRAY_BYTE_BASE_OFFSET + elementIndex, length * elementTypeSize);
+        GuestAccess.get().copyMemory(array, 0, length * kind.getByteCount(), buffer.getBackingArray(), elementIndex);
     }
 
     private SnippetReflectionProvider snippetReflection() {
