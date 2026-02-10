@@ -27,13 +27,12 @@ package com.oracle.svm.hosted.jdk;
 import java.security.CodeSource;
 
 import org.graalvm.nativeimage.ImageSingletons;
-import org.graalvm.nativeimage.Platform;
-import org.graalvm.nativeimage.impl.InternalPlatform;
 import org.graalvm.nativeimage.impl.RuntimeClassInitializationSupport;
 
 import com.oracle.graal.pointsto.meta.AnalysisField;
 import com.oracle.graal.pointsto.meta.AnalysisMetaAccess;
 import com.oracle.svm.core.FutureDefaultsOptions;
+import com.oracle.svm.core.OS;
 import com.oracle.svm.core.ParsingReason;
 import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
@@ -127,7 +126,7 @@ public class JDKInitializationFeature implements InternalFeature {
         rci.initializeAtBuildTime("sun.net", JDK_CLASS_REASON);
 
         rci.initializeAtBuildTime("sun.nio", JDK_CLASS_REASON);
-        if (Platform.includedIn(InternalPlatform.WINDOWS_BASE.class)) {
+        if (OS.WINDOWS.isCurrent()) {
             rci.initializeAtRunTime("sun.nio.ch.PipeImpl", "Contains SecureRandom reference, therefore can't be included in the image heap");
         }
 
@@ -251,7 +250,7 @@ public class JDKInitializationFeature implements InternalFeature {
             rci.initializeAtBuildTime("sun.security.smartcardio", JDK_CLASS_REASON);
             rci.initializeAtBuildTime("com.sun.security.sasl", JDK_CLASS_REASON);
         }
-        if (Platform.includedIn(Platform.DARWIN.class)) {
+        if (OS.DARWIN.isCurrent()) {
             rci.initializeAtBuildTime("apple.security", JDK_CLASS_REASON);
         }
 
