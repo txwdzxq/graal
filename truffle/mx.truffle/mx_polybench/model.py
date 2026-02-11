@@ -930,7 +930,7 @@ class FinalDispatchFinalStageAverageWithOutlierRemovalPostProcessor(
 class NonNativeImageBenchmarkSummaryPostProcessor(FinalDispatchFinalStageAverageWithOutlierRemovalPostProcessor):
     """
     Post-processor that calculates the outlier-excluded average of the "avg-time" metric across dispatches
-    and produces a final "time" metric for a benchmark.
+    and produces a final "time"/"one-shot" metric for a benchmark.
     Should only be used when running a benchmark in server (non-native) mode.
     """
 
@@ -944,7 +944,10 @@ class NonNativeImageBenchmarkSummaryPostProcessor(FinalDispatchFinalStageAverage
         field = "metric.value"
 
         def update_fn(dp):
-            dp["metric.name"] = "time"
+            metric_name = "time"
+            if self._suite._use_wall_clock_time():
+                metric_name = "one-shot"
+            dp["metric.name"] = metric_name
             if "metric.object" in dp:
                 del dp["metric.object"]
             if "metric.fork-number" in dp:
@@ -994,7 +997,7 @@ class NativeModeBuildSummaryPostProcessor(FinalDispatchFinalStageAverageWithOutl
 class NativeModeBenchmarkSummaryPostProcessor(FinalDispatchFinalStageAverageWithOutlierRemovalPostProcessor):
     """
     Post-processor that calculates the outlier-excluded average of the "avg-time" metric across image builds
-    and produces a final "time" metric for a benchmark (separate "run" and "instrument-run" datapoints).
+    and produces a final "time"/"one-shot" metric for a benchmark (separate "run" and "instrument-run" datapoints).
     Should only be used when running a benchmark in native mode.
     """
 
@@ -1008,7 +1011,10 @@ class NativeModeBenchmarkSummaryPostProcessor(FinalDispatchFinalStageAverageWith
         field = "metric.value"
 
         def update_fn(dp):
-            dp["metric.name"] = "time"
+            metric_name = "time"
+            if self._suite._use_wall_clock_time():
+                metric_name = "one-shot"
+            dp["metric.name"] = metric_name
             if "metric.fork-number" in dp:
                 del dp["metric.fork-number"]
             if "native-image.image-fork-number" in dp:
@@ -1047,6 +1053,38 @@ class NativeModeBenchmarkSummaryPostProcessor(FinalDispatchFinalStageAverageWith
                 )
             )
         return super().select_datapoints(datapoints)
+
+    def group_datapoints(self, datapoints: DataPoints) -> Dict[Any, DataPoints]:
+        groups = super().group_datapoints(datapoints)
+        flaky_tolerance = self._suite.polybench_bench_suite_args(
+            bm_exec_context().get("bm_suite_args")
+        ).flaky_failure_stability_tolerance
+        config = bm_exec_context().get(PolybenchBenchmarkSuite.STABLE_CONFIG)
+        if flaky_tolerance is None or config is None:
+            return groups
+
+        # Filter out groups belonging to benchmarks which had too many flaky failures
+        flaky_tolerance = int(flaky_tolerance)
+        groups_within_tolerance = {}
+        for key, group in groups.items():
+            bench = key[0]
+            stage = key[1]
+            if stage != "run":
+                # Flaky tolerance only applies to datapoints from the 'run' stage
+                groups_within_tolerance[key] = group
+                continue
+            total_forks = config.get_benchmark(bench).builds * config.get_benchmark(bench).forks
+            required_count = total_forks - flaky_tolerance
+            if len(group) < required_count:
+                mx.log(
+                    f"Not generating the stabilized metric for benchmark '{bench}' due to too few successful runs ({len(group)} < {required_count})."
+                )
+            else:
+                mx.log(
+                    f"Generating the stabilized metric for benchmark '{bench}' using the {len(group)} available datapoints (out of {total_forks})."
+                )
+                groups_within_tolerance[key] = group
+        return groups_within_tolerance
 
     def determine_stable_run_outlier_exclusion_percentiles(self, bench_config: BenchmarkStableRunConfig):
         self._lower_percentile = bench_config.build_outlier_exclusion.lower_percentile
@@ -1300,6 +1338,18 @@ class PolybenchBenchmarkSuite(
         # Store the profile for use in upcoming IMAGE stages
         bm_exec_context().get(PolybenchBenchmarkSuite.PGO_PROFILES).append(bench_unique_profile_path)
 
+    def flakySkipPatterns(self, benchmarks, bmSuiteArgs):
+        polybench_patterns = []
+        if self._allow_flaky_skip_pattern("GR-73428"):
+            # Transient glibc malloc errors (double free/invalid size) in NumPy during matplotlib benchmarks [GR-73428]
+            polybench_patterns.append(
+                r"\*\*\* Error in `[^`]+': (free\(\): invalid size)|(double free or corruption \([^\)]+\))|(corrupted size vs\. prev_size): 0x[a-z\d]+ \*\*\*"
+            )
+            polybench_patterns.append(
+                r"_GraalPyMem_RawFree: freed memory size \(\d+\) is larger than allocated memory size \(\d+\)"
+            )
+        return polybench_patterns + super().flakySkipPatterns(benchmarks, bmSuiteArgs)
+
     def run(self, benchmarks, bmSuiteArgs) -> DataPoints:
         # name used by NativeImageBenchmarkMixin
         self.benchmark_name = benchmarks[0]
@@ -1340,6 +1390,15 @@ class PolybenchBenchmarkSuite(
         if config_path is None:
             return None
         return SuiteStableRunConfig(config_path)
+
+    def _use_wall_clock_time(self) -> bool:
+        return self.polybench_bench_suite_args(bm_exec_context().get("bm_suite_args")).disable_time_tracker_rule
+
+    def _allow_flaky_skip_pattern(self, pattern_id: str) -> bool:
+        enabled_patterns = self.polybench_bench_suite_args(
+            bm_exec_context().get("bm_suite_args")
+        ).allow_flaky_polybench_patterns
+        return enabled_patterns is not None and pattern_id in enabled_patterns.split(",")
 
     @staticmethod
     def _prepare_distributions(
@@ -1507,6 +1566,7 @@ class PolybenchBenchmarkSuite(
             # - "warmup" (per-iteration data for "warmup" and "run" iterations)
             # - "time-sample" (per-iteration data for only the "run" iterations)
             # - "avg-time" (aggregation of per-iteration data for the "run" iterations after outlier removal)
+            # The post-processors use the "avg-time" data to produce a final "time"/"one-shot" datapoint.
             rules += [
                 mx_benchmark.StdOutRule(
                     r"\[.*\] iteration ([0-9]*): (?P<value>.*) (?P<unit>.*)",
@@ -1535,21 +1595,40 @@ class PolybenchBenchmarkSuite(
                     },
                     startPattern=r"::: Running :::",
                 ),
-                ExcludeWarmupRule(
-                    r"\[.*\] run aggregate summary: (?P<value>.*) (?P<unit>.*)",
-                    {
-                        "benchmark": benchmark_name,
-                        "metric.better": "lower",
-                        "metric.name": "avg-time",
-                        "metric.object": "fork",
-                        "metric.unit": ("<unit>", str),
-                        "metric.value": ("<value>", float),
-                        "metric.type": "numeric",
-                        "metric.score-function": "id",
-                    },
-                    startPattern=r"::: Running :::",
-                ),
             ]
+            if self._use_wall_clock_time():
+                rules.append(
+                    mx_benchmark.StdOutRule(
+                        r"Wall-clock time: (?P<value>.*) sec",
+                        {
+                            "benchmark": benchmark_name,
+                            "metric.better": "lower",
+                            "metric.name": "avg-time",
+                            "metric.object": "fork",
+                            "metric.unit": "ms",
+                            "metric.value": ("<value>", lambda x: float(x) * 1000),
+                            "metric.type": "numeric",
+                            "metric.score-function": "id",
+                        },
+                    )
+                )
+            else:
+                rules.append(
+                    ExcludeWarmupRule(
+                        r"\[.*\] run aggregate summary: (?P<value>.*) (?P<unit>.*)",
+                        {
+                            "benchmark": benchmark_name,
+                            "metric.better": "lower",
+                            "metric.name": "avg-time",
+                            "metric.object": "fork",
+                            "metric.unit": ("<unit>", str),
+                            "metric.value": ("<value>", float),
+                            "metric.type": "numeric",
+                            "metric.score-function": "id",
+                        },
+                        startPattern=r"::: Running :::",
+                    )
+                )
         elif metric_name in ("allocated-memory", "metaspace-memory", "application-memory", "instructions"):
             rules += [
                 ExcludeWarmupRule(
@@ -1690,6 +1769,27 @@ _polybench_bench_suite_parser.parser.add_argument(
     help=(
         "Regenerate the instrumentation profile in every fork in which a new image is built instead of sharing the "
         "profile from the first fork. Relevant only for PGO benchmarks that run multiple forks."
+    ),
+)
+_polybench_bench_suite_parser.parser.add_argument(
+    "--disable-time-tracker-rule",
+    action="store_true",
+    help="Use the wall-clock time recorded by the TimeTracker to generate 'avg-time' datapoints.",
+)
+_polybench_bench_suite_parser.parser.add_argument(
+    "--allow-flaky-polybench-patterns",
+    help=(
+        "A comma-separated list of pattern identifiers which should be used for flaky failure identification. "
+        "This option is useful to regulate whether to allow or not known flaky failures."
+    ),
+)
+_polybench_bench_suite_parser.parser.add_argument(
+    "--flaky-failure-stability-tolerance",
+    help=(
+        "The number of flaky failures allowed per-benchmark for generating the stabilized metrics. "
+        "The stabilized metrics are not produced for benchmarks which exceed the tolerance, "
+        "but the benchmark execution itself is not failed. "
+        "By default, the stabilized metric will be produced as long as any forks were successful."
     ),
 )
 add_parser(PolybenchBenchmarkSuite.POLYBENCH_BENCH_SUITE_PARSER_NAME, _polybench_bench_suite_parser)

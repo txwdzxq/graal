@@ -818,7 +818,7 @@ class StageAwareGraalVm(GraalVm):
             self._prepare_for_running(args, out, err, cwd, nonZeroIsFatal)
             self.run_single_stage()
 
-        if self.stages_info.failed:
+        if self.stages_info.failed and not self.bmSuite.ignore_benchmark_failure(out.data, bm_exec_context().get("benchmarks"), bm_exec_context().get("bm_suite_args")):
             mx.abort('Exiting the benchmark due to the failure.')
 
     def prepare_stages(self, bm_suite: NativeImageBenchmarkMixin, bm_suite_args) -> tuple[list[Stage], list[Stage]]:
@@ -2078,7 +2078,7 @@ class GraalHostPolyBenchStagingVm(PolyBenchStagingVm):
     GRAALHOST_FSMAPPING_TEMPLATE: Template = Template("""
     {
       "fsmappings": [
-        {"concrete": "${path}", "virt": "${path}"}
+        {"concrete": "${path}", "virt": "${path}", "mutable": true}
       ]
     }
     """)
