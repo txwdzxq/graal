@@ -1472,13 +1472,6 @@ final class BytecodeNodeElement extends AbstractElement {
             op = BytecodeRootNodeElement.readInstruction("bc", "bci");
         }
 
-        if (parent.model.overridesBytecodeDebugListenerMethod("beforeInstructionExecute")) {
-            b.startStatement();
-            b.startCall("$root.beforeInstructionExecute");
-            parent.emitParseInstruction(b, "this", "bci", op);
-            b.end().end();
-        }
-
         b.startTryBlock();
         b.startSwitch();
 
@@ -1564,13 +1557,6 @@ final class BytecodeNodeElement extends AbstractElement {
         }
 
         b.end(); // switch
-        if (parent.model.overridesBytecodeDebugListenerMethod("afterInstructionExecute")) {
-            b.startStatement();
-            b.startCall("$root.afterInstructionExecute");
-            parent.emitParseInstruction(b, "this", "bci", op);
-            b.string("null");
-            b.end().end();
-        }
         b.end(); // try
 
         b.startCatchBlock(type(Throwable.class), "originalThrowable");
@@ -1709,13 +1695,6 @@ final class BytecodeNodeElement extends AbstractElement {
         }
         b.declaration(parent.asType(), "root", "getRoot()");
 
-        if (parent.model.overridesBytecodeDebugListenerMethod("afterInstructionExecute")) {
-            b.startStatement();
-            b.startCall("root.afterInstructionExecute");
-            parent.emitParseInstruction(b, "this", "bci", BytecodeRootNodeElement.readInstruction("bc", "bci"));
-            b.string("throwable");
-            b.end().end();
-        }
         /*
          * Three kinds of exceptions are supported: AbstractTruffleException, ControlFlowException,
          * and internal error (anything else). All of these can be intercepted by user-provided
