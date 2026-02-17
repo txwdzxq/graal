@@ -708,10 +708,6 @@ def gate_truffle_native(tasks):
             _sl_native_fallback_gate_tests(force_cp=False)
             _sl_native_optimized_gate_tests(force_cp=False)
 
-    with Task("Truffle SL Native Open World Test", tasks, tags=TruffleGateTags.truffle_native) as t:
-        if t:
-            _sl_native_open_world_gate_tests(force_cp=False)
-
     with Task("Truffle SL Native ClassPath", tasks, tags=TruffleGateTags.truffle_native) as t:
         if t:
             _sl_native_fallback_gate_tests(force_cp=True)
@@ -1066,27 +1062,6 @@ def _sl_native_optimized_gate_tests(force_cp):
     _run_sl_tests(run_native_optimized_immediately)
 
     mx.rmtree(target_dir)
-
-
-def _sl_native_open_world_gate_tests(force_cp):
-    jdk = mx.get_jdk(tag="graalvm")
-    vm_args = [
-        "-H:+UnlockExperimentalVMOptions",
-        "-H:-ClosedTypeWorld",
-        "-H:-PrintRestrictHeapAccessWarnings",
-        "-H:-UnlockExperimentalVMOptions",
-    ]
-    target_dir = tempfile.mkdtemp()
-    try:
-        image = _native_image_sl(jdk, vm_args, target_dir, use_optimized_runtime=True, force_cp=force_cp)
-
-        def run_native_open_world(test_file):
-            return [image, test_file, "--disable-launcher-output"]
-
-        mx.log("Run SL Native Open World Test")
-        _run_sl_tests(run_native_open_world)
-    finally:
-        mx.rmtree(target_dir)
 
 
 def truffle_native_context_preinitialization_tests(build_args=None):

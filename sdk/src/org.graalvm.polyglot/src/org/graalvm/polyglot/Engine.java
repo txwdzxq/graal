@@ -613,6 +613,8 @@ public final class Engine implements AutoCloseable {
          */
         private static final AtomicReference<Boolean> allowExperimentalOptionSystemPropertyValue = new AtomicReference<>();
 
+        static volatile Map<String, String> defaultOptions = Map.of();
+
         private OutputStream out = System.out;
         private OutputStream err = System.err;
         private InputStream in = null;
@@ -931,6 +933,16 @@ public final class Engine implements AutoCloseable {
             }
             Object logHandler = customLogHandler != null ? polyglot.newLogHandler(customLogHandler) : null;
             Map<String, String> useOptions = useSystemProperties ? readOptionsFromSystemProperties(options) : options;
+            if (!defaultOptions.isEmpty()) {
+                if (useOptions == options) {
+                    useOptions = new HashMap<>(useOptions);
+                }
+                for (String key : defaultOptions.keySet()) {
+                    if (!useOptions.containsKey(key)) {
+                        useOptions.put(key, defaultOptions.get(key));
+                    }
+                }
+            }
             boolean useAllowExperimentalOptions = allowExperimentalOptions || readAllowExperimentalOptionsFromSystemProperties();
             Engine engine = polyglot.buildEngine(permittedLanguages, sandboxPolicy, out, err, useIn, useOptions, useAllowExperimentalOptions,
                             boundEngine, messageTransport, logHandler, polyglot.createHostLanguage(polyglot.createHostAccess()), false, true, null, exceptionHandler);
@@ -1769,6 +1781,13 @@ public final class Engine implements AutoCloseable {
             return Context.getCurrent();
         }
 
+        @Override
+        public void collectDefaultEngineOptions() {
+            Map<String, String> newDefaults = Builder.readOptionsFromSystemProperties(Map.of());
+            if (!newDefaults.isEmpty()) {
+                Builder.defaultOptions = Collections.unmodifiableMap(newDefaults);
+            }
+        }
     }
 
     private static AbstractPolyglotImpl validateAndInitializePolyglot(AbstractPolyglotImpl polyglot) {

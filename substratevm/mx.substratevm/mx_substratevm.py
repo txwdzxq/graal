@@ -438,8 +438,16 @@ def truffle_unittest_task(extra_build_args=None):
     extra_build_args = extra_build_args or []
     # White Box Truffle compilation tests that need access to compiler graphs.
     if '-Ob' not in extra_build_args:
-        # GR-44492
-        native_unittest(['jdk.graal.compiler.truffle.test.ContextLookupCompilationTest'] + truffle_args(extra_build_args + svm_experimental_options(['-H:-SupportCompileInIsolates'])))
+        tests = [
+            # GR-44492
+            'jdk.graal.compiler.truffle.test.ContextLookupCompilationTest',
+            # Verify that native-image folds ConstantOptionKey#getConstantValue
+            'jdk.graal.compiler.truffle.test.ConstantOptionKeyPartialEvaluationTest'
+        ]
+        test_build_args = (extra_build_args +
+                           svm_experimental_options(['-H:-SupportCompileInIsolates']) +
+                           ['-Dpolyglot.image-build-time.ConstantOptionKeyPartialEvaluationLanguage.ConstantOption1=true'])
+        native_unittest(tests + truffle_args(test_build_args))
 
     with tempfile.NamedTemporaryFile(mode='w', delete=False) as logfile:
         logfile_name = logfile.name

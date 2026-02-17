@@ -2455,6 +2455,11 @@ final class EngineAccessor extends Accessor {
         public boolean isUntrustedCodeMitigationPolicySoftware(Enum<?> policy) {
             return policy == PolyglotEngineOptions.UntrustedCodeMitigationPolicy.SOFTWARE;
         }
+
+        @Override
+        public void collectDefaultEngineOptions() {
+            PolyglotImpl.findInstance().getAPIAccess().collectDefaultEngineOptions();
+        }
     }
 
     private static class GuardedExecutableNode extends ExecutableNode {

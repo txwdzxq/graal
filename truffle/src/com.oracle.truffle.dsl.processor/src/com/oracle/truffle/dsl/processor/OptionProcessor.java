@@ -83,6 +83,8 @@ import com.oracle.truffle.dsl.processor.java.model.CodeTypeElement;
 import com.oracle.truffle.dsl.processor.java.transform.FixWarningsVisitor;
 import com.oracle.truffle.dsl.processor.java.transform.GenerateOverrideVisitor;
 
+import static javax.lang.model.element.Modifier.STATIC;
+
 /**
  * Processes static fields annotated with Option. An OptionDescriptors implementation is generated
  * for each top level class containing at least one such field. The name of the generated class for
@@ -311,6 +313,18 @@ public class OptionProcessor extends AbstractProcessor {
             sandbox = "TRUSTED";
         }
 
+        boolean constant = ElementUtils.getAnnotationValue(Boolean.class, annotation, "constant");
+        boolean constantOptionKey = typeUtils.isSameType(typeUtils.erasure(element.asType()), typeUtils.erasure(types.ConstantOptionKey));
+        if (constant && !constantOptionKey) {
+            error(element, elementAnnotation, "Option annotated with @Option.constant must use ConstantOptionKey, but found OptionKey. " +
+                            "Either change the field type to ConstantOptionKey, or remove the @Option.constant attribute.");
+            return false;
+        } else if (!constant && constantOptionKey) {
+            error(element, elementAnnotation, "ConstantOptionKey can only be used with options annotated with @Option.constant, but this option is not constant. " +
+                            "Either add the @Option.constant attribute, or change the field type to OptionKey.");
+            return false;
+        }
+
         for (String group : groupPrefixStrings) {
             String name;
             if (group.isEmpty() && optionName.isEmpty()) {
@@ -325,7 +339,7 @@ public class OptionProcessor extends AbstractProcessor {
                     name = group + "." + optionName;
                 }
             }
-            info.options.add(new OptionInfo(name, help, field, elementAnnotation, deprecated, category, stability, optionMap, deprecationMessage, usageSyntax, sandbox));
+            info.options.add(new OptionInfo(name, help, field, elementAnnotation, deprecated, category, stability, optionMap, deprecationMessage, usageSyntax, sandbox, constant));
         }
         return true;
     }
@@ -518,6 +532,47 @@ public class OptionProcessor extends AbstractProcessor {
         builder.end(); // return
         descriptors.add(iteratorMethod);
 
+        List<OptionInfo> constantOptions = model.options.stream().filter((o) -> o.constant).toList();
+        if (!constantOptions.isEmpty()) {
+            CodeExecutableElement staticInitializer = new CodeExecutableElement(Set.of(STATIC), null, "<cinit>");
+            boolean first = true;
+            for (OptionInfo optionInfo : constantOptions) {
+                if (first) {
+                    builder = staticInitializer.createBuilder();
+                    builder.startDeclaration(context.getType(String.class), "optionValue");
+                    first = false;
+                } else {
+                    builder.startAssign("optionValue");
+                }
+                builder.startStaticCall(context.getType(System.class), "getProperty");
+                builder.doubleQuote("polyglot.image-build-time." + optionInfo.name);
+                builder.end();
+                builder.end();
+
+                builder.startIf();
+                builder.string("optionValue != null").end();
+
+                builder.startBlock();
+                builder.startStatement();
+                builder.startCall(builder.create().staticReference(optionInfo.field).build(), "setConstantValue");
+                builder.startCall(builder.create().startCall(builder.create().staticReference(optionInfo.field).build(), "getType").end().build(), "convert");
+                builder.string("optionValue");
+                builder.end();
+                builder.end();
+                builder.end();
+                builder.end();
+                builder.startElseBlock();
+                builder.startStatement();
+                builder.startCall(builder.create().staticReference(optionInfo.field).build(), "setConstantValue");
+                builder.startCall(builder.create().staticReference(optionInfo.field).build(), "getDefaultValue").end();
+                builder.end();
+                builder.end();
+                builder.end();
+            }
+            builder.end();
+            descriptors.add(staticInitializer);
+        }
+
         return descriptors;
     }
 
@@ -540,6 +595,10 @@ public class OptionProcessor extends AbstractProcessor {
 
         builder.startCall("", "category").staticReference(types.OptionCategory, info.category).end();
         builder.startCall("", "stability").staticReference(types.OptionStability, info.stability).end();
+
+        if (info.constant) {
+            builder.startCall("", "constant").string("true").end();
+        }
 
         builder.startCall("", "build").end();
         return builder.build();
@@ -566,10 +625,11 @@ public class OptionProcessor extends AbstractProcessor {
         final String stability;
         final String deprecationMessage;
         final String sandboxPolicy;
+        final boolean constant;
         private String usageSyntax;
 
         OptionInfo(String name, String help, VariableElement field, AnnotationMirror annotation, boolean deprecated, String category, String stability, boolean optionMap, String deprecationMessage,
-                        String usageSyntax, String sandboxPolicy) {
+                        String usageSyntax, String sandboxPolicy, boolean constant) {
             this.name = name;
             this.help = help;
             this.field = field;
@@ -581,6 +641,7 @@ public class OptionProcessor extends AbstractProcessor {
             this.deprecationMessage = deprecationMessage;
             this.usageSyntax = usageSyntax;
             this.sandboxPolicy = sandboxPolicy;
+            this.constant = constant;
         }
 
         @Override

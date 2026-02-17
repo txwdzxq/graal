@@ -877,6 +877,8 @@ public abstract class Accessor {
         public abstract boolean isIsolateMemoryProtection(OptionValues optionValues);
 
         public abstract boolean isUntrustedCodeMitigationPolicySoftware(Enum<?> policy);
+
+        public abstract void collectDefaultEngineOptions();
     }
 
     public abstract static class LanguageSupport extends Support {

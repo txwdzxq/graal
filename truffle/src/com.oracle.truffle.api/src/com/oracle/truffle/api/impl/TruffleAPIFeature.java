@@ -95,6 +95,16 @@ public final class TruffleAPIFeature implements Feature {
         }
     }
 
+    @Override
+    public void duringAnalysis(DuringAnalysisAccess access) {
+        /*
+         * Polyglot must be initialized after TruffleFeature#beforeAnalysis. Otherwise,
+         * EnterpriseTruffle#supportsEnterpriseExtensions does not work and EnterprisePolyglotIMpl
+         * is not used.
+         */
+        DefaultRuntimeAccessor.ENGINE.collectDefaultEngineOptions();
+    }
+
     private static String doVersionCheck() {
         if (TruffleVersions.isVersionCheckEnabled()) {
             Version truffleAPIVersion = TruffleVersions.TRUFFLE_API_VERSION;
