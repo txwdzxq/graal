@@ -4361,8 +4361,7 @@ public final class NodeParser extends AbstractParser<NodeData> {
         if (parameterType == null) {
             return false;
         }
-        ExecutableElement createMethod = ElementUtils.findStaticMethod(parameterType, "create");
-        if (createMethod != null) {
+        if (ElementUtils.hasStaticMethod(parameterType, "create")) {
             return true;
         }
         AnnotationMirror annotation = findGenerateAnnotation(parameterType.asType(), ProcessorContext.getInstance().getTypes().GenerateCached);
