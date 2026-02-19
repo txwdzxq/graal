@@ -2321,6 +2321,10 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
              */
             return false;
         }
+        if (instr.kind == InstructionKind.STORE_LOCAL_MATERIALIZED && instr.isQuickening() && operand.dynamicIndex() == 0) {
+            // We cannot clear the frame operand in case we need to call the slow path.
+            return false;
+        }
         if (instr.kind == InstructionKind.POP) {
             // custom clearing for pop
             return false;
