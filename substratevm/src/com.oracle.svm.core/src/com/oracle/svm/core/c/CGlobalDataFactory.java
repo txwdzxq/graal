@@ -165,6 +165,24 @@ public final class CGlobalDataFactory {
         return new CGlobalDataImpl<>(symbolName, () -> ConfigurationValues.getTarget().wordSize);
     }
 
+    /**
+     * Same as {@link #createBytes(Supplier)}, but initializes data right before native image
+     * writing. The size returned by {@code sizeSupplier} must be available by
+     * {@link org.graalvm.nativeimage.hosted.Feature#afterHeapLayout} and must equal the length of
+     * the byte array returned by {@code contentSupplier}.
+     */
+    public static <T extends PointerBase> CGlobalData<T> deferredBytes(IntSupplier sizeSupplier, Supplier<byte[]> contentSupplier) {
+        return deferredBytes(sizeSupplier, contentSupplier, null);
+    }
+
+    /**
+     * Same as {@link #deferredBytes(IntSupplier,Supplier)}, and additionally creates a symbol with
+     * the provided name for the allocated bytes.
+     */
+    public static <T extends PointerBase> CGlobalData<T> deferredBytes(IntSupplier sizeSupplier, Supplier<byte[]> contentSupplier, String symbolName) {
+        return new CGlobalDataImpl<>(symbolName, contentSupplier, sizeSupplier);
+    }
+
     private CGlobalDataFactory() {
     }
 }
