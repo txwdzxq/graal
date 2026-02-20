@@ -148,7 +148,7 @@ public abstract class FrameAccess {
     }
 
     public static Stamp getWordStamp() {
-        return StampFactory.forKind(ConfigurationValues.getTarget().wordJavaKind);
+        return StampFactory.forKind(ConfigurationValues.getWordKind());
     }
 
     /**

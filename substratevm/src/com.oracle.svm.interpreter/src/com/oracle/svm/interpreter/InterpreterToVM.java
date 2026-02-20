@@ -74,7 +74,7 @@ import jdk.vm.ci.meta.ResolvedJavaType;
 @InternalVMMethod
 public final class InterpreterToVM {
 
-    private static final JavaKind WORD_KIND = ConfigurationValues.getTarget().wordJavaKind;
+    private static final JavaKind WORD_KIND = ConfigurationValues.getWordKind();
 
     static {
         VMError.guarantee(WORD_KIND == JavaKind.Int || WORD_KIND == JavaKind.Long);
