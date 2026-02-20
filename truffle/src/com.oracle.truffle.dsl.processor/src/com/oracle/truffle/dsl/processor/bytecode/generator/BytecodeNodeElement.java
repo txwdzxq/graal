@@ -1489,7 +1489,13 @@ final class BytecodeNodeElement extends AbstractElement {
                         filter((i) -> isInstructionReachable(i)).//
                         toList();
 
-        List<List<InstructionModel>> instructionPartitions = BytecodeRootNodeElement.partitionInstructions(instructions);
+        List<List<InstructionModel>> instructionPartitions;
+        if (parent.model.enableTailCallHandlers) {
+            // TODO GR-73544 grouping is not supported for tail call handlers right now.
+            instructionPartitions = List.of(instructions);
+        } else {
+            instructionPartitions = BytecodeRootNodeElement.partitionInstructions(instructions);
+        }
 
         CodeTree op;
         if (parent.model.bytecodeDebugListener || instructionPartitions.size() > 1) {
