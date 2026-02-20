@@ -1412,7 +1412,7 @@ final class BytecodeNodeElement extends AbstractElement {
             b.startDeclaration(types.Node, "prev").startCall("encapsulatingNode", "set").string("this").end().end();
             b.startTryBlock();
 
-            b.startIf().string("uncachedExecuteCount_ <= 1").end().startBlock();
+            b.startIf().string("uncachedExecuteCount_ <= 0").end().startBlock();
             b.startIf().string("uncachedExecuteCount_ != " + FORCE_UNCACHED_THRESHOLD).end().startBlock();
             b.statement("$root.transitionToCached()");
 

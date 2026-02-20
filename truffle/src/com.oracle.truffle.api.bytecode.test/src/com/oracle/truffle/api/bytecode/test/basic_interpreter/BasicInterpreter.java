@@ -58,6 +58,7 @@ import com.oracle.truffle.api.bytecode.BytecodeFrame;
 import com.oracle.truffle.api.bytecode.BytecodeLocation;
 import com.oracle.truffle.api.bytecode.BytecodeNode;
 import com.oracle.truffle.api.bytecode.BytecodeRootNode;
+import com.oracle.truffle.api.bytecode.BytecodeTier;
 import com.oracle.truffle.api.bytecode.ConstantOperand;
 import com.oracle.truffle.api.bytecode.ContinuationResult;
 import com.oracle.truffle.api.bytecode.ContinuationRootNode;
@@ -957,6 +958,14 @@ public abstract class BasicInterpreter extends DebugBytecodeRootNode implements 
             return configBuilder.build();
         }
 
+    }
+
+    @Operation(storeBytecodeIndex = false)
+    public static final class IsUncached {
+        @Specialization
+        public static boolean perform(@Bind BytecodeTier tier) {
+            return tier == BytecodeTier.UNCACHED;
+        }
     }
 
     record Bindings(
