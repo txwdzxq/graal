@@ -603,7 +603,7 @@ public abstract class NativeImage extends AbstractImage {
     }
 
     private static boolean checkCodeRelocationKind(Info info) {
-        int wordSize = ConfigurationValues.getTarget().wordSize;
+        int wordSize = ConfigurationValues.getWordSize();
         int relocationSize = info.getRelocationSize();
         RelocationKind relocationKind = info.getRelocationKind();
 

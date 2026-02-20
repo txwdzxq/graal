@@ -51,4 +51,10 @@ public final class ConfigurationValues {
     public static JavaKind getWordKind() {
         return getTarget().wordJavaKind;
     }
+
+    @Fold
+    public static int getWordSize() {
+        return getTarget().wordSize;
+    }
+
 }

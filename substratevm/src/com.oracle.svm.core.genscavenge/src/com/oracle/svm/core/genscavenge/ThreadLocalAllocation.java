@@ -428,7 +428,7 @@ public final class ThreadLocalAllocation {
 
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
     private static void guaranteeZeroed(Pointer memory, UnsignedWord size) {
-        int wordSize = ConfigurationValues.getTarget().wordSize;
+        int wordSize = ConfigurationValues.getWordSize();
         VMError.guarantee(UnsignedUtils.isAMultiple(size, Word.unsigned(wordSize)));
 
         Pointer pos = memory;

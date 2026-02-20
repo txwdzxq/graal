@@ -125,7 +125,7 @@ public class ContinuationSupport {
     @Uninterruptible(reason = "Copies stack frames containing references.")
     protected CodePointer copyFrames(StoredContinuation storedCont, Pointer topSP, @SuppressWarnings("unused") Object preparedData) {
         int totalSize = StoredContinuationAccess.getFramesSizeInBytes(storedCont);
-        assert totalSize % ConfigurationValues.getTarget().wordSize == 0;
+        assert totalSize % ConfigurationValues.getWordSize() == 0;
 
         Pointer frameData = StoredContinuationAccess.getFramesStart(storedCont);
         UnmanagedMemoryUtil.copyWordsForward(frameData, topSP, Word.unsigned(totalSize));

@@ -397,7 +397,7 @@ public class CGlobalDataFeature implements InternalFeature {
 
     private void layout() {
         assert !isLaidOut() : "Already laid out";
-        final int wordSize = ConfigurationValues.getTarget().wordSize;
+        final int wordSize = ConfigurationValues.getWordSize();
         /*
          * Put larger blobs at the end so that offsets are reasonable (<24bit imm) for smaller
          * entries

@@ -88,7 +88,7 @@ final class Target_jdk_internal_misc_Unsafe_Core {
 
     @Substitute
     private int addressSize() {
-        return ConfigurationValues.getTarget().wordSize;
+        return ConfigurationValues.getWordSize();
     }
 
     @Substitute

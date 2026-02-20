@@ -840,12 +840,12 @@ class NativeImageDebugInfoProvider extends SharedDebugInfoProvider {
                  * EnumInfo should not reach here because it is no word base type. Create a pointer
                  * to a generic word type or void.
                  */
-                size = ConfigurationValues.getTarget().wordSize;
+                size = ConfigurationValues.getWordSize();
                 TypeEntry pointerToEntry = null;
 
                 // create a generic word type as base type or a void* if it is a pointer type
                 if (!nativeLibs.isPointerBase(type)) {
-                    int genericWordSize = ConfigurationValues.getTarget().wordSize;
+                    int genericWordSize = ConfigurationValues.getWordSize();
                     int genericWordBits = genericWordSize * 8;
                     String genericWordName = "uint" + genericWordBits + "_t";
                     long genericWordTypeSignature = getTypeSignature(genericWordName);

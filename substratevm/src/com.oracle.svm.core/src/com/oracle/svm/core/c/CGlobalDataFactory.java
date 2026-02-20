@@ -144,7 +144,7 @@ public final class CGlobalDataFactory {
      */
     public static <T extends PointerBase> CGlobalData<T> createWord(WordBase initialValue, String symbolName, boolean nonConstant) {
         Supplier<byte[]> supplier = () -> {
-            assert ConfigurationValues.getTarget().wordSize == Long.BYTES : "currently hard-coded for 8 byte words";
+            assert ConfigurationValues.getWordSize() == Long.BYTES : "currently hard-coded for 8 byte words";
             return ByteBuffer.allocate(Long.BYTES).order(ConfigurationValues.getTarget().arch.getByteOrder()).putLong(initialValue.rawValue()).array();
         };
         return new CGlobalDataImpl<>(symbolName, supplier, nonConstant);
@@ -162,7 +162,7 @@ public final class CGlobalDataFactory {
      * the allocated word.
      */
     public static <T extends PointerBase> CGlobalData<T> createWord(String symbolName) {
-        return new CGlobalDataImpl<>(symbolName, () -> ConfigurationValues.getTarget().wordSize);
+        return new CGlobalDataImpl<>(symbolName, () -> ConfigurationValues.getWordSize());
     }
 
     /**
