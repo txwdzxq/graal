@@ -27,6 +27,7 @@ package com.oracle.svm.core.util;
 import java.nio.ByteBuffer;
 import java.util.function.Predicate;
 
+import com.oracle.svm.shared.util.BasedOnJDKFile;
 import org.graalvm.nativeimage.c.type.CCharPointer;
 import org.graalvm.nativeimage.c.type.CTypeConversion;
 

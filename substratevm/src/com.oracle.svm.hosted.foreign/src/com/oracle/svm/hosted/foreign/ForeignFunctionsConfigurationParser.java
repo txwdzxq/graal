@@ -56,7 +56,7 @@ import org.graalvm.nativeimage.impl.RuntimeForeignAccessSupport;
 import com.oracle.svm.configure.ConfigurationParserOption;
 import com.oracle.svm.configure.ForeignConfigurationParser;
 import com.oracle.svm.configure.UnresolvedAccessCondition;
-import com.oracle.svm.core.util.BasedOnJDKFile;
+import com.oracle.svm.shared.util.BasedOnJDKFile;
 import com.oracle.svm.hosted.ImageClassLoader;
 import com.oracle.svm.hosted.classinitialization.ClassInitializationSupport;
 import com.oracle.svm.hosted.foreign.MemoryLayoutParser.MemoryLayoutParserException;
