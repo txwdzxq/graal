@@ -167,7 +167,7 @@ public abstract class NativeImage extends AbstractImage {
 
         int pageSize = SubstrateOptions.getPageSize();
         objectFile = ObjectFileFactory.singleton().newObjectFile(pageSize, ImageSingletons.lookup(TemporaryBuildDirectoryProvider.class).getTemporaryBuildDirectory(), universe.getBigBang());
-        objectFile.setByteOrder(ConfigurationValues.getTarget().arch.getByteOrder());
+        objectFile.setByteOrder(ConfigurationValues.getByteOrder());
         wordSize = FrameAccess.wordSize();
         assert objectFile.getWordSizeInBytes() == wordSize;
         assert objectFile.getPageSize() == heapLayout.getPageSize();

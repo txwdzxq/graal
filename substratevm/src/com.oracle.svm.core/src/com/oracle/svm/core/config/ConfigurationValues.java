@@ -24,6 +24,8 @@
  */
 package com.oracle.svm.core.config;
 
+import java.nio.ByteOrder;
+
 import org.graalvm.nativeimage.ImageSingletons;
 
 import com.oracle.svm.core.SubstrateTargetDescription;
@@ -57,4 +59,8 @@ public final class ConfigurationValues {
         return getTarget().wordSize;
     }
 
+    @Fold
+    public static ByteOrder getByteOrder() {
+        return getTarget().arch.getByteOrder();
+    }
 }
