@@ -255,7 +255,7 @@ final class InstructionsElement extends AbstractElement {
         TypeMirror returnType = generic(List.class, types.Instruction_Argument);
         CodeExecutableElement ex = new CodeExecutableElement(Set.of(PRIVATE, STATIC), returnType, "getArguments");
         ex.addParameter(new CodeVariableElement(type(int.class), "opcode"));
-        ex.addParameter(new CodeVariableElement(type(int.class), "bci"));
+        ex.addParameter(new CodeVariableElement(parent.getBytecodIndexType(), "bci"));
         ex.addParameter(new CodeVariableElement(parent.abstractBytecodeNode.asType(), "bytecode"));
         ex.addParameter(new CodeVariableElement(type(byte[].class), "bytecodes"));
         ex.addParameter(new CodeVariableElement(type(Object[].class), "constants"));
@@ -404,7 +404,7 @@ final class InstructionsElement extends AbstractElement {
                 args.add(new CodeVariableElement(Set.of(FINAL), parent.abstractBytecodeNode.asType(), "bytecode"));
                 args.add(new CodeVariableElement(Set.of(FINAL), type(byte[].class), "bytecodes"));
                 args.add(new CodeVariableElement(Set.of(FINAL), types.Node, "singleton"));
-                args.add(new CodeVariableElement(Set.of(FINAL), type(int.class), "bytecodeIndex"));
+                args.add(new CodeVariableElement(Set.of(FINAL), parent.getBytecodIndexType(), "bytecodeIndex"));
                 break;
             default:
                 args.add(new CodeVariableElement(Set.of(FINAL), parent.abstractBytecodeNode.asType(), "bytecode"));
@@ -503,7 +503,7 @@ final class InstructionsElement extends AbstractElement {
                             ElementKind.CLASS, null, "AbstractArgument");
             this.setSuperClass(types.Instruction_Argument);
             this.add(new CodeVariableElement(Set.of(FINAL), argumentDescriptorImpl.asType(), "descriptor"));
-            this.add(new CodeVariableElement(Set.of(FINAL), InstructionsElement.this.type(int.class), "bci"));
+            this.add(new CodeVariableElement(Set.of(FINAL), parent.getBytecodIndexType(), "bci"));
             CodeExecutableElement constructor = this.add(createConstructorUsingFields(Set.of(), this, null));
             CodeTree tree = constructor.getBodyTree();
             CodeTreeBuilder b = constructor.createBuilder();
@@ -656,7 +656,8 @@ final class InstructionsElement extends AbstractElement {
                 b.declaration(InstructionsElement.this.types.Node, "node", "asCachedNode()");
                 b.startIf().startStaticCall(InstructionsElement.this.types.Introspection, "isIntrospectable").string("node").end().end().startBlock();
                 b.startReturn();
-                b.startStaticCall(InstructionsElement.this.types.Introspection, "getSpecializations").string("this.bytecode").string("this.bytecodeIndex").string("node").end();
+                b.startStaticCall(InstructionsElement.this.types.Introspection, "getSpecializations").string("this.bytecode").string(parent.castBytecodeIndexToInt("this.bytecodeIndex")).string(
+                                "node").end();
                 b.end(); // return
                 b.end();
             }

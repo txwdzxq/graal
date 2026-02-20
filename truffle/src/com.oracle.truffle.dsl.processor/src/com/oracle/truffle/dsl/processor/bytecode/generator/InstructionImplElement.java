@@ -67,7 +67,7 @@ final class InstructionImplElement extends AbstractElement {
         this.setSuperClass(types.Instruction);
 
         this.add(new CodeVariableElement(Set.of(FINAL), parent.abstractBytecodeNode.asType(), "bytecode"));
-        this.add(new CodeVariableElement(Set.of(FINAL), type(int.class), "bci"));
+        this.add(new CodeVariableElement(Set.of(FINAL), parent.getBytecodIndexType(), "bci"));
         this.add(new CodeVariableElement(Set.of(FINAL), type(int.class), "opcode"));
         this.add(new CodeVariableElement(Set.of(FINAL), type(byte[].class), "bytecodes"));
         this.add(new CodeVariableElement(Set.of(FINAL), type(Object[].class), "constants"));
@@ -105,7 +105,7 @@ final class InstructionImplElement extends AbstractElement {
     private CodeExecutableElement createGetBytecodeIndex() {
         CodeExecutableElement ex = GeneratorUtils.override(types.Instruction, "getBytecodeIndex");
         CodeTreeBuilder b = ex.createBuilder();
-        b.statement("return bci");
+        b.statement("return ", parent.castBytecodeIndexToInt("bci"));
         return ex;
     }
 

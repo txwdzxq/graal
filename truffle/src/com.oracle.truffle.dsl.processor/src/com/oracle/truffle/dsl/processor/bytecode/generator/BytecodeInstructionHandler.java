@@ -111,7 +111,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
 
         if (handlerLayout.isTailCall()) {
             // tail call handlers need to all have the same layout
-            returnType = type(int.class);
+            returnType = type(long.class);
             earlyInline = true;
         } else {
             switch (handlerKind) {
@@ -198,7 +198,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
         final boolean hasUnexpectedOperand = hasUnexpectedValue();
 
         if (handlerLayout.isTailCall() && instruction.hasStackEffects()) {
-            b.statement("int sp = ", VirtualStateElement.LOCAL_NAME, ".sp");
+            b.declaration(parent.getStackPointerType(), "sp", VirtualStateElement.LOCAL_NAME + ".sp");
         }
 
         if (BytecodeRootNodeElement.isStoreBciBeforeExecute(model(), parent.tier, instruction)) {
@@ -628,7 +628,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
             String methodName = "handle" + firstLetterUpperCase(rootInstruction.getInternalName()) + "$slow";
             method = parent.add(parent.createInstructionHandler(b.findMethod().getReturnType(), methodName));
             if (handlerLayout.isTailCall()) {
-                method.addParameter(new CodeVariableElement(type(int.class), "sp"));
+                method.addParameter(new CodeVariableElement(parent.getStackPointerType(), "sp"));
             }
             method.removeParameters("cstate");
             method.removeParameters(VirtualStateElement.LOCAL_NAME);
@@ -1118,7 +1118,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
         method.addParameter(new CodeVariableElement(types.FrameWithoutBoxing, "frame"));
         method.addParameter(new CodeVariableElement(type(int.class), "count"));
         method.addParameter(new CodeVariableElement(type(int.class), "stackSize"));
-        method.addParameter(new CodeVariableElement(type(int.class), "sp"));
+        method.addParameter(new CodeVariableElement(parent.getStackPointerType(), "sp"));
 
         InstructionImmediate offsetImmediate = instr.findImmediate(ImmediateKind.INTEGER, "offset");
         if (offsetImmediate != null) {
@@ -1251,7 +1251,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
         method.addParameter(new CodeVariableElement(types.FrameWithoutBoxing, "frame"));
         method.addParameter(new CodeVariableElement(type(Object[].class), "array"));
         method.addParameter(new CodeVariableElement(type(int.class), "count"));
-        method.addParameter(new CodeVariableElement(type(int.class), "sp"));
+        method.addParameter(new CodeVariableElement(parent.getStackPointerType(), "sp"));
 
         InstructionImmediate offsetImmediate = instr.findImmediate(ImmediateKind.INTEGER, "offset");
         if (offsetImmediate != null) {
@@ -1359,7 +1359,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
         method.addParameter(new CodeVariableElement(types.FrameWithoutBoxing, "frame"));
         method.addParameter(new CodeVariableElement(type(Object[].class), "array"));
         method.addParameter(new CodeVariableElement(type(int.class), "count"));
-        method.addParameter(new CodeVariableElement(type(int.class), "sp"));
+        method.addParameter(new CodeVariableElement(parent.getStackPointerType(), "sp"));
 
         InstructionImmediate offsetImmediate = instruction.findImmediate(ImmediateKind.INTEGER, "offset");
         if (offsetImmediate != null) {
@@ -1592,7 +1592,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
             if (ElementUtils.isObject(valueOperand.type())) {
                 emitClearStackValue(b, "sp - 1", valueOperand.type(), mode);
             } else {
-                b.startIf().string("frame.getTag(sp - 1) != ").staticReference(parent.parent.frameTagsElement.get(valueOperand.type())).end().startBlock();
+                b.startIf().string("FRAMES.getTag(frame, sp - 1) != ").staticReference(parent.parent.frameTagsElement.get(valueOperand.type())).end().startBlock();
                 emitSlowPath(b, name -> name, "null");
                 b.end().startElseBlock();
                 emitClearStackValue(b, "sp - 1", valueOperand.type(), mode);
@@ -1702,13 +1702,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
             checked = model().loadIllegalLocalStrategy == LoadIllegalLocalStrategy.CUSTOM_EXCEPTION;
         }
 
-        final CodeTree slot;
-        if (materialized || checked || !readLocalIndex) {
-            b.declaration(type(int.class), "slot", BytecodeRootNodeElement.readImmediate("bc", "bci", instruction.getImmediate(ImmediateKind.FRAME_INDEX)));
-            slot = CodeTreeBuilder.singleString("slot");
-        } else {
-            slot = BytecodeRootNodeElement.readImmediate("bc", "bci", instruction.getImmediate(ImmediateKind.FRAME_INDEX));
-        }
+        b.declaration(parent.getStackPointerType(), "slot", BytecodeRootNodeElement.readImmediate("bc", "bci", instruction.getImmediate(ImmediateKind.FRAME_INDEX)));
 
         final CodeTree localIndex;
         if (model().localAccessesNeedLocalIndex()) {
@@ -1719,7 +1713,10 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
                 localIndex = BytecodeRootNodeElement.readImmediate("bc", "bci", instruction.getImmediate(ImmediateKind.LOCAL_INDEX));
             }
         } else {
-            localIndex = CodeTreeBuilder.createBuilder().tree(slot).string(" - ").string(BytecodeRootNodeElement.USER_LOCALS_START_INDEX).build();
+            CodeTreeBuilder inner = CodeTreeBuilder.createBuilder();
+            parent.parent.emitCastBytecodeIndexToInt(inner);
+            inner.string("slot").string(" - ").string(BytecodeRootNodeElement.USER_LOCALS_START_INDEX);
+            localIndex = inner.build();
         }
 
         final String localsFrame;
@@ -1762,11 +1759,11 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
 
             if (checked) {
                 b.startIf();
-                b.startCall(localsFrame, "getTag").tree(slot).end();
+                b.startCall("FRAMES.getTag").string(localsFrame).string("slot").end();
                 b.string(" == ");
                 b.staticReference(parent.parent.frameTagsElement.getIllegal());
                 b.end().startBlock();
-                BytecodeNodeElement.emitThrowIllegalLocalException(model(), b, CodeTreeBuilder.singleString("bci"), bytecodeNode, localIndex, true);
+                parent.parent.emitThrowIllegalLocalException(b, CodeTreeBuilder.singleString("bci"), bytecodeNode, localIndex, true);
                 b.end();
             }
             boolean specialized = instruction.quickeningKind.isSpecialized();
@@ -1780,9 +1777,9 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
             }
 
             if (instruction.specializedType != null) {
-                BytecodeRootNodeElement.startExpectFrameUnsafe(b, localsFrame, slotType).tree(slot).end();
+                BytecodeRootNodeElement.startExpectFrameUnsafe(b, localsFrame, slotType).string("slot").end();
             } else {
-                BytecodeRootNodeElement.startRequireFrame(b, slotType).string(localsFrame).tree(slot).end();
+                BytecodeRootNodeElement.startRequireFrame(b, slotType).string(localsFrame).string("slot").end();
             }
 
             b.end(); // assignment
@@ -1819,7 +1816,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
 
                 if (model().loadIllegalLocalStrategy == LoadIllegalLocalStrategy.CUSTOM_EXCEPTION) {
                     b.startIf();
-                    b.startCall(localsFrame, "getTag").string("slot").end();
+                    b.startCall("FRAMES.getTag").string(localsFrame).string("slot").end();
                     b.string(" == ");
                     b.staticReference(parent.parent.frameTagsElement.getIllegal());
                     b.end().startBlock();
@@ -1837,7 +1834,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
                     b.end(2);
                     b.end(); // if cached tag != Object
                     parent.parent.emitQuickening(b, "this", "bc", "bci", null, parent.parent.createInstructionConstant(instruction.findQuickening(QuickeningKind.GENERIC, null, true)));
-                    BytecodeNodeElement.emitThrowIllegalLocalException(model(), b, CodeTreeBuilder.singleString("bci"), bytecodeNode, localIndex, false);
+                    parent.parent.emitThrowIllegalLocalException(b, CodeTreeBuilder.singleString("bci"), bytecodeNode, localIndex, false);
                     b.end(); // if
                 }
 
@@ -1906,13 +1903,13 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
                 }
 
                 b.startIf();
-                b.startCall(localsFrame, "getTag").string("slot").end();
+                b.startCall("FRAMES.getTag").string(localsFrame).string("slot").end();
                 b.string(" == ");
                 b.staticReference(parent.parent.frameTagsElement.getIllegal());
                 b.end().startBlock();
                 // If tag illegal, quicken to checked.
                 parent.parent.emitQuickening(b, "this", "bc", "bci", null, parent.parent.createInstructionConstant(instruction.findQuickening(QuickeningKind.GENERIC, null, true)));
-                BytecodeNodeElement.emitThrowIllegalLocalException(model(), b, CodeTreeBuilder.singleString("bci"), bytecodeNode, localIndex, false);
+                parent.parent.emitThrowIllegalLocalException(b, CodeTreeBuilder.singleString("bci"), bytecodeNode, localIndex, false);
                 b.end(); // if
 
                 // If tag not illegal, quicken to unchecked.
@@ -2222,7 +2219,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
     }
 
     private void emitYieldProlog(CodeTreeBuilder b) {
-        b.statement("int maxLocals = getRoot().maxLocals");
+        b.declaration(parent.getStackPointerType(), "maxLocals", "getRoot().maxLocals");
         /*
          * The yield result will be stored at sp + stackEffect - 1 = sp + (1 - n) - 1 = sp - n (for
          * n dynamic operands). We need to copy operands lower on the stack for resumption.

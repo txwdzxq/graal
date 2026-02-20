@@ -55,7 +55,6 @@ import javax.lang.model.type.TypeMirror;
 import com.oracle.truffle.dsl.processor.java.ElementUtils;
 import com.oracle.truffle.dsl.processor.java.model.CodeNames;
 import com.oracle.truffle.dsl.processor.java.model.CodeTypeElement;
-import com.oracle.truffle.dsl.processor.java.model.GeneratedTypeMirror;
 import com.oracle.truffle.dsl.processor.java.model.CodeTypeMirror.DeclaredCodeTypeMirror;
 
 public class TruffleTypes {

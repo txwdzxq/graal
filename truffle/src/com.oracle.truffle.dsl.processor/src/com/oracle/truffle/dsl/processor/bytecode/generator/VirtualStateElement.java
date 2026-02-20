@@ -60,7 +60,7 @@ final class VirtualStateElement extends AbstractElement {
     VirtualStateElement(BytecodeRootNodeElement parent) {
         super(parent, Set.of(PRIVATE, STATIC, FINAL), ElementKind.CLASS, null, "VirtualState");
         this.addAnnotationMirror(new CodeAnnotationMirror(types.CompilerDirectives_ValueType));
-        this.add(new CodeVariableElement(Set.of(PRIVATE), type(int.class), "sp"));
+        this.add(new CodeVariableElement(Set.of(PRIVATE), parent.getStackPointerType(), "sp"));
         CodeExecutableElement m = this.add(GeneratorUtils.createConstructorUsingFields(Set.of(), this));
         m.addAnnotationMirror(new CodeAnnotationMirror(types.CompilerDirectives_EarlyInline));
     }
