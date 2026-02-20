@@ -102,11 +102,12 @@ import com.oracle.svm.hosted.nodes.ReadReservedRegister;
 import com.oracle.svm.hosted.substitute.AnnotationSubstitutionProcessor;
 import com.oracle.svm.shared.singletons.traits.LayeredInstallationKindSingletonTrait;
 import com.oracle.svm.shared.singletons.traits.SingletonLayeredInstallationKind;
+import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.AnnotationUtil;
+import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.util.JVMCIReflectionUtil;
 import com.oracle.svm.util.OriginalClassProvider;
-import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.util.dynamicaccess.JVMCIRuntimeReflection;
 
 import jdk.graal.compiler.core.common.CompressEncoding;
@@ -210,6 +211,7 @@ public class SubstrateGraphBuilderPlugins {
         registerSizeOfPlugins(plugins);
         registerReferencePlugins(plugins, parsingReason);
         registerReferenceAccessPlugins(plugins);
+        registerGuestPlugins(plugins);
         if (supportsStubBasedPlugins) {
             registerAESPlugins(plugins);
             registerArraysSupportPlugins(plugins);
@@ -1369,6 +1371,28 @@ public class SubstrateGraphBuilderPlugins {
         InvocationPlugins.Registration r = new InvocationPlugins.Registration(plugins, "jdk.internal.util.ArraysSupport");
         r.register(new StandardGraphBuilderPlugins.VectorizedMismatchInvocationPlugin());
         r.register(new StandardGraphBuilderPlugins.VectorizedHashCodeInvocationPlugin());
+    }
+
+    private static void registerGuestPlugins(InvocationPlugins plugins) {
+        ResolvedJavaType guestConfigurationValuesType = GuestAccess.get().lookupAppClassLoaderType("com.oracle.svm.guest.staging.config.GuestConfigurationValues");
+        Registration r = new Registration(plugins, new InvocationPlugins.ResolvedJavaSymbol(guestConfigurationValuesType));
+        Arrays.stream(guestConfigurationValuesType.getDeclaredMethods(false))
+                        .filter(ResolvedJavaMethod::isStatic)
+                        .filter(m -> m.getSignature().getParameterCount(false) == 0)
+                        .map(ResolvedJavaMethod::getName)
+                        .forEach(methodName -> {
+                            r.register(new RequiredInlineOnlyInvocationPlugin(methodName) {
+                                private final ResolvedJavaMethod method = JVMCIReflectionUtil.getUniqueDeclaredMethod(guestConfigurationValuesType, methodName);
+
+                                @Override
+                                public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver) {
+                                    JavaConstant result = GuestAccess.get().invoke(method, null);
+                                    ConstantNode node = ConstantNode.forConstant(result, b.getMetaAccess(), b.getGraph());
+                                    b.push(result.getJavaKind(), node);
+                                    return true;
+                                }
+                            });
+                        });
     }
 
     public static class SubstrateCipherBlockChainingCryptPlugin extends StandardGraphBuilderPlugins.CipherBlockChainingCryptPlugin {
