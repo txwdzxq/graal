@@ -34,7 +34,7 @@ import org.graalvm.word.PointerBase;
 import org.graalvm.word.WordBase;
 
 import com.oracle.svm.core.config.ConfigurationValues;
-import com.oracle.svm.core.util.Utf8;
+import com.oracle.svm.shared.util.Utf8;
 
 /**
  * A factory for pre-allocating and pre-initializing chunks of static global data that are located
