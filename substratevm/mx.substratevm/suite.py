@@ -1388,6 +1388,9 @@ suite = {
             ],
             "checkstyle": "com.oracle.svm.core",
             "javaCompliance" : "21+",
+            "annotationProcessors": [
+                "SVM_PROCESSOR",
+            ],
             "workingSets": "SVM",
             "jacoco" : "exclude",
         },
@@ -1406,6 +1409,9 @@ suite = {
             },
             "checkstyle": "com.oracle.svm.core",
             "javaCompliance" : "21+",
+            "annotationProcessors": [
+                "SVM_PROCESSOR",
+            ],
             "workingSets": "SVM",
             "jacoco" : "exclude",
         },
@@ -1423,6 +1429,9 @@ suite = {
             },
             "checkstyle": "com.oracle.svm.core",
             "javaCompliance" : "21+",
+            "annotationProcessors": [
+                "SVM_PROCESSOR",
+            ],
             "workingSets": "SVM",
             "jacoco" : "exclude",
         },
