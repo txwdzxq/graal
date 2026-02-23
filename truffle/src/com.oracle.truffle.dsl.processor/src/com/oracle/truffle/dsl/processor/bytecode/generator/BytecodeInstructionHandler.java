@@ -2060,11 +2060,13 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
             return false;
         }
         if (instr.signature.isVoid()) {
+            // all operands need to be cleared
             return true;
         } else {
-            // no clear if not last
-            return operand.dynamicIndex() != instr.signature.dynamicOperandCount() - 1;
+            // the instruction will overwrite the first operand with its result value
+            return operand.dynamicIndex() != 0;
         }
+
     }
 
     private static String createStackIndex(InstructionModel instruction, Operand operand) {
