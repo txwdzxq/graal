@@ -22,10 +22,10 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.hosted;
+package com.oracle.svm.shared.singletons;
 
-import static com.oracle.svm.hosted.ImageSingletonsSupportImpl.HostedManagement.SINGLETON_INSTALLATION_FORBIDDEN;
-import static com.oracle.svm.hosted.ImageSingletonsSupportImpl.SingletonInfo.FORBIDDEN_SINGLETON_INFO_EMPTY_TRAITS;
+import static com.oracle.svm.shared.singletons.ImageSingletonsSupportImpl.HostedManagement.SINGLETON_INSTALLATION_FORBIDDEN;
+import static com.oracle.svm.shared.singletons.ImageSingletonsSupportImpl.SingletonInfo.FORBIDDEN_SINGLETON_INFO_EMPTY_TRAITS;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -50,8 +50,6 @@ import org.graalvm.nativeimage.impl.ImageSingletonsSupport;
 import com.oracle.svm.core.layeredimagesingleton.LayeredImageSingletonSupport;
 import com.oracle.svm.core.util.ConcurrentIdentityHashMap;
 import com.oracle.svm.core.util.UserError;
-import com.oracle.svm.shared.singletons.LayeredPersistFlags;
-import com.oracle.svm.shared.singletons.SingletonAccessFlags;
 import com.oracle.svm.shared.singletons.traits.AccessSingletonTrait;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
@@ -67,8 +65,8 @@ import com.oracle.svm.shared.singletons.traits.SingletonTrait;
 import com.oracle.svm.shared.singletons.traits.SingletonTraitKind;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.singletons.traits.SingletonTraitsSupplier;
-import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.shared.util.ReflectionUtil;
+import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.debug.Assertions;
 

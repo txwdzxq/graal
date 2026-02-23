@@ -63,7 +63,6 @@ import com.oracle.svm.core.util.ConcurrentIdentityHashMap;
 import com.oracle.svm.core.util.ConcurrentUtils;
 import com.oracle.svm.core.util.UserError;
 import com.oracle.svm.hosted.ImageClassLoader;
-import com.oracle.svm.hosted.ImageSingletonsSupportImpl;
 import com.oracle.svm.hosted.NativeImageClassLoaderSupport;
 import com.oracle.svm.hosted.c.NativeLibraries;
 import com.oracle.svm.hosted.driver.IncludeOptionsSupport;
@@ -73,6 +72,7 @@ import com.oracle.svm.hosted.imagelayer.SharedLayerSnapshotCapnProtoSchemaHolder
 import com.oracle.svm.hosted.option.HostedOptionParser;
 import com.oracle.svm.shaded.org.capnproto.ReaderOptions;
 import com.oracle.svm.shaded.org.capnproto.Serialize;
+import com.oracle.svm.shared.singletons.ImageSingletonsSupportImpl;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.DisallowedSingletonTrait;

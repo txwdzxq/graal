@@ -76,6 +76,8 @@ import com.oracle.svm.hosted.code.CEntryPointData;
 import com.oracle.svm.hosted.image.AbstractImage.NativeImageKind;
 import com.oracle.svm.hosted.imagelayer.HostedImageLayerBuildingSupport;
 import com.oracle.svm.hosted.option.HostedOptionParser;
+import com.oracle.svm.shared.singletons.ImageSingletonsSupportImpl;
+import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.shared.util.ClassUtil;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.AnnotatedObjectAccess;
