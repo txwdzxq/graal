@@ -56,7 +56,7 @@ import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.option.SubstrateOptionsParser;
 import com.oracle.svm.hosted.webimage.NativeImageWasmGeneratorRunner;
 import com.oracle.svm.hosted.webimage.options.WebImageOptions;
-import com.oracle.svm.util.ClassUtil;
+import com.oracle.svm.shared.util.ClassUtil;
 
 import jdk.graal.compiler.debug.DebugOptions;
 import jdk.graal.compiler.debug.GraalError;
