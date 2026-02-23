@@ -2014,7 +2014,7 @@ suite = {
             "moduleInfo" : {
                 "name" : "org.graalvm.nativeimage.shared",
                 "exports" : [
-                    """com.oracle.svm.shared.util to
+                    """com.oracle.svm.shared.* to
                             com.oracle.svm.extraimage_enterprise,
                             com.oracle.svm.jdwp.server,
                             com.oracle.svm.svm_enterprise,
@@ -2037,10 +2037,6 @@ suite = {
                             org.graalvm.nativeimage.junitsupport,
                             org.graalvm.nativeimage.pointsto,
                             org.graalvm.truffle.runtime.svm""",
-                    """com.oracle.svm.shared.singletons to
-                            org.graalvm.nativeimage.builder""",
-                    """com.oracle.svm.shared.singletons.traits to
-                            org.graalvm.nativeimage.builder""",
                 ],
                 "opens" : [],
                 "requires": [
