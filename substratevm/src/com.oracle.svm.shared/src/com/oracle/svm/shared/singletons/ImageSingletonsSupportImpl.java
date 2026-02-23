@@ -66,8 +66,6 @@ import com.oracle.svm.shared.singletons.traits.SingletonTraitsSupplier;
 import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.VMError;
 
-import jdk.graal.compiler.debug.Assertions;
-
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
 public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport implements LayeredImageSingletonSupport {
 
@@ -193,7 +191,7 @@ public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport imp
             assert !sealed : "cannot add further traits";
             SingletonTraitKind key = value.kind();
             var prev = traitMap.put(key, value);
-            assert prev == null : Assertions.errorMessage(key, value, prev);
+            assert prev == null : "Trying to associate new value " + value + " to trait kind " + key + " with existing value " + prev;
         }
 
         public boolean isEmpty() {
