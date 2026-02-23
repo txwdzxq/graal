@@ -639,6 +639,7 @@ public class EspressoSymbols {
         public static final Symbol<Name> nameAndId = SYMBOLS.putName("nameAndId");
         public static final Symbol<Name> resetArchivedStates = SYMBOLS.putName("resetArchivedStates");
         public static final Symbol<Name> HIDDEN_registry = SYMBOLS.putName("0registry");
+        public static final Symbol<Name> HIDDEN_weakSelf = SYMBOLS.putName("0weakSelf");
         // j.l.Module
         public static final Symbol<Name> loader = SYMBOLS.putName("loader");
         // j.l.RecordComponent

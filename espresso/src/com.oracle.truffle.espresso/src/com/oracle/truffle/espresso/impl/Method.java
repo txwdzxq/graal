@@ -61,7 +61,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.logging.Level;
 
@@ -164,7 +163,6 @@ import com.oracle.truffle.espresso.runtime.EspressoContext;
 import com.oracle.truffle.espresso.runtime.EspressoException;
 import com.oracle.truffle.espresso.runtime.staticobject.StaticObject;
 import com.oracle.truffle.espresso.shared.lookup.LookupMode;
-import com.oracle.truffle.espresso.shared.meta.ErrorType;
 import com.oracle.truffle.espresso.shared.meta.MethodAccess;
 import com.oracle.truffle.espresso.shared.meta.ModifiersProvider;
 import com.oracle.truffle.espresso.shared.meta.SignaturePolymorphicIntrinsic;
@@ -978,9 +976,9 @@ public final class Method extends Member<Signature> implements MethodRef, Truffl
 
     @TruffleBoundary
     @Override
-    public void checkLoadingConstraints(StaticObject loader1, StaticObject loader2, Function<String, RuntimeException> errorHandler) {
+    public void checkLoadingConstraints(StaticObject loader1, StaticObject loader2) {
         for (Symbol<Type> type : getParsedSignature()) {
-            getContext().getRegistries().checkLoadingConstraint(type, loader1, loader2, errorHandler);
+            getContext().getRegistries().checkLoadingConstraint(type, loader1, loader2);
         }
     }
 
@@ -2176,9 +2174,7 @@ public final class Method extends Member<Signature> implements MethodRef, Truffl
         }
 
         public void checkLoadingConstraints(StaticObject loader1, StaticObject loader2) {
-            getMethod().checkLoadingConstraints(loader1, loader2, m -> {
-                throw getContext().throwError(ErrorType.LinkageError, m);
-            });
+            getMethod().checkLoadingConstraints(loader1, loader2);
         }
 
         public int getMaxLocals() {

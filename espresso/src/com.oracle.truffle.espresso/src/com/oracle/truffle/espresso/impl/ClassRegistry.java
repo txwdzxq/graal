@@ -753,13 +753,10 @@ public abstract class ClassRegistry {
 
         ClassLoadingEnv env = renamedKlass.getContext().getClassLoadingEnv();
         Klass loadedKlass = findLoadedKlass(env, renamedKlass.getType());
-        if (loadedKlass != null) {
-            loadedKlass.getRegistries().removeUnloadedKlassConstraint(loadedKlass, renamedKlass.getType());
-        }
-
         classes.put(renamedKlass.getType(), new ClassRegistries.RegistryEntry(renamedKlass));
-        // record the new loading constraint
-        renamedKlass.getRegistries().recordConstraint(renamedKlass.getType(), renamedKlass, renamedKlass.getDefiningClassLoader());
+        if (loadedKlass != null) {
+            loadedKlass.getRegistries().updateConstraint(renamedKlass.getType(), loadedKlass, renamedKlass);
+        }
     }
 
     public void onInnerClassRemoved(Symbol<Type> type) {
@@ -767,7 +764,7 @@ public abstract class ClassRegistry {
         ClassRegistries.RegistryEntry removed = classes.remove(type);
         // purge class loader constraint for this type
         if (removed != null && removed.klass() != null) {
-            removed.klass().getRegistries().removeUnloadedKlassConstraint(removed.klass(), type);
+            removed.klass().getRegistries().updateConstraint(type, removed.klass(), null);
         }
     }
 
