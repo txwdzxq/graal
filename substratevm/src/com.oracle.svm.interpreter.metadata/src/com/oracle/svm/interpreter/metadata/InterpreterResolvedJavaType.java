@@ -266,7 +266,7 @@ public abstract class InterpreterResolvedJavaType extends InterpreterAnnotated i
 
     @Override
     public final boolean isLinked() {
-        return DynamicHub.fromClass(clazz).isLinked();
+        return DynamicHub.fromClass(clazz).getClassInitializationInfo().isLinked();
     }
 
     @Override

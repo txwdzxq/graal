@@ -103,6 +103,8 @@ public interface CremaSupport {
 
     Class<?> findLoadedClass(Symbol<Type> type, ResolvedJavaType accessingClass);
 
+    Class<?> findLoadedClass(Symbol<Type> type, ClassLoader loader);
+
     Object getStaticStorage(Class<?> cls, boolean primitives, int layerNum);
 
     ResolvedJavaMethod findMethodHandleIntrinsic(ResolvedJavaMethod signaturePolymorphicMethod, Symbol<Signature> signature);
@@ -110,6 +112,12 @@ public interface CremaSupport {
     Class<?> computeDeclaringClass(DynamicHub hub);
 
     Object[] computeEnclosingMethod(DynamicHub hub);
+
+    void verifyAndPrepare(DynamicHub hub);
+
+    void recordLoadingConstraint(Symbol<Type> type, DynamicHub hub, ClassLoader loader);
+
+    void checkLoadingConstraint(Symbol<Type> type, ClassLoader loader1, ClassLoader loader2);
 
     static CremaSupport singleton() {
         return ImageSingletons.lookup(CremaSupport.class);

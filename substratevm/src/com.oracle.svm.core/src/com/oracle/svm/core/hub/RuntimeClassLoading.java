@@ -26,12 +26,14 @@ package com.oracle.svm.core.hub;
 
 import static jdk.graal.compiler.options.OptionStability.EXPERIMENTAL;
 
+import java.lang.ref.WeakReference;
 import java.security.ProtectionDomain;
 import java.util.function.BooleanSupplier;
 
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
+import org.graalvm.nativeimage.hosted.FieldValueTransformer;
 
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.hub.crema.CremaSupport;
@@ -258,10 +260,7 @@ public class RuntimeClassLoading {
     }
 
     public static void ensureLinked(DynamicHub dynamicHub) {
-        if (dynamicHub.isLinked()) {
-            return;
-        }
-        // GR-59739 runtime linking
+        dynamicHub.getClassInitializationInfo().ensureLinked(dynamicHub);
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
@@ -277,6 +276,17 @@ public class RuntimeClassLoading {
         @Override
         public boolean getAsBoolean() {
             return isSupported();
+        }
+    }
+
+    public static final class WeakSelfComputer implements FieldValueTransformer {
+        @Override
+        public Object transform(Object receiver, Object originalValue) {
+            if (RuntimeClassLoading.isSupported()) {
+                assert receiver != null;
+                return new WeakReference<>(receiver);
+            }
+            return originalValue;
         }
     }
 }

@@ -27,6 +27,7 @@ package com.oracle.svm.core.hub.registry;
 import static com.oracle.svm.core.MissingRegistrationUtils.throwMissingRegistrationErrors;
 import static jdk.graal.compiler.options.OptionStability.EXPERIMENTAL;
 
+import java.lang.ref.WeakReference;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -461,6 +462,7 @@ public final class ClassRegistries implements ParsingContext {
                 if (registry == null) {
                     if (RuntimeClassLoading.isSupported()) {
                         registry = new UserDefinedClassRegistry(loader);
+                        svmLoader.weakSelf = new WeakReference<>(loader);
                     } else {
                         registry = new AOTClassRegistry(loader);
                     }

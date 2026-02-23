@@ -415,7 +415,9 @@ public abstract sealed class AbstractRuntimeClassRegistry extends AbstractClassR
     }
 
     private void registerClass(Class<?> clazz, Symbol<Type> type) {
-        // GR-62320: record constraints
+        if (RuntimeClassLoading.isSupported()) {
+            CremaSupport.singleton().recordLoadingConstraint(type, DynamicHub.fromClass(clazz), getClassLoader());
+        }
         var previous = runtimeClasses.put(type, clazz);
         assert previous == null;
     }

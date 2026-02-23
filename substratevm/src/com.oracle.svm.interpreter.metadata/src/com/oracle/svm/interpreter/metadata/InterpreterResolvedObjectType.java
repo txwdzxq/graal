@@ -193,7 +193,7 @@ public class InterpreterResolvedObjectType extends InterpreterResolvedJavaType {
 
     @Override
     public final InterpreterResolvedJavaType resolveClassConstantInPool(int cpi) {
-        return null;
+        return getConstantPool().resolvedTypeAt(this, cpi);
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
@@ -453,7 +453,21 @@ public class InterpreterResolvedObjectType extends InterpreterResolvedJavaType {
 
     @Override
     public final InterpreterResolvedJavaType findLeastCommonAncestor(InterpreterResolvedJavaType other) {
-        throw VMError.unimplemented("findLeastCommonAncestor");
+        assert !isPrimitive() && !other.isPrimitive();
+        assert !isInterface() && !other.isInterface();
+        assert !isArray() && !other.isArray();
+        InterpreterResolvedObjectType t1 = this;
+        InterpreterResolvedObjectType t2 = (InterpreterResolvedObjectType) other;
+        while (true) {
+            if (t1.isAssignableFrom(t2)) {
+                return t1;
+            }
+            if (t2.isAssignableFrom(t1)) {
+                return t2;
+            }
+            t1 = t1.getSuperclass();
+            t2 = t2.getSuperclass();
+        }
     }
 
     /**

@@ -205,8 +205,7 @@ public final class ClassInitializationInfo {
         this.runtimeClassInitializer = hasClassInitializer ? INTERPRETER_INITIALIZATION_MARKER : null;
         this.slowPathRequired = true;
         this.initLock = new ReentrantLock();
-        /* GR-59739: Needs a new state "Loaded". */
-        this.initState = InitState.Linked;
+        this.initState = InitState.Loaded;
         this.typeReachedTracked = typeReachedTracked;
         this.typeReached = typeReachedTracked ? TypeReached.NOT_REACHED : TypeReached.UNTRACKED;
 
@@ -262,13 +261,21 @@ public final class ClassInitializationInfo {
         return initState == InitState.InitializationError;
     }
 
+    private boolean isBeingLinked() {
+        return initState == InitState.BeingLinked;
+    }
+
     private boolean isBeingInitialized() {
         return initState == InitState.BeingInitialized;
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
-    public boolean isLinked() {
+    public boolean isExactlyLinked() {
         return initState == InitState.Linked;
+    }
+
+    public boolean isLinked() {
+        return initState.isAtLeast(InitState.Linked);
     }
 
     public boolean isTypeReached(DynamicHub caller) {
@@ -364,6 +371,8 @@ public final class ClassInitializationInfo {
             }
         }
 
+        ensureLinked(hub);
+
         /*
          * Before acquiring the lock, make the yellow zone available and disable recurring callback
          * execution (otherwise, deadlocks may occur or the same static initializer may be executed
@@ -417,6 +426,64 @@ public final class ClassInitializationInfo {
                 reachInterfaces(superInterface);
             }
         }
+    }
+
+    public void ensureLinked(DynamicHub hub) {
+        if (!RuntimeClassLoading.isSupported()) {
+            return;
+        }
+
+        if (initState.isAtLeast(InitState.Linked)) {
+            return;
+        }
+
+        /* Grab the initialization lock */
+        initLock.lock();
+        try {
+            while (isBeingLinked() && !isReentrantInitialization()) {
+                if (initCondition == null) {
+                    /*
+                     * We are holding initLock, so there cannot be any races installing the
+                     * initCondition.
+                     */
+                    initCondition = initLock.newCondition();
+                }
+                initCondition.awaitUninterruptibly();
+            }
+
+            if (isBeingLinked() && isReentrantInitialization()) {
+                return;
+            }
+
+            if (initState.isAtLeast(InitState.Linked)) {
+                return;
+            }
+
+            initState = InitState.BeingInitialized;
+            setInitThread();
+        } finally {
+            initLock.unlock();
+        }
+
+        try {
+            DynamicHub superHub = hub.getSuperHub();
+            if (superHub != null) {
+                ClassInitializationInfo superInfo = superHub.getClassInitializationInfo();
+                superInfo.ensureLinked(superHub);
+            }
+
+            for (DynamicHub interfaceHub : hub.getInterfaces()) {
+                ClassInitializationInfo superInfo = interfaceHub.getClassInitializationInfo();
+                superInfo.ensureLinked(interfaceHub);
+            }
+
+            CremaSupport.singleton().verifyAndPrepare(hub);
+        } catch (Throwable ex) {
+            setInitializationStateAndNotify(InitState.Loaded);
+            throw ex;
+        }
+
+        setInitializationStateAndNotify(InitState.Linked);
     }
 
     /**
@@ -734,8 +801,16 @@ public final class ClassInitializationInfo {
 
     public enum InitState {
         /**
-         * Successfully linked/verified (but not initialized yet). Linking happens during image
-         * building, so we do not need to track states before linking.
+         * Initial state for runtime loaded classes.
+         */
+        Loaded,
+        /**
+         * Currently linking, i.e., running class preparation and verification.
+         */
+        BeingLinked,
+        /**
+         * Successfully linked/verified (but not initialized yet). For AOT classes, Linking happens
+         * during image building.
          */
         Linked,
         /**
@@ -743,13 +818,17 @@ public final class ClassInitializationInfo {
          */
         BeingInitialized,
         /**
-         * Initialized (successful final state).
-         */
-        FullyInitialized,
-        /**
          * Error happened during initialization.
          */
-        InitializationError
+        InitializationError,
+        /**
+         * Initialized (successful final state).
+         */
+        FullyInitialized;
+
+        public boolean isAtLeast(InitState state) {
+            return this.ordinal() >= state.ordinal();
+        }
     }
 
     public enum TypeReached {

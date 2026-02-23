@@ -67,6 +67,7 @@ public final class RuntimeReflectionMetadata implements ReflectionMetadata {
 
     @Override
     public Field[] getDeclaredFields(DynamicHub declaringClass, boolean publicOnly, @SuppressWarnings("unused") int layerNum) {
+        declaringClass.getClassInitializationInfo().ensureLinked(declaringClass);
         ArrayList<Field> result = new ArrayList<>();
         includeFields(declaringClass, publicOnly, type.getDeclaredFields(), result);
         return result.toArray(new Field[0]);
@@ -97,6 +98,7 @@ public final class RuntimeReflectionMetadata implements ReflectionMetadata {
 
     @Override
     public Method[] getDeclaredMethods(DynamicHub declaringClass, boolean publicOnly, @SuppressWarnings("unused") int layerNum) {
+        declaringClass.getClassInitializationInfo().ensureLinked(declaringClass);
         CremaResolvedJavaMethod[] declaredMethods = type.getDeclaredCremaMethods();
         ArrayList<Method> result = new ArrayList<>();
         for (CremaResolvedJavaMethod declaredMethod : declaredMethods) {
@@ -136,6 +138,7 @@ public final class RuntimeReflectionMetadata implements ReflectionMetadata {
 
     @Override
     public Constructor<?>[] getDeclaredConstructors(DynamicHub declaringClass, boolean publicOnly, @SuppressWarnings("unused") int layerNum) {
+        declaringClass.getClassInitializationInfo().ensureLinked(declaringClass);
         CremaResolvedJavaMethod[] declaredConstructors = type.getDeclaredCremaConstructors();
         ArrayList<Constructor<?>> result = new ArrayList<>();
         for (CremaResolvedJavaMethod declaredConstructor : declaredConstructors) {

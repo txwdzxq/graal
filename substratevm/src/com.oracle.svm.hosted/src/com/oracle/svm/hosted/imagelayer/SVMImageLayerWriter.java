@@ -459,7 +459,7 @@ public class SVMImageLayerWriter extends ImageLayerWriter {
             Builder b = builder.initClassInitializationInfo();
             b.setIsInitialized(info.isInitialized());
             b.setIsInErrorState(info.isInErrorState());
-            b.setIsLinked(info.isLinked());
+            b.setIsLinked(info.isExactlyLinked());
             b.setHasInitializer(info.hasInitializer());
             b.setIsBuildTimeInitialized(info.isBuildTimeInitialized());
             b.setIsTracked(info.isTracked());
