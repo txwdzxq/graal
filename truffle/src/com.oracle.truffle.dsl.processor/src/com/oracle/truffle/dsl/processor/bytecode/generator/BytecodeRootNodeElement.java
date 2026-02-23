@@ -1942,7 +1942,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         }
 
         CodeExecutableElement element;
-        if (tier == InterpreterTier.UNCACHED) {
+        if (tier == InterpreterTier.UNCACHED && !instruction.operation.customModel.forcesCached()) {
             executable.getModifiers().add(Modifier.STATIC);
             element = factory.createUncachedExecute(executable);
             el.add(element);
