@@ -1959,8 +1959,8 @@ public class BinaryParser extends BinaryStreamParser {
                     case Instructions.ARRAY_FILL: {
                         int arrayTypeIdx = readArrayTypeIndex();
                         Assert.assertTrue(module.arrayTypeMutability(arrayTypeIdx) == Mutability.MUTABLE, Failure.ARRAY_IS_IMMUTABLE);
-                        state.popChecked(WasmType.unpack(module.arrayTypeElemType(arrayTypeIdx)));
                         state.popChecked(I32_TYPE);
+                        state.popChecked(WasmType.unpack(module.arrayTypeElemType(arrayTypeIdx)));
                         state.popChecked(I32_TYPE);
                         state.popChecked(WasmType.withNullable(true, arrayTypeIdx));
                         state.addInstruction(Bytecode.ARRAY_FILL, arrayTypeIdx);
