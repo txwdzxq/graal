@@ -1420,7 +1420,7 @@ suite = {
                 ],
             },
             "checkstyle": "com.oracle.svm.core",
-            "javaCompliance" : "21+",
+            "javaCompliance" : "24+",
             "annotationProcessors": [
                 "SVM_PROCESSOR",
             ],
