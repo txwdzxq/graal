@@ -31,9 +31,10 @@ import org.graalvm.nativeimage.ImageSingletons;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
 import com.oracle.svm.core.jdk.localization.LocalizationSupport;
+import com.oracle.svm.core.jdk.localization.substitutions.modes.ResourceBundlesAtBuildTime;
 
 @SuppressWarnings({"static-method"})
-@TargetClass(value = sun.util.locale.provider.LocaleServiceProviderPool.class)
+@TargetClass(value = sun.util.locale.provider.LocaleServiceProviderPool.class, onlyWith = ResourceBundlesAtBuildTime.class)
 final class Target_sun_util_locale_provider_LocaleServiceProviderPool {
     @Substitute
     private static Locale[] getAllAvailableLocales() {

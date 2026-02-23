@@ -48,7 +48,6 @@ import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.dynamicaccess.AccessCondition;
-import org.graalvm.nativeimage.hosted.RuntimeReflection;
 import org.graalvm.nativeimage.impl.RuntimeClassInitializationSupport;
 
 import com.oracle.graal.pointsto.ObjectScanner.OtherReason;
@@ -69,8 +68,10 @@ import com.oracle.svm.hosted.FeatureImpl.DuringAnalysisAccessImpl;
 import com.oracle.svm.hosted.FeatureImpl.DuringSetupAccessImpl;
 import com.oracle.svm.hosted.ImageClassLoader;
 import com.oracle.svm.shared.util.VMError;
+import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.util.LocaleUtil;
 import com.oracle.svm.util.LogUtils;
+import com.oracle.svm.util.dynamicaccess.JVMCIRuntimeReflection;
 
 import jdk.graal.compiler.nodes.ValueNode;
 import jdk.graal.compiler.nodes.graphbuilderconf.GraphBuilderContext;
@@ -78,6 +79,7 @@ import jdk.graal.compiler.nodes.graphbuilderconf.NodePlugin;
 import jdk.graal.compiler.options.Option;
 import jdk.graal.compiler.options.OptionStability;
 import jdk.graal.compiler.options.OptionType;
+import jdk.graal.compiler.vmaccess.VMAccess;
 import jdk.internal.access.SharedSecrets;
 import jdk.vm.ci.meta.ResolvedJavaField;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
@@ -292,11 +294,12 @@ public class LocalizationFeature implements InternalFeature {
                     "sun.util.cldr.CLDRLocaleProviderAdapter");
 
     public static void registerLocaleProviderAdapters() {
+        VMAccess vmAccess = GuestAccess.get();
         for (String providerAdapter : PROVIDER_ADAPTERS) {
             try {
-                Class<?> clazz = Class.forName(providerAdapter);
-                RuntimeReflection.register(clazz);
-                RuntimeReflection.registerForReflectiveInstantiation(clazz);
+                ResolvedJavaType resolvedJavaType = vmAccess.lookupAppClassLoaderType(providerAdapter);
+                JVMCIRuntimeReflection.register(resolvedJavaType);
+                JVMCIRuntimeReflection.registerForReflectiveInstantiation(resolvedJavaType);
             } catch (Exception e) {
                 VMError.shouldNotReachHere(e);
             }
