@@ -314,7 +314,7 @@ public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport imp
          *            all the keys they should be mapped to.
          * @return all keys for which a singleton was installed.
          */
-        EconomicSet<Class<?>> installSingletons(Map<Object, EconomicSet<Class<?>>> singletons) {
+        public EconomicSet<Class<?>> installSingletons(Map<Object, EconomicSet<Class<?>>> singletons) {
             EconomicSet<Class<?>> installedKeys = EconomicSet.create();
             for (var entry : singletons.entrySet()) {
                 Object singletonToInstall = entry.getKey();
