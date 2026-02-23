@@ -278,7 +278,11 @@ suite = {
             "subDir": "src",
             "sourceDirs": ["src"],
             "dependencies": [
-                "com.oracle.svm.util"
+                "sdk:NATIVEIMAGE",
+                "sdk:NATIVEIMAGE_LIBGRAAL",
+                "compiler:GRAAL",
+                "compiler:VMACCESS",
+                "SVM_SHARED",
             ],
             "requiresConcealed" : {
                 "jdk.internal.vm.ci" : [
@@ -631,6 +635,7 @@ suite = {
             "dependencies": [
                 "com.oracle.svm.common",
                 "com.oracle.svm.sdk",
+                "com.oracle.svm.util",
             ],
             "requires" : [
                 "jdk.internal.vm.ci"
