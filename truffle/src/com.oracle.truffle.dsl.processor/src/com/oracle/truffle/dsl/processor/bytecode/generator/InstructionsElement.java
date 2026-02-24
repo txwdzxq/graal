@@ -76,6 +76,8 @@ import com.oracle.truffle.dsl.processor.java.model.CodeVariableElement;
 
 final class InstructionsElement extends AbstractElement {
 
+    public static final int OPCODE_START_INDEX = 1;
+
     InstructionsElement(BytecodeRootNodeElement parent) {
         super(parent, Set.of(PRIVATE, STATIC, FINAL), ElementKind.CLASS, null, "Instructions");
     }
@@ -89,7 +91,7 @@ final class InstructionsElement extends AbstractElement {
          * We order after cached instruction order to ensure we have a compact table switch layout.
          */
         List<List<InstructionModel>> instructionPartitions = BytecodeRootNodeElement.partitionInstructions(parent.model.getInstructions());
-        int index = 1;
+        int index = OPCODE_START_INDEX;
         constants = new HashMap<>();
         for (List<InstructionModel> partition : instructionPartitions) {
             for (InstructionModel instruction : partition) {
@@ -499,7 +501,7 @@ final class InstructionsElement extends AbstractElement {
         AbstractArgumentElement() {
             super(Set.of(PRIVATE, SEALED, STATIC, ABSTRACT),
                             ElementKind.CLASS, null, "AbstractArgument");
-            this.setSuperClass(InstructionsElement.this.types.Instruction_Argument);
+            this.setSuperClass(types.Instruction_Argument);
             this.add(new CodeVariableElement(Set.of(FINAL), argumentDescriptorImpl.asType(), "descriptor"));
             this.add(new CodeVariableElement(Set.of(FINAL), InstructionsElement.this.type(int.class), "bci"));
             CodeExecutableElement constructor = this.add(createConstructorUsingFields(Set.of(), this, null));

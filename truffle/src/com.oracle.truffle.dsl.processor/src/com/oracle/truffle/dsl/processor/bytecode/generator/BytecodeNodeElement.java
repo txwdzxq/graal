@@ -79,6 +79,7 @@ import com.oracle.truffle.dsl.processor.bytecode.model.OperationModel.OperationK
 import com.oracle.truffle.dsl.processor.generator.GeneratorUtils;
 import com.oracle.truffle.dsl.processor.java.ElementUtils;
 import com.oracle.truffle.dsl.processor.java.model.CodeAnnotationMirror;
+import com.oracle.truffle.dsl.processor.java.model.CodeAnnotationValue;
 import com.oracle.truffle.dsl.processor.java.model.CodeElement;
 import com.oracle.truffle.dsl.processor.java.model.CodeExecutableElement;
 import com.oracle.truffle.dsl.processor.java.model.CodeNames;
@@ -93,10 +94,12 @@ final class BytecodeNodeElement extends AbstractElement {
     static final String FORCE_UNCACHED_THRESHOLD = "Integer.MIN_VALUE";
     final InterpreterTier tier;
     final Map<InstructionModel, CodeExecutableElement> instructionSlowPaths = new LinkedHashMap<>();
+    final HandlerLayout handlerLayout;
 
     BytecodeNodeElement(BytecodeRootNodeElement parent, InterpreterTier tier) {
         super(parent, Set.of(PRIVATE, STATIC, FINAL), ElementKind.CLASS, null, tier.bytecodeClassName());
         this.tier = tier;
+        this.handlerLayout = parent.model.enableTailCallHandlers ? HandlerLayout.TAIL_CALL : HandlerLayout.DEFAULT;
         this.setSuperClass(parent.abstractBytecodeNode.asType());
         this.getAnnotationMirrors().add(new CodeAnnotationMirror(types.DenyReplace));
 
@@ -1392,6 +1395,52 @@ final class BytecodeNodeElement extends AbstractElement {
         }
         ex.addParameter(new CodeVariableElement(type(long.class), "startState"));
 
+        if (parent.model.enableTailCallHandlers) {
+            CodeAnnotationMirror handlerConfig = new CodeAnnotationMirror(types.HostCompilerDirectives_BytecodeInterpreterHandlerConfig);
+
+            // opcode ordering is not yet generated at this point yet, but we can find out what the
+            // maximum opcode will be
+            handlerConfig.setElementValue("maximumOperationCode", new CodeAnnotationValue(parent.model.getInstructions().size() - 1 + InstructionsElement.OPCODE_START_INDEX));
+
+            List<CodeAnnotationMirror> arguments = new ArrayList<>();
+            // BytecodeNodeElement receiver
+            arguments.add(createBytecodeHandlerArgument(null, false));
+            // FrameWithoutBoxing frame
+            arguments.add(createBytecodeHandlerArgument("MATERIALIZED", false, "indexedTags", "indexedPrimitiveLocals", "indexedLocals"));
+            if (parent.model.hasYieldOperation()) {
+                // FrameWithoutBoxing localFrame
+                arguments.add(createBytecodeHandlerArgument(null, false));
+            }
+            // byte[] bc
+            arguments.add(createBytecodeHandlerArgument(null, false));
+            // int bci
+            arguments.add(createBytecodeHandlerArgument(null, true));
+
+            // VirtualStateElement vstate
+            arguments.add(createBytecodeHandlerArgument("VIRTUAL", false));
+
+            if (tier.isCached()) {
+                // VirtualStateElement cstate
+                arguments.add(createBytecodeHandlerArgument(null, false));
+            }
+
+            List<VariableElement> parameters = createInstructionHandler(type(void.class), "dummy").getParameters();
+            if (parameters.size() + 1/* receiver */ != arguments.size()) {
+                throw new AssertionError("Instruction bytecode handler and arguments don't match.");
+            }
+
+            handlerConfig.setElementValue("arguments", new CodeAnnotationValue(arguments.stream().map(CodeAnnotationValue::new).toList()));
+
+            ex.addAnnotationMirror(handlerConfig);
+
+            CodeExecutableElement fetchNext = this.add(createInstructionHandler(type(int.class), "nextOpcode"));
+            fetchNext.addAnnotationMirror(new CodeAnnotationMirror(types.HostCompilerDirectives_BytecodeInterpreterFetchOpcode));
+            CodeTreeBuilder b = fetchNext.createBuilder();
+            b.startReturn();
+            b.tree(BytecodeRootNodeElement.readInstruction("bc", "bci"));
+            b.end();
+        }
+
         this.add(ex);
 
         CodeTreeBuilder b = ex.createBuilder();
@@ -1442,8 +1491,12 @@ final class BytecodeNodeElement extends AbstractElement {
         }
 
         b.statement("int bci = ", BytecodeRootNodeElement.decodeBci("startState"));
-        if (parent.model.enableStackPointerBoxing) {
-            b.startDeclaration(parent.stackPointerElement.asType(), "sp").startNew(parent.stackPointerElement.asType()).string(BytecodeRootNodeElement.decodeSp("startState")).end().end();
+        if (handlerLayout.isTailCall()) {
+            b.startDeclaration(parent.virtualState.asType(), VirtualStateElement.LOCAL_NAME).startNew(parent.virtualState.asType()).string(BytecodeRootNodeElement.decodeSp("startState")).end().end();
+
+            if (tier.isCached()) {
+                b.startDeclaration(parent.counterState.asType(), "cstate").startNew(parent.counterState.asType()).string("counter").string("loopCounter").end().end();
+            }
         } else {
             b.statement("int sp = ", BytecodeRootNodeElement.decodeSp("startState"));
         }
@@ -1503,7 +1556,11 @@ final class BytecodeNodeElement extends AbstractElement {
             }
             b.startBlock();
             b.statement("$root.transitionToCached()");
-            b.statement("return ", parent.encodeState("bci", "sp"));
+            if (this.handlerLayout.isTailCall()) {
+                b.statement("return ", parent.encodeState("bci", "vstate.sp"));
+            } else {
+                b.statement("return ", parent.encodeState("bci", "sp"));
+            }
             b.end();
         }
 
@@ -1532,22 +1589,30 @@ final class BytecodeNodeElement extends AbstractElement {
             b.caseDefault().startCaseBlock();
             b.lineComment("Due to a limit of " + BytecodeRootNodeElement.JAVA_JIT_BYTECODE_LIMIT + " bytecodes for Java JIT compilation");
             b.lineComment("we delegate further bytecodes into a separate method.");
-            b.startSwitch().startCall(firstContinueAt.getSimpleName().toString());
-            for (VariableElement var : firstContinueAt.getParameters()) {
-                b.string(var.getSimpleName().toString());
-            }
-            b.end().end().startBlock();
-            for (var entry : groupIndices.entrySet()) {
-                InstructionGroup group = entry.getKey();
-                int groupIndex = entry.getValue();
-                b.startCase().string(groupIndex).end().startCaseBlock();
-                b.statement("bci += " + group.instructionLength());
-                emitCustomStackEffect(b, group.stackEffect());
+            if (this.handlerLayout.isTailCall()) {
+                b.startReturn().startCall(firstContinueAt.getSimpleName().toString());
+                for (VariableElement var : firstContinueAt.getParameters()) {
+                    b.string(var.getSimpleName().toString());
+                }
+                b.end().end();
+            } else {
+                b.startSwitch().startCall(firstContinueAt.getSimpleName().toString());
+                for (VariableElement var : firstContinueAt.getParameters()) {
+                    b.string(var.getSimpleName().toString());
+                }
+                b.end().end().startBlock();
+                for (var entry : groupIndices.entrySet()) {
+                    InstructionGroup group = entry.getKey();
+                    int groupIndex = entry.getValue();
+                    b.startCase().string(groupIndex).end().startCaseBlock();
+                    b.statement("bci += " + group.instructionLength());
+                    emitStackEffect(b, group.stackEffect());
+                    b.statement("break");
+                    b.end(); // case block
+                }
+                b.end(); // switch block
                 b.statement("break");
-                b.end(); // case block
             }
-            b.end(); // switch block
-            b.statement("break");
             b.end(); // default case block
 
         } else {
@@ -1559,6 +1624,12 @@ final class BytecodeNodeElement extends AbstractElement {
         b.end(); // switch
         b.end(); // try
 
+        if (handlerLayout.isTailCall()) {
+            b.startCatchBlock(parent.abstractBytecodeNode.branchBackwardReturnException.asType(), "bre");
+            b.statement("return bre.targetState");
+            b.end();
+        }
+
         b.startCatchBlock(type(Throwable.class), "originalThrowable");
 
         b.startDeclaration(type(long.class), "state");
@@ -1568,14 +1639,22 @@ final class BytecodeNodeElement extends AbstractElement {
                     inner.string("bci");
                     break;
                 case "originalSp":
-                    inner.string("sp");
+                    if (handlerLayout.isTailCall()) {
+                        inner.string(VirtualStateElement.LOCAL_NAME, ".sp");
+                    } else {
+                        inner.string("sp");
+                    }
                     break;
                 case "counter":
-                    inner.string("(");
-                    inner.startStaticCall(types.CompilerDirectives, "inCompiledCode").end();
-                    inner.string(" && ");
-                    inner.startStaticCall(types.CompilerDirectives, "hasNextTier").end();
-                    inner.string(" ? loopCounter.value : counter)");
+                    if (handlerLayout.isTailCall()) {
+                        inner.string("cstate.getCounter()");
+                    } else {
+                        inner.string("(");
+                        inner.startStaticCall(types.CompilerDirectives, "inCompiledCode").end();
+                        inner.string(" && ");
+                        inner.startStaticCall(types.CompilerDirectives, "hasNextTier").end();
+                        inner.string(" ? loopCounter.value : counter)");
+                    }
                     break;
                 default:
                     inner.string(name);
@@ -1588,7 +1667,12 @@ final class BytecodeNodeElement extends AbstractElement {
         b.startIf().string("bci == 0xFFFFFFFF").end().startBlock();
         b.statement("return state");
         b.end();
-        b.statement("sp = " + BytecodeRootNodeElement.decodeSp("state"));
+
+        if (handlerLayout.isTailCall()) {
+            b.statement(VirtualStateElement.LOCAL_NAME, ".sp = " + BytecodeRootNodeElement.decodeSp("state"));
+        } else {
+            b.statement("sp = " + BytecodeRootNodeElement.decodeSp("state"));
+        }
 
         b.end(); // catch block
 
@@ -1605,6 +1689,31 @@ final class BytecodeNodeElement extends AbstractElement {
         return;
     }
 
+    private CodeAnnotationMirror createBytecodeHandlerArgument(String expansionKind, boolean returnValue, String... fields) {
+        CodeAnnotationMirror mirror = new CodeAnnotationMirror(types.HostCompilerDirectives_BytecodeInterpreterHandlerConfig_Argument);
+
+        if (expansionKind != null) {
+            VariableElement enumValue = ElementUtils.findVariableElement(types.HostCompilerDirectives_BytecodeInterpreterHandlerConfig_Argument_ExpansionKind, expansionKind);
+            if (enumValue == null) {
+                throw new AssertionError("Invalid expansion kind " + expansionKind);
+            }
+            mirror.setElementValue("expand", new CodeAnnotationValue(enumValue));
+        }
+        if (returnValue) {
+            mirror.setElementValue("returnValue", new CodeAnnotationValue(true));
+        }
+
+        List<String> fieldsList = List.of(fields);
+        if (!fieldsList.isEmpty()) {
+            mirror.setElementValue("fields", new CodeAnnotationValue(fieldsList.stream().map(name -> {
+                CodeAnnotationMirror m = new CodeAnnotationMirror(types.HostCompilerDirectives_BytecodeInterpreterHandlerConfig_Argument_Field);
+                m.setElementValue("name", new CodeAnnotationValue(name));
+                return new CodeAnnotationValue(m);
+            }).toList()));
+        }
+        return mirror;
+    }
+
     private static boolean isForceCached(InterpreterTier tier, InstructionModel instruction) {
         return tier.isUncached() && instruction.kind == InstructionKind.CUSTOM && instruction.operation.customModel.forcesCached();
     }
@@ -1618,6 +1727,9 @@ final class BytecodeNodeElement extends AbstractElement {
         continueAtMethod.addAnnotationMirror(new CodeAnnotationMirror(types.HostCompilerDirectives_BytecodeInterpreterSwitch));
         continueAtMethod.addAnnotationMirror(new CodeAnnotationMirror(types.CompilerDirectives_EarlyInline));
 
+        if (model().enableTailCallHandlers) {
+            addHandlerConfig(continueAtMethod);
+        }
         CodeTreeBuilder b = continueAtMethod.createBuilder();
 
         b.startSwitch().string("op").end().startBlock();
@@ -1629,7 +1741,6 @@ final class BytecodeNodeElement extends AbstractElement {
             buildInstructionCases(b, instruction);
             b.startCaseBlock();
             emitInstructionCase(b, instruction, CodeTreeBuilder.singleString(String.valueOf(groupIndex)));
-            b.startReturn().string(groupIndex).end();
             b.end();
         }
 
@@ -1665,19 +1776,32 @@ final class BytecodeNodeElement extends AbstractElement {
         method.setReturnType(returnType);
         method.setSimpleName(CodeNames.of(name));
         method.addParameter(new CodeVariableElement(types.FrameWithoutBoxing, "frame"));
-        if (parent.model.hasYieldOperation()) {
+        if (model().hasYieldOperation()) {
             method.addParameter(new CodeVariableElement(types.FrameWithoutBoxing, "localFrame"));
         }
         method.addParameter(new CodeVariableElement(type(byte[].class), "bc"));
         method.addParameter(new CodeVariableElement(type(int.class), "bci"));
-        method.addParameter(new CodeVariableElement(type(int.class), "sp"));
+
+        if (handlerLayout.isTailCall()) {
+            method.addParameter(new CodeVariableElement(parent.virtualState.asType(), VirtualStateElement.LOCAL_NAME));
+            if (tier.isCached()) {
+                method.addParameter(new CodeVariableElement(parent.counterState.asType(), "cstate"));
+            }
+
+        } else {
+            method.addParameter(new CodeVariableElement(type(int.class), "sp"));
+        }
+
     }
 
     private CodeExecutableElement createHandleException() {
         CodeExecutableElement method = createInstructionHandler(type(long.class), "handleException");
-        method.addParameter(new CodeVariableElement(type(Throwable.class), "originalThrowable"));
         method.findParameter("bci").setSimpleName(CodeNames.of("originalBci"));
-        method.findParameter("sp").setSimpleName(CodeNames.of("originalSp"));
+        method.addParameter(new CodeVariableElement(type(int.class), "originalSp"));
+        method.addParameter(new CodeVariableElement(type(Throwable.class), "originalThrowable"));
+
+        method.removeParameters("sp");
+        method.removeParameters("cstate");
 
         if (tier.isCached()) {
             method.addParameter(new CodeVariableElement(type(int.class), "counter"));
@@ -1744,19 +1868,25 @@ final class BytecodeNodeElement extends AbstractElement {
                 b.startIf().string("throwable instanceof ").type(type(ThreadDeath.class)).end().startBlock();
                 b.statement("continue");
                 b.end();
-                b.startStatement().startCall("doEpilogExceptional");
-                b.string("frame");
-                if (parent.model.hasYieldOperation()) {
-                    b.string("localFrame");
-                }
-                b.string("bc").string("bci").string("sp");
-                b.startGroup().cast(types.AbstractTruffleException);
-                b.string("throwable");
+
+                b.startStatement();
+                BytecodeRootNodeElement.emitCallDefault(b, createDoEpilogExceptional(), (name, cb) -> {
+                    switch (name) {
+                        case "exception":
+                            cb.cast(types.AbstractTruffleException);
+                            cb.string("throwable");
+                            break;
+                        case "nodeId":
+                            cb.string("handlerTable[handler + EXCEPTION_HANDLER_OFFSET_HANDLER_BCI]");
+                            break;
+                        default:
+                            cb.string(name);
+                            break;
+                    }
+                });
                 b.end();
-                b.string("handlerTable[handler + EXCEPTION_HANDLER_OFFSET_HANDLER_BCI]");
-                b.end().end();
                 b.statement("throw sneakyThrow(throwable)");
-                b.end();
+                b.end(); // case
             }
             if (parent.model.enableTagInstrumentation) {
                 b.startCase().string("HANDLER_TAG_EXCEPTIONAL").end().startCaseBlock();
@@ -1913,7 +2043,7 @@ final class BytecodeNodeElement extends AbstractElement {
         method.addParameter(new CodeVariableElement(types.ControlFlowException, "cfe"));
         method.getThrownTypes().add(type(Throwable.class));
         method.addAnnotationMirror(new CodeAnnotationMirror(types.CompilerDirectives_EarlyInline));
-
+        method.removeParameters("cstate");
         CodeTreeBuilder b = method.createBuilder();
         b.declaration(parent.asType(), "root", "getRoot()");
 
@@ -2137,6 +2267,10 @@ final class BytecodeNodeElement extends AbstractElement {
         method.setReturnType(type(void.class));
         method.addParameter(new CodeVariableElement(types.AbstractTruffleException, "exception"));
         method.addParameter(new CodeVariableElement(type(int.class), "nodeId"));
+        if (this.handlerLayout.isTailCall()) {
+            method.removeParameters("cstate");
+        }
+
         return method;
     }
 
@@ -2359,11 +2493,26 @@ final class BytecodeNodeElement extends AbstractElement {
         }
     }
 
-    static void emitCustomStackEffect(CodeTreeBuilder continueAtBuilder, int stackEffect) {
+    void emitStackEffect(CodeTreeBuilder b, int stackEffect) {
+        String operator;
+        int effect;
         if (stackEffect > 0) {
-            continueAtBuilder.statement("sp += " + stackEffect);
+            operator = "+";
+            effect = stackEffect;
         } else if (stackEffect < 0) {
-            continueAtBuilder.statement("sp -= " + -stackEffect);
+            operator = "-";
+            effect = -stackEffect;
+        } else {
+            return;
+        }
+        emitStackEffect(b, operator, String.valueOf(effect));
+    }
+
+    void emitStackEffect(CodeTreeBuilder b, String operator, String stackEffect) {
+        if (handlerLayout.isTailCall()) {
+            b.statement(VirtualStateElement.LOCAL_NAME, ".sp = sp ", operator, " ", stackEffect);
+        } else {
+            b.statement("sp ", operator, "= ", stackEffect);
         }
     }
 
@@ -2379,6 +2528,15 @@ final class BytecodeNodeElement extends AbstractElement {
             b.string("counter");
             b.end().end();  // statement
             b.end();  // if counter > 0
+        }
+    }
+
+    enum HandlerLayout {
+        TAIL_CALL,
+        DEFAULT;
+
+        public boolean isTailCall() {
+            return this == TAIL_CALL;
         }
     }
 

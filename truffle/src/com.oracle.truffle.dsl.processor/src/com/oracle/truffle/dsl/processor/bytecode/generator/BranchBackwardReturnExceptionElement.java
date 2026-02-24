@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -41,7 +41,7 @@
 package com.oracle.truffle.dsl.processor.bytecode.generator;
 
 import static javax.lang.model.element.Modifier.FINAL;
-import static javax.lang.model.element.Modifier.PRIVATE;
+import static javax.lang.model.element.Modifier.PROTECTED;
 import static javax.lang.model.element.Modifier.STATIC;
 
 import java.util.Set;
@@ -49,15 +49,14 @@ import java.util.Set;
 import javax.lang.model.element.ElementKind;
 
 import com.oracle.truffle.dsl.processor.generator.GeneratorUtils;
-import com.oracle.truffle.dsl.processor.java.model.CodeAnnotationMirror;
 import com.oracle.truffle.dsl.processor.java.model.CodeVariableElement;
 
-final class StackPointerElement extends AbstractElement {
+final class BranchBackwardReturnExceptionElement extends AbstractElement {
 
-    StackPointerElement(BytecodeRootNodeElement parent) {
-        super(parent, Set.of(PRIVATE, STATIC, FINAL), ElementKind.CLASS, null, "StackPointer");
-        this.addAnnotationMirror(new CodeAnnotationMirror(types.CompilerDirectives_ValueType));
-        this.add(new CodeVariableElement(Set.of(PRIVATE), type(int.class), "value"));
+    BranchBackwardReturnExceptionElement(BytecodeRootNodeElement parent) {
+        super(parent, Set.of(PROTECTED, STATIC, FINAL), ElementKind.CLASS, null, "BranchBackwardReturnException");
+        this.setSuperClass(types.ControlFlowException);
+        this.add(new CodeVariableElement(Set.of(), type(long.class), "targetState"));
         this.add(GeneratorUtils.createConstructorUsingFields(Set.of(), this));
     }
 }

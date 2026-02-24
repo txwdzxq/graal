@@ -197,7 +197,19 @@ import com.oracle.truffle.api.source.SourceSection;
                                 defaultUncachedThreshold = "defaultUncachedThreshold", //
                                 enableSpecializationIntrospection = true, //
                                 boxingEliminationTypes = {boolean.class, long.class}, //
-                                variadicStackLimit = "16"))
+                                variadicStackLimit = "16")),
+                @Variant(suffix = "ProductionRootScopingTailCall", configuration = @GenerateBytecode(languageClass = BytecodeDSLTestLanguage.class, //
+                                additionalAssertions = true, //
+                                enableYield = true, //
+                                enableMaterializedLocalAccesses = true, //
+                                enableSerialization = true, //
+                                enableBlockScoping = false, //
+                                enableTagInstrumentation = true, //
+                                enableUncachedInterpreter = true, //
+                                defaultUncachedThreshold = "defaultUncachedThreshold", //
+                                enableSpecializationIntrospection = true, //
+                                boxingEliminationTypes = {boolean.class, long.class}, //
+                                enableTailCallHandlers = true, variadicStackLimit = "16"))
 })
 @ShortCircuitOperation(booleanConverter = BasicInterpreter.ToBoolean.class, name = "ScAnd", operator = Operator.AND_RETURN_VALUE)
 @ShortCircuitOperation(booleanConverter = BasicInterpreter.ToBoolean.class, name = "ScOr", operator = Operator.OR_RETURN_VALUE, javadoc = "ScOr returns the first truthy operand value.")
@@ -218,6 +230,11 @@ public abstract class BasicInterpreter extends DebugBytecodeRootNode implements 
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public Throwable interceptInternalException(Throwable t, VirtualFrame frame, BytecodeNode bytecodeNode, int bytecodeIndex) {
+        t.addSuppressed(new AssertionError("Attached Bytecode dump: " + bytecodeNode.dump(bytecodeIndex)));
+        return t;
     }
 
     @Override

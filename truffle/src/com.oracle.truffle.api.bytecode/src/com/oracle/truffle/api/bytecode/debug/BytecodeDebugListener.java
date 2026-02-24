@@ -91,7 +91,7 @@ public interface BytecodeDebugListener {
      * @since 24.2
      * @deprecated no longer supported. Use {@link InstructionTracer} instead.
      */
-    @Deprecated
+    @Deprecated(since = "25.1")
     default void beforeInstructionExecute(Instruction instruction) {
     }
 
@@ -103,7 +103,7 @@ public interface BytecodeDebugListener {
      * @since 24.2
      * @deprecated no longer supported. Use {@link InstructionTracer} instead.
      */
-    @Deprecated
+    @Deprecated(since = "25.1")
     default void afterInstructionExecute(Instruction instruction, Throwable exception) {
     }
 

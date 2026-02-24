@@ -85,6 +85,7 @@ final class AbstractBytecodeNodeElement extends AbstractElement {
     final CodeExecutableElement getCachedLocalTagInternal;
     final CodeExecutableElement setCachedLocalTagInternal;
     final CodeExecutableElement checkStableTagsAssumption;
+    BranchBackwardReturnExceptionElement branchBackwardReturnException;
 
     AbstractBytecodeNodeElement(BytecodeRootNodeElement parent) {
         super(parent, Set.of(PRIVATE, STATIC, ABSTRACT, SEALED), ElementKind.CLASS, null, "AbstractBytecodeNode");
@@ -97,6 +98,10 @@ final class AbstractBytecodeNodeElement extends AbstractElement {
         add(parent.compFinal(1, new CodeVariableElement(Set.of(FINAL), type(int[].class), "sourceInfo")));
         add(new CodeVariableElement(Set.of(FINAL), generic(type(List.class), types.Source), "sources"));
         add(new CodeVariableElement(Set.of(FINAL), type(int.class), "numNodes"));
+
+        if (model().enableTailCallHandlers) {
+            this.branchBackwardReturnException = add(new BranchBackwardReturnExceptionElement(parent));
+        }
 
         if (parent.model.enableTagInstrumentation) {
             parent.child(add(new CodeVariableElement(Set.of(), parent.tagRootNode.asType(), "tagRoot")));
@@ -1332,16 +1337,16 @@ final class AbstractBytecodeNodeElement extends AbstractElement {
         return ex;
     }
 
-    record InstrumentationGroup(int instructionLength, boolean instrumentation, boolean tagInstrumentation, InstructionImmediate tagNodeImmediate)
-                    implements
-                        Comparable<AbstractBytecodeNodeElement.InstrumentationGroup> {
+    record InstrumentationGroup(int instructionLength, boolean instrumentation,
+                    boolean tagInstrumentation, InstructionImmediate tagNodeImmediate) implements Comparable<InstrumentationGroup> {
+
         InstrumentationGroup(InstructionModel instr) {
             this(instr.getInstructionLength(), instr.isInstrumentation(), instr.isTagInstrumentation(),
                             instr.isTagInstrumentation() ? instr.getImmediate(ImmediateKind.TAG_NODE) : null);
         }
 
         @Override
-        public int compareTo(AbstractBytecodeNodeElement.InstrumentationGroup o) {
+        public int compareTo(InstrumentationGroup o) {
             int compare = Boolean.compare(this.instrumentation, o.instrumentation);
             if (compare != 0) {
                 return compare;

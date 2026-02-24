@@ -40,63 +40,29 @@
  */
 package com.oracle.truffle.dsl.processor.bytecode.generator;
 
+import static javax.lang.model.element.Modifier.FINAL;
+import static javax.lang.model.element.Modifier.PRIVATE;
+import static javax.lang.model.element.Modifier.STATIC;
+
 import java.util.Set;
 
 import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.Modifier;
-import javax.lang.model.element.PackageElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
 
-import com.oracle.truffle.dsl.processor.ProcessorContext;
-import com.oracle.truffle.dsl.processor.TruffleTypes;
-import com.oracle.truffle.dsl.processor.bytecode.model.BytecodeDSLModel;
+import com.oracle.truffle.dsl.processor.generator.GeneratorUtils;
 import com.oracle.truffle.dsl.processor.java.model.CodeAnnotationMirror;
-import com.oracle.truffle.dsl.processor.java.model.CodeAnnotationValue;
-import com.oracle.truffle.dsl.processor.java.model.CodeTypeElement;
+import com.oracle.truffle.dsl.processor.java.model.CodeExecutableElement;
 import com.oracle.truffle.dsl.processor.java.model.CodeVariableElement;
 
-abstract class AbstractElement extends CodeTypeElement implements ElementHelpers {
+final class VirtualStateElement extends AbstractElement {
 
-    protected final BytecodeRootNodeElement parent;
-    protected final ProcessorContext context = ProcessorContext.getInstance();
-    protected final TruffleTypes types = context.getTypes();
+    public static final String LOCAL_NAME = "vstate";
 
-    AbstractElement(BytecodeRootNodeElement parent, Set<Modifier> modifiers, ElementKind kind, PackageElement packageElement, String simpleName) {
-        super(modifiers, kind, packageElement, simpleName);
-        this.parent = parent;
-    }
-
-    protected final CodeVariableElement compFinal(CodeVariableElement fld) {
-        return compFinal(-1, fld);
-    }
-
-    protected final CodeVariableElement compFinal(int dims, CodeVariableElement fld) {
-        CodeAnnotationMirror mir = new CodeAnnotationMirror(types.CompilerDirectives_CompilationFinal);
-        if (dims != -1) {
-            mir.setElementValue("dimensions", new CodeAnnotationValue(dims));
-        }
-        fld.addAnnotationMirror(mir);
-        return fld;
-    }
-
-    protected final CodeVariableElement child(CodeVariableElement fld) {
-        CodeAnnotationMirror mir = new CodeAnnotationMirror(fld.asType().getKind() == TypeKind.ARRAY ? types.Node_Children : types.Node_Child);
-        fld.addAnnotationMirror(mir);
-        return fld;
-    }
-
-    protected final TypeMirror type(Class<?> c) {
-        return context.getType(c);
-    }
-
-    protected final DeclaredType declaredType(Class<?> t) {
-        return context.getDeclaredType(t);
-    }
-
-    protected final BytecodeDSLModel model() {
-        return parent.model;
+    VirtualStateElement(BytecodeRootNodeElement parent) {
+        super(parent, Set.of(PRIVATE, STATIC, FINAL), ElementKind.CLASS, null, "VirtualState");
+        this.addAnnotationMirror(new CodeAnnotationMirror(types.CompilerDirectives_ValueType));
+        this.add(new CodeVariableElement(Set.of(PRIVATE), type(int.class), "sp"));
+        CodeExecutableElement m = this.add(GeneratorUtils.createConstructorUsingFields(Set.of(), this));
+        m.addAnnotationMirror(new CodeAnnotationMirror(types.CompilerDirectives_EarlyInline));
     }
 
 }

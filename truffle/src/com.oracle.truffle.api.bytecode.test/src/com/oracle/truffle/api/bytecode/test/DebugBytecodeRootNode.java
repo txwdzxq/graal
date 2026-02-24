@@ -107,11 +107,6 @@ public abstract class DebugBytecodeRootNode extends RootNode implements Bytecode
                         instruction);
     }
 
-    @TruffleBoundary
-    private static void traceInstruction(Instruction instruction) {
-        System.out.printf("  Instruction %4s %s%n", "[" + currentRoot.instructionCount + "]", instruction);
-    }
-
     public void onBytecodeStackTransition(Instruction source, Instruction target) {
         if (traceInstrumentation) {
             System.out.printf("On stack transition: %s%n", source.getLocation().getBytecodeNode().getRootNode());

@@ -200,7 +200,8 @@ public final class BytecodeRootNodeElement extends AbstractElement {
     // wrapped in an object, otherwise the loop unrolling logic of ExplodeLoop.MERGE_EXPLODE
     // will create a new "state" for each count.
     final LoopCounterElement loopCounter = new LoopCounterElement(this);
-    final StackPointerElement stackPointerElement = new StackPointerElement(this);
+    final VirtualStateElement virtualState = new VirtualStateElement(this);
+    final CounterStateElement counterState = new CounterStateElement(this);
 
     CodeTypeElement configEncoder;
     OldBytecodesBoxElement oldBytecodesBoxElement;
@@ -314,6 +315,8 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         }
         consts.addElementsTo(this);
 
+        instructionsElement.lazyInit();
+
         // Define the interpreter implementations.
         BytecodeNodeElement cachedBytecodeNode = this.add(new BytecodeNodeElement(this, InterpreterTier.CACHED));
         abstractBytecodeNode.getPermittedSubclasses().add(cachedBytecodeNode.asType());
@@ -330,7 +333,6 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         }
 
         // Define helper classes containing the constants for instructions and operations.
-        instructionsElement.lazyInit();
         this.add(instructionsElement);
 
         operationsElement.lazyInit();
@@ -442,8 +444,9 @@ public final class BytecodeRootNodeElement extends AbstractElement {
 
         // Define a loop counter class to track how many back-edges have been taken.
         this.add(loopCounter);
-        if (model.enableStackPointerBoxing) {
-            this.add(stackPointerElement);
+        if (model.enableTailCallHandlers) {
+            this.add(virtualState);
+            this.add(counterState);
         }
 
         // Define the static method to create a root node.
@@ -761,7 +764,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         return encodeState(bci, sp, null);
     }
 
-    private static final String RETURN_BCI = "0xFFFFFFFF";
+    static final String RETURN_BCI = "0xFFFFFFFF";
 
     static String encodeReturnState(String sp) {
         return String.format("((%s & 0xFFFFL) << 32) | %sL", sp, RETURN_BCI);
