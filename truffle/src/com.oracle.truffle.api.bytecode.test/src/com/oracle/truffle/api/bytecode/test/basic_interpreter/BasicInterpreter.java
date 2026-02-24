@@ -75,6 +75,7 @@ import com.oracle.truffle.api.bytecode.Operation;
 import com.oracle.truffle.api.bytecode.ShortCircuitOperation;
 import com.oracle.truffle.api.bytecode.ShortCircuitOperation.Operator;
 import com.oracle.truffle.api.bytecode.Variadic;
+import com.oracle.truffle.api.bytecode.Yield;
 import com.oracle.truffle.api.bytecode.test.BytecodeDSLTestLanguage;
 import com.oracle.truffle.api.bytecode.test.DebugBytecodeRootNode;
 import com.oracle.truffle.api.dsl.Bind;
@@ -456,6 +457,17 @@ public abstract class BasicInterpreter extends DebugBytecodeRootNode implements 
                 setter.setObject(bytecode, frame, value);
             }
             return value;
+        }
+    }
+
+    @Operation(storeBytecodeIndex = false)
+    @ConstantOperand(type = long.class)
+    static final class BytecodeSetLocalValue {
+        @Specialization
+        static void perform(VirtualFrame frame, long localOffset, Object value,
+                        @Bind BytecodeNode bytecodeNode,
+                        @Bind("$bytecodeIndex") int bytecodeIndex) {
+            bytecodeNode.setLocalValue(bytecodeIndex, frame, (int) localOffset, value);
         }
     }
 
@@ -869,7 +881,14 @@ public abstract class BasicInterpreter extends DebugBytecodeRootNode implements 
         }
     }
 
-    // Special operation that forces its operand to escape.
+    @Yield
+    public static final class CustomYield {
+        @Specialization
+        public static ContinuationResult perform(Object value, @Bind ContinuationRootNode root, @Bind MaterializedFrame frame) {
+            return ContinuationResult.create(root, frame, value);
+        }
+    }
+
     @Operation
     public static final class Deoptimize {
         @Specialization
