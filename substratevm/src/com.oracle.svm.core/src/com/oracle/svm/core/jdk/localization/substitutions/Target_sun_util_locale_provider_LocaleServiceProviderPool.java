@@ -22,16 +22,26 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.jdk.localization.substitutions.modes;
+package com.oracle.svm.core.jdk.localization.substitutions;
 
-import java.util.function.BooleanSupplier;
+import java.util.Locale;
 
-import com.oracle.svm.core.jdk.localization.LocalizationSupport;
 import org.graalvm.nativeimage.ImageSingletons;
 
-public class OptimizedLocaleMode implements BooleanSupplier {
-    @Override
-    public boolean getAsBoolean() {
-        return ImageSingletons.lookup(LocalizationSupport.class).optimizedMode();
+import com.oracle.svm.core.annotate.Substitute;
+import com.oracle.svm.core.annotate.TargetClass;
+import com.oracle.svm.core.jdk.localization.LocalizationSupport;
+
+@SuppressWarnings({"static-method"})
+@TargetClass(value = sun.util.locale.provider.LocaleServiceProviderPool.class)
+final class Target_sun_util_locale_provider_LocaleServiceProviderPool {
+    @Substitute
+    private static Locale[] getAllAvailableLocales() {
+        return ImageSingletons.lookup(LocalizationSupport.class).allLocales;
+    }
+
+    @Substitute
+    private Locale[] getAvailableLocales() {
+        return ImageSingletons.lookup(LocalizationSupport.class).allLocales;
     }
 }

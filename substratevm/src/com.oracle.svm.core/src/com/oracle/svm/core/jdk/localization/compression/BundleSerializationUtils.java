@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.jdk.localization.compression.utils;
+package com.oracle.svm.core.jdk.localization.compression;
 
 import java.util.ArrayList;
 import java.util.HashMap;
