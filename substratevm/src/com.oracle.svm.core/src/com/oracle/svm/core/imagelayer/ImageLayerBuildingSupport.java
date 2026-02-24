@@ -94,12 +94,20 @@ public abstract class ImageLayerBuildingSupport {
 
     @Platforms(Platform.HOSTED_ONLY.class)
     public static boolean firstImageBuild() {
-        return !buildingImageLayer() || buildingInitialLayer();
+        if (installed()) {
+            ImageLayerBuildingSupport support = singleton();
+            return !support.buildingImageLayer || support.buildingInitialLayer;
+        }
+        return true;
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
     public static boolean lastImageBuild() {
-        return !buildingImageLayer() || buildingApplicationLayer();
+        if (installed()) {
+            ImageLayerBuildingSupport support = singleton();
+            return !support.buildingImageLayer || support.buildingApplicationLayer;
+        }
+        return true;
     }
 
     @Fold
@@ -119,11 +127,19 @@ public abstract class ImageLayerBuildingSupport {
 
     @Fold
     public static boolean buildingExtensionLayer() {
-        return installed() && singleton().buildingImageLayer && !singleton().buildingInitialLayer;
+        if (installed()) {
+            ImageLayerBuildingSupport support = singleton();
+            return support.buildingImageLayer && !support.buildingInitialLayer;
+        }
+        return false;
     }
 
     @Fold
     public static boolean buildingSharedLayer() {
-        return installed() && singleton().buildingImageLayer && !singleton().buildingApplicationLayer;
+        if (installed()) {
+            ImageLayerBuildingSupport support = singleton();
+            return support.buildingImageLayer && !support.buildingApplicationLayer;
+        }
+        return false;
     }
 }
