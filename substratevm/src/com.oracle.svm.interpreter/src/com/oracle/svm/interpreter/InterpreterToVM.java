@@ -921,7 +921,9 @@ public final class InterpreterToVM {
 
         if (!callCompiledTarget && (targetMethod.isNative() && targetMethod.getSignaturePolymorphicIntrinsic() == null)) {
             /* no way to execute target in interpreter, fall back to compiled code */
-            VMError.guarantee(targetMethod.hasNativeEntryPoint());
+            if (!targetMethod.hasNativeEntryPoint()) {
+                throw VMError.shouldNotReachHere("No native entry point for native method: " + targetMethod);
+            }
             calleeFtnPtr = targetMethod.getNativeEntryPoint();
             VMError.guarantee(calleeFtnPtr.isNonNull());
             callCompiledTarget = true;

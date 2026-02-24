@@ -75,17 +75,20 @@ public final class BootClassRegistry extends AbstractRuntimeClassRegistry {
         if (maybeFs == null) {
             synchronized (this) {
                 if ((maybeFs = jrtFS) == null) {
-                    try {
-                        jrtFS = maybeFs = FileSystems.getFileSystem(URI.create("jrt:/"));
-                    } catch (ProviderNotFoundException | FileSystemNotFoundException e) {
-                        if (!AllowJRTFileSystem.getValue()) {
-                            LogUtils.warning(JRTFS_UNAVAILABLE_MESSAGE);
-                        } else if (System.getProperty("java.home") == null) {
-                            LogUtils.warning(JAVA_HOME_UNAVAILABLE_MESSAGE);
-                        } else {
-                            LogUtils.warning("The boot class loader is unavailable: " + e);
-                        }
+                    if (System.getProperty("java.home") == null) {
+                        LogUtils.warning(JAVA_HOME_UNAVAILABLE_MESSAGE);
                         jrtFS = NO_JRT_FS;
+                    } else {
+                        try {
+                            jrtFS = maybeFs = FileSystems.getFileSystem(URI.create("jrt:/"));
+                        } catch (ProviderNotFoundException | FileSystemNotFoundException e) {
+                            if (!AllowJRTFileSystem.getValue()) {
+                                LogUtils.warning(JRTFS_UNAVAILABLE_MESSAGE);
+                            } else {
+                                LogUtils.warning("The boot class loader is unavailable: " + e);
+                            }
+                            jrtFS = NO_JRT_FS;
+                        }
                     }
                 }
             }
