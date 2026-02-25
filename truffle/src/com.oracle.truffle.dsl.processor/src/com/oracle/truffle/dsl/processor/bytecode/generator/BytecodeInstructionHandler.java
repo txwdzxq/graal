@@ -2060,11 +2060,13 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
             return false;
         }
         if (instr.signature.isVoid()) {
+            // all operands need to be cleared
             return true;
         } else {
-            // no clear if not last
-            return operand.dynamicIndex() != instr.signature.dynamicOperandCount() - 1;
+            // the instruction will overwrite the first operand with its result value
+            return operand.dynamicIndex() != 0;
         }
+
     }
 
     private static String createStackIndex(InstructionModel instruction, Operand operand) {
@@ -2319,6 +2321,10 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
              * Load local checked with catch frame FrameSlotTypeException and translate it into a
              * slow-path call. In such a case we cannot eagerly clear.
              */
+            return false;
+        }
+        if (instr.kind == InstructionKind.STORE_LOCAL_MATERIALIZED && instr.isQuickening() && operand.dynamicIndex() == 0) {
+            // We cannot clear the frame operand in case we need to call the slow path.
             return false;
         }
         if (instr.kind == InstructionKind.POP) {
