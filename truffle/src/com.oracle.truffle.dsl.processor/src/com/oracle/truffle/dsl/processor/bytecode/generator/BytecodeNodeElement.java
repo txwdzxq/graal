@@ -202,8 +202,8 @@ final class BytecodeNodeElement extends AbstractElement {
         this.add(createToString());
     }
 
-    TypeMirror getBytecodIndexType() {
-        return parent.getBytecodIndexType();
+    TypeMirror getBytecodeIndexType() {
+        return parent.getBytecodeIndexType();
     }
 
     TypeMirror getStackPointerType() {
@@ -1174,9 +1174,9 @@ final class BytecodeNodeElement extends AbstractElement {
         b.startAssert().string("operationNode.getParent() == this : ").doubleQuote("Passed node must be an operation node of the same bytecode node.").end();
         b.declaration(arrayOf(types.Node), "localNodes", "this.cachedNodes_");
         b.declaration(arrayOf(type(byte.class)), "bc", "this.bytecodes");
-        b.declaration(getBytecodIndexType(), "bci", "0");
+        b.declaration(getBytecodeIndexType(), "bci", "0");
         b.string("loop: ").startWhile().string("bci < bc.length").end().startBlock();
-        b.declaration(parent.getBytecodIndexType(), "currentBci", "bci");
+        b.declaration(parent.getBytecodeIndexType(), "currentBci", "bci");
         b.declaration(type(int.class), "nodeIndex");
         b.startSwitch().tree(BytecodeRootNodeElement.readInstruction("bc", "bci")).end().startBlock();
 
@@ -1464,12 +1464,12 @@ final class BytecodeNodeElement extends AbstractElement {
             b.end();
         }
 
-        b.declaration(this.getBytecodIndexType(), "bci", BytecodeRootNodeElement.decodeBci("startState"));
+        b.declaration(this.getBytecodeIndexType(), "bci", BytecodeRootNodeElement.decodeBci("startState"));
         if (handlerLayout.isTailCall()) {
             b.startDeclaration(parent.virtualState.asType(), VirtualStateElement.LOCAL_NAME).startNew(parent.virtualState.asType()).string(BytecodeRootNodeElement.decodeSp("startState")).end().end();
 
             if (tier.isCached()) {
-                b.startDeclaration(parent.counterState.asType(), "cstate").startNew(parent.counterState.asType()).string("counter").string("loopCounter").end().end();
+                b.startDeclaration(parent.counterState.asType(), CounterStateElement.LOCAL_NAME).startNew(parent.counterState.asType()).string("counter").string("loopCounter").end().end();
             }
         } else {
             b.declaration(this.getStackPointerType(), "sp", BytecodeRootNodeElement.decodeSp("startState"));
@@ -1622,7 +1622,7 @@ final class BytecodeNodeElement extends AbstractElement {
                     break;
                 case "counter":
                     if (handlerLayout.isTailCall()) {
-                        inner.string("cstate.getCounter()");
+                        inner.string(CounterStateElement.LOCAL_NAME, ".getCounter()");
                     } else {
                         inner.string("(");
                         inner.startStaticCall(types.CompilerDirectives, "inCompiledCode").end();
@@ -1689,7 +1689,7 @@ final class BytecodeNodeElement extends AbstractElement {
         arguments.add(createBytecodeHandlerArgument("VIRTUAL", false));
 
         if (tier.isCached()) {
-            // VirtualStateElement cstate
+            // CounterStateElement cstate
             arguments.add(createBytecodeHandlerArgument(null, false));
         }
 
@@ -1735,7 +1735,11 @@ final class BytecodeNodeElement extends AbstractElement {
     private CodeExecutableElement createPartitionContinueAt(int partitionIndex, List<InstructionModel> instructionGroup,
                     Map<InstructionGroup, Integer> groupIndices, boolean hasMorePartitions) {
         String methodName = "continueAt_" + partitionIndex;
-        CodeExecutableElement continueAtMethod = createInstructionHandler(parent.getBytecodIndexType(), methodName);
+
+        // for tail call layout we directly return the bytecode index
+        // for non tail-call layout we return an int for the group index.
+        TypeMirror returnType = this.handlerLayout.isTailCall() ? getBytecodeIndexType() : type(int.class);
+        CodeExecutableElement continueAtMethod = createInstructionHandler(returnType, methodName);
 
         continueAtMethod.addParameter(new CodeVariableElement(type(int.class), "op"));
         continueAtMethod.addAnnotationMirror(new CodeAnnotationMirror(types.HostCompilerDirectives_BytecodeInterpreterSwitch));
@@ -1795,12 +1799,12 @@ final class BytecodeNodeElement extends AbstractElement {
             method.addParameter(new CodeVariableElement(types.FrameWithoutBoxing, "localFrame"));
         }
         method.addParameter(new CodeVariableElement(type(byte[].class), "bc"));
-        method.addParameter(new CodeVariableElement(getBytecodIndexType(), "bci"));
+        method.addParameter(new CodeVariableElement(getBytecodeIndexType(), "bci"));
 
         if (handlerLayout.isTailCall()) {
             method.addParameter(new CodeVariableElement(parent.virtualState.asType(), VirtualStateElement.LOCAL_NAME));
             if (tier.isCached()) {
-                method.addParameter(new CodeVariableElement(parent.counterState.asType(), "cstate"));
+                method.addParameter(new CodeVariableElement(parent.counterState.asType(), CounterStateElement.LOCAL_NAME));
             }
 
         } else {
@@ -1816,7 +1820,7 @@ final class BytecodeNodeElement extends AbstractElement {
         method.addParameter(new CodeVariableElement(type(Throwable.class), "originalThrowable"));
 
         method.removeParameters("sp");
-        method.removeParameters("cstate");
+        method.removeParameters(CounterStateElement.LOCAL_NAME);
 
         if (tier.isCached()) {
             method.addParameter(new CodeVariableElement(type(int.class), "counter"));
@@ -1826,7 +1830,7 @@ final class BytecodeNodeElement extends AbstractElement {
         method.addAnnotationMirror(new CodeAnnotationMirror(types.HostCompilerDirectives_InliningCutoff));
 
         CodeTreeBuilder b = method.createBuilder();
-        b.declaration(getBytecodIndexType(), "bci", "originalBci");
+        b.declaration(getBytecodeIndexType(), "bci", "originalBci");
         b.declaration(getStackPointerType(), "sp", "originalSp");
 
         if (BytecodeRootNodeElement.isStoreBciEnabled(parent.model, tier)) {
@@ -2058,7 +2062,7 @@ final class BytecodeNodeElement extends AbstractElement {
         method.addParameter(new CodeVariableElement(types.ControlFlowException, "cfe"));
         method.getThrownTypes().add(type(Throwable.class));
         method.addAnnotationMirror(new CodeAnnotationMirror(types.CompilerDirectives_EarlyInline));
-        method.removeParameters("cstate");
+        method.removeParameters(CounterStateElement.LOCAL_NAME);
         CodeTreeBuilder b = method.createBuilder();
         b.declaration(parent.asType(), "root", "getRoot()");
 
@@ -2101,7 +2105,7 @@ final class BytecodeNodeElement extends AbstractElement {
                         type(long.class), "resolveControlFlowException",
                         new CodeVariableElement(parent.asType(), "$root"),
                         new CodeVariableElement(types.FrameWithoutBoxing, "frame"),
-                        new CodeVariableElement(getBytecodIndexType(), "bci"),
+                        new CodeVariableElement(getBytecodeIndexType(), "bci"),
                         new CodeVariableElement(types.ControlFlowException, "cfe"));
 
         method.getThrownTypes().add(type(Throwable.class));
@@ -2110,7 +2114,7 @@ final class BytecodeNodeElement extends AbstractElement {
         b.startAssign("Object result").startCall("$root", parent.model.interceptControlFlowException).string("cfe").string("frame").string("this").string(parent.castBytecodeIndexToInt("bci")).end(2);
         // There may not be room above the sp. Just use the first stack slot.
         b.statement(BytecodeRootNodeElement.setFrameObject("$root.maxLocals", "result"));
-        b.startDeclaration(getBytecodIndexType(), "sp").string("$root.maxLocals + 1").end();
+        b.startDeclaration(getBytecodeIndexType(), "sp").string("$root.maxLocals + 1").end();
         emitReturnTopOfStack(b);
         return method;
 
@@ -2122,7 +2126,7 @@ final class BytecodeNodeElement extends AbstractElement {
                         type(Throwable.class), "resolveThrowable",
                         new CodeVariableElement(parent.asType(), "$root"),
                         new CodeVariableElement(types.FrameWithoutBoxing, "frame"),
-                        new CodeVariableElement(getBytecodIndexType(), "bci"),
+                        new CodeVariableElement(getBytecodeIndexType(), "bci"),
                         new CodeVariableElement(type(Throwable.class), "throwable"));
 
         method.addAnnotationMirror(new CodeAnnotationMirror(types.HostCompilerDirectives_InliningCutoff));
@@ -2187,7 +2191,7 @@ final class BytecodeNodeElement extends AbstractElement {
         CodeExecutableElement method = new CodeExecutableElement(
                         Set.of(PRIVATE),
                         type(int.class), "resolveHandler",
-                        new CodeVariableElement(parent.getBytecodIndexType(), "bci"),
+                        new CodeVariableElement(parent.getBytecodeIndexType(), "bci"),
                         new CodeVariableElement(type(int.class), "handler"),
                         new CodeVariableElement(type(int[].class), "localHandlers"));
         method.addAnnotationMirror(new CodeAnnotationMirror(types.ExplodeLoop));
@@ -2244,7 +2248,7 @@ final class BytecodeNodeElement extends AbstractElement {
         method.addParameter(new CodeVariableElement(types.AbstractTruffleException, "exception"));
         method.addParameter(new CodeVariableElement(type(int.class), "nodeId"));
         if (this.handlerLayout.isTailCall()) {
-            method.removeParameters("cstate");
+            method.removeParameters(CounterStateElement.LOCAL_NAME);
         }
 
         return method;
@@ -2258,7 +2262,7 @@ final class BytecodeNodeElement extends AbstractElement {
                         new CodeVariableElement(parent.tagNode.asType(), "node"),
                         new CodeVariableElement(type(int.class), "nodeId"),
                         new CodeVariableElement(type(byte[].class), "bc"),
-                        new CodeVariableElement(getBytecodIndexType(), "bci"),
+                        new CodeVariableElement(getBytecodeIndexType(), "bci"),
                         new CodeVariableElement(type(Throwable.class), "exception"));
 
         method.getThrownTypes().add(type(Throwable.class));
@@ -2316,7 +2320,7 @@ final class BytecodeNodeElement extends AbstractElement {
         CodeExecutableElement ex = new CodeExecutableElement(Set.of(PRIVATE), type(Object.class), "loadConstantCompiled");
         ex.addParameter(new CodeVariableElement(types.FrameWithoutBoxing, "frame"));
         ex.addParameter(new CodeVariableElement(type(byte[].class), "bc"));
-        ex.addParameter(new CodeVariableElement(getBytecodIndexType(), "bci"));
+        ex.addParameter(new CodeVariableElement(getBytecodeIndexType(), "bci"));
 
         CodeTreeBuilder b = ex.createBuilder();
         InstructionImmediate constant = parent.model.loadConstantInstruction.getImmediate(ImmediateKind.CONSTANT);

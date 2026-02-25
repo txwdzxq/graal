@@ -691,8 +691,8 @@ public class TruffleGraphBuilderPlugins {
         });
     }
 
-    private static void registerGet(Registration r, JavaKind accessKind, int accessTag, String name, Class<?> slotType, boolean optional) {
-        r.register(new InvocationPlugin(name, Receiver.class, slotType) {
+    private static void registerGet(Registration r, JavaKind accessKind, int accessTag, String name, Class<?> indexType, boolean optional) {
+        r.register(new InvocationPlugin(name, Receiver.class, indexType) {
             @Override
             public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver frameNode, ValueNode frameSlotNode) {
                 int frameSlotIndex = maybeGetConstantNumberedFrameSlotIndex(frameNode, frameSlotNode);
@@ -729,8 +729,8 @@ public class TruffleGraphBuilderPlugins {
         });
     }
 
-    private static void registerCopy(Registration r, String name, Class<?> slotType, boolean optional) {
-        r.register(new InvocationPlugin(name, Receiver.class, slotType, slotType) {
+    private static void registerCopy(Registration r, String name, Class<?> indexType, boolean optional) {
+        r.register(new InvocationPlugin(name, Receiver.class, indexType, indexType) {
             @Override
             public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode frameSlot1, ValueNode frameSlot2) {
                 int frameSlot1Index = maybeGetConstantNumberedFrameSlotIndex(receiver, frameSlot1);
@@ -749,8 +749,8 @@ public class TruffleGraphBuilderPlugins {
         });
     }
 
-    private static void registerClear(Registration r, String name, int illegalTag, Class<?> slotType, boolean optional) {
-        r.register(new InvocationPlugin(name, Receiver.class, slotType) {
+    private static void registerClear(Registration r, String name, int illegalTag, Class<?> indexType, boolean optional) {
+        r.register(new InvocationPlugin(name, Receiver.class, indexType) {
             @Override
             public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode frameSlot) {
                 int frameSlotIndex = maybeGetConstantNumberedFrameSlotIndex(receiver, frameSlot);

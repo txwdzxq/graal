@@ -104,7 +104,7 @@ final class InstructionTracerAccessImplElement extends AbstractElement {
     private CodeExecutableElement createOnInstructionEnter() {
         CodeExecutableElement ex = new CodeExecutableElement(Set.of(), type(void.class), "onInstructionEnter",
                         new CodeVariableElement(types.BytecodeNode, "bytecode"),
-                        new CodeVariableElement(parent.getBytecodIndexType(), "bytecodeIndex"),
+                        new CodeVariableElement(parent.getBytecodeIndexType(), "bytecodeIndex"),
                         new CodeVariableElement(types.Frame, "frame"));
         ex.getAnnotationMirrors().add(new CodeAnnotationMirror(types.HostCompilerDirectives_InliningCutoff));
         ex.getAnnotationMirrors().add(new CodeAnnotationMirror(types.ExplodeLoop));

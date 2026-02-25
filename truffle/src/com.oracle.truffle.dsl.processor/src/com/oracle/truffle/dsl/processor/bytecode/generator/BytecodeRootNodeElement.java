@@ -791,14 +791,21 @@ public final class BytecodeRootNodeElement extends AbstractElement {
     }
 
     CodeTreeBuilder emitCastBytecodeIndexToInt(CodeTreeBuilder b) {
-        if (!ElementUtils.typeEquals(getBytecodIndexType(), type(int.class))) {
+        if (!ElementUtils.typeEquals(getBytecodeIndexType(), type(int.class))) {
+            return b.cast(type(int.class));
+        }
+        return b;
+    }
+
+    CodeTreeBuilder emitCastStackPointerToInt(CodeTreeBuilder b) {
+        if (!ElementUtils.typeEquals(getStackPointerType(), type(int.class))) {
             return b.cast(type(int.class));
         }
         return b;
     }
 
     CodeTree castBytecodeIndexToInt(CodeTree bci) {
-        if (ElementUtils.typeEquals(getBytecodIndexType(), type(int.class))) {
+        if (ElementUtils.typeEquals(getBytecodeIndexType(), type(int.class))) {
             return bci;
         } else {
             return CodeTreeBuilder.createBuilder().cast(type(int.class)).tree(bci).build();
@@ -806,14 +813,14 @@ public final class BytecodeRootNodeElement extends AbstractElement {
     }
 
     String castBytecodeIndexToInt(String bci) {
-        if (ElementUtils.typeEquals(getBytecodIndexType(), type(int.class))) {
+        if (ElementUtils.typeEquals(getBytecodeIndexType(), type(int.class))) {
             return bci;
         } else {
             return "(int) " + bci;
         }
     }
 
-    TypeMirror getBytecodIndexType() {
+    TypeMirror getBytecodeIndexType() {
         return model.enableTailCallHandlers ? type(long.class) : type(int.class);
     }
 
@@ -830,7 +837,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
 
     void emitWriteBytecodeIndexToFrame(CodeTreeBuilder b, String frame, String value) {
         b.startStatement();
-        BytecodeRootNodeElement.startSetFrame(b, getBytecodIndexType()).string(frame).string(BytecodeRootNodeElement.BCI_INDEX).string(value).end();
+        BytecodeRootNodeElement.startSetFrame(b, getBytecodeIndexType()).string(frame).string(BytecodeRootNodeElement.BCI_INDEX).string(value).end();
         b.end();
     }
 
@@ -838,13 +845,13 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         if (castToInt) {
             emitCastBytecodeIndexToInt(b);
         }
-        BytecodeRootNodeElement.startGetFrame(b, frame, getBytecodIndexType(), false).string(BytecodeRootNodeElement.BCI_INDEX).end();
+        BytecodeRootNodeElement.startGetFrame(b, frame, getBytecodeIndexType(), false).string(BytecodeRootNodeElement.BCI_INDEX).end();
     }
 
     private CodeExecutableElement createContinueAt() {
         CodeExecutableElement ex = new CodeExecutableElement(Set.of(PRIVATE), type(Object.class), "continueAt");
         ex.addParameter(new CodeVariableElement(abstractBytecodeNode.asType(), "bc"));
-        ex.addParameter(new CodeVariableElement(getBytecodIndexType(), "bci"));
+        ex.addParameter(new CodeVariableElement(getBytecodeIndexType(), "bci"));
         ex.addParameter(new CodeVariableElement(getStackPointerType(), "sp"));
         ex.addParameter(new CodeVariableElement(types.FrameWithoutBoxing, "frame"));
         if (model.hasYieldOperation()) {
@@ -1859,7 +1866,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
                         }).thenComparing(entry -> entry.getKey().getInstructionLength())) //
                         .toList();
 
-        b.declaration(getBytecodIndexType(), "bci", "0");
+        b.declaration(getBytecodeIndexType(), "bci", "0");
 
         b.startWhile().string("bci < copy.length").end().startBlock();
         b.startSwitch().tree(readInstruction("copy", "bci")).end().startBlock();

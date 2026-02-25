@@ -108,7 +108,7 @@ public class BytecodeDSLNodeGeneratorPlugs implements NodeGeneratorPlugs {
         List<CodeVariableElement> result = new ArrayList<>();
         result.add(new CodeVariableElement(nodeType, "$bytecode"));
         result.add(new CodeVariableElement(context.getType(byte[].class), "$bc"));
-        result.add(new CodeVariableElement(rootNode.getBytecodIndexType(), "$bci"));
+        result.add(new CodeVariableElement(rootNode.getBytecodeIndexType(), "$bci"));
         return result;
     }
 
@@ -171,7 +171,7 @@ public class BytecodeDSLNodeGeneratorPlugs implements NodeGeneratorPlugs {
 
     public CodeTree bindExpressionValue(FrameState frameState, Variable variable) {
         String bci;
-        if (ElementUtils.typeEquals(rootNode.getBytecodIndexType(), context.getType(int.class))) {
+        if (ElementUtils.typeEquals(rootNode.getBytecodeIndexType(), context.getType(int.class))) {
             bci = "$bci";
         } else {
             bci = "(int) $bci";
@@ -220,7 +220,7 @@ public class BytecodeDSLNodeGeneratorPlugs implements NodeGeneratorPlugs {
         }
 
         method.addParameter(new CodeVariableElement(context.getType(byte[].class), "$bc"));
-        method.addParameter(new CodeVariableElement(rootNode.getBytecodIndexType(), "$bci"));
+        method.addParameter(new CodeVariableElement(rootNode.getBytecodeIndexType(), "$bci"));
 
         CodeTreeBuilder b = method.createBuilder();
         b.declaration(context.getType(short.class), "newInstruction");

@@ -67,7 +67,7 @@ final class InstructionImplElement extends AbstractElement {
         this.setSuperClass(types.Instruction);
 
         this.add(new CodeVariableElement(Set.of(FINAL), parent.abstractBytecodeNode.asType(), "bytecode"));
-        this.add(new CodeVariableElement(Set.of(FINAL), parent.getBytecodIndexType(), "bci"));
+        this.add(new CodeVariableElement(Set.of(FINAL), parent.getBytecodeIndexType(), "bci"));
         this.add(new CodeVariableElement(Set.of(FINAL), type(int.class), "opcode"));
         this.add(new CodeVariableElement(Set.of(FINAL), type(byte[].class), "bytecodes"));
         this.add(new CodeVariableElement(Set.of(FINAL), type(Object[].class), "constants"));

@@ -56,7 +56,7 @@ import com.oracle.truffle.dsl.processor.java.model.CodeVariableElement;
 
 final class CounterStateElement extends AbstractElement {
 
-    public static final String LOCAL_NAME = "lstate";
+    public static final String LOCAL_NAME = "cstate";
 
     CounterStateElement(BytecodeRootNodeElement parent) {
         super(parent, Set.of(PRIVATE, STATIC, FINAL), ElementKind.CLASS, null, "CounterState");

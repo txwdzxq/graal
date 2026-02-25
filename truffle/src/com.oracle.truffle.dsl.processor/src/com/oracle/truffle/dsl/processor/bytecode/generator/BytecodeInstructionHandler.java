@@ -111,7 +111,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
 
         if (handlerLayout.isTailCall()) {
             // tail call handlers need to all have the same layout
-            returnType = type(long.class);
+            returnType = parent.getBytecodeIndexType();
             earlyInline = true;
         } else {
             switch (handlerKind) {
@@ -123,7 +123,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
                 case BRANCH:
                 case BRANCH_FALSE:
                     earlyInline = true;
-                    returnType = (type(int.class));
+                    returnType = parent.getBytecodeIndexType();
                     break;
                 case BRANCH_BACKWARD:
                     earlyInline = true;
@@ -131,7 +131,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
                     returnType = type(Object.class);
                     break;
                 case NEXT:
-                    returnType = type(int.class);
+                    returnType = parent.getBytecodeIndexType();
                     break;
                 case SHORT_CIRCUIT_BOOLEAN:
                 case SHORT_CIRCUIT_VALUE:
@@ -629,9 +629,9 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
             method = parent.add(parent.createInstructionHandler(b.findMethod().getReturnType(), methodName));
             if (handlerLayout.isTailCall()) {
                 method.addParameter(new CodeVariableElement(parent.getStackPointerType(), "sp"));
+                method.removeParameters(CounterStateElement.LOCAL_NAME);
+                method.removeParameters(VirtualStateElement.LOCAL_NAME);
             }
-            method.removeParameters("cstate");
-            method.removeParameters(VirtualStateElement.LOCAL_NAME);
 
             String unexpectedResult = null;
             if (findSingleUnexpectedOperand() != null) {
@@ -710,7 +710,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
 
             if (getTier().isCached()) {
 
-                b.declaration(type(int.class), "counter", "cstate.incrementCounter()");
+                b.declaration(type(int.class), "counter", CounterStateElement.LOCAL_NAME + ".incrementCounter()");
 
                 b.startIf();
                 b.startStaticCall(types.CompilerDirectives, "injectBranchProbability");
@@ -770,11 +770,11 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
 
                 b.end(); // if pollOSRBackEdge
 
-                b.statement("cstate.resetCounter()");
+                b.statement(CounterStateElement.LOCAL_NAME, ".resetCounter()");
 
                 b.end(); // if counter >= REPORT_LOOP_STRIDE
                 b.startIf().startStaticCall(types.CompilerDirectives, "inCompiledCode").end().end().startBlock();
-                b.statement("cstate.counter = 0");
+                b.statement(CounterStateElement.LOCAL_NAME, ".counter = 0");
                 b.end();
 
                 b.end();
@@ -1714,7 +1714,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
             }
         } else {
             CodeTreeBuilder inner = CodeTreeBuilder.createBuilder();
-            parent.parent.emitCastBytecodeIndexToInt(inner);
+            parent.parent.emitCastStackPointerToInt(inner);
             inner.string("slot").string(" - ").string(BytecodeRootNodeElement.USER_LOCALS_START_INDEX);
             localIndex = inner.build();
         }
@@ -2457,7 +2457,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
     private void emitBeforeReturnProfilingHandler(CodeTreeBuilder b) {
         if (getTier().isCached()) {
             if (this.handlerLayout.isTailCall()) {
-                b.declaration(type(int.class), "counter", "cstate.getCounter()");
+                b.declaration(type(int.class), "counter", CounterStateElement.LOCAL_NAME + ".getCounter()");
                 b.startIf().string("counter > 0").end().startBlock();
                 b.startStatement().startStaticCall(types.LoopNode, "reportLoopCount");
                 b.string("this");
