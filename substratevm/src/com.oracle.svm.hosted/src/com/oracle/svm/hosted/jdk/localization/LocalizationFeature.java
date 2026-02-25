@@ -90,14 +90,13 @@ import sun.util.resources.ParallelListResourceBundle;
  * LocalizationFeature is the core class of SVM localization support. It contains all the options
  * that can be used to configure how localization in the resulting image should work. One can
  * specify what charsets, locales and resource bundles should be accessible. The runtime data for
- * localization is stored in an image singleton of type {@link LocalizationSupport} or one of its
- * subtypes.
+ * localization is stored in an image singleton of type {@link LocalizationSupport} or its subtype.
  *
  * In case of ResourceBundles, the approach relies on the original JVM implementation. This approach
  * is consistent by design, which solves compatibility issues and reduces maintenance overhead.
  * Unfortunately, the default way of storing bundle data in getContents methods, see
  * {@code sun.text.resources.FormatData} for example, is not very AOT friendly. Compiling these
- * methods is time consuming and results in a bloated image (183 MB HelloWorld with all locales).
+ * methods is time-consuming and results in a bloated image (183 MB HelloWorld with all locales).
  * Therefore, the bundle content itself is again stored in the image heap by default.
  *
  * @author d-kozak
@@ -158,13 +157,15 @@ public class LocalizationFeature implements InternalFeature {
         @Option(help = "Make all hosted locales available at run time.", type = OptionType.User)//
         public static final HostedOptionKey<Boolean> IncludeAllLocales = new HostedOptionKey<>(false);
 
-        @Option(help = "Optimize the resource bundle lookup using a simple map.", type = OptionType.User)//
+        @Option(help = "Optimize the resource bundle lookup using a simple map.", type = OptionType.User, //
+                        deprecated = true, deprecationMessage = "It no longer has any effect, and no replacement is available.")//
         public static final HostedOptionKey<Boolean> LocalizationOptimizedMode = new HostedOptionKey<>(false);
 
         @Option(help = "Store the resource bundle content more efficiently in the fallback mode.", type = OptionType.User)//
         public static final HostedOptionKey<Boolean> LocalizationSubstituteLoadLookup = new HostedOptionKey<>(true);
 
-        @Option(help = "Regular expressions matching which bundles should be compressed.", type = OptionType.User)//
+        @Option(help = "Regular expressions matching which bundles should be compressed.", type = OptionType.User, //
+                        deprecated = true, deprecationMessage = "It no longer has any effect, and no replacement is available.")//
         public static final HostedOptionKey<AccumulatingLocatableMultiOptionValue.Strings> LocalizationCompressBundles = new HostedOptionKey<>(AccumulatingLocatableMultiOptionValue.Strings.build());
 
         @Option(help = "Compress the bundles in parallel.", type = OptionType.Expert)//
@@ -180,7 +181,7 @@ public class LocalizationFeature implements InternalFeature {
      * and then set a field "c2bInitialized" or "b2cInitialized" to true. We run the initialization
      * eagerly by creating an encoder and decoder during image generation in
      * {@link LocalizationFeature#addCharset}. So we know that the "init*" methods do nothing, and
-     * we replace calls to them with nothing, i.e,, remove calls to them.
+     * we replace calls to them with nothing, i.e, remove calls to them.
      *
      * We could do all this with individual {@link Substitute method substitutions}, but it would
      * require a lot of substitution methods that all look the same.

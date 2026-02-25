@@ -42,7 +42,6 @@ import org.graalvm.nativeimage.Platforms;
 import com.oracle.svm.core.jdk.localization.bundles.DelayedBundle;
 import com.oracle.svm.core.jdk.localization.bundles.ExtractedBundle;
 import com.oracle.svm.core.jdk.localization.bundles.StoredBundle;
-import com.oracle.svm.core.jdk.localization.compression.BundleSerializationUtils;
 import com.oracle.svm.core.jdk.localization.substitutions.modes.SubstituteLoadLookup;
 import com.oracle.svm.shared.util.VMError;
 
