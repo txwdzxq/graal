@@ -22,10 +22,10 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.hosted;
+package com.oracle.svm.shared.singletons;
 
-import static com.oracle.svm.hosted.ImageSingletonsSupportImpl.HostedManagement.SINGLETON_INSTALLATION_FORBIDDEN;
-import static com.oracle.svm.hosted.ImageSingletonsSupportImpl.SingletonInfo.FORBIDDEN_SINGLETON_INFO_EMPTY_TRAITS;
+import static com.oracle.svm.shared.singletons.ImageSingletonsSupportImpl.HostedManagement.SINGLETON_INSTALLATION_FORBIDDEN;
+import static com.oracle.svm.shared.singletons.ImageSingletonsSupportImpl.SingletonInfo.FORBIDDEN_SINGLETON_INFO_EMPTY_TRAITS;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -47,11 +47,7 @@ import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.impl.AnnotationExtractor;
 import org.graalvm.nativeimage.impl.ImageSingletonsSupport;
 
-import com.oracle.svm.core.layeredimagesingleton.LayeredImageSingletonSupport;
-import com.oracle.svm.core.util.ConcurrentIdentityHashMap;
-import com.oracle.svm.core.util.UserError;
-import com.oracle.svm.shared.singletons.LayeredPersistFlags;
-import com.oracle.svm.shared.singletons.SingletonAccessFlags;
+import com.oracle.svm.shared.collections.ConcurrentIdentityHashMap;
 import com.oracle.svm.shared.singletons.traits.AccessSingletonTrait;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
@@ -67,10 +63,8 @@ import com.oracle.svm.shared.singletons.traits.SingletonTrait;
 import com.oracle.svm.shared.singletons.traits.SingletonTraitKind;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.singletons.traits.SingletonTraitsSupplier;
-import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.shared.util.ReflectionUtil;
-
-import jdk.graal.compiler.debug.Assertions;
+import com.oracle.svm.shared.util.VMError;
 
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
 public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport implements LayeredImageSingletonSupport {
@@ -197,7 +191,7 @@ public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport imp
             assert !sealed : "cannot add further traits";
             SingletonTraitKind key = value.kind();
             var prev = traitMap.put(key, value);
-            assert prev == null : Assertions.errorMessage(key, value, prev);
+            assert prev == null : "Trying to associate new value " + value + " to trait kind " + key + " with existing value " + prev;
         }
 
         public boolean isEmpty() {
@@ -308,7 +302,7 @@ public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport imp
         }
 
         public static void install(HostedManagement vmConfig) {
-            UserError.guarantee(singletonDuringImageBuild == null, "Only one native image build can run at a time");
+            Invariants.guarantee(singletonDuringImageBuild == null, "Only one native image build can run at a time");
             singletonDuringImageBuild = vmConfig;
             // Now the singleton registry is installed and ImageSingletons.add() can be invoked.
         }
@@ -320,7 +314,7 @@ public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport imp
          *            all the keys they should be mapped to.
          * @return all keys for which a singleton was installed.
          */
-        EconomicSet<Class<?>> installSingletons(Map<Object, EconomicSet<Class<?>>> singletons) {
+        public EconomicSet<Class<?>> installSingletons(Map<Object, EconomicSet<Class<?>>> singletons) {
             EconomicSet<Class<?>> installedKeys = EconomicSet.create();
             for (var entry : singletons.entrySet()) {
                 Object singletonToInstall = entry.getKey();
@@ -418,7 +412,7 @@ public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport imp
         private void addSingletonToMap(Class<?> key, Object value, SingletonTraitMap traitMap) {
             checkKey(key);
             if (value == null) {
-                throw UserError.abort("ImageSingletons do not allow null value for key %s", key.getTypeName());
+                throw Invariants.abort("ImageSingletons do not allow null value for key %s", key.getTypeName());
             }
 
             var installationTrait = traitMap.getTrait(LayeredInstallationKindSingletonTrait.class);
@@ -445,7 +439,7 @@ public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport imp
             }
 
             Object prevValue = configObjects.putIfAbsent(key, singletonInfo);
-            UserError.guarantee(prevValue == null, "ImageSingletons.add must not overwrite existing key %s%nExisting value: %s%nNew value: %s", key.getTypeName(), prevValue, value);
+            Invariants.guarantee(prevValue == null, "ImageSingletons.add must not overwrite existing key %s%nExisting value: %s%nNew value: %s", key.getTypeName(), prevValue, value);
         }
 
         private static boolean filterOnKind(SingletonInfo singletonInfo, SingletonLayeredInstallationKind kind) {
@@ -486,27 +480,27 @@ public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport imp
                                 .map(c -> c.getClassLoader().getName() + "/" + c.getTypeName())//
                                 .toList();
                 if (others.isEmpty()) {
-                    throw UserError.abort("ImageSingletons do not contain key %s", key.getTypeName());
+                    throw Invariants.abort("ImageSingletons do not contain key %s", key.getTypeName());
                 }
-                throw UserError.abort("ImageSingletons do not contain key %s/%s but does contain the following key(s): %s",
+                throw Invariants.abort("ImageSingletons do not contain key %s/%s but does contain the following key(s): %s",
                                 key.getClassLoader().getName(), key.getTypeName(),
                                 String.join(", ", others));
             }
             boolean allowedAccess = buildtimeAccess ? info.buildtimeAccessAllowed : info.runtimeAccessAllowed;
             if (!allowedAccess) {
-                throw UserError.abort("Singleton cannot be accessed. Key: %s, Access type: %s", key.getTypeName(), buildtimeAccess ? "BUILD_TIME" : "RUN_TIME");
+                throw Invariants.abort("Singleton cannot be accessed. Key: %s, Access type: %s", key.getTypeName(), buildtimeAccess ? "BUILD_TIME" : "RUN_TIME");
             }
 
             VMError.guarantee(info.singleton() != null);
             Object singleton = info.singleton();
             if (singleton == SINGLETON_INSTALLATION_FORBIDDEN) {
-                throw UserError.abort("Singleton is forbidden in current layer. Key: %s", key.getTypeName());
+                throw Invariants.abort("Singleton is forbidden in current layer. Key: %s", key.getTypeName());
             }
             if (!allowMultiLayered) {
                 Optional<LayeredInstallationKindSingletonTrait> trait = info.traitMap().getTrait(LayeredInstallationKindSingletonTrait.class);
                 trait.ifPresent(t -> {
                     if (t.metadata() == SingletonLayeredInstallationKind.MULTI_LAYER) {
-                        throw UserError.abort("Forbidden lookup of MultiLayeredImageSingleton. Use LayeredImageSingletonSupport.lookup if really necessary. Key: %s, object %s", key, singleton);
+                        throw Invariants.abort("Forbidden lookup of MultiLayeredImageSingleton. Use LayeredImageSingletonSupport.lookup if really necessary. Key: %s, object %s", key, singleton);
                     }
                 });
             }
@@ -521,7 +515,7 @@ public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport imp
 
         private static void checkKey(Class<?> key) {
             if (key == null) {
-                throw UserError.abort("ImageSingletons do not allow null keys");
+                throw Invariants.abort("ImageSingletons do not allow null keys");
             }
         }
 

@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.util;
+package com.oracle.svm.shared.collections;
 
 import java.util.AbstractMap.SimpleEntry;
 import java.util.AbstractSet;
