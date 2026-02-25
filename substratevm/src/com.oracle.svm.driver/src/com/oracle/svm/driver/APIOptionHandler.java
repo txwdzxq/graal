@@ -63,12 +63,11 @@ import com.oracle.svm.driver.APIOptionHandler.HostedOptionInfo;
 import com.oracle.svm.driver.NativeImage.ArgumentQueue;
 import com.oracle.svm.hosted.FeatureImpl;
 import com.oracle.svm.hosted.option.HostedOptionParser;
-import com.oracle.svm.shared.util.ModuleSupport;
+import com.oracle.svm.shared.util.ReflectionUtil;
+import com.oracle.svm.shared.util.ReflectionUtil.ReflectionUtilError;
 import com.oracle.svm.shared.util.StringUtil;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.LogUtils;
-import com.oracle.svm.shared.util.ReflectionUtil;
-import com.oracle.svm.shared.util.ReflectionUtil.ReflectionUtilError;
 
 import jdk.graal.compiler.options.OptionDescriptor;
 import jdk.graal.compiler.options.OptionDescriptors;
@@ -714,12 +713,6 @@ record APIOptionSupport(Map<String, GroupInfo> groupInfos, SortedMap<String, API
 }
 
 final class APIOptionFeature implements Feature {
-
-    @Override
-    public void afterRegistration(AfterRegistrationAccess access) {
-        ModuleSupport.accessPackagesToClass(ModuleSupport.Access.EXPORT, APIOptionFeature.class, true,
-                        "jdk.graal.compiler", "jdk.graal.compiler.options");
-    }
 
     @Override
     public void duringSetup(DuringSetupAccess access) {

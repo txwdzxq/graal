@@ -24,8 +24,6 @@
  */
 package jdk.graal.compiler.options;
 
-import jdk.graal.compiler.core.common.LibGraalSupport;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ServiceLoader;

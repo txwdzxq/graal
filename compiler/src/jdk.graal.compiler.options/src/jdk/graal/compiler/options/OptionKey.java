@@ -139,7 +139,7 @@ public class OptionKey<T> {
 
     /**
      * Returns true if the option has been set in any way. Note that this doesn't mean that the
-     * current value is different than the default.
+     * current value is different from the default.
      */
     public boolean hasBeenSet(OptionValues values) {
         return values.containsKey(this);
@@ -195,9 +195,9 @@ public class OptionKey<T> {
      * Notifies this object when a value associated with this key is set or updated in
      * {@code values}.
      *
-     * @param values
-     * @param oldValue
-     * @param newValue
+     * @param values map of option values that just received an update for this key
+     * @param oldValue the previous value stored for this key (or {@code null} if none)
+     * @param newValue the new value that was just stored for this key
      */
     protected void onValueUpdate(EconomicMap<OptionKey<?>, Object> values, T oldValue, T newValue) {
     }

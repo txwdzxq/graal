@@ -111,7 +111,6 @@ import com.oracle.svm.util.OriginalClassProvider;
 import com.oracle.svm.util.dynamicaccess.JVMCIRuntimeReflection;
 
 import jdk.graal.compiler.core.common.CompressEncoding;
-import jdk.graal.compiler.core.common.LibGraalSupport;
 import jdk.graal.compiler.core.common.NativeImageSupport;
 import jdk.graal.compiler.core.common.type.AbstractObjectStamp;
 import jdk.graal.compiler.core.common.type.IntegerStamp;
@@ -157,6 +156,7 @@ import jdk.graal.compiler.nodes.virtual.AllocatedObjectNode;
 import jdk.graal.compiler.nodes.virtual.CommitAllocationNode;
 import jdk.graal.compiler.nodes.virtual.VirtualArrayNode;
 import jdk.graal.compiler.nodes.virtual.VirtualObjectNode;
+import jdk.graal.compiler.options.LibGraalSupport;
 import jdk.graal.compiler.options.Option;
 import jdk.graal.compiler.replacements.StandardGraphBuilderPlugins;
 import jdk.graal.compiler.replacements.StandardGraphBuilderPlugins.AllocateUninitializedArrayPlugin;

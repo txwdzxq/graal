@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,9 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package jdk.graal.compiler.core.common;
-
-import org.graalvm.collections.EconomicMap;
+package jdk.graal.compiler.options;
 
 import java.io.IOException;
 import java.io.PrintStream;
@@ -37,6 +35,8 @@ import java.lang.ref.ReferenceQueue;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.function.Supplier;
+
+import org.graalvm.collections.EconomicMap;
 
 /**
  * Service provider interface (SPI) defining support needed by libgraal. Using an SPI instead of
@@ -160,12 +160,10 @@ public interface LibGraalSupport {
     void initialize();
 
     /**
-     * Performs libgraal specific logic when shutting down Graal.
-     *
-     * @param callbackClassName class name derived from
-     *            {@link jdk.graal.compiler.hotspot.HotSpotGraalCompiler.Options#OnShutdownCallback}
-     * @param callbackMethodName method name derived from
-     *            {@link jdk.graal.compiler.hotspot.HotSpotGraalCompiler.Options#OnShutdownCallback}
+     * Performs libgraal specific logic when shutting down Graal. If {@code callbackClassName} are
+     * {@code callbackMethodName} are both non-null, then
+     * {@code void <callbackClassName>.<callbackMethodName>()} is looked up in HotSpot and invoked
+     * before performing any other actions.
      */
     void shutdown(String callbackClassName, String callbackMethodName);
 
@@ -196,8 +194,17 @@ public interface LibGraalSupport {
                 // and is thus it must have a null LibGraalSupport instance.
                 return null;
             }
-            try (var ignored = new ContextClassLoaderScope(LibGraalSupport.class.getClassLoader())) {
+
+            ClassLoader cl = LibGraalSupport.class.getClassLoader();
+            Thread thread = Thread.currentThread();
+            ClassLoader previous = thread.getContextClassLoader();
+            try {
+                thread.setContextClassLoader(cl);
                 return ServiceLoader.load(LibGraalSupport.class).findFirst().orElseThrow(() -> new RuntimeException("No provider of " + LibGraalSupport.class.getName() + " service available"));
+            } finally {
+                if (previous != null) {
+                    thread.setContextClassLoader(previous);
+                }
             }
         }
     }

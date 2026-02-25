@@ -225,9 +225,9 @@ public class CommonOptionParser {
 
         if (desc == null) {
             List<OptionDescriptor> matches = new ArrayList<>();
-            OptionsParser.collectFuzzyMatches(options.getValues(), optionName, matches);
+            boolean foundMatches = OptionsParser.collectFuzzyMatches(options.getValues(), optionName, matches);
             StringBuilder msg = new StringBuilder("Could not find option ").append(current);
-            if (!matches.isEmpty()) {
+            if (foundMatches) {
                 msg.append(". Did you mean one of these:");
                 for (OptionDescriptor match : matches) {
                     msg.append(' ').append(match.getName());
