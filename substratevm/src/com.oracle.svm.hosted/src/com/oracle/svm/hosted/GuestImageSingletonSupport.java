@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,26 +22,28 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
+package com.oracle.svm.hosted;
 
-package com.oracle.svm.core.dcmd;
+import com.oracle.svm.shared.util.VMError;
+import com.oracle.svm.util.GuestAccess;
 
-import org.graalvm.nativeimage.Platform;
-import org.graalvm.nativeimage.Platforms;
+import jdk.vm.ci.meta.JavaConstant;
+import jdk.vm.ci.meta.ResolvedJavaType;
 
-import com.oracle.svm.core.heap.GCCause;
-import com.oracle.svm.core.heap.Heap;
-import com.oracle.svm.shared.util.BasedOnJDKFile;
+/**
+ * Helper class for registering image singletons in the guest.
+ */
+public class GuestImageSingletonSupport {
 
-@BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-24+18/src/hotspot/share/services/diagnosticCommand.hpp#L251-L262")
-public class GCRunDCmd extends AbstractDCmd {
-    @Platforms(Platform.HOSTED_ONLY.class)
-    public GCRunDCmd() {
-        super("GC.run", "Call java.lang.System.gc().", Impact.High);
+    public static void add(Class<?> key, JavaConstant value) {
+        GuestAccess access = GuestAccess.get();
+        add(access.getProviders().getMetaAccess().lookupJavaType(key), value);
     }
 
-    @Override
-    public String execute(DCmdArguments args) throws Throwable {
-        Heap.getHeap().getGC().collect(GCCause.DiagnosticCommand);
-        return null;
+    public static void add(ResolvedJavaType key, JavaConstant value) {
+        GuestAccess access = GuestAccess.get();
+        VMError.guarantee(access.owns(key));
+        JavaConstant keyConstant = access.getProviders().getConstantReflection().asJavaClass(key);
+        access.invoke(access.elements.ImageSingletons_add, null, keyConstant, value);
     }
 }

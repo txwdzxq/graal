@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.util;
+package com.oracle.svm.shared.util;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Repeatable;
@@ -35,10 +35,9 @@ import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
 import com.oracle.svm.core.annotate.TargetClass;
-import com.oracle.svm.core.monitor.JavaMonitor;
 
 /**
- * Documents that a class is based on JDK source code. For example, {@link JavaMonitor} (which is
+ * Documents that a class is based on JDK source code. For example, {@code JavaMonitor} (which is
  * used to implement "synchronized" in Native Image) is a simplified and customized version of the
  * JDK class {@link java.util.concurrent.locks.ReentrantLock}.
  *

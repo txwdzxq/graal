@@ -53,8 +53,8 @@ import com.oracle.svm.hosted.c.info.SizableInfo;
 import com.oracle.svm.hosted.c.info.SizableInfo.ElementKind;
 import com.oracle.svm.hosted.c.info.StructBitfieldInfo;
 import com.oracle.svm.hosted.c.info.StructFieldInfo;
+import com.oracle.svm.shared.util.ClassUtil;
 import com.oracle.svm.util.AnnotationUtil;
-import com.oracle.svm.util.ClassUtil;
 
 import jdk.graal.compiler.core.common.NumUtil;
 import jdk.graal.compiler.options.Option;

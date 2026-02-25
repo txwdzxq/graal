@@ -56,8 +56,8 @@ import com.oracle.svm.core.option.HostedOptionKey;
 import com.oracle.svm.core.option.SubstrateOptionsParser;
 import com.oracle.svm.core.reflect.serialize.SerializationSupport;
 import com.oracle.svm.core.util.ImageHeapMap;
+import com.oracle.svm.shared.util.ClassUtil;
 import com.oracle.svm.shared.util.VMError;
-import com.oracle.svm.util.ClassUtil;
 
 import jdk.graal.compiler.api.replacements.Fold;
 import jdk.graal.compiler.java.LambdaUtils;

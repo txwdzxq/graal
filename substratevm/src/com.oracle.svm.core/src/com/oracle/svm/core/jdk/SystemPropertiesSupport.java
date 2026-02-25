@@ -144,7 +144,7 @@ public abstract class SystemPropertiesSupport implements RuntimeSystemProperties
         initializeProperty("java.class.path", "");
         initializeProperty("jdk.module.path", "");
 
-        initializeProperty("sun.arch.data.model", Integer.toString(ConfigurationValues.getTarget().wordJavaKind.getBitCount()));
+        initializeProperty("sun.arch.data.model", Integer.toString(ConfigurationValues.getWordKind().getBitCount()));
 
         ArrayList<LazySystemProperty> lazyProperties = new ArrayList<>();
         lazyProperties.add(new LazySystemProperty(UserSystemProperty.NAME, this::userNameValue));

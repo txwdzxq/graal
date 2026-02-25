@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -179,6 +180,7 @@ import com.oracle.svm.core.util.LayeredHostedImageHeapMapCollector;
 import com.oracle.svm.core.util.LayeredImageHeapMapStore;
 import com.oracle.svm.core.util.ObservableImageHeapMapProvider;
 import com.oracle.svm.core.util.UserError;
+import com.oracle.svm.guest.staging.config.GuestConfigurationValues;
 import com.oracle.svm.hosted.BuildArtifactsExporter.BuildArtifactsImpl;
 import com.oracle.svm.hosted.FeatureImpl.AfterAnalysisAccessImpl;
 import com.oracle.svm.hosted.FeatureImpl.AfterCompilationAccessImpl;
@@ -268,14 +270,15 @@ import com.oracle.svm.hosted.substitute.SubstitutionInvocationPlugins;
 import com.oracle.svm.hosted.util.CPUTypeAArch64;
 import com.oracle.svm.hosted.util.CPUTypeAMD64;
 import com.oracle.svm.hosted.util.CPUTypeRISCV64;
+import com.oracle.svm.shared.util.ClassUtil;
 import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.ReflectionUtil.ReflectionUtilError;
 import com.oracle.svm.shared.util.StringUtil;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.AnnotationUtil;
-import com.oracle.svm.util.ClassUtil;
 import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.util.ImageBuildStatistics;
+import com.oracle.svm.util.JVMCIReflectionUtil;
 
 import jdk.graal.compiler.api.replacements.Fold;
 import jdk.graal.compiler.api.replacements.SnippetReflectionProvider;
@@ -334,6 +337,7 @@ import jdk.vm.ci.code.CodeCacheProvider;
 import jdk.vm.ci.code.TargetDescription;
 import jdk.vm.ci.meta.Constant;
 import jdk.vm.ci.meta.ConstantReflectionProvider;
+import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.JavaKind;
 import jdk.vm.ci.meta.MetaAccessProvider;
 import jdk.vm.ci.meta.ResolvedJavaField;
@@ -1001,6 +1005,7 @@ public class NativeImageGenerator {
                 SubstrateTargetDescription target = createTarget();
                 ImageSingletons.add(Platform.class, loader.platform);
                 ImageSingletons.add(SubstrateTargetDescription.class, target);
+                setupGuestImageSingletons(target);
 
                 ImageSingletons.add(SubstrateOptions.ReportingSupport.class, new SubstrateOptions.ReportingSupport(
                                 DiagnosticsMode.getValue() ? DiagnosticsDir.getValue().lastValue().get() : Path.of("reports")));
@@ -1202,6 +1207,28 @@ public class NativeImageGenerator {
 
             ProgressReporter.singleton().printInitializeEnd(filterOutInternalUserFeatures(featureHandler.getUserSpecificFeatures()), loader);
         }
+    }
+
+    private static JavaConstant fromEnum(Enum<?> kind) {
+        GuestAccess access = GuestAccess.get();
+        ResolvedJavaType enumType = access.getProviders().getMetaAccess().lookupJavaType(kind.getDeclaringClass());
+        JavaConstant enumName = access.getProviders().getSnippetReflection().forObject(kind.name());
+        ResolvedJavaMethod valueOf = JVMCIReflectionUtil.getUniqueDeclaredMethod(access.getProviders().getMetaAccess(), enumType, "valueOf", String.class);
+        JavaKind.valueOf(kind.name());
+        return access.invoke(valueOf, null, enumName);
+    }
+
+    private static void setupGuestImageSingletons(SubstrateTargetDescription target) {
+        // Setup GuestConfigurationValues
+        GuestAccess access = GuestAccess.get();
+        ResolvedJavaMethod ctor = JVMCIReflectionUtil.getDeclaredConstructor(access.getProviders().getMetaAccess(), GuestConfigurationValues.class, JavaKind.class, int.class, ByteOrder.class);
+
+        JavaConstant wordKind = fromEnum(target.wordJavaKind);
+        JavaConstant wordSize = JavaConstant.forInt(target.wordSize);
+        JavaConstant byteOrder = JVMCIReflectionUtil.readStaticField(access.elements.java_nio_ByteOrder, target.arch.getByteOrder().toString());
+        JavaConstant guestConfigurationValues = access.invoke(ctor, null, wordKind, wordSize, byteOrder);
+
+        GuestImageSingletonSupport.add(GuestConfigurationValues.class, guestConfigurationValues);
     }
 
     /**
