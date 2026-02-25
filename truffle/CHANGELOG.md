@@ -77,6 +77,7 @@ This changelog summarizes major changes between Truffle versions relevant to lan
 * GR-71311: `TruffleString.FromNativePointerNode` and `MutableTruffleString.FromNativePointerNode` now also accept boxed long values in place of their native pointer parameters.
 * GR-44312: Added `TruffleString.FromByteArrayWithCompactionUTF32Node` and `TruffleString.FromNativePointerWithCompactionUTF32Node`, to allow creation of UTF-32 strings from existing compacted strings.
 * GR-73519: `InteropLibrary#getExceptionCause` may return an interop null object if the exception supports a cause but the cause itself is `null`.
+* GR-44465: Added `TruffleString.FromZeroTerminatedNativePointerNode` to support creating TruffleStrings from zero-terminated native buffers.
 
 ## Version 25.0
 * GR-31495 Added ability to specify language and instrument specific options using `Source.Builder.option(String, String)`. Languages may describe available source options by implementing `TruffleLanguage.getSourceOptionDescriptors()` and `TruffleInstrument.getSourceOptionDescriptors()` respectively.
