@@ -285,6 +285,7 @@ public final class TruffleBaseFeature implements InternalFeature {
      * Contains tuples of (handlerMethod, handlerStub) but also (callerMethod, defaultHandlerStub).
      */
     private final EconomicMap<ResolvedJavaMethod, ResolvedJavaMethod> registeredBytecodeHandlers = EconomicMap.create();
+    private EconomicSet<ResolvedJavaMethod> bytecodeHandlers;
 
     private static void initializeTruffleReflectively(ClassLoader imageClassLoader) {
         invokeStaticMethod("com.oracle.truffle.api.impl.Accessor", "getTVMCI", Collections.emptyList());
@@ -685,6 +686,13 @@ public final class TruffleBaseFeature implements InternalFeature {
         plugins.appendNodePlugin(new TruffleBytecodeHandlerInvokePlugin(registeredBytecodeHandlers, stubHelper, TruffleInterpreterTailCallThreading.getValue()));
     }
 
+    public boolean isBytecodeHandler(ResolvedJavaMethod method) {
+        if (bytecodeHandlers == null) {
+            throw new IllegalStateException("Bytecode handlers not yet initialized");
+        }
+        return bytecodeHandlers.contains(method);
+    }
+
     @Override
     public void beforeAnalysis(BeforeAnalysisAccess access) {
         if (needsAllEncodings) {
@@ -771,6 +779,7 @@ public final class TruffleBaseFeature implements InternalFeature {
     @Override
     public void afterAnalysis(AfterAnalysisAccess access) {
         markAsUnsafeAccessed = null;
+        this.bytecodeHandlers = EconomicSet.create();
 
         if (TruffleInterpreterTailCallThreading.getValue()) {
             AfterAnalysisAccessImpl config = (AfterAnalysisAccessImpl) access;
@@ -778,6 +787,8 @@ public final class TruffleBaseFeature implements InternalFeature {
             for (MethodPointer[] handlers : stubHelper.getAllBytecodeHandlers()) {
                 config.rescanObject(handlers, scanReason);
             }
+
+            this.bytecodeHandlers.addAll(registeredBytecodeHandlers.getValues());
         }
     }
 

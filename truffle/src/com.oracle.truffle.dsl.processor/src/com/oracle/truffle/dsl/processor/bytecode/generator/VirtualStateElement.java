@@ -50,14 +50,19 @@ import javax.lang.model.element.ElementKind;
 
 import com.oracle.truffle.dsl.processor.generator.GeneratorUtils;
 import com.oracle.truffle.dsl.processor.java.model.CodeAnnotationMirror;
+import com.oracle.truffle.dsl.processor.java.model.CodeExecutableElement;
 import com.oracle.truffle.dsl.processor.java.model.CodeVariableElement;
 
-final class StackPointerElement extends AbstractElement {
+final class VirtualStateElement extends AbstractElement {
 
-    StackPointerElement(BytecodeRootNodeElement parent) {
-        super(parent, Set.of(PRIVATE, STATIC, FINAL), ElementKind.CLASS, null, "StackPointer");
+    public static final String LOCAL_NAME = "vstate";
+
+    VirtualStateElement(BytecodeRootNodeElement parent) {
+        super(parent, Set.of(PRIVATE, STATIC, FINAL), ElementKind.CLASS, null, "VirtualState");
         this.addAnnotationMirror(new CodeAnnotationMirror(types.CompilerDirectives_ValueType));
-        this.add(new CodeVariableElement(Set.of(PRIVATE), type(int.class), "value"));
-        this.add(GeneratorUtils.createConstructorUsingFields(Set.of(), this));
+        this.add(new CodeVariableElement(Set.of(PRIVATE), parent.getStackPointerType(), "sp"));
+        CodeExecutableElement m = this.add(GeneratorUtils.createConstructorUsingFields(Set.of(), this));
+        m.addAnnotationMirror(new CodeAnnotationMirror(types.CompilerDirectives_EarlyInline));
     }
+
 }
