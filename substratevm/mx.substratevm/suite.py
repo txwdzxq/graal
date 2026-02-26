@@ -2755,6 +2755,7 @@ suite = {
                 "builder/clibraries/" : ["extracted-dependency:substratevm:SVM_HOSTED_NATIVE"],
                 "builder/lib/" : ["dependency:com.oracle.svm.native.reporterchelper"],
                 "schemas/reachability-metadata-schema.json" : ["file:schemas/reachability-metadata-schema-v1.2.0.json"],
+                "skills/" : ["file:skills/*"],
                 # Note: `ld64.lld` is a symlink to `lld`, but it is dereferenced here.
                 "bin/" : ["extracted-dependency:LLVM_LLD_STANDALONE/bin/ld64.lld"],
             },
