@@ -46,7 +46,6 @@ import com.oracle.svm.hosted.NativeImageGeneratorRunner;
 import com.oracle.svm.hosted.ProgressReporter;
 import com.oracle.svm.hosted.c.CAnnotationProcessorCache;
 import com.oracle.svm.hosted.image.AbstractImage;
-import com.oracle.svm.hosted.jdk.localization.LocalizationFeature;
 import com.oracle.svm.hosted.option.HostedOptionParser;
 import com.oracle.svm.hosted.webimage.logging.visualization.VisualizationSupport;
 import com.oracle.svm.hosted.webimage.name.WebImageNamingConvention;
@@ -137,18 +136,6 @@ public class NativeImageWasmGeneratorRunner extends NativeImageGeneratorRunner {
         optionProvider.getHostedValues().put(CAnnotationProcessorCache.Options.UseCAPCache, false);
 
         optionProvider.getHostedValues().put(SubstrateOptions.CompilerBackend, "webImage");
-        /**
-         * SVM provides two approaches of localization support:
-         *
-         * {@link com.oracle.svm.core.jdk.localization.OptimizedLocalizationSupport} and
-         * {@link com.oracle.svm.core.jdk.localization.BundleContentSubstitutedLocalizationSupport}
-         *
-         * The latter depends on GZIPInputStream, which is not supported by Web Image Therefore, we
-         * always use the first one.
-         *
-         * @see LocalizationFeature
-         */
-        optionProvider.getHostedValues().put(LocalizationFeature.Options.LocalizationOptimizedMode, true);
 
         // reduce image size
         optionProvider.getHostedValues().put(SubstrateOptions.IncludeMethodData, false);

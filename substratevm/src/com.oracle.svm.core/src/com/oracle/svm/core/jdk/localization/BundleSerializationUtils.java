@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.jdk.localization.compression.utils;
+package com.oracle.svm.core.jdk.localization;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,9 +33,8 @@ import java.util.ResourceBundle;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
-import com.oracle.svm.core.jdk.localization.BundleContentSubstitutedLocalizationSupport;
-import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.shared.util.ReflectionUtil;
+import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.debug.GraalError;
 

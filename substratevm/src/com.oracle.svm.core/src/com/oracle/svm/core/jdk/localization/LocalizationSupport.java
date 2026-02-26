@@ -58,10 +58,9 @@ import com.oracle.svm.core.configure.RuntimeDynamicAccessMetadata;
 import com.oracle.svm.core.jdk.Resources;
 import com.oracle.svm.core.metadata.MetadataTracer;
 import com.oracle.svm.core.util.ImageHeapMap;
-import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.shared.util.ReflectionUtil;
+import com.oracle.svm.shared.util.VMError;
 
-import jdk.graal.compiler.debug.GraalError;
 import sun.util.locale.provider.LocaleProviderAdapter;
 import sun.util.locale.provider.ResourceBundleBasedAdapter;
 import sun.util.resources.Bundles;
@@ -94,21 +93,8 @@ public class LocalizationSupport {
         this.supportedLanguageTags = getLanguageTags(locales);
     }
 
-    public boolean optimizedMode() {
-        return false;
-    }
-
-    public boolean jvmMode() {
-        return !optimizedMode();
-    }
-
     public boolean substituteLoadLookup() {
         return false;
-    }
-
-    public OptimizedLocalizationSupport asOptimizedSupport() {
-        GraalError.guarantee(optimizedMode(), "Optimized support only available in optimized localization mode.");
-        return ((OptimizedLocalizationSupport) this);
     }
 
     public Map<String, Object> getBundleContentOf(Object bundle) {
