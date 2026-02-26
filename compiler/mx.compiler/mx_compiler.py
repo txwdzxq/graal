@@ -1539,6 +1539,7 @@ def _graal_config():
 # The jars needed for jargraal.
 def _jvmci_jars():
     return [
+        'compiler:GRAAL_OPTIONS',
         'compiler:GRAAL',
         'compiler:GRAAL_MANAGEMENT',
     ]

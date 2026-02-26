@@ -25,8 +25,7 @@
 package jdk.graal.compiler.options;
 
 /**
- * Classifies Graal options in several categories depending on who this option is relevant for.
- *
+ * Classifies options in categories describing for whom an option is relevant.
  */
 public enum OptionType {
     /**

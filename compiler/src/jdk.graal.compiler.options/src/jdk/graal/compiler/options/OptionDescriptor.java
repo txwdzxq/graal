@@ -24,10 +24,6 @@
  */
 package jdk.graal.compiler.options;
 
-import jdk.graal.compiler.core.common.LibGraalSupport;
-import jdk.graal.compiler.debug.GraalError;
-import jdk.graal.compiler.serviceprovider.GraalServices;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
@@ -248,7 +244,7 @@ public final class OptionDescriptor {
     /**
      * Object used to compress help strings in a libgraal image.
      */
-    static final Strings COMPRESSED_HELP = LibGraalSupport.INSTANCE != null && Boolean.parseBoolean(GraalServices.getSavedProperty(COMPRESS_PROP, "true")) ? new Strings() : null;
+    static final Strings COMPRESSED_HELP = LibGraalSupport.INSTANCE != null && Boolean.parseBoolean(System.getProperty(COMPRESS_PROP, "true")) ? new Strings() : null;
 
     /**
      * Compresses all the help strings going into the libgraal image. This must be called exactly
@@ -292,7 +288,7 @@ public final class OptionDescriptor {
          */
         @LibGraalSupport.HostedOnly
         synchronized Integer add(String s) {
-            GraalError.guarantee(compressed.length == 0, "already sealed");
+            guarantee(compressed.length == 0, "already sealed");
             return pool.computeIfAbsent(s, k -> pool.size());
         }
 
@@ -303,7 +299,7 @@ public final class OptionDescriptor {
         @LibGraalSupport.HostedOnly
         void register(OptionDescriptors d) {
             for (var desc : d) {
-                GraalError.guarantee(desc != null, "%s", d.getClass());
+                guarantee(desc != null, "%s", d.getClass());
             }
         }
 
@@ -312,7 +308,7 @@ public final class OptionDescriptor {
          */
         @LibGraalSupport.HostedOnly
         synchronized void seal() {
-            GraalError.guarantee(compressed.length == 0, "already sealed");
+            guarantee(compressed.length == 0, "already sealed");
 
             // Write all strings to a byte array first and then feed the whole array to
             // a gzip stream as compression improves when there is more data to analyze.
@@ -323,14 +319,14 @@ public final class OptionDescriptor {
                     int id = 0;
                     for (var e : pool.entrySet()) {
                         Integer index = e.getValue();
-                        GraalError.guarantee(index == id, "%s != %d", index, id);
+                        guarantee(index == id, "%s != %d", index, id);
                         dos.writeUTF(e.getKey());
                         id++;
                     }
                 }
                 uncompressed = baos.toByteArray();
             } catch (IOException e) {
-                throw new GraalError(e);
+                throw new InternalError(e);
             }
 
             try (ByteArrayOutputStream baos = new ByteArrayOutputStream(uncompressed.length)) {
@@ -339,7 +335,7 @@ public final class OptionDescriptor {
                 }
                 compressed = baos.toByteArray();
             } catch (IOException e) {
-                throw new GraalError(e);
+                throw new InternalError(e);
             }
         }
 
@@ -347,7 +343,7 @@ public final class OptionDescriptor {
             if (values == null) {
                 synchronized (this) {
                     if (values == null) {
-                        GraalError.guarantee(compressed.length != 0, "No compressed strings available");
+                        guarantee(compressed.length != 0, "No compressed strings available");
                         String[] result;
                         try (DataInputStream dis = new DataInputStream(new GZIPInputStream(new ByteArrayInputStream(compressed)))) {
                             int length = dis.readInt();
@@ -356,7 +352,7 @@ public final class OptionDescriptor {
                                 result[i] = dis.readUTF();
                             }
                         } catch (IOException e) {
-                            throw new GraalError(e);
+                            throw new InternalError(e);
                         }
                         values = result;
 
@@ -379,6 +375,12 @@ public final class OptionDescriptor {
                 }
             }
             throw new NoSuchElementException("unknown string id: " + id);
+        }
+    }
+
+    static void guarantee(boolean condition, String format, Object... args) {
+        if (!condition) {
+            throw new InternalError(format.formatted(args));
         }
     }
 }

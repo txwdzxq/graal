@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-import jdk.graal.compiler.debug.GraalError;
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.Equivalence;
 import org.graalvm.collections.UnmodifiableEconomicMap;
@@ -139,12 +138,7 @@ public class OptionValues {
     }
 
     public static String toString(UnmodifiableEconomicMap<OptionKey<?>, Object> values) {
-        Comparator<OptionKey<?>> comparator = new Comparator<>() {
-            @Override
-            public int compare(OptionKey<?> o1, OptionKey<?> o2) {
-                return o1.getName().compareTo(o2.getName());
-            }
-        };
+        Comparator<OptionKey<?>> comparator = Comparator.comparing(OptionKey::getName);
         SortedMap<OptionKey<?>, Object> sorted = new TreeMap<>(comparator);
         UnmodifiableMapCursor<OptionKey<?>, Object> cursor = values.getEntries();
         while (cursor.advance()) {
@@ -174,12 +168,12 @@ public class OptionValues {
                     lines.add(line.toString());
                     line.setLength(0);
                 }
-                if (line.length() != 0) {
+                if (!line.isEmpty()) {
                     line.append(' ');
                 }
                 line.append(chunk);
             }
-            if (line.length() != 0) {
+            if (!line.isEmpty()) {
                 lines.add(line.toString());
             }
         } else {
@@ -258,7 +252,7 @@ public class OptionValues {
                     brief.addAll(helpLines.subList(1, helpLines.size()));
                     helpLines = brief;
                 } else {
-                    GraalError.guarantee(brief.size() == 1 && brief.getFirst().equals(first), "%s", brief);
+                    OptionDescriptor.guarantee(brief.size() == 1 && brief.getFirst().equals(first), "%s", brief);
                 }
             }
         }
