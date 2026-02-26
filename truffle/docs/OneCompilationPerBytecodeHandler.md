@@ -66,10 +66,10 @@ public int addHandler(int pc, State state, short[] bytecode, Frame frame) {
 
 ### 3. Configure the Main Dispatch Loop
 
-Define extra properties for the treatment of each parameter of a bytecode handler with a `BytecodeInterpreterHandlerConfig` annotation:
+Define extra properties for the treatment of each parameter of a bytecode handler with a `BytecodeInterpreterHandlerConfig` annotation. If an interpreter is split across multiple methods, ensure that every switch method in the interpreter is annotated with the same `BytecodeInterpreterHandlerConfig`:
 
 ```java
-@BytecodeInterpreterSwitch
+@BytecodeInterpreterSwitch()
 @BytecodeInterpreterHandlerConfig(maximumOperationCode = LAST_OPCODE, arguments = {
     @Argument, // Denotes `this' pointer
     @Argument(returnValue = true),
@@ -82,13 +82,39 @@ public void dispatchLoop(short[] bytecode) {
     Frame frame = ...;
     State state = new State(0);
     while (true) {
-        switch (bytecode[pc]) {
+        int opcode = bytecode[pc];
+        switch (opcode) {
             case ADD:
                 pc = this.addHandler(pc, state, bytecode, frame);
                 break;
             // ... other cases
+            // (optional) dispatch to helper method with remaining cases:
+            default:
+                pc = dispatchLoop_1(pc, state, bytecode, frame, opcode);
+                break;
         }
     }
+}
+
+@EarlyInline
+@BytecodeInterpreterSwitch()
+@BytecodeInterpreterHandlerConfig(maximumOperationCode = LAST_OPCODE, arguments = {
+    @Argument, // Denotes `this' pointer
+    @Argument(returnValue = true),
+    @Argument(expand = VIRTUAL),
+    @Argument,
+    @Argument(expand = MATERIALIZED, fields = {@Field(name = "stack")})
+})
+private int dispatchLoop_1(int pc, State state, short[] bytecode, Frame frame, int opcode) {
+    switch (opcode) {
+        case SUB:
+            pc = this.subHandler(pc, state, bytecode, frame);
+            break;
+        // ... additional split opcodes
+        default:
+            throw new IllegalArgumentException("Unknown opcode: " + opcode);
+    }
+    return pc;
 }
 ```
 
