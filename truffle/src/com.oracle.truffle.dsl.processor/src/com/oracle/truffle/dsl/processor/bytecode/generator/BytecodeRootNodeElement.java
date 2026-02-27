@@ -90,7 +90,6 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 
 import com.oracle.truffle.dsl.processor.ProcessorContext;
-import com.oracle.truffle.dsl.processor.SuppressFBWarnings;
 import com.oracle.truffle.dsl.processor.TruffleTypes;
 import com.oracle.truffle.dsl.processor.bytecode.model.BytecodeDSLModel;
 import com.oracle.truffle.dsl.processor.bytecode.model.BytecodeDSLModel.LoadIllegalLocalStrategy;
@@ -142,9 +141,9 @@ public final class BytecodeRootNodeElement extends AbstractElement {
     static final String EMPTY_INT_ARRAY = "EMPTY_INT_ARRAY";
 
     // Bytecode version encoding: [tags][instrumentations][source bit]
-    private static final int MAX_TAGS = 32;
+    static final int MAX_TAGS = 32;
     static final int TAG_OFFSET = 32;
-    private static final int MAX_INSTRUMENTATIONS = 31;
+    static final int MAX_INSTRUMENTATIONS = 31;
     static final int INSTRUMENTATION_OFFSET = 1;
 
     // !Important: Keep these in sync with InstructionBytecodeSizeTest!
@@ -204,8 +203,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
     final CounterStateElement counterState = new CounterStateElement(this);
 
     final BranchBackwardThrowExceptionElement branchBackwardThrowException;
-
-    CodeTypeElement configEncoder;
+    BytecodeConfigEncoderImplElement configEncoder;
     OldBytecodesBoxElement oldBytecodesBoxElement;
     AbstractBytecodeNodeElement abstractBytecodeNode;
 
@@ -367,7 +365,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         instructionDescriptorImpl.lazyInit();
         instructionImpl.lazyInit();
 
-        configEncoder = this.add(createBytecodeConfigEncoderClass());
+        configEncoder = this.add(new BytecodeConfigEncoderImplElement(this));
 
         this.add(createNewConfigBuilder());
 
@@ -1365,7 +1363,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         return method;
     }
 
-    private void createFailInvalidTag(CodeTreeBuilder b, String tagLocal) {
+    void createFailInvalidTag(CodeTreeBuilder b, String tagLocal) {
         b.startThrow().startNew(type(IllegalArgumentException.class)).startCall("String.format").doubleQuote(
                         "Invalid tag specified. Tag '%s' not provided by language '" + ElementUtils.getQualifiedName(model.languageClass) + "'.").string(tagLocal, ".getName()").end().end().end();
     }
@@ -1629,116 +1627,6 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         b.startReturn().string("newBytecode").end();
 
         return ex;
-    }
-
-    private CodeTypeElement createBytecodeConfigEncoderClass() {
-        CodeTreeBuilder b;
-        CodeTypeElement type = new CodeTypeElement(Set.of(PRIVATE, STATIC, FINAL), ElementKind.CLASS, null, "BytecodeConfigEncoderImpl");
-        type.setSuperClass(types.BytecodeConfigEncoder);
-
-        CodeExecutableElement constructor = type.add(new CodeExecutableElement(Set.of(PRIVATE), null, type.getSimpleName().toString()));
-        b = constructor.createBuilder();
-        b.startStatement().startSuperCall().staticReference(bytecodeRootNodesImpl.asType(), "VISIBLE_TOKEN").end().end();
-
-        type.add(createEncodeInstrumentation());
-        type.add(createDecode1());
-        type.add(createDecode2(type));
-
-        CodeExecutableElement encodeTag = GeneratorUtils.override(types.BytecodeConfigEncoder, "encodeTag", new String[]{"c"});
-        b = encodeTag.createBuilder();
-
-        if (model.getProvidedTags().isEmpty()) {
-            createFailInvalidTag(b, "c");
-        } else {
-            b.startReturn().string("((long) CLASS_TO_TAG_MASK.get(c)) << " + TAG_OFFSET).end().build();
-        }
-
-        type.add(encodeTag);
-
-        CodeVariableElement configEncoderVar = type.add(new CodeVariableElement(Set.of(PRIVATE, STATIC, FINAL), type.asType(), "INSTANCE"));
-        configEncoderVar.createInitBuilder().startNew(type.asType()).end();
-
-        return type;
-    }
-
-    private CodeExecutableElement createDecode1() {
-        CodeExecutableElement ex = new CodeExecutableElement(Set.of(PRIVATE, Modifier.STATIC), type(long.class), "decode");
-        ex.addParameter(new CodeVariableElement(types.BytecodeConfig, "config"));
-        CodeTreeBuilder b = ex.createBuilder();
-        b.startReturn();
-        b.startCall("decode").string("getEncoder(config)").string("getEncoding(config)").end();
-        b.end();
-        return ex;
-    }
-
-    @SuppressFBWarnings(value = "BSHIFT_WRONG_ADD_PRIORITY", justification = "the shift priority is expected. FindBugs false positive.")
-    private CodeExecutableElement createDecode2(CodeTypeElement type) {
-        CodeExecutableElement ex = new CodeExecutableElement(Set.of(PRIVATE, Modifier.STATIC), type(long.class), "decode");
-        ex.addParameter(new CodeVariableElement(types.BytecodeConfigEncoder, "encoder"));
-        ex.addParameter(new CodeVariableElement(type(long.class), "encoding"));
-        CodeTreeBuilder b = ex.createBuilder();
-
-        b.startIf().string("encoder != null && encoder  != ").staticReference(type.asType(), "INSTANCE").end().startBlock();
-        b.tree(GeneratorUtils.createTransferToInterpreterAndInvalidate());
-        b.startThrow().startNew(type(IllegalArgumentException.class)).doubleQuote("Encoded config is not compatible with this bytecode node.").end().end();
-        b.end();
-
-        long mask = 1L;
-        if (model.getInstrumentationsCount() > MAX_INSTRUMENTATIONS) {
-            throw new AssertionError("Unsupported instrumentation size.");
-        }
-        if (model.getProvidedTags().size() > MAX_TAGS) {
-            throw new AssertionError("Unsupported instrumentation size.");
-        }
-
-        if (model.traceInstructionInstrumentationIndex != -1) {
-            mask |= 1L << (INSTRUMENTATION_OFFSET + model.traceInstructionInstrumentationIndex);
-        }
-
-        for (int i = 0; i < model.getInstrumentations().size(); i++) {
-            mask |= 1L << (INSTRUMENTATION_OFFSET + i);
-        }
-
-        for (int i = 0; i < model.getProvidedTags().size(); i++) {
-            mask |= 1L << (TAG_OFFSET + i);
-        }
-
-        b.startReturn().string("(encoding & 0x" + Long.toHexString(mask) + "L)").end();
-        return ex;
-    }
-
-    private CodeExecutableElement createEncodeInstrumentation() {
-        CodeExecutableElement encodeInstrumentation = GeneratorUtils.override(types.BytecodeConfigEncoder, "encodeInstrumentation", new String[]{"c"});
-        CodeTreeBuilder b = encodeInstrumentation.createBuilder();
-
-        if (model.hasInstrumentations()) {
-            b.declaration("long", "encoding", "0L");
-            boolean elseIf = b.startIf(false);
-            b.string("c == ").typeLiteral(types.InstructionTracer);
-            b.end().startBlock();
-            if (model.enableInstructionTracing) {
-                b.statement("encoding |= 0x" + Integer.toHexString(1 << model.traceInstructionInstrumentationIndex));
-            } else {
-                b.lineComment("Instruction tracing disabled");
-            }
-            b.end();
-            for (CustomOperationModel customOperation : model.getInstrumentations()) {
-                elseIf = b.startIf(elseIf);
-                b.string("c == ").typeLiteral(customOperation.operation.instruction.nodeType.asType());
-                b.end().startBlock();
-                b.statement("encoding |= 0x" + Integer.toHexString(1 << customOperation.operation.instrumentationIndex));
-                b.end();
-            }
-            b.startElseBlock();
-        }
-        b.startThrow().startNew(type(IllegalArgumentException.class)).startCall("String.format").doubleQuote(
-                        "Invalid instrumentation specified. Instrumentation '%s' does not exist or is not an instrumentation for '" + ElementUtils.getQualifiedName(model.templateType) + "'. " +
-                                        "Instrumentations can be specified using the @Instrumentation annotation.").string("c.getName()").end().end().end();
-        if (model.hasInstrumentations()) {
-            b.end(); // else
-            b.startReturn().string("encoding << 1").end();
-        }
-        return encodeInstrumentation;
     }
 
     private CodeExecutableElement createIsInstrumentable() {
