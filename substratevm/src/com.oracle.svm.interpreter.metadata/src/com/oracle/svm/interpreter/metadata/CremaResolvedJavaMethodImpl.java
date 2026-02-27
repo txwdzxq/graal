@@ -31,14 +31,15 @@ import com.oracle.svm.core.hub.registry.SVMSymbols;
 import com.oracle.svm.core.interpreter.InterpreterSupport;
 import com.oracle.svm.core.reflect.CremaConstructorAccessor;
 import com.oracle.svm.core.reflect.CremaMethodAccessor;
-import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.espresso.classfile.ExceptionHandler;
 import com.oracle.svm.espresso.classfile.ParserMethod;
 import com.oracle.svm.espresso.classfile.attributes.Attribute;
 import com.oracle.svm.espresso.classfile.attributes.AttributedElement;
 import com.oracle.svm.espresso.classfile.attributes.CodeAttribute;
+import com.oracle.svm.espresso.classfile.descriptors.ParserSymbols;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.espresso.classfile.descriptors.Type;
+import com.oracle.svm.shared.util.VMError;
 
 import jdk.vm.ci.meta.JavaType;
 import jdk.vm.ci.meta.ResolvedJavaType;
@@ -122,20 +123,29 @@ public final class CremaResolvedJavaMethodImpl extends InterpreterResolvedJavaMe
 
     @Override
     public byte[] getRawAnnotations() {
-        // (GR-69096)
-        throw VMError.unimplemented("getRawAnnotations");
+        Attribute attribute = getAttribute(ParserSymbols.ParserNames.RuntimeVisibleAnnotations);
+        if (attribute == null) {
+            return null;
+        }
+        return attribute.getData();
     }
 
     @Override
     public byte[] getRawParameterAnnotations() {
-        // (GR-69096)
-        throw VMError.unimplemented("getRawParameterAnnotations");
+        Attribute attribute = getAttribute(ParserSymbols.ParserNames.RuntimeVisibleParameterAnnotations);
+        if (attribute == null) {
+            return null;
+        }
+        return attribute.getData();
     }
 
     @Override
     public byte[] getRawAnnotationDefault() {
-        // (GR-69096)
-        throw VMError.unimplemented("getRawAnnotationDefault");
+        Attribute attribute = getAttribute(ParserSymbols.ParserNames.AnnotationDefault);
+        if (attribute == null) {
+            return null;
+        }
+        return attribute.getData();
     }
 
     @Override
@@ -146,8 +156,11 @@ public final class CremaResolvedJavaMethodImpl extends InterpreterResolvedJavaMe
 
     @Override
     public byte[] getRawTypeAnnotations() {
-        // (GR-69096)
-        throw VMError.unimplemented("getRawTypeAnnotations");
+        Attribute attribute = getAttribute(ParserSymbols.ParserNames.RuntimeVisibleTypeAnnotations);
+        if (attribute == null) {
+            return null;
+        }
+        return attribute.getData();
     }
 
     @Override

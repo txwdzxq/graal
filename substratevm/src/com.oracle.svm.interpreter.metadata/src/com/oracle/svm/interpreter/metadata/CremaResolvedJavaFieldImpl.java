@@ -33,6 +33,7 @@ import com.oracle.svm.core.imagelayer.DynamicImageLayerInfo;
 import com.oracle.svm.espresso.classfile.ParserField;
 import com.oracle.svm.espresso.classfile.attributes.Attribute;
 import com.oracle.svm.espresso.classfile.attributes.AttributedElement;
+import com.oracle.svm.espresso.classfile.descriptors.ParserSymbols;
 
 import jdk.graal.compiler.core.common.NumUtil;
 import jdk.vm.ci.meta.JavaType;
@@ -100,14 +101,20 @@ public class CremaResolvedJavaFieldImpl extends InterpreterResolvedJavaField imp
 
     @Override
     public byte[] getRawAnnotations() {
-        /* (GR-69096) resolvedJavaField.getRawAnnotations() */
-        return new byte[0];
+        Attribute attribute = getAttribute(ParserSymbols.ParserNames.RuntimeVisibleAnnotations);
+        if (attribute == null) {
+            return null;
+        }
+        return attribute.getData();
     }
 
     @Override
     public byte[] getRawTypeAnnotations() {
-        /* (GR-69096) resolvedJavaMethod.getRawTypeAnnotations() */
-        return new byte[0];
+        Attribute attribute = getAttribute(ParserSymbols.ParserNames.RuntimeVisibleTypeAnnotations);
+        if (attribute == null) {
+            return null;
+        }
+        return attribute.getData();
     }
 
     @Override
