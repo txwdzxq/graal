@@ -31,13 +31,17 @@ import com.oracle.svm.core.hub.crema.CremaResolvedJavaField;
 import com.oracle.svm.core.hub.crema.CremaSupport;
 import com.oracle.svm.core.imagelayer.DynamicImageLayerInfo;
 import com.oracle.svm.espresso.classfile.ParserField;
+import com.oracle.svm.espresso.classfile.attributes.Attribute;
+import com.oracle.svm.espresso.classfile.attributes.AttributedElement;
 
 import jdk.graal.compiler.core.common.NumUtil;
 import jdk.vm.ci.meta.JavaType;
 import jdk.vm.ci.meta.UnresolvedJavaType;
 
-public class CremaResolvedJavaFieldImpl extends InterpreterResolvedJavaField implements CremaResolvedJavaField {
+public class CremaResolvedJavaFieldImpl extends InterpreterResolvedJavaField implements CremaResolvedJavaField, AttributedElement {
     public static final CremaResolvedJavaFieldImpl[] EMPTY_ARRAY = new CremaResolvedJavaFieldImpl[0];
+    // GR-70288: Only keep a subset of the parsed attributes.
+    private final Attribute[] attributes;
 
     CremaResolvedJavaFieldImpl(InterpreterResolvedObjectType declaringClass, ParserField f, int offset) {
         super(f.getName(), f.getType(), f.getFlags(),
@@ -47,6 +51,7 @@ public class CremaResolvedJavaFieldImpl extends InterpreterResolvedJavaField imp
                         /*- constantValue */ null,
                         /*- isWordStorage */ false);
         this.layerNum = NumUtil.safeToByte(DynamicImageLayerInfo.CREMA_LAYER_ID);
+        this.attributes = f.getAttributes();
     }
 
     public static CremaResolvedJavaFieldImpl createAtRuntime(InterpreterResolvedObjectType declaringClass, ParserField f, int offset) {
@@ -109,5 +114,10 @@ public class CremaResolvedJavaFieldImpl extends InterpreterResolvedJavaField imp
     public String getGenericSignature() {
         /* (GR-69096) resolvedJavaMethod.getGenericSignature() */
         return getSymbolicType().toString();
+    }
+
+    @Override
+    public Attribute[] getAttributes() {
+        return attributes;
     }
 }

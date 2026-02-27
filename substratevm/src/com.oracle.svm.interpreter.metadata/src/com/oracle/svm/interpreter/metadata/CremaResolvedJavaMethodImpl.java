@@ -34,6 +34,8 @@ import com.oracle.svm.core.reflect.CremaMethodAccessor;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.espresso.classfile.ExceptionHandler;
 import com.oracle.svm.espresso.classfile.ParserMethod;
+import com.oracle.svm.espresso.classfile.attributes.Attribute;
+import com.oracle.svm.espresso.classfile.attributes.AttributedElement;
 import com.oracle.svm.espresso.classfile.attributes.CodeAttribute;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.espresso.classfile.descriptors.Type;
@@ -41,8 +43,10 @@ import com.oracle.svm.espresso.classfile.descriptors.Type;
 import jdk.vm.ci.meta.JavaType;
 import jdk.vm.ci.meta.ResolvedJavaType;
 
-public final class CremaResolvedJavaMethodImpl extends InterpreterResolvedJavaMethod implements CremaResolvedJavaMethod {
+public final class CremaResolvedJavaMethodImpl extends InterpreterResolvedJavaMethod implements CremaResolvedJavaMethod, AttributedElement {
     private final ExceptionHandler[] rawExceptionHandlers;
+    // GR-70288: Only keep a subset of the parsed attributes.
+    private final Attribute[] attributes;
 
     private CremaResolvedJavaMethodImpl(InterpreterResolvedObjectType declaringClass, ParserMethod parserMethod, int vtableIndex) {
         super(declaringClass, parserMethod, vtableIndex);
@@ -52,12 +56,18 @@ public final class CremaResolvedJavaMethodImpl extends InterpreterResolvedJavaMe
         } else {
             this.rawExceptionHandlers = null;
         }
+        this.attributes = parserMethod.getAttributes();
     }
 
     public static InterpreterResolvedJavaMethod create(InterpreterResolvedObjectType declaringClass, ParserMethod m, int vtableIndex) {
         InterpreterResolvedJavaMethod interpreterMethod = new CremaResolvedJavaMethodImpl(declaringClass, m, vtableIndex);
         interpreterMethod.setPreparedSignature(InterpreterSupport.singleton().prepareSignature(interpreterMethod));
         return interpreterMethod;
+    }
+
+    @Override
+    public Attribute[] getAttributes() {
+        return attributes;
     }
 
     @Override
