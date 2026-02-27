@@ -121,7 +121,6 @@ public class ServiceLoaderFeature implements InternalFeature {
                      * initialized at image build time.
                      */
                     RandomGenerator.class,
-                    LocaleDataMetaInfo.class,            // see LocaleSubstitutions
 
                     /* Graal hotspot-specific services */
                     HotSpotJVMCIBackendFactory.class,
@@ -156,6 +155,9 @@ public class ServiceLoaderFeature implements InternalFeature {
     public void afterRegistration(AfterRegistrationAccess access) {
         if (!FutureDefaultsOptions.securityProvidersInitializedAtRunTime()) {
             servicesToSkip.add(java.security.Provider.class.getName());
+        }
+        if (!FutureDefaultsOptions.resourceBundlesInitializedAtRunTime()) {
+            servicesToSkip.add(LocaleDataMetaInfo.class.getName());
         }
         servicesToSkip.addAll(Options.ServiceLoaderFeatureExcludeServices.getValue().values());
         serviceProvidersToSkip.addAll(Options.ServiceLoaderFeatureExcludeServiceProviders.getValue().values());

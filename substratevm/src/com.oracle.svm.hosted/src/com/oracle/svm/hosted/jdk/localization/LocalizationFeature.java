@@ -53,6 +53,7 @@ import org.graalvm.nativeimage.impl.RuntimeClassInitializationSupport;
 import com.oracle.graal.pointsto.ObjectScanner.OtherReason;
 import com.oracle.graal.pointsto.ObjectScanner.ScanReason;
 import com.oracle.svm.core.ClassLoaderSupport;
+import com.oracle.svm.core.FutureDefaultsOptions;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
@@ -67,8 +68,10 @@ import com.oracle.svm.hosted.FeatureImpl.DuringAnalysisAccessImpl;
 import com.oracle.svm.hosted.FeatureImpl.DuringSetupAccessImpl;
 import com.oracle.svm.hosted.ImageClassLoader;
 import com.oracle.svm.shared.util.VMError;
+import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.util.LocaleUtil;
 import com.oracle.svm.util.LogUtils;
+import com.oracle.svm.util.dynamicaccess.JVMCIRuntimeReflection;
 
 import jdk.graal.compiler.nodes.ValueNode;
 import jdk.graal.compiler.nodes.graphbuilderconf.GraphBuilderContext;
@@ -76,6 +79,7 @@ import jdk.graal.compiler.nodes.graphbuilderconf.NodePlugin;
 import jdk.graal.compiler.options.Option;
 import jdk.graal.compiler.options.OptionStability;
 import jdk.graal.compiler.options.OptionType;
+import jdk.graal.compiler.vmaccess.VMAccess;
 import jdk.internal.access.SharedSecrets;
 import jdk.vm.ci.meta.ResolvedJavaField;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
@@ -271,6 +275,37 @@ public class LocalizationFeature implements InternalFeature {
         return new LocalizationSupport(allLocales, defaultCharset);
     }
 
+    private static final List<String> PROVIDER_ADAPTERS = Arrays.asList(
+                    "sun.util.locale.provider.SPILocaleProviderAdapter",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$BreakIteratorProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$CollatorProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$DateFormatProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$DateFormatSymbolsProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$NumberFormatProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$CalendarDataProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$CalendarNameProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$CurrencyNameProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$LocaleNameProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$TimeZoneNameProviderDelegate",
+                    "sun.util.locale.provider.SPILocaleProviderAdapter$DecimalFormatSymbolsProviderDelegate",
+                    "sun.util.locale.provider.FallbackLocaleProviderAdapter",
+                    "sun.util.locale.provider.HostLocaleProviderAdapter",
+                    "sun.util.locale.provider.JRELocaleProviderAdapter",
+                    "sun.util.cldr.CLDRLocaleProviderAdapter");
+
+    public static void registerLocaleProviderAdapters() {
+        VMAccess vmAccess = GuestAccess.get();
+        for (String providerAdapter : PROVIDER_ADAPTERS) {
+            try {
+                ResolvedJavaType resolvedJavaType = vmAccess.lookupAppClassLoaderType(providerAdapter);
+                JVMCIRuntimeReflection.register(resolvedJavaType);
+                JVMCIRuntimeReflection.registerForReflectiveInstantiation(resolvedJavaType);
+            } catch (Exception e) {
+                VMError.shouldNotReachHere(e);
+            }
+        }
+    }
+
     @Override
     public void beforeAnalysis(BeforeAnalysisAccess a) {
         addResourceBundles();
@@ -281,6 +316,10 @@ public class LocalizationFeature implements InternalFeature {
          */
         access.allowStableFieldFoldingBeforeAnalysis(access.findField("sun.util.locale.BaseLocale", "constantBaseLocales"));
         access.allowStableFieldFoldingBeforeAnalysis(access.findField("java.lang.CharacterDataLatin1", "sharpsMap"));
+
+        if (FutureDefaultsOptions.resourceBundlesInitializedAtRunTime()) {
+            a.registerReachabilityHandler(_ -> registerLocaleProviderAdapters(), LocaleProviderAdapter.class);
+        }
     }
 
     @Override
