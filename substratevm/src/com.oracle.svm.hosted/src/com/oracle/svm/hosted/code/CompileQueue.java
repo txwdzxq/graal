@@ -70,7 +70,6 @@ import com.oracle.svm.core.meta.SubstrateMethodOffsetConstant;
 import com.oracle.svm.core.meta.SubstrateMethodPointerConstant;
 import com.oracle.svm.core.option.SubstrateOptionsParser;
 import com.oracle.svm.core.util.InterruptImageBuilding;
-import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.hosted.FeatureHandler;
 import com.oracle.svm.hosted.NativeImageGenerator;
 import com.oracle.svm.hosted.NativeImageOptions;
@@ -83,6 +82,7 @@ import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.hosted.meta.HostedUniverse;
 import com.oracle.svm.hosted.phases.ImageBuildStatisticsCounterPhase;
 import com.oracle.svm.hosted.phases.ImplicitAssertionsPhase;
+import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.AnnotationUtil;
 import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.util.ImageBuildStatistics;
@@ -1061,12 +1061,13 @@ public class CompileQueue {
             return;
         }
 
-        if (!allowFoldMethods && AnnotationUtil.getAnnotation(method, Fold.class) != null && !isFoldInvocationPluginMethod(callerMethod)) {
+        if (!allowFoldMethods && AnnotationUtil.isAnnotationPresent(method, Fold.class) && !isFoldInvocationPluginMethod(callerMethod)) {
             throw VMError.shouldNotReachHere("Parsing method annotated with @%s: %s. " +
                             "This could happen if either: the Graal annotation processor was not executed on the parent-project of the method's declaring class, " +
                             "the arguments passed to the method were not compile-time constants, or the plugin was disabled by the corresponding %s.",
                             Fold.class.getSimpleName(), method.format("%H.%n(%p)"), GraphBuilderContext.class.getSimpleName());
         }
+        method.wrapped.checkGuaranteeFolded();
         if (!method.compilationInfo.inParseQueue.getAndSet(true)) {
             executor.execute(new ParseTask(method, reason));
         }

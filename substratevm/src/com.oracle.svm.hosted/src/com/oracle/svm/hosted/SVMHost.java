@@ -144,6 +144,7 @@ import com.oracle.svm.hosted.phases.InlineBeforeAnalysisPolicyImpl;
 import com.oracle.svm.hosted.phases.InlineBeforeAnalysisPolicyUtils;
 import com.oracle.svm.hosted.substitute.AnnotationSubstitutionProcessor;
 import com.oracle.svm.hosted.substitute.AutomaticUnsafeTransformationSupport;
+import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.AnnotationUtil;
 import com.oracle.svm.util.GuestAccess;
@@ -151,7 +152,6 @@ import com.oracle.svm.util.LogUtils;
 import com.oracle.svm.util.OriginalClassProvider;
 import com.oracle.svm.util.OriginalFieldProvider;
 import com.oracle.svm.util.OriginalMethodProvider;
-import com.oracle.svm.shared.util.ReflectionUtil;
 
 import jdk.graal.compiler.annotation.AnnotationValueSupport;
 import jdk.graal.compiler.api.replacements.Fold;
@@ -1104,6 +1104,10 @@ public class SVMHost extends HostVM {
         if (!isSupportedMethod(bb, method)) {
             return false;
         }
+        /* Methods that are always folded don't need to be included. */
+        if (method.isGuaranteeFolded()) {
+            return false;
+        }
         return super.isSupportedAnalysisMethod(bb, method);
     }
 
@@ -1140,6 +1144,11 @@ public class SVMHost extends HostVM {
          * the plugin will replace it again.
          */
         if (AnnotationUtil.isAnnotationPresent(method, Fold.class)) {
+            return false;
+        }
+
+        /* Methods that are always folded don't need to be included. */
+        if (AnnotationUtil.isAnnotationPresent(method, GuaranteeFolded.class)) {
             return false;
         }
 

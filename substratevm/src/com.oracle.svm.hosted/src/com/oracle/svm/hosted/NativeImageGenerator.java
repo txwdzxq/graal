@@ -1451,6 +1451,10 @@ public class NativeImageGenerator {
          * shadow heap processing, after analysis.
          */
         bb.getMetaAccess().lookupJavaType(com.oracle.svm.core.graal.stackvalue.StackValueNode.StackSlotIdentity.class).registerAsReachable(rootClassReason);
+
+        /* @GuaranteeFolded is not available in the public API, so it has to be injected. */
+        bb.getMetaAccess().lookupJavaMethod(ReflectionUtil.lookupMethod(ImageSingletons.class, "lookup", Class.class)).setGuaranteeFolded();
+        bb.getMetaAccess().lookupJavaMethod(ReflectionUtil.lookupMethod(ImageSingletons.class, "contains", Class.class)).setGuaranteeFolded();
     }
 
     public static void performSnippetGraphAnalysis(BigBang bb, SubstrateReplacements replacements, OptionValues options, Function<Object, Object> objectTransformer) {

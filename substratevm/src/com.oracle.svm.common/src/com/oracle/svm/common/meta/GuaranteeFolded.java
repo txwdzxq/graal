@@ -30,11 +30,11 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Verifies that loads of the annotated field are always folded in run time code. This annotation
- * doesn't influence the folding logic itself, it just ensures that the annotated fields are not
- * present in the image.
+ * Verifies that annotated methods are always folded or intrinsified and that loads of the annotated
+ * field are always folded in run time code. This annotation doesn't influence the folding logic
+ * itself, it just ensures that the annotated methods fields are not present in the image.
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.FIELD})
+@Target({ElementType.METHOD, ElementType.FIELD})
 public @interface GuaranteeFolded {
 }
