@@ -166,7 +166,7 @@ public class SVMImageLayerSnapshotUtil {
      */
     private void addSVMExternalValueFields() {
         for (URI svmURI : getBuilderLocations()) {
-            for (String className : imageClassLoader.classLoaderSupport.classes(svmURI)) {
+            for (String className : imageClassLoader.guestTypes.getDiscoveredClassNames(svmURI)) {
                 try {
                     Class<?> clazz = imageClassLoader.forName(className);
                     externalValueFields.addAll(getStaticFinalObjectFields(clazz));

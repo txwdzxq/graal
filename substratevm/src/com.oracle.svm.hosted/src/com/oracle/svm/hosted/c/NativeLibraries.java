@@ -25,7 +25,6 @@
 package com.oracle.svm.hosted.c;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -76,6 +75,7 @@ import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.c.libc.MuslLibC;
 import com.oracle.svm.core.jdk.PlatformNativeLibrarySupport;
 import com.oracle.svm.core.util.UserError;
+import com.oracle.svm.hosted.GuestTypes;
 import com.oracle.svm.hosted.ImageClassLoader;
 import com.oracle.svm.hosted.NativeImageOptions;
 import com.oracle.svm.hosted.c.info.ElementInfo;
@@ -448,14 +448,15 @@ public final class NativeLibraries {
     }
 
     public void processCLibraryAnnotations(ImageClassLoader loader) {
-        for (Class<?> clazz : loader.findAnnotatedClasses(CLibrary.class, false)) {
-            if (makeContext(getDirectives(metaAccess.lookupJavaType(clazz))).isInConfiguration()) {
-                annotated.add(clazz.getAnnotation(CLibrary.class));
+        GuestTypes guestTypes = loader.guestTypes;
+        for (ResolvedJavaType clazz : guestTypes.findAnnotatedTypes(CLibrary.class, false)) {
+            if (makeContext(getDirectives(clazz)).isInConfiguration()) {
+                annotated.add(AnnotationUtil.getAnnotation(clazz, CLibrary.class));
             }
         }
-        for (Method method : loader.findAnnotatedMethods(CLibrary.class)) {
-            if (makeContext(getDirectives(metaAccess.lookupJavaType(method.getDeclaringClass()))).isInConfiguration()) {
-                annotated.add(method.getAnnotation(CLibrary.class));
+        for (ResolvedJavaMethod method : guestTypes.findAnnotatedMethods(CLibrary.class)) {
+            if (makeContext(getDirectives(method.getDeclaringClass())).isInConfiguration()) {
+                annotated.add(AnnotationUtil.getAnnotation(method, CLibrary.class));
             }
         }
     }

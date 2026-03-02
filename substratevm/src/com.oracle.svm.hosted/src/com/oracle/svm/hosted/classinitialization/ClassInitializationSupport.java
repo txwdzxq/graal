@@ -352,26 +352,22 @@ public class ClassInitializationSupport implements JVMCIRuntimeClassInitializati
 
     @Override
     public void initializeAtRunTime(Class<?> clazz, String reason) {
-        UserError.guarantee(!configurationSealed, "The class initialization configuration can be changed only before the phase analysis.");
-        classInitializationConfiguration.insert(clazz.getTypeName(), InitKind.RUN_TIME, reason, true);
+        initializeAtRunTime(clazz.getTypeName(), reason, true);
     }
 
     @Override
     public void initializeAtRunTime(ResolvedJavaType aType, String reason) {
-        // GR-71807: reverse this so that the Class variant calls the ResolvedJavaType version
-        initializeAtRunTime(OriginalClassProvider.getJavaClass(aType), reason);
+        initializeAtRunTime(aType.toClassName(), reason, true);
     }
 
     @Override
     public void initializeAtRunTime(String name, String reason) {
+        initializeAtRunTime(name, reason, loader.guestTypes.findType(name).isPresent());
+    }
+
+    public void initializeAtRunTime(String name, String reason, boolean strict) {
         UserError.guarantee(!configurationSealed, "The class initialization configuration can be changed only before the phase analysis.");
-        ResolvedJavaType type = loader.findType(name).get();
-        if (type != null) {
-            classInitializationConfiguration.insert(name, InitKind.RUN_TIME, reason, true);
-            initializeAtRunTime(type, reason);
-        } else {
-            classInitializationConfiguration.insert(name, InitKind.RUN_TIME, reason, false);
-        }
+        classInitializationConfiguration.insert(name, InitKind.RUN_TIME, reason, strict);
     }
 
     @Override

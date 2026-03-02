@@ -1168,7 +1168,7 @@ public class SVMHost extends HostVM {
         }
 
         /* Methods that are not provided in the current Libc should not be included. */
-        if (OriginalMethodProvider.getJavaMethod(method) instanceof Method m && !HostedLibCBase.isMethodProvidedInCurrentLibc(m)) {
+        if (!method.isConstructor() && !HostedLibCBase.isMethodProvidedInCurrentLibc(method)) {
             return false;
         }
 

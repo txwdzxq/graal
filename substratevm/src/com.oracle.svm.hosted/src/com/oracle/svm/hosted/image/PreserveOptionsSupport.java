@@ -61,6 +61,7 @@ import com.oracle.graal.pointsto.ClassInclusionPolicy.DefaultAllInclusionPolicy;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.jdk.localization.BundleContentSubstitutedLocalizationSupport;
 import com.oracle.svm.core.util.UserError;
+import com.oracle.svm.hosted.GuestTypes;
 import com.oracle.svm.hosted.NativeImageClassLoaderSupport;
 import com.oracle.svm.hosted.driver.IncludeOptionsSupport;
 import com.oracle.svm.shared.option.AccumulatingLocatableMultiOptionValue;
@@ -204,11 +205,11 @@ public class PreserveOptionsSupport extends IncludeOptionsSupport {
         return t2Depth - t1Depth;
     };
 
-    public static void registerPreservedClasses(BigBang bb, NativeImageClassLoaderSupport classLoaderSupport) {
+    public static void registerPreservedClasses(BigBang bb, GuestTypes guestTypes) {
         Set<String> classesOrPackagesToIgnore = SubstrateOptions.IgnorePreserveForClasses.getValue().valuesAsSet();
         ClassInclusionPolicy classInclusionPolicy = new DefaultAllInclusionPolicy("included by " + SubstrateOptionsParser.commandArgument(Preserve, ""));
         classInclusionPolicy.setBigBang(bb);
-        var classesToPreserve = classLoaderSupport.getClassesToPreserve()
+        var classesToPreserve = guestTypes.getTypesToPreserve()
                         .filter(classInclusionPolicy::isOriginalTypeIncluded)
                         .filter(t -> !(classesOrPackagesToIgnore.contains(JVMCIReflectionUtil.getPackageName(t)) || classesOrPackagesToIgnore.contains(t.toClassName())))
                         .sorted(PRESERVED_CLASSES_COMPARATOR)
@@ -287,7 +288,7 @@ public class PreserveOptionsSupport extends IncludeOptionsSupport {
             serialization.register(always, true, c);
         });
 
-        for (String className : classLoaderSupport.getClassNamesToPreserve()) {
+        for (String className : guestTypes.getClassNamesToPreserve()) {
             if (!classesOrPackagesToIgnore.contains(className)) {
                 reflection.registerClassLookup(always, true, className);
             }
