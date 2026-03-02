@@ -1010,9 +1010,16 @@ public class AnnotationSubstitutionProcessor extends SubstitutionProcessor {
             substitutions.put(annotated, target);
         }
         if (original != null) {
-            guarantee(!substitutions.containsKey(original) || substitutions.get(original).equals(original) || substitutions.get(original).equals(target),
-                            "Substitution: %s -> %s conflicts with previously registered: %s", original, target, substitutions.get(original));
-            substitutions.put(original, target);
+            boolean isMethodAlias = original == target && original instanceof ResolvedJavaMethod;
+            /*
+             * if there was already a substitution, and we are only adding a self-mapping for an
+             * alias, skip that self mapping in favor of the substitution.
+             */
+            if (!isMethodAlias || substitutions.get(original) == null) {
+                guarantee(!substitutions.containsKey(original) || substitutions.get(original).equals(original) || substitutions.get(original).equals(target),
+                                "Substitution: %s -> %s conflicts with previously registered: %s", original, target, substitutions.get(original));
+                substitutions.put(original, target);
+            }
         }
     }
 
