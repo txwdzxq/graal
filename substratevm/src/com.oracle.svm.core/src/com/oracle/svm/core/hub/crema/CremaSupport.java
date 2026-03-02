@@ -40,6 +40,7 @@ import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.espresso.classfile.descriptors.Type;
 import com.oracle.svm.espresso.shared.resolver.CallKind;
 
+import jdk.vm.ci.meta.ConstantPool;
 import jdk.vm.ci.meta.ResolvedJavaField;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
@@ -116,4 +117,6 @@ public interface CremaSupport {
 
     @Platforms(Platform.HOSTED_ONLY.class)
     void setEnterDirectInterpreterStubEntryPoint(CFunctionPointer stubEntryPoint);
+
+    ConstantPool getConstantPool(DynamicHub hub);
 }

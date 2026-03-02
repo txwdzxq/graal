@@ -47,7 +47,7 @@ import com.oracle.svm.shared.singletons.traits.SingletonTraits;
  */
 @SingletonTraits(access = RuntimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class, layeredInstallationKind = MultiLayer.class)
 public class ConstantPoolProvider {
-    private final Target_jdk_internal_reflect_ConstantPool constantPool = new Target_jdk_internal_reflect_ConstantPool(DynamicImageLayerInfo.getCurrentLayerNumber());
+    private final Target_jdk_internal_reflect_ConstantPool constantPool = new Target_jdk_internal_reflect_ConstantPool(DynamicImageLayerInfo.getCurrentLayerNumber(), null);
 
     public static ConstantPoolProvider[] singletons() {
         return MultiLayeredImageSingleton.getAllLayers(ConstantPoolProvider.class);

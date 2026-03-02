@@ -104,7 +104,6 @@ import com.oracle.svm.core.BuildPhaseProvider.AfterHostedUniverse;
 import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.RuntimeAssertionsSupport;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.core.annotate.Alias;
 import com.oracle.svm.core.annotate.Delete;
 import com.oracle.svm.core.annotate.InjectAccessors;
@@ -147,6 +146,7 @@ import com.oracle.svm.shared.singletons.MultiLayeredImageSingleton;
 import com.oracle.svm.shared.util.BasedOnJDKFile;
 import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.ReflectionUtil.ReflectionUtilError;
+import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.AnnotationUtil;
 import com.oracle.svm.util.GuestAccess;
@@ -2264,6 +2264,13 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
 
     @Substitute
     Target_jdk_internal_reflect_ConstantPool getConstantPool() {
+        if (isRuntimeLoaded()) {
+            assert !isPrimitive();
+            if (hubIsArray()) {
+                return null;
+            }
+            return new Target_jdk_internal_reflect_ConstantPool(layerId, this);
+        }
         if (ImageLayerBuildingSupport.buildingImageLayer()) {
             return ConstantPoolProvider.singletons()[layerId].getConstantPool();
         } else {
