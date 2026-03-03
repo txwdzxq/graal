@@ -298,7 +298,7 @@ def prettier(args=None):
             mx.run(["diff", "-u", "-p", f, "-"], stdin=formatted, nonZeroIsFatal=False)
 
             if not parsed_args.dry_run:
-                with open(f, "w", encoding='utf-8') as out_file:
+                with open(f, "w", encoding="utf-8") as out_file:
                     out_file.write(formatted)
 
         if parsed_args.dry_run:
@@ -624,7 +624,7 @@ class WebImageMacroBuildTask(mx.ArchivableBuildTask):
 
         # We are already computing the file contents here so that we only return True if we would produce different file
         # contents. This way, things that depend on this project are only rebuilt if this dependency really changed
-        with open(file_path, encoding='utf-8') as existing_file:
+        with open(file_path, encoding="utf-8") as existing_file:
             if existing_file.read() != "\n".join(self.get_or_compute_lines()):
                 return True, "Generated native-image.properties file will be different"
 
@@ -703,7 +703,7 @@ class WebImageMacroBuildTask(mx.ArchivableBuildTask):
 
     def build(self):
         mx_util.ensure_dir_exists(self.subject.output_dir())
-        with open(self.subject.get_file_path(), "w", encoding='utf-8') as properties_file:
+        with open(self.subject.get_file_path(), "w", encoding="utf-8") as properties_file:
             properties_file.write("\n".join(self.get_or_compute_lines()))
 
         return True

@@ -289,7 +289,7 @@ class SuiteStableRunConfig:
     """Interface for a PolyBench Stable-Run Configuration file."""
 
     def __init__(self, file_path: Path):
-        with open(file_path, encoding='utf-8') as f:
+        with open(file_path, encoding="utf-8") as f:
             self._dict: dict = json.load(f)
 
     def get_benchmark(self, bench_name: str) -> "BenchmarkStableRunConfig":
@@ -937,8 +937,10 @@ class NonNativeImageBenchmarkSummaryPostProcessor(FinalDispatchFinalStageAverage
     def __init__(self, suite: "PolybenchBenchmarkSuite"):
         def selector_fn(dp):
             return dp["metric.name"] == "avg-time" and dp["metric.object"] == "fork"
+
         def key_fn(dp):
             return dp["benchmark"]
+
         field = "metric.value"
 
         def update_fn(dp):
@@ -967,8 +969,10 @@ class NativeModeBuildSummaryPostProcessor(FinalDispatchFinalStageAverageWithOutl
     def __init__(self, suite: "PolybenchBenchmarkSuite"):
         def selector_fn(dp):
             return dp["metric.name"] == "avg-time" and dp["metric.object"] == "fork"
+
         def key_fn(dp):
             return (dp["benchmark"], dp["native-image.stage"], dp["native-image.rebuild-number"])
+
         field = "metric.value"
 
         def update_fn(dp):
@@ -997,8 +1001,10 @@ class NativeModeBenchmarkSummaryPostProcessor(FinalDispatchFinalStageAverageWith
     def __init__(self, suite: "PolybenchBenchmarkSuite"):
         def selector_fn(dp):
             return dp["metric.name"] == "avg-time" and dp["metric.object"] == "build"
+
         def key_fn(dp):
             return (dp["benchmark"], dp["native-image.stage"])
+
         field = "metric.value"
 
         def update_fn(dp):
