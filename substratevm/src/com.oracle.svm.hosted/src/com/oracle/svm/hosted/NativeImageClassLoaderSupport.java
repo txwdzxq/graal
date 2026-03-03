@@ -81,6 +81,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipFile;
 
+import jdk.graal.compiler.options.OptionDescriptors;
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.EconomicSet;
 import org.graalvm.collections.UnmodifiableEconomicSet;
@@ -422,8 +423,8 @@ public final class NativeImageClassLoaderSupport {
     private OptionValues parsedHostedOptions;
     private List<String> remainingArguments;
 
-    public HostedOptionParser setupHostedOptionParser(List<String> arguments) {
-        var optionParser = new HostedOptionParser(getClassLoader(), arguments);
+    public HostedOptionParser setupHostedOptionParser(List<String> arguments, Predicate<OptionDescriptors> builderOptionFilter) {
+        var optionParser = new HostedOptionParser(getClassLoader(), arguments, builderOptionFilter);
         // Explicitly set the default value of Optimize as it can modify the default values of other
         // options
         SubstrateOptions.Optimize.update(optionParser.getHostedValues(), SubstrateOptions.Optimize.getDefaultValue());
