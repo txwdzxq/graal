@@ -87,7 +87,7 @@ def _check_compiler_log(compiler_log_file, expectations, extra_check=None, extra
             for extra_log_file in extra_log_files:
                 if exists(extra_log_file):
                     nl = os.linesep
-                    with open(extra_log_file) as fp:
+                    with open(extra_log_file, encoding='utf-8') as fp:
                         lines = fp.readlines()
                         if len(lines) > 50:
                             lines = lines[0:25] + [f'...{nl}', f'<omitted {len(lines) - 50} lines>{nl}', f'...{nl}'] + lines[-50:]
@@ -98,7 +98,7 @@ def _check_compiler_log(compiler_log_file, expectations, extra_check=None, extra
     in_exception_path = sys.exc_info() != (None, None, None)
     if not exists(compiler_log_file):
         mx.abort(f'No output written to {compiler_log_file}{append_extra_logs()}')
-    with open(compiler_log_file) as fp:
+    with open(compiler_log_file, encoding='utf-8') as fp:
         compiler_log = fp.read()
     if not isinstance(expectations, list) and not isinstance(expectations, tuple):
         expectations = [expectations]
@@ -236,7 +236,7 @@ def _test_libgraal_fatal_error_handling(extra_vm_arguments):
 
         for hs_err in hs_errs:
             mx.log(f"Verifying content of {hs_err}")
-            with open(hs_err) as fp:
+            with open(hs_err, encoding='utf-8') as fp:
                 contents = fp.read()
             if 'libjvmci' in hs_err:
                 seen_libjvmci_log = True
@@ -484,7 +484,7 @@ def gate_body(args, tasks):
 
     with Task('Vm: ce-release-artifacts.json', tasks, tags=['style']) as t:
         if t:
-            with open(join(_suite.dir, 'ce-release-artifacts.json'), 'r') as f:
+            with open(join(_suite.dir, 'ce-release-artifacts.json'), encoding='utf-8') as f:
                 # check that this file can be read as json
                 json.load(f)
 
@@ -534,7 +534,7 @@ def gate_body(args, tasks):
         else:
             mx.warn("Skipping libgraal tests: component not enabled")
     else:
-        mx.warn("Skipping libgraal tests: suite '{suite}' not found. Did you forget to dynamically import it? (--dynamicimports {suite})".format(suite=libgraal_suite_name))
+        mx.warn(f"Skipping libgraal tests: suite '{libgraal_suite_name}' not found. Did you forget to dynamically import it? (--dynamicimports {libgraal_suite_name})")
 
     gate_sulong(tasks)
     gate_python(tasks)
@@ -641,7 +641,7 @@ def _svm_truffle_tck(native_image, language_id, language_distribution=None, fail
         native_image(options)
         if isfile(report_file) and getsize(report_file) > 0:
             message = f"Failed: Language {language_id} performs following privileged calls:\n\n"
-            with open(report_file, "r") as f:
+            with open(report_file, encoding='utf-8') as f:
                 for line in f.readlines():
                     message = message + line
             message = message + ("\nNote: If the method is not used directly by the language, but is part of the call path "
@@ -688,7 +688,7 @@ def gate_truffle_native_tck_smoke_test(tasks):
                                           ['-H:TruffleTCKCollectMode=All'])
                 privileged_calls = result[0]
                 reports_folder = result[1]
-                if not 'Failed: Language TCKSmokeTestLanguage performs following privileged calls' in privileged_calls:
+                if 'Failed: Language TCKSmokeTestLanguage performs following privileged calls' not in privileged_calls:
                     _copy_call_tree(reports_folder)
                     mx.abort("Expected failure, log:\n" + privileged_calls)
 
@@ -832,7 +832,7 @@ def build_tests_image(image_dir, options, unit_tests=None, additional_deps=None,
         artifacts_file_path = join(image_dir, 'build-artifacts.json')
         if not exists(artifacts_file_path):
             mx.abort(f'{artifacts_file_path} for tests image not found.')
-        with open(artifacts_file_path) as f:
+        with open(artifacts_file_path, encoding='utf-8') as f:
             artifacts = json.load(f)
         kind = 'shared_libraries' if shared_lib else 'executables'
         if kind not in artifacts:
@@ -857,7 +857,7 @@ def gate_truffle_native_tck_sl(tasks):
                     f'-H:Path={svmbuild}',
                 ])
                 tests_image_path, tests_file = build_tests_image(svmbuild, options, ['com.oracle.truffle.tck.tests'], ['truffle:TRUFFLE_SL_TCK', 'truffle:TRUFFLE_TCK_INSTRUMENTATION'])
-                with open(tests_file) as f:
+                with open(tests_file, encoding='utf-8') as f:
                     test_classes = [l.rstrip() for l in f.readlines()]
                 mx.run([tests_image_path] + test_classes)
             finally:

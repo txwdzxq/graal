@@ -75,10 +75,10 @@ from mx_javamodules import as_java_module, get_module_name
 from mx_sigtest import sigtest
 from mx_unittest import unittest
 
+from mx_sdk_shaded import ShadedLibraryProject # pylint: disable=unused-import
 _suite = mx.suite('truffle')
 
 # re-export custom mx project classes, so they can be used from suite.py
-from mx_sdk_shaded import ShadedLibraryProject # pylint: disable=unused-import
 
 class JMHDistTruffleBenchmarkSuite(mx_benchmark.JMHDistBenchmarkSuite, JMHNativeImageBenchmarkMixin):
 
@@ -101,10 +101,10 @@ class JMHDistTruffleBenchmarkSuite(mx_benchmark.JMHDistBenchmarkSuite, JMHNative
         return super().successPatterns() + JMHNativeImageBenchmarkMixin.native_image_success_patterns()
 
     def failurePatterns(self):
-        return super().failurePatterns() + [re.compile(r"CompilationTimingsProfiler error:")]
+        return [*super().failurePatterns(), re.compile(r"CompilationTimingsProfiler error:")]
 
     def extraVmArgs(self):
-        extraVmArgs = super(JMHDistTruffleBenchmarkSuite, self).extraVmArgs()
+        extraVmArgs = super().extraVmArgs()
         # org.graalvm.truffle.compiler.benchmark.* needs OptimizedTruffleRuntime
         extraVmArgs.append('--add-exports=org.graalvm.truffle.runtime/com.oracle.truffle.runtime=ALL-UNNAMED')
         return extraVmArgs
@@ -138,7 +138,7 @@ class JMHJsonCompilationTimingRule(mx_benchmark.JMHJsonRule):
 
     def parse(self, text):
         r = []
-        with open(self._prepend_working_dir(self.filename)) as fp:
+        with open(self._prepend_working_dir(self.filename), encoding='utf-8') as fp:
             for result in json.load(fp):
                 benchmark = self.getBenchmarkNameFromResult(result)
                 metric = result.get("secondaryMetrics", {}).get(self.metric_name)
@@ -228,7 +228,7 @@ def javadoc(args, vm=None):
         'com.oracle.truffle.api.object',
         'com.oracle.truffle.api.staticobject',
     ]
-    mx.javadoc(['--unified', '--disallow-all-warnings','--projects', ','.join(projects)] + extraArgs + args, includeDeps=False)
+    mx.javadoc(['--unified', '--disallow-all-warnings', '--projects', ','.join(projects), *extraArgs, *args], includeDeps=False)
     javadoc_dir = os.sep.join([_suite.dir, 'javadoc'])
     checkLinks(javadoc_dir)
 
@@ -239,7 +239,8 @@ def checkLinks(javadocDir):
         for f in files:
             if f.endswith('.html'):
                 html = os.path.join(root, f)
-                content = open(html, 'r').read()
+                with open(html, encoding='utf-8') as html_file:
+                    content = html_file.read()
                 for url in href.findall(content):
                     full = urljoin(html, url)
                     sectionIndex = full.find('#')
@@ -254,9 +255,9 @@ def checkLinks(javadocDir):
                     sectionNames = filesToCheck.get(path, [])
                     if sectionIndex >= 0:
                         s = full[sectionIndex + 1:]
-                        sectionNames = sectionNames + [(html, s)]
+                        sectionNames = [*sectionNames, (html, s)]
                     else:
-                        sectionNames = sectionNames + [(html, None)]
+                        sectionNames = [*sectionNames, (html, None)]
 
                     filesToCheck[path] = sectionNames
 
@@ -268,9 +269,10 @@ def checkLinks(javadocDir):
             mx.warn('Referenced file ' + referencedfile + ' does not exist. Referenced from ' + sections[0][0])
             err = True
         else:
-            content = open(referencedfile, 'r').read()
+            with open(referencedfile, encoding='utf-8') as referenced_file_handle:
+                content = referenced_file_handle.read()
             for path, s in sections:
-                if not s is None:
+                if s is not None:
                     s = s.replace("%3C", "&lt;")
                     s = s.replace("%3E", "&gt;")
                     s = s.replace("%5B", "[")
@@ -321,7 +323,7 @@ class TruffleUnittestConfig(mx_unittest.MxUnittestConfig):
     _use_optimized_runtime = True
 
     def __init__(self):
-        super(TruffleUnittestConfig, self).__init__('truffle')
+        super().__init__('truffle')
 
     def processDeps(self, deps):
         dist_names = resolve_truffle_dist_names(TruffleUnittestConfig._use_optimized_runtime, TruffleUnittestConfig._use_enterprise_polyglot)
@@ -334,7 +336,7 @@ class TruffleUnittestConfig(mx_unittest.MxUnittestConfig):
 
         # This is required to access jdk.internal.module.Modules which
         # in turn allows us to dynamically open fields/methods to reflection.
-        vmArgs = vmArgs + ['--add-exports=java.base/jdk.internal.module=ALL-UNNAMED']
+        vmArgs = [*vmArgs, '--add-exports=java.base/jdk.internal.module=ALL-UNNAMED']
 
         mainClassArgs.extend(['-JUnitOpenPackages', 'org.graalvm.truffle/*=ALL-UNNAMED'])
         mainClassArgs.extend(['-JUnitOpenPackages', 'org.graalvm.truffle.compiler/*=ALL-UNNAMED'])
@@ -345,7 +347,7 @@ class TruffleUnittestConfig(mx_unittest.MxUnittestConfig):
         mainClassArgs.extend(['-JUnitOpenPackages', 'org.graalvm.shadowed.jcodings/*=ALL-UNNAMED'])
 
         # Disable VirtualThread warning
-        vmArgs = vmArgs + ['-Dpolyglot.engine.WarnVirtualThreadSupport=false']
+        vmArgs = [*vmArgs, '-Dpolyglot.engine.WarnVirtualThreadSupport=false']
         enable_truffle_native_access(vmArgs)
         enable_sun_misc_unsafe(vmArgs)
         return (vmArgs, mainClass, mainClassArgs)
@@ -358,7 +360,7 @@ class _DisableEnterpriseTruffleAction(Action):
     def __init__(self, **kwargs):
         kwargs['required'] = False
         kwargs['nargs'] = 0
-        super(_DisableEnterpriseTruffleAction, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
         TruffleUnittestConfig._use_enterprise_polyglot = False
@@ -367,7 +369,7 @@ class _DisableOptimizedRuntimeAction(Action):
     def __init__(self, **kwargs):
         kwargs['required'] = False
         kwargs['nargs'] = 0
-        super(_DisableOptimizedRuntimeAction, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
         TruffleUnittestConfig._use_optimized_runtime = False
@@ -390,13 +392,13 @@ class NFITestConfig:
 class _LibFFINFITestConfig(NFITestConfig):
 
     def __init__(self):
-        super(_LibFFINFITestConfig, self).__init__('libffi', [])
+        super().__init__('libffi', [])
 
 
 class _PanamaNFITestConfig(NFITestConfig):
 
     def __init__(self):
-        super(_PanamaNFITestConfig, self).__init__('panama', ['TRUFFLE_NFI_PANAMA'])
+        super().__init__('panama', ['TRUFFLE_NFI_PANAMA'])
 
     def vm_args(self):
         testPath = mx.distribution('TRUFFLE_TEST_NATIVE').output
@@ -412,7 +414,7 @@ _nfi_test_configs = {}
 
 def register_nfi_test_config(cfg):
     name = cfg.name
-    assert not name in _nfi_test_configs, 'duplicate nfi test config'
+    assert name not in _nfi_test_configs, 'duplicate nfi test config'
     _nfi_test_configs[name] = cfg
 
 
@@ -425,7 +427,7 @@ class _TruffleNFIUnittestConfig(mx_unittest.MxUnittestConfig):
     runtimeConfig = None
 
     def __init__(self, name='truffle-nfi'):
-        super(_TruffleNFIUnittestConfig, self).__init__(name)
+        super().__init__(name)
 
     def processDeps(self, deps):
         deps.update({mx.distribution(runtime_dep) for runtime_dep in _TruffleNFIUnittestConfig.runtimeConfig.runtime_deps})
@@ -444,7 +446,7 @@ class _SelectNFIConfigAction(Action):
     def __init__(self, **kwargs):
         kwargs['required'] = False
         _TruffleNFIUnittestConfig.runtimeConfig = _nfi_test_configs["libffi"]
-        super(_SelectNFIConfigAction, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
         if values in _nfi_test_configs:
@@ -471,7 +473,7 @@ def _get_enterprise_truffle():
     return mx.suite('truffle-enterprise', False)
 
 def resolve_sl_dist_names(use_optimized_runtime=True, use_enterprise=True):
-    return ['TRUFFLE_SL', 'TRUFFLE_SL_LAUNCHER', 'TRUFFLE_NFI_LIBFFI'] + resolve_truffle_dist_names(use_optimized_runtime=use_optimized_runtime, use_enterprise=use_enterprise)
+    return ['TRUFFLE_SL', 'TRUFFLE_SL_LAUNCHER', 'TRUFFLE_NFI_LIBFFI', *resolve_truffle_dist_names(use_optimized_runtime=use_optimized_runtime, use_enterprise=use_enterprise)]
 
 def sl(args):
     """run an SL program"""
@@ -487,12 +489,12 @@ def _sl_command(jdk, vm_args, sl_args, use_optimized_runtime=True, use_enterpris
         main_class = ["--module", "org.graalvm.sl_launcher/com.oracle.truffle.sl.launcher.SLMain"]
 
     if force_cp:
-        vm_args = vm_args + ["--enable-native-access=ALL-UNNAMED"]
+        vm_args = [*vm_args, "--enable-native-access=ALL-UNNAMED"]
     else:
-        vm_args = vm_args + ["--enable-native-access=org.graalvm.truffle"]
+        vm_args = [*vm_args, "--enable-native-access=org.graalvm.truffle"]
     enable_sun_misc_unsafe(vm_args)
 
-    return [jdk.java] + jdk.processArgs(vm_args + mx.get_runtime_jvm_args(names=dist_names, force_cp=force_cp) + main_class + sl_args)
+    return [jdk.java, *jdk.processArgs(vm_args + mx.get_runtime_jvm_args(names=dist_names, force_cp=force_cp) + main_class + sl_args)]
 
 
 def slnative(args):
@@ -504,8 +506,8 @@ def slnative(args):
     target_dir = parsed_args.target_folder if parsed_args.target_folder else tempfile.mkdtemp()
     jdk = mx.get_jdk(tag='graalvm')
     image = _native_image_sl(jdk, vm_args, target_dir, use_optimized_runtime=True, force_cp=False, hosted_assertions=False, log_host_inlining=mx.env_var_to_bool("SL_NATIVE_HOST_INLINING"))
-    mx.log("Image build completed. Running {}".format(" ".join([image] + sl_args)))
-    result = mx.run([image] + sl_args)
+    mx.log(f"Image build completed. Running {' '.join([image, *sl_args])}")
+    result = mx.run([image, *sl_args])
     return result
 
 def _native_image(jdk):
@@ -513,7 +515,7 @@ def _native_image(jdk):
     if not exists(native_image_path):
         native_image_path = os.path.join(jdk.home, 'bin', mx.cmd_suffix('native-image'))
     if not exists(native_image_path):
-        mx.abort("No native-image installed in GraalVM {}. Switch to an environment that has an installed native-image command.".format(jdk.home))
+        mx.abort(f"No native-image installed in GraalVM {jdk.home}. Switch to an environment that has an installed native-image command.")
     return native_image_path
 
 def _native_image_sl(jdk, vm_args, target_dir, use_optimized_runtime=True, use_enterprise=True, force_cp=False, hosted_assertions=True, log_host_inlining=False):
@@ -548,9 +550,9 @@ def _native_image_sl(jdk, vm_args, target_dir, use_optimized_runtime=True, use_e
     native_image_args += [target_path]
     # GR-65661: we need to disable the check in GraalVM for 21 as it does not allow polyglot version 25.1.0-dev
     if jdk.version < mx.VersionSpec("25"):
-        native_image_args = ['-Dpolyglotimpl.DisableVersionChecks=true'] + native_image_args
-    mx.log("Running {} {}".format(mx.exe_suffix('native-image'), " ".join(native_image_args)))
-    mx.run([native_image_path] + native_image_args)
+        native_image_args = ['-Dpolyglotimpl.DisableVersionChecks=true', *native_image_args]
+    mx.log(f"Running {mx.exe_suffix('native-image')} {' '.join(native_image_args)}")
+    mx.run([native_image_path, *native_image_args])
     return target_path
 
 class TruffleGateTags:
@@ -590,7 +592,7 @@ def _truffle_gate_runner(args, tasks):
             if t:
                 unittest(['com.oracle.truffle.nfi.test', '--enable-timing', '--verbose', '--nfi-config=panama'])
     with Task('TruffleString UnitTests without Java String Compaction', tasks, tags=TruffleGateTags.string_test) as t:
-        if t: unittest(list(['-XX:-CompactStrings', '--suite', 'truffle', '--enable-timing', '--verbose', '--max-class-failures=25', 'com.oracle.truffle.api.strings.test']))
+        if t: unittest(['-XX:-CompactStrings', '--suite', 'truffle', '--enable-timing', '--verbose', '--max-class-failures=25', 'com.oracle.truffle.api.strings.test'])
     if os.getenv('DISABLE_DSL_STATE_BITS_TESTS', 'false').lower() != 'true':
         with Task('Truffle DSL max state bit tests', tasks, tags=TruffleGateTags.dsl_max_state_bit_test) as t:
             if t:
@@ -680,7 +682,7 @@ def gate_truffle_native(tasks):
 # mx build
 # mx gate -o -t "Truffle ModulePath Unit Tests Optimized"
 def truffle_jvm_module_path_optimized_unit_tests_gate(additional_jvm_args):
-    _truffle_jvm_module_path_unit_tests_gate(['--'] + additional_jvm_args)
+    _truffle_jvm_module_path_unit_tests_gate(['--', *additional_jvm_args])
 
 
 # Run with:
@@ -689,13 +691,13 @@ def truffle_jvm_module_path_optimized_unit_tests_gate(additional_jvm_args):
 # mx build
 # mx gate -o -t "Truffle ModulePath Unit Tests Fallback"
 def truffle_jvm_module_path_fallback_unit_tests_gate(additional_jvm_args):
-    _truffle_jvm_module_path_unit_tests_gate(['--disable-truffle-optimized-runtime'] + ['--'] + additional_jvm_args)
+    _truffle_jvm_module_path_unit_tests_gate(['--disable-truffle-optimized-runtime', '--', *additional_jvm_args])
 
 
 def _truffle_jvm_module_path_unit_tests_gate(additional_unittest_options=None):
     if additional_unittest_options is None:
         additional_unittest_options = []
-    unittest(list(['--suite', 'truffle', '--enable-timing', '--verbose', '--max-class-failures=25'] + additional_unittest_options))
+    unittest(['--suite', 'truffle', '--enable-timing', '--verbose', '--max-class-failures=25', *additional_unittest_options])
 
 
 # Run with:
@@ -704,7 +706,7 @@ def _truffle_jvm_module_path_unit_tests_gate(additional_unittest_options=None):
 # mx build
 # mx gate -o -t "Truffle ClassPath Unit Tests Optimized"
 def truffle_jvm_class_path_optimized_unit_tests_gate(additional_jvm_args):
-    _truffle_jvm_class_path_unit_tests_gate(['--'] + additional_jvm_args)
+    _truffle_jvm_class_path_unit_tests_gate(['--', *additional_jvm_args])
 
 
 # Run with:
@@ -713,14 +715,13 @@ def truffle_jvm_class_path_optimized_unit_tests_gate(additional_jvm_args):
 # mx build
 # mx gate -o -t "Truffle ClassPath Unit Tests Fallback"
 def truffle_jvm_class_path_fallback_unit_tests_gate(additional_jvm_args):
-    _truffle_jvm_class_path_unit_tests_gate(['--disable-truffle-optimized-runtime'] + ['--'] + additional_jvm_args)
+    _truffle_jvm_class_path_unit_tests_gate(['--disable-truffle-optimized-runtime', '--', *additional_jvm_args])
 
 
 def _truffle_jvm_class_path_unit_tests_gate(additional_unittest_options=None):
     if additional_unittest_options is None:
         additional_unittest_options = []
-    unittest(list(['--suite', 'truffle', '--enable-timing', '--force-classpath', '--verbose',
-                   '--max-class-failures=25'] + additional_unittest_options))
+    unittest(['--suite', 'truffle', '--enable-timing', '--force-classpath', '--verbose', '--max-class-failures=25', *additional_unittest_options])
 
 @mx.command(_suite.name, 'native-truffle-unittest')
 def native_truffle_unittest(args):
@@ -803,7 +804,7 @@ def native_truffle_unittest(args):
         vm_args = enable_asserts_args + uid_tracking_args + mx.get_runtime_jvm_args(names=unittest_distributions + truffle_runtime_distributions) + module_args
         # GR-65661: we need to disable the check in GraalVM for 21 as it does not allow polyglot version 25.1.0-dev
         if jdk.version < mx.VersionSpec("25"):
-            vm_args = ['-Dpolyglotimpl.DisableVersionChecks=true'] + vm_args
+            vm_args = ['-Dpolyglotimpl.DisableVersionChecks=true', *vm_args]
 
         # 2. Collect test ids for a native image build
         junit_console_launcher_with_args = [
@@ -817,7 +818,7 @@ def native_truffle_unittest(args):
             '--disable-banner',
             '--details=none'
         ]
-        with open(test_classes_file) as f:
+        with open(test_classes_file, encoding='utf-8') as f:
             test_classes = [f'--select-class={clazz.strip()}' for clazz in f]
         mx.run_java(vm_args + junit_console_launcher_with_args + test_classes, jdk=jdk)
 
@@ -833,7 +834,7 @@ def native_truffle_unittest(args):
             os.makedirs(config_folder, exist_ok=True)
             config_file = os.path.join(config_folder, 'reflect-config.json')
             config = [{'name': t, 'allDeclaredMethods': True} for t in for_types]
-            with open(config_file, "w") as f:
+            with open(config_file, "w", encoding='utf-8') as f:
                 print(json.dumps(config), file=f)
             return config_file
 
@@ -846,13 +847,7 @@ def native_truffle_unittest(args):
             'org.junit.internal.matchers.StacktracePrintingMatcher',
             'org.junit.internal.matchers.ThrowableCauseMatcher'
         ])
-        native_image_args = parsed_args.build_args + [
-            '-J-ea',
-            '-J-esa',
-            '-o', tests_executable,
-            '-cp', tmp,
-            '--features=org.graalvm.junit.platform.JUnitPlatformFeature',
-            'org.graalvm.junit.platform.NativeImageJUnitLauncher']
+        native_image_args = [*parsed_args.build_args, '-J-ea', '-J-esa', '-o', tests_executable, '-cp', tmp, '--features=org.graalvm.junit.platform.JUnitPlatformFeature', 'org.graalvm.junit.platform.NativeImageJUnitLauncher']
 
         # Use an argument file to avoid exceeding the command-line length limit on Windows
         with tempfile.NamedTemporaryFile(mode='w', delete=False) as args_file:
@@ -866,7 +861,7 @@ def native_truffle_unittest(args):
         # 4. Execute native unittests
         test_results = os.path.join(tmp, 'test-results-native', 'test')
         os.makedirs(test_results, exist_ok=True)
-        mx.run([tests_executable] + ['--xml-output-dir', test_results] + parsed_args.run_args)
+        mx.run([tests_executable, '--xml-output-dir', test_results, *parsed_args.run_args])
         success = True
     finally:
         if success:
@@ -882,13 +877,13 @@ def _sl_jvm_gate_tests(jdk, vm_args, force_cp=False, compile_immediately=True):
         default_args += ['--engine.WarnInterpreterOnly=false']
 
     def run_jvm_fallback(test_file):
-        return _sl_command(jdk, vm_args, [test_file, '--disable-launcher-output', '--engine.WarnInterpreterOnly=false'] + default_args, use_optimized_runtime=False, force_cp=force_cp)
+        return _sl_command(jdk, vm_args, [test_file, '--disable-launcher-output', '--engine.WarnInterpreterOnly=false', *default_args], use_optimized_runtime=False, force_cp=force_cp)
     def run_jvm_optimized(test_file):
-        return _sl_command(jdk, vm_args, [test_file, '--disable-launcher-output'] + default_args, use_optimized_runtime=True, force_cp=force_cp)
+        return _sl_command(jdk, vm_args, [test_file, '--disable-launcher-output', *default_args], use_optimized_runtime=True, force_cp=force_cp)
     def run_jvm_optimized_immediately(test_file):
-        return _sl_command(jdk, vm_args, [test_file, '--disable-launcher-output', '--engine.CompileImmediately', '--engine.BackgroundCompilation=false'] + default_args, use_optimized_runtime=True, force_cp=force_cp)
+        return _sl_command(jdk, vm_args, [test_file, '--disable-launcher-output', '--engine.CompileImmediately', '--engine.BackgroundCompilation=false', *default_args], use_optimized_runtime=True, force_cp=force_cp)
     def run_jvmci_disabled(test_file):
-        return _sl_command(jdk, vm_args, [test_file, '--disable-launcher-output', '--engine.WarnInterpreterOnly=false', '-XX:-EnableJVMCI'] + default_args, use_optimized_runtime=True, force_cp=force_cp)
+        return _sl_command(jdk, vm_args, [test_file, '--disable-launcher-output', '--engine.WarnInterpreterOnly=false', '-XX:-EnableJVMCI', *default_args], use_optimized_runtime=True, force_cp=force_cp)
 
     mx.log(f'Run SL JVM Fallback Test on {jdk.home} force_cp={force_cp}')
     _run_sl_tests(run_jvm_fallback)
@@ -906,11 +901,11 @@ def _sl_jvm_gate_tests(jdk, vm_args, force_cp=False, compile_immediately=True):
     enterprise = _get_enterprise_truffle()
     if enterprise:
         def run_jvm_no_enterprise_optimized(test_file):
-            return _sl_command(jdk, vm_args, [test_file, '--disable-launcher-output'] + default_args, use_optimized_runtime=True, use_enterprise=False, force_cp=force_cp)
+            return _sl_command(jdk, vm_args, [test_file, '--disable-launcher-output', *default_args], use_optimized_runtime=True, use_enterprise=False, force_cp=force_cp)
         def run_jvm_no_enterprise_optimized_immediately(test_file):
-            return _sl_command(jdk, vm_args, [test_file, '--disable-launcher-output', '--engine.CompileImmediately', '--engine.BackgroundCompilation=false'] + default_args, use_optimized_runtime=True, use_enterprise=False, force_cp=force_cp)
+            return _sl_command(jdk, vm_args, [test_file, '--disable-launcher-output', '--engine.CompileImmediately', '--engine.BackgroundCompilation=false', *default_args], use_optimized_runtime=True, use_enterprise=False, force_cp=force_cp)
         def run_jvm_no_enterprise_jvmci_disabled(test_file):
-            return _sl_command(jdk, vm_args, [test_file, '--disable-launcher-output', '--engine.WarnInterpreterOnly=false', '-XX:-EnableJVMCI'] + default_args, use_optimized_runtime=True, use_enterprise=False, force_cp=force_cp)
+            return _sl_command(jdk, vm_args, [test_file, '--disable-launcher-output', '--engine.WarnInterpreterOnly=false', '-XX:-EnableJVMCI', *default_args], use_optimized_runtime=True, use_enterprise=False, force_cp=force_cp)
 
         mx.log(f'Run SL JVM Optimized  Test No Truffle Enterprise on {jdk.home} force_cp={force_cp}')
         _run_sl_tests(run_jvm_no_enterprise_optimized)
@@ -930,9 +925,9 @@ def _sl_native_optimized_gate_tests(force_cp):
     image = _native_image_sl(jdk, vm_args, target_dir, use_optimized_runtime=True, use_enterprise=True)
 
     def run_native_optimized(test_file):
-        return [image] + [test_file, '--disable-launcher-output']
+        return [image, test_file, '--disable-launcher-output']
     def run_native_optimized_immediately(test_file):
-        return [image] + [test_file, '--disable-launcher-output', '--engine.CompileImmediately', '--engine.BackgroundCompilation=false']
+        return [image, test_file, '--disable-launcher-output', '--engine.CompileImmediately', '--engine.BackgroundCompilation=false']
 
     mx.log("Run SL Native Optimized Test")
     _run_sl_tests(run_native_optimized)
@@ -949,9 +944,9 @@ def _sl_native_optimized_gate_tests(force_cp):
         image = _native_image_sl(jdk, vm_args, target_dir, use_optimized_runtime=True, use_enterprise=False, force_cp=force_cp)
 
         def run_no_enterprise_native_optimized(test_file):
-            return [image] + [test_file, '--disable-launcher-output']
+            return [image, test_file, '--disable-launcher-output']
         def run_no_enterprise_native_optimized_immediately(test_file):
-            return [image] + [test_file, '--disable-launcher-output', '--engine.CompileImmediately', '--engine.BackgroundCompilation=false']
+            return [image, test_file, '--disable-launcher-output', '--engine.CompileImmediately', '--engine.BackgroundCompilation=false']
 
         mx.log("Run SL Native Optimized Test No Truffle Enterprise")
         _run_sl_tests(run_no_enterprise_native_optimized)
@@ -966,7 +961,7 @@ def truffle_native_context_preinitialization_tests(build_args=None):
     # Context pre-initialization is supported only in optimized runtime.
     # See TruffleFeature for details.
     use_build_args = build_args if build_args else []
-    native_truffle_unittest(['com.oracle.truffle.api.test.polyglot.ContextPreInitializationNativeImageTest'] + ['--build-args'] + use_build_args)
+    native_truffle_unittest(['com.oracle.truffle.api.test.polyglot.ContextPreInitializationNativeImageTest', '--build-args', *use_build_args])
 
 
 def truffle_native_unit_tests_gate(use_optimized_runtime=True, build_args=None):
@@ -1018,7 +1013,7 @@ def truffle_native_unit_tests_gate(use_optimized_runtime=True, build_args=None):
         mx_subst.path_substitutions.substitute('-Dnative.test.path=<path:truffle:TRUFFLE_TEST_NATIVE>'),
     ] + ['-Dpolyglot.engine.AllowExperimentalOptions=true', '-Dpolyglot.engine.WarnVirtualThreadSupport=false']
     exclude_args = list(itertools.chain(*[('--exclude-class', item) for item in excluded_tests]))
-    native_truffle_unittest(test_packages + ['--build-args'] + build_args + ['--run-args'] + run_args + exclude_args)
+    native_truffle_unittest([*test_packages, '--build-args', *build_args, '--run-args', *run_args, *exclude_args])
 
 
 def _sl_native_fallback_gate_tests(force_cp):
@@ -1028,7 +1023,7 @@ def _sl_native_fallback_gate_tests(force_cp):
     image = _native_image_sl(jdk, vm_args, target_dir, use_optimized_runtime=False, force_cp=force_cp)
 
     def run_native_fallback(test_file):
-        return [image] + [test_file, '--disable-launcher-output', '--engine.WarnInterpreterOnly=false']
+        return [image, test_file, '--disable-launcher-output', '--engine.WarnInterpreterOnly=false']
 
     mx.log("Run SL Native Fallback Test")
     _run_sl_tests(run_native_fallback)
@@ -1045,19 +1040,19 @@ def _run_sl_tests(create_command):
             expected_file = join(test_path, base_name + '.output')
             with tempfile.NamedTemporaryFile(delete=False) as temp:
                 command = create_command(test_file)
-                mx.log("Running SL test {}".format(test_file))
+                mx.log(f"Running SL test {test_file}")
                 mx.run(command, nonZeroIsFatal=False, out=temp, err=temp)
 
             diff = compare_files(expected_file, temp.name)
             if diff:
-                mx.log("Failed command: {}".format(" ".join(command)))
-                mx.abort("Output does not match expected output: {}".format(''.join(diff)))
+                mx.log(f"Failed command: {' '.join(command)}")
+                mx.abort(f"Output does not match expected output: {''.join(diff)}")
 
             # delete file only on success
             os.unlink(temp.name)
 
 def compare_files(file1_path, file2_path):
-    with open(file1_path, 'r') as file1, open(file2_path, 'r') as file2:
+    with open(file1_path, encoding='utf-8') as file1, open(file2_path, encoding='utf-8') as file2:
         content1 = file1.readlines()
         content2 = file2.readlines()
         diff = difflib.unified_diff(content1, content2, fromfile=file1_path, tofile=file2_path)
@@ -1072,17 +1067,17 @@ def _truffle_gate_state_bitwidth_tests():
     runs = [1, 2, 4, 8, 16]
     for run_bits in runs:
         build_args = ['-f', '-p', '--dependencies', 'TRUFFLE_TEST', '--force-javac',
-                      '-A-Atruffle.dsl.StateBitWidth={0}'.format(run_bits)]
+                      f'-A-Atruffle.dsl.StateBitWidth={run_bits}']
 
-        unittest_args = ['--suite', 'truffle', '--enable-timing', '--max-class-failures=25', '-Dtruffle.dsl.StateBitWidth={0}'.format(run_bits),
+        unittest_args = ['--suite', 'truffle', '--enable-timing', '--max-class-failures=25', f'-Dtruffle.dsl.StateBitWidth={run_bits}',
                          'com.oracle.truffle.api.dsl.test', 'com.oracle.truffle.api.library.test', 'com.oracle.truffle.sl.test']
         try:
             mx.build(build_args)
             unittest(unittest_args)
         finally:
             mx.log('Completed Truffle DSL state bitwidth test. Reproduce with:')
-            mx.log('  mx build {0}'.format(" ".join(build_args)))
-            mx.log('  mx unittest {0}'.format(" ".join(unittest_args)))
+            mx.log(f"  mx build {' '.join(build_args)}")
+            mx.log(f"  mx unittest {' '.join(unittest_args)}")
 
 def _truffle_generate_slow_path_tests():
     build_args = ['-f', '-p', '--dependencies', 'TRUFFLE_TEST', '--force-javac',
@@ -1095,8 +1090,8 @@ def _truffle_generate_slow_path_tests():
         unittest(unittest_args)
     finally:
         mx.log('Completed Truffle DSL Generate Slow Path Tests. Reproduce with:')
-        mx.log('  mx build {0}'.format(" ".join(build_args)))
-        mx.log('  mx unittest {0}'.format(" ".join(unittest_args)))
+        mx.log(f"  mx build {' '.join(build_args)}")
+        mx.log(f"  mx unittest {' '.join(unittest_args)}")
 
 mx_gate.add_gate_runner(_suite, _truffle_gate_runner)
 
@@ -1138,21 +1133,20 @@ def _collect_distributions_by_service(required_services, entries_collector):
                 # Named module - use the module-info's provides directive
                 jmd = as_java_module(dist, mx.get_jdk())
                 return len(required_services_set.intersection(jmd.provides.keys())) != 0
+            # Unnamed or automatic module - use META-INF/services
+            elif isdir(dist.path):
+                for required_resource in required_resources:
+                    if exists(join(dist.path, required_resource)):
+                        return True
             else:
-                # Unnamed or automatic module - use META-INF/services
-                if isdir(dist.path):
+                with zipfile.ZipFile(dist.path, "r") as zf:
                     for required_resource in required_resources:
-                        if exists(join(dist.path, required_resource)):
+                        try:
+                            zf.getinfo(required_resource)
+                        except KeyError:
+                            pass
+                        else:
                             return True
-                else:
-                    with zipfile.ZipFile(dist.path, "r") as zf:
-                        for required_resource in required_resources:
-                            try:
-                                zf.getinfo(required_resource)
-                            except KeyError:
-                                pass
-                            else:
-                                return True
         return False
 
     _collect_distributions(provides_service, entries_collector)
@@ -1163,7 +1157,7 @@ class _TCKUnittestConfig(mx_unittest.MxUnittestConfig):
     lookupTCKProviders = False
 
     def __init__(self):
-        super(_TCKUnittestConfig, self).__init__(name='truffle-tck')
+        super().__init__(name='truffle-tck')
 
     def processDeps(self, deps):
         if _TCKUnittestConfig.lookupTCKProviders:
@@ -1189,10 +1183,10 @@ class _TCKUnittestConfig(mx_unittest.MxUnittestConfig):
     def apply(self, config):
         vmArgs, mainClass, mainClassArgs = config
         # Disable DefaultRuntime warning
-        vmArgs = vmArgs + ['-Dpolyglot.engine.WarnInterpreterOnly=false']
+        vmArgs = [*vmArgs, '-Dpolyglot.engine.WarnInterpreterOnly=false']
         if not _TCKUnittestConfig._has_disable_assertions_option(vmArgs):
             # Assert for enter/return parity of ProbeNode
-            vmArgs = vmArgs + ['-Dpolyglot.engine.AssertProbes=true', '-Dpolyglot.engine.AllowExperimentalOptions=true']
+            vmArgs = [*vmArgs, '-Dpolyglot.engine.AssertProbes=true', '-Dpolyglot.engine.AllowExperimentalOptions=true']
         return (vmArgs, mainClass, mainClassArgs)
 
 
@@ -1203,7 +1197,7 @@ class _EnableTCKUnittestConfigAction(Action):
     def __init__(self, **kwargs):
         kwargs['required'] = False
         kwargs['nargs'] = 0
-        super(_EnableTCKUnittestConfigAction, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
     def __call__(self, parser, namespace, values, option_string=None):
         _TCKUnittestConfig.lookupTCKProviders = True
@@ -1289,7 +1283,7 @@ def _execute_debugger_test(testFilter, logFile, testEvaluation=False, unitTestOp
     args = []
     if unitTestOptions is not None:
         args = args + unitTestOptions
-    args = args + ["--"]
+    args = [*args, "--"]
     if jvmOptions is not None:
         args = args + jvmOptions
     args = args + debugalot_options
@@ -1324,7 +1318,7 @@ def tck(args):
     unitTestOptions.append('--lookup-truffle-tck-providers')
     jvmOptions = args_no_tests[index:len(args_no_tests)]
     if tckConfiguration == "default":
-        unittest(unitTestOptions + ["--"] + jvmOptions + tests)
+        unittest([*unitTestOptions, "--", *jvmOptions, *tests])
     elif tckConfiguration == "debugger":
         with mx_util.SafeFileCreation(os.path.join(tempfile.gettempdir(), "debugalot")) as sfc:
             _execute_debugger_test(tests, sfc.tmpPath, False, unitTestOptions, jvmOptions)
@@ -1345,7 +1339,7 @@ def tck(args):
             "-Dpolyglot.engine.BackgroundCompilation=false",
             "-Dtck.inlineVerifierInstrument=false",
         ]
-        unittest(unitTestOptions + ["--"] + jvmOptions + compileOptions + tests)
+        unittest([*unitTestOptions, "--", *jvmOptions, *compileOptions, *tests])
 
 
 mx.update_commands(_suite, {
@@ -1368,7 +1362,7 @@ def check_filename_length(args):
         mx.log_error("The following file names are too long for eCryptfs: ")
         for x in too_long:
             mx.log_error(x)
-        mx.abort("File names that are too long where found. Ensure all file names are under %d characters long." % max_length)
+        mx.abort(f"File names that are too long where found. Ensure all file names are under {max_length} characters long.")
 
 def create_dsl_parser(args=None, out=None):
     """create the DSL expression parser using antlr"""
@@ -1383,12 +1377,12 @@ def create_parser(grammar_project, grammar_package, grammar_name, copyright_temp
     grammar_dir = os.path.join(mx.project(grammar_project).source_dirs()[0], *grammar_package.split(".")) + os.path.sep
     g4_filename = grammar_dir + grammar_name + ".g4"
     visitor_arg = "-visitor" if generate_visitor else "-no-visitor"
-    mx.run_java(mx.get_runtime_jvm_args(['ANTLR4_COMPLETE']) + ["org.antlr.v4.Tool", "-package", grammar_package, visitor_arg, "-no-listener"] + args + [g4_filename], out=out)
+    mx.run_java([*mx.get_runtime_jvm_args(['ANTLR4_COMPLETE']), "org.antlr.v4.Tool", "-package", grammar_package, visitor_arg, "-no-listener", *args, g4_filename], out=out)
 
     if copyright_template is None:
         # extract copyright header from .g4 file
         copyright_header = ''
-        with open(g4_filename) as g:
+        with open(g4_filename, encoding='utf-8') as g:
             for line in g:
                 copyright_header += line
                 if line == ' */\n':
@@ -1404,7 +1398,7 @@ def create_parser(grammar_project, grammar_package, grammar_name, copyright_temp
         generated_files.append(grammar_dir + grammar_name + "Visitor.java")
 
     for filename in generated_files:
-        with open(filename, 'r') as content_file:
+        with open(filename, encoding='utf-8') as content_file:
             content = content_file.read()
         # remove first line
         content = "\n".join(content.split("\n")[1:])
@@ -1423,7 +1417,7 @@ def create_parser(grammar_project, grammar_package, grammar_name, copyright_temp
         # user provided post-processing hook:
         if postprocess is not None:
             content = postprocess(content)
-        with open(filename, 'w') as content_file:
+        with open(filename, 'w', encoding='utf-8') as content_file:
             content_file.write(content)
 
 def validate_parsers(args=None, out=None):
@@ -1432,7 +1426,7 @@ def validate_parsers(args=None, out=None):
 
 def validate_parser(grammar_project, grammar_path, create_command, args=None, out=None):
     def read_file(path):
-        with open(path, "r") as f:
+        with open(path, encoding='utf-8') as f:
             return f.readlines()
     parser_path = grammar_path.replace(".g4", "Parser.java")
     lexer_path = grammar_path.replace(".g4", "Lexer.java")
@@ -1468,7 +1462,7 @@ class _PolyglotIsolateResourceProject(mx.JavaProject):
         deps = ['truffle:TRUFFLE_API', 'truffle-enterprise:TRUFFLE_ENTERPRISE']
         if placeholder:
             deps += ['sdk:NATIVEIMAGE']
-        super(_PolyglotIsolateResourceProject, self).__init__(language_suite, name, subDir=subDir, srcDirs=[], deps=deps,
+        super().__init__(language_suite, name, subDir=subDir, srcDirs=[], deps=deps,
                                              javaCompliance=javaCompliance, workingSets='Truffle', d=project_dir,
                                              theLicense=_suite.defaultLicense)
         src_gen_dir = self.source_gen_dir()
@@ -1530,13 +1524,13 @@ class _PolyglotIsolateResourceBuildTask(mx.JavaBuildTask):
             # already collected
             return self
         # collect project files first, then extend with generated resource
-        super(_PolyglotIsolateResourceBuildTask, self)._collect_files()
+        super()._collect_files()
         javafiles = self._javafiles
         prj = self.subject
         gen_src_dir = prj.source_gen_dir()
         pkg_name = prj.name
         target_file = _PolyglotIsolateResourceBuildTask._target_file(gen_src_dir, pkg_name)
-        if not target_file in javafiles:
+        if target_file not in javafiles:
             bin_dir = prj.output_dir()
             target_class = os.path.join(bin_dir, os.path.relpath(target_file, gen_src_dir)[:-len('.java')] + '.class')
             javafiles[target_file] = target_class
@@ -1548,7 +1542,7 @@ class _PolyglotIsolateResourceBuildTask(mx.JavaBuildTask):
     def build(self):
         prj = self.subject
         pkg_name = prj.name
-        with open(_PolyglotIsolateResourceBuildTask._template_file(prj.placeholder), 'r', encoding='utf-8') as f:
+        with open(_PolyglotIsolateResourceBuildTask._template_file(prj.placeholder), encoding='utf-8') as f:
             file_content = f.read()
         subst_eng = mx_subst.SubstitutionEngine()
         subst_eng.register_no_arg('package', pkg_name)
@@ -1562,7 +1556,7 @@ class _PolyglotIsolateResourceBuildTask(mx.JavaBuildTask):
         mx_util.ensure_dir_exists(dirname(target_file))
         with mx_util.SafeFileCreation(target_file) as sfc, open(sfc.tmpPath, 'w', encoding='utf-8') as f:
             f.write(file_content)
-        super(_PolyglotIsolateResourceBuildTask, self).build()
+        super().build()
 
 
 
@@ -1623,7 +1617,7 @@ def register_polyglot_isolate_distributions(language_suite, register_project, re
         if main_language_id in additional_language_ids:
             all_language_ids = additional_language_ids
         else:
-            all_language_ids = [main_language_id] + additional_language_ids
+            all_language_ids = [main_language_id, *additional_language_ids]
     else:
         all_language_ids = [main_language_id]
     language_id_upper_case = main_language_id.upper()
@@ -1656,7 +1650,7 @@ def register_polyglot_isolate_distributions(language_suite, register_project, re
 
         if build_for_current_platform:
             # 2. Register a project building the isolate library
-            isolate_deps = [language_pom_distribution, 'truffle-enterprise:TRUFFLE_ENTERPRISE'] + additional_image_path_artifacts
+            isolate_deps = [language_pom_distribution, 'truffle-enterprise:TRUFFLE_ENTERPRISE', *additional_image_path_artifacts]
             build_library = PolyglotIsolateProject(language_suite, main_language_id, isolate_deps, isolate_build_options)
             register_project(build_library)
 
@@ -1726,7 +1720,7 @@ def register_polyglot_isolate_distributions(language_suite, register_project, re
             distDependencies=['truffle:TRUFFLE_API', 'truffle-enterprise:TRUFFLE_ENTERPRISE'],
             javaCompliance=str(build_internal_resource.javaCompliance)+'+',
             platformDependent=True,
-            theLicense=sorted(list(licenses)),
+            theLicense=sorted(licenses),
             compress=True,
             **attrs
         )
@@ -1750,7 +1744,7 @@ def register_polyglot_isolate_distributions(language_suite, register_project, re
                 resources_dist_name,
                 'truffle-enterprise:TRUFFLE_ENTERPRISE',
             ],
-            theLicense=sorted(list(licenses)),
+            theLicense=sorted(licenses),
             **attrs)
         register_distribution(meta_pom_dist)
         platform_meta_poms.append(meta_pom_dist)
@@ -1769,7 +1763,7 @@ def register_polyglot_isolate_distributions(language_suite, register_project, re
         name=isolate_dist_name,
         distDependencies=[],
         runtimeDependencies=[pom.name for pom in platform_meta_poms],
-        theLicense=sorted(list(licenses)),
+        theLicense=sorted(licenses),
         **attrs)
     register_distribution(meta_pom_dist)
     return True
@@ -1817,7 +1811,7 @@ class LibffiBuilderProject(mx_native.MultitargetProject):
         subDir = 'src'
         srcDirs = ['patches']
         d = os.path.join(suite.dir, subDir, name)
-        super(LibffiBuilderProject, self).__init__(suite, name, subDir, srcDirs, deps, workingSets, d, **kwargs)
+        super().__init__(suite, name, subDir, srcDirs, deps, workingSets, d, **kwargs)
 
         self.out_dir = self.get_output_root()
         self.delegates = {}
@@ -1834,10 +1828,10 @@ class LibffiBuilderProject(mx_native.MultitargetProject):
                                                            'static_lib',
                                                            deliverable='ffi',
                                                            cflags=['-MD', '-O2', '-DFFI_STATIC_BUILD'])
-            delegate._source = dict(tree=['include',
+            delegate._source = {'tree': ['include',
                                                'src',
                                                os.path.join('src', 'x86')],
-                                         files={'.h': [os.path.join('include', 'ffi.h'),
+                                         'files': {'.h': [os.path.join('include', 'ffi.h'),
                                                        os.path.join('include', 'ffitarget.h'),
                                                        os.path.join('src', 'fficonfig.h'),
                                                        os.path.join('src', 'ffi_common.h')],
@@ -1847,7 +1841,7 @@ class LibffiBuilderProject(mx_native.MultitargetProject):
                                                        os.path.join('src', 'types.c'),
                                                        os.path.join('src', 'tramp.c'),
                                                        os.path.join('src', 'x86', 'ffiw64.c')],
-                                                '.S': [os.path.join('src', 'x86', 'win64_intel.S')]})
+                                                '.S': [os.path.join('src', 'x86', 'win64_intel.S')]}}
         else:
             class LibtoolNativeProject(mx.NativeProject,  # pylint: disable=too-many-ancestors
                                        mx_native.NativeDependency):
@@ -1856,12 +1850,12 @@ class LibffiBuilderProject(mx_native.MultitargetProject):
                 source_tree = [] # expected by NinjaManifestGenerator
 
                 def __init__(self, suite, name, subDir, srcDirs, deps, workingSets, results, output, d, refIncludeDirs, theLicense=None, testProject=False, vpath=False, **kwArgs):
-                    super(LibtoolNativeProject, self).__init__(suite, name, subDir, srcDirs, deps, workingSets, results, output, d, theLicense, testProject, vpath, **kwArgs)
+                    super().__init__(suite, name, subDir, srcDirs, deps, workingSets, results, output, d, theLicense, testProject, vpath, **kwArgs)
                     self.out_dir = self.get_output_root()
                     self.ref_include_dirs = refIncludeDirs
 
                 def getArchivableResults(self, use_relpath=True, single=False):
-                    for file_path, archive_path in super(LibtoolNativeProject, self).getArchivableResults(use_relpath):
+                    for file_path, archive_path in super().getArchivableResults(use_relpath):
                         path_in_lt_objdir = os.path.basename(dirname(file_path)) == '.libs'
                         yield file_path, os.path.basename(archive_path) if path_in_lt_objdir else archive_path
                         if single:
@@ -1873,11 +1867,11 @@ class LibffiBuilderProject(mx_native.MultitargetProject):
 
             class LibtoolNativeBuildTask(mx.NativeBuildTask):
                 def __init__(self, args, project, refIncludeDirs):
-                    super(LibtoolNativeBuildTask, self).__init__(args, project)
+                    super().__init__(args, project)
                     self.ref_include_dirs = refIncludeDirs
 
                 def _build_run_args(self):
-                    cmdline, cwd, env = super(LibtoolNativeBuildTask, self)._build_run_args()
+                    cmdline, cwd, env = super()._build_run_args()
 
                     if env.get('CC') != os.environ.get('CC'):
                         mx.abort("super()._build_run_args() set CC unexpectedly.")
@@ -1969,16 +1963,17 @@ class LibffiBuilderProject(mx_native.MultitargetProject):
                 configure_libc = {'glibc': 'gnu', 'musl': 'musl'}.get(toolchain.spec.target.libc)
                 assert configure_libc, "translation to configure style libc is not supported yet for" + str(toolchain.spec.target.libc)
 
-                configure_args += ['--host={}-pc-linux-{}'.format(configure_arch, configure_libc)]
+                configure_args += [f'--host={configure_arch}-pc-linux-{configure_libc}']
 
-            configure_args += [' CFLAGS="{}"'.format(' '.join(['-g', '-O3', '-fvisibility=hidden'] + (['-m64'] if mx.get_os() == 'solaris' else []))),
+            cflags = ' '.join(['-g', '-O3', '-fvisibility=hidden'] + (['-m64'] if mx.get_os() == 'solaris' else []))
+            configure_args += [f' CFLAGS="{cflags}"',
                                'CPPFLAGS="-DNO_JAVA_RAW_API"']
 
-            delegate.buildEnv = dict(
-                SOURCES=os.path.basename(delegate.dir),
-                OUTPUT=os.path.basename(delegate.getOutput()),
-                CONFIGURE_ARGS=' '.join(configure_args)
-            )
+            delegate.buildEnv = {
+                'SOURCES': os.path.basename(delegate.dir),
+                'OUTPUT': os.path.basename(delegate.getOutput()),
+                'CONFIGURE_ARGS': ' '.join(configure_args)
+            }
 
         if self.include_dirs is None:
             # include files of first delegate are used by users of this project.
@@ -1988,7 +1983,7 @@ class LibffiBuilderProject(mx_native.MultitargetProject):
         return delegate
 
     def resolveDeps(self):
-        super(LibffiBuilderProject, self).resolveDeps()
+        super().resolveDeps()
 
         for toolchain in self.toolchains:
             delegate = self._get_or_create_delegate(toolchain)
@@ -1997,7 +1992,7 @@ class LibffiBuilderProject(mx_native.MultitargetProject):
 
     @property
     def sources(self):
-        assert len(self.deps) == 1, '{} must depend only on its sources'.format(self.name)
+        assert len(self.deps) == 1, f'{self.name} must depend only on its sources'
         return self.deps[0]
 
     def patches(self, toolchain):
@@ -2010,21 +2005,17 @@ class LibffiBuilderProject(mx_native.MultitargetProject):
                 for patch in os.listdir(patchdir):
                     yield os.path.join(patchdir, patch)
 
-        for p in get_patches(patch_dir('common')):
-            yield p
+        yield from get_patches(patch_dir('common'))
 
-        os_arch_libc_variant_dir = patch_dir('{}-{}-{}-{}'.format(mx.get_os(), mx.get_arch(), toolchain.spec.target.libc, toolchain.spec.target.variant))
-        os_arch_dir = patch_dir('{}-{}'.format(mx.get_os(), mx.get_arch()))
+        os_arch_libc_variant_dir = patch_dir(f'{mx.get_os()}-{mx.get_arch()}-{toolchain.spec.target.libc}-{toolchain.spec.target.variant}')
+        os_arch_dir = patch_dir(f'{mx.get_os()}-{mx.get_arch()}')
 
         if os.path.exists(os_arch_libc_variant_dir):
-            for p in get_patches(os_arch_libc_variant_dir):
-                yield p
+            yield from get_patches(os_arch_libc_variant_dir)
         elif os.path.exists(os_arch_dir):
-            for p in get_patches(os_arch_dir):
-                yield p
+            yield from get_patches(os_arch_dir)
         else:
-            for p in get_patches(patch_dir('others')):
-                yield p
+            yield from get_patches(patch_dir('others'))
 
     def _build_task(self, target_arch, args, toolchain=None):
         project_delegate = self._get_or_create_delegate(toolchain)
@@ -2037,7 +2028,7 @@ class LibffiBuilderProject(mx_native.MultitargetProject):
                 subdir = toolchain.spec.target.subdir
                 yield file_path, os.path.join(subdir, archive_path)
 
-    def _archivable_results(self, use_relpath, base_dir, file_path):
+    def _archivable_results(self, target_arch, use_relpath, single):
         mx.abort("Should not be reached")
 
     @property
@@ -2053,23 +2044,23 @@ class LibffiBuilderProject(mx_native.MultitargetProject):
 
 class LibffiBuildTask(mx_native.TargetArchBuildTask):
     def __init__(self, args, project, project_delegate, target_arch, toolchain=None):
-        super(LibffiBuildTask, self).__init__(args, project, target_arch, toolchain)
+        super().__init__(args, project, target_arch, toolchain)
         self.delegate = project_delegate.getBuildTask(args)
         self.delegate.toolchain = toolchain
         self.srcDir = os.path.basename(project_delegate.dir) # something like `libffi-3.4.6`
 
     def __str__(self):
-        return 'Building {} for target_arch {} and toolchain {}'.format(self.subject.name, self.target_arch, self.toolchain)
+        return f'Building {self.subject.name} for target_arch {self.target_arch} and toolchain {self.toolchain}'
 
     def needsBuild(self, newestInput):
-        is_needed, reason = super(LibffiBuildTask, self).needsBuild(newestInput)
+        is_needed, reason = super().needsBuild(newestInput)
         if is_needed:
             return True, reason
 
         output = self.newestOutput()
         newest_patch = mx.TimeStampFile.newest(self.subject.patches(self.delegate.toolchain))
         if newest_patch and output.isOlderThan(newest_patch):
-            return True, '{} is older than {}'.format(output, newest_patch)
+            return True, f'{output} is older than {newest_patch}'
 
         return False, 'all files are up to date'
 
@@ -2078,16 +2069,16 @@ class LibffiBuildTask(mx_native.TargetArchBuildTask):
         return None if output and not output.exists() else output
 
     def build(self):
-        assert not os.path.exists(self.out_dir), '{} must be cleaned before build'.format(self.subject.name)
+        assert not os.path.exists(self.out_dir), f'{self.subject.name} must be cleaned before build'
 
-        mx.log('Extracting {}...'.format(self.subject.sources))
+        mx.log(f'Extracting {self.subject.sources}...')
         mx.Extractor.create(self.subject.sources.get_path(False)).extract(self.out_dir)
 
         mx.log('Applying patches...')
         git_apply = ['git', 'apply', '--whitespace=nowarn', '--unsafe-paths', '--directory',
                      os.path.join(os.path.realpath(self.out_dir), self.srcDir)]
         for patch in self.subject.patches(self.delegate.toolchain):
-            mx.run(git_apply + [patch], cwd=self.subject.suite.vc_dir)
+            mx.run([*git_apply, patch], cwd=self.subject.suite.vc_dir)
 
         self.delegate.logBuild()
         self.delegate.build()

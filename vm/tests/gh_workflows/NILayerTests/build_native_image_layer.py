@@ -49,9 +49,9 @@ def generate_matrix(path_to_data, libs_per_job, delimiter):
     Generates a matrix in the format of GAV coordinate tuples (depending on the selected number of libraries per action job) for GitHub actions.
     '''
     try:
-        with open(os.path.join(path_to_data, 'popular-maven-libraries.json'), 'r') as f:
+        with open(os.path.join(path_to_data, 'popular-maven-libraries.json')) as f:
             data = json.load(f)
-        with open(os.path.join(path_to_data, 'excluded-popular-maven-libraries.json'), 'r') as f:
+        with open(os.path.join(path_to_data, 'excluded-popular-maven-libraries.json')) as f:
             exclude_data = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError) as e:
         print(f"Error loading files: {e}")
@@ -75,10 +75,10 @@ def generate_matrix(path_to_data, libs_per_job, delimiter):
     try:
         github_output = os.getenv('GITHUB_OUTPUT')
         if github_output is None:
-            raise EnvironmentError("GITHUB_OUTPUT environment variable not set")
+            raise OSError("GITHUB_OUTPUT environment variable not set")
         with open(github_output, 'a') as f:
             f.write(f"matrix={json.dumps(matrix)}\n")
-    except (IOError, EnvironmentError) as e:
+    except OSError as e:
         print(f"Error writing to GITHUB_OUTPUT: {e}")
         sys.exit(1)
 
