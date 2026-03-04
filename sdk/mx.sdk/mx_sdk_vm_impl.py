@@ -1301,7 +1301,7 @@ class NativePropertiesBuildTask(mx.ProjectBuildTask):
                 project_name_f = GraalVmLauncher.launcher_project_name
             else:
                 mx.abort("Unsupported image config type: " + str(type(image_config)))
-                return ""
+                raise AssertionError("unreachable")
 
             if isinstance(image_config, (mx_sdk.LanguageLauncherConfig, mx_sdk.LanguageLibraryConfig)):
                 build_args += ['--language:' + image_config.language, '--tool:all']
@@ -3636,7 +3636,7 @@ def _get_launcher_name(image_config):
         destination = image_config
     else:
         mx.abort(f'Unknown launcher config type: {type(image_config)}')
-        return ""
+        raise AssertionError('unreachable')
 
     return basename(remove_exe_suffix(destination, require_suffix=False))
 
@@ -3651,7 +3651,7 @@ def _get_library_name(image_config):
         destination = image_config
     else:
         mx.abort(f'Unknown library config type: {type(image_config)}')
-        return ""
+        raise AssertionError('unreachable')
 
     return remove_lib_prefix_suffix(basename(destination), require_suffix_prefix=False)
 

@@ -2485,7 +2485,7 @@ class JvmFuncsFallbacksBuildTask(mx.BuildTask):
                 symbol_dump_command = 'objdump --wide --syms'
             else:
                 mx.abort('gen_fallbacks not supported on ' + sys.platform)
-                return set()
+                raise AssertionError('unreachable')
 
             seen_gnu_property_type_5_warnings = False
             def suppress_gnu_property_type_5_warnings(line):

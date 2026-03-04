@@ -2418,7 +2418,7 @@ class BaseDaCapoBenchmarkSuite(mx_benchmark.JavaBenchmarkSuite, mx_benchmark.Ave
                 subdir += "-minimal"
             return os.path.join(basePath, subdir)
         else:
-            raise f"data location is not supported for suite version '{self.version()}'"
+            raise RuntimeError(f"data location is not supported for suite version '{self.version()}'")
 
     def minimalArchive(self):
         return False

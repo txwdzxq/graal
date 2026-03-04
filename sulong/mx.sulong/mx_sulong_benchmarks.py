@@ -56,8 +56,10 @@ class SulongBenchmarkRule(mx_benchmark.StdOutRule):
             replacement=replacement)
 
     def parseResults(self, text):
+        parent_parse_results = super().parseResults
+
         def _parse_results_gen():
-            for d in super().parseResults(text):
+            for d in parent_parse_results(text):
                 line = d.pop('line')
                 for iteration, value in enumerate(line.split(',')):
                     r = d.copy()
