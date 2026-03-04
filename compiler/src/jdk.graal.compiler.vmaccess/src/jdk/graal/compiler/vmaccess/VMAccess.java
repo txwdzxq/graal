@@ -374,6 +374,12 @@ public interface VMAccess {
         String getVMAccessName();
 
         /**
+         * Returns {@code true} if the VM access implementation built by this {@link Builder} will
+         * enforces full heap isolation. See {@link VMAccess#isFullyIsolated}.
+         */
+        boolean isFullyIsolated();
+
+        /**
          * The class path to use. This has the semantics of the {@code --class-path} java launcher
          * option.
          */

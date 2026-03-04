@@ -52,6 +52,11 @@ public final class HostVMAccessBuilder implements VMAccess.Builder {
     }
 
     @Override
+    public boolean isFullyIsolated() {
+        return false;
+    }
+
+    @Override
     public VMAccess.Builder classPath(List<String> paths) {
         this.classpath = paths;
         return this;
