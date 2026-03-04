@@ -1376,9 +1376,7 @@ class PolybenchBenchmarkSuite(
             return datapoints
 
     def use_stage_aware_benchmark_mixin_intercept_run(self):
-        if self.jvm(bm_exec_context().get("bm_suite_args")) == "cpython":
-            return True
-        return False
+        return self.jvm(bm_exec_context().get("bm_suite_args")) in ["cpython", "pyodide"]
 
     def _resolve_current_benchmark(self, benchmarks) -> ResolvedPolybenchBenchmark:
         if benchmarks is None or len(benchmarks) != 1:
@@ -1511,6 +1509,10 @@ class PolybenchBenchmarkSuite(
         return ret_code, out, dims
 
     def _infer_host_vm_config(self, bm_suite_args, dims):
+        selected_vm = self.get_vm_registry().get_vm_from_suite_args(bm_suite_args)
+        if isinstance(selected_vm, mx_benchmark.GuestVm):
+            return selected_vm.host_vm().config_name()
+
         edition = dims.get("platform.graalvm-edition", "unknown").lower()
         if edition not in ["ce", "ee"] or not dims.get("platform.prebuilt-vm", False):
             raise ValueError(f"Polybench should only run with a prebuilt GraalVM. Dimensions found: {dims}")
@@ -1533,6 +1535,11 @@ class PolybenchBenchmarkSuite(
             return "graal-enterprise-libgraal-pgo" if edition == "ee" else "graal-core-libgraal"
 
     def _infer_guest_vm_info(self, benchmarks, bm_suite_args) -> Tuple[str, str]:
+        # Prefer an explicit GuestVm if selected via the VmRegistry.
+        vm = self.get_vm_registry().get_vm_from_suite_args(bm_suite_args)
+        if isinstance(vm, mx_benchmark.GuestVm):
+            return (vm.name(), vm.config_name())
+
         resolved_benchmark = self._resolve_current_benchmark(benchmarks)
         # Eventually this must check for exact match for each language and map it to the corresponding guest-vm.
         # Here, we just infer it based on the presence of some language in a list. This must be made more robust
