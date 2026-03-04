@@ -1311,17 +1311,17 @@ public class BinaryParser extends BinaryStreamParser {
             final int functionEndOffset = bytecode.location();
 
             bytecode.addCodeEntry(functionIndex, state.maxStackSize(), bytecodeEndOffset - bytecodeStartOffset, locals.length, resultTypes.length);
-            for (int local : locals) {
-                bytecode.addType(local);
-            }
             if (locals.length != 0) {
-                bytecode.addByte((byte) 0);
-            }
-            for (int result : resultTypes) {
-                bytecode.addType(result);
+                bytecode.add(locals.length);
+                for (int local : locals) {
+                    bytecode.addType(local);
+                }
             }
             if (resultTypes.length != 0) {
-                bytecode.addByte((byte) 0);
+                bytecode.add(resultTypes.length);
+                for (int result : resultTypes) {
+                    bytecode.addType(result);
+                }
             }
 
             // Do not override the code entry offset when rereading the function.
