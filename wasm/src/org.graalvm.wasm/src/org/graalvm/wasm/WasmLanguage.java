@@ -54,6 +54,7 @@ import org.graalvm.wasm.api.WebAssembly;
 import org.graalvm.wasm.debugging.representation.DebugPrimitiveValue;
 import org.graalvm.wasm.exception.WasmJsApiException;
 import org.graalvm.wasm.predefined.BuiltinModule;
+import org.graalvm.wasm.struct.WasmStructAccess;
 import org.graalvm.wasm.types.DefinedType;
 import org.graalvm.wasm.types.FunctionType;
 
@@ -99,6 +100,7 @@ public final class WasmLanguage extends TruffleLanguage<WasmContext> {
     private final Map<BuiltinModule, WasmModule> builtinModules = new ConcurrentHashMap<>();
 
     private final Map<DefinedType, Integer> equivalenceClasses = new ConcurrentHashMap<>();
+    private final Map<Integer, WasmStructAccess> structAccessesByEquivalenceClass = new ConcurrentHashMap<>();
     private int nextEquivalenceClass = SymbolTable.FIRST_EQUIVALENCE_CLASS;
     private final Map<FunctionType, CallTarget> interopCallAdapters = new ConcurrentHashMap<>();
 
@@ -123,6 +125,18 @@ public final class WasmLanguage extends TruffleLanguage<WasmContext> {
             }
         }
         return equivalenceClass;
+    }
+
+    /**
+     * Gets or registers a canonical struct access object for a type equivalence class.
+     *
+     * Struct accesses are shared across modules to ensure type-equivalent structs use the same
+     * static shape and field properties.
+     */
+    public WasmStructAccess canonicalStructAccessFor(int equivalenceClass, WasmStructAccess structAccess) {
+        CompilerAsserts.neverPartOfCompilation();
+        WasmStructAccess previous = structAccessesByEquivalenceClass.putIfAbsent(equivalenceClass, structAccess);
+        return previous != null ? previous : structAccess;
     }
 
     /**

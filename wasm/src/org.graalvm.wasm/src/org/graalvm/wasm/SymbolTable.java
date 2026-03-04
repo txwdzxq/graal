@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2019, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -722,7 +722,9 @@ public abstract class SymbolTable {
             int equivalenceClass = language.equivalenceClassFor(type);
             type.setTypeEquivalenceClass(equivalenceClass);
             if (isStructType(typeIndex)) {
-                type.setStructAccess(structTypeAccess(typeIndex));
+                WasmStructAccess structAccess = language.canonicalStructAccessFor(equivalenceClass, structTypeAccess(typeIndex));
+                structAccesses[typeIndex] = structAccess;
+                type.setStructAccess(structAccess);
             }
             closedTypes[typeIndex] = type;
         }
