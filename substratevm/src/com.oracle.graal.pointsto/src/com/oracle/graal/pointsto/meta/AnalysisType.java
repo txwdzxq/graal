@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -35,7 +35,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import org.graalvm.collections.EconomicSet;
 import org.graalvm.nativeimage.hosted.Feature.DuringAnalysisAccess;
@@ -993,10 +992,62 @@ public abstract class AnalysisType extends AnalysisElement implements WrappedJav
     @Override
     public List<? extends AnalysisType> getPermittedSubclasses() {
         if (permittedSubclasses == PERMITTED_SUBCLASSES_UNINITIALIZED) {
-            List<? extends JavaType> wrappedPermittedSubclasses = wrapped.getPermittedSubclasses();
-            permittedSubclasses = wrappedPermittedSubclasses == null ? null : wrappedPermittedSubclasses.stream().map(universe::lookup).collect(Collectors.toUnmodifiableList());
+            permittedSubclasses = buildPermittedSubclasses(wrapped.getPermittedSubclasses());
         }
         return permittedSubclasses;
+    }
+
+    private List<AnalysisType> buildPermittedSubclasses(List<? extends JavaType> wrappedPermittedSubclasses) {
+        if (wrappedPermittedSubclasses == null) {
+            return null;
+        }
+        if (universe.sealed()) {
+            return buildPermittedSubclassesAfterAnalysis(wrappedPermittedSubclasses);
+        }
+        return buildPermittedSubclassesDuringAnalysis(wrappedPermittedSubclasses);
+    }
+
+    /**
+     * Builds the list of permitted subclasses during the analysis. This may add types to the
+     * analysis universe.
+     */
+    private List<AnalysisType> buildPermittedSubclassesDuringAnalysis(List<? extends JavaType> wrappedPermittedSubclasses) {
+        assert !universe.sealed();
+        List<AnalysisType> result = new ArrayList<>(wrappedPermittedSubclasses.size());
+        for (JavaType permittedSubclass : wrappedPermittedSubclasses) {
+            /*
+             * It is possible that we see unresolved types here. If the permitted subclasses are
+             * queried during analysis, we need to resolve them.
+             */
+            ResolvedJavaType resolvedPermittedSubclass = permittedSubclass.resolve(wrapped);
+            /*
+             * The permitted subclasses of the wrapped type may contain types that are unsupported
+             * on the target platform (e.g. hosted-only types). We therefore need to filter the list
+             * and remove those types. This is fine because such types cannot be part of the
+             * analysis universe anyway.
+             */
+            if (universe.hostVM.platformSupported(resolvedPermittedSubclass)) {
+                result.add(universe.lookup(resolvedPermittedSubclass));
+            }
+        }
+        return result;
+    }
+
+    /**
+     * Builds the list of permitted subclasses if the analysis universe was sealed. This never adds
+     * types to the analysis universe. The list will only contain the permitted subclasses of the
+     * wrapped type that were reachable during analysis.
+     */
+    private List<AnalysisType> buildPermittedSubclassesAfterAnalysis(List<? extends JavaType> wrappedPermittedSubclasses) {
+        assert universe.sealed();
+        List<AnalysisType> result = new ArrayList<>(wrappedPermittedSubclasses.size());
+        for (JavaType permittedSubclass : wrappedPermittedSubclasses) {
+            AnalysisType analysisType;
+            if (permittedSubclass instanceof ResolvedJavaType resolvedPermittedSubclass && (analysisType = universe.optionalLookup(resolvedPermittedSubclass)) != null) {
+                result.add(analysisType);
+            }
+        }
+        return result;
     }
 
     @Override
