@@ -247,6 +247,7 @@ import com.oracle.svm.hosted.methodhandles.SVMMethodHandleWithExceptionPlugin;
 import com.oracle.svm.hosted.option.HostedOptionProvider;
 import com.oracle.svm.hosted.phases.CInterfaceInvocationPlugin;
 import com.oracle.svm.hosted.phases.ConstantFoldLoadFieldPlugin;
+import com.oracle.svm.hosted.phases.DevirtualizeInterfaceCallPlugin;
 import com.oracle.svm.hosted.phases.EarlyConstantFoldLoadFieldPlugin;
 import com.oracle.svm.hosted.phases.GuestFoldInvocationPlugin;
 import com.oracle.svm.hosted.phases.ImageBuildStatisticsCounterPhase;
@@ -1600,6 +1601,7 @@ public class NativeImageGenerator {
 
         if (reason.duringAnalysis()) {
             plugins.appendNodePlugin(new SVMMethodHandleWithExceptionPlugin(providers.getConstantReflection().getMethodHandleAccess(), false));
+            plugins.appendNodePlugin(new DevirtualizeInterfaceCallPlugin());
         }
         plugins.appendNodePlugin(new DeletedFieldsPlugin());
         plugins.appendNodePlugin(new InjectedAccessorsPlugin());
