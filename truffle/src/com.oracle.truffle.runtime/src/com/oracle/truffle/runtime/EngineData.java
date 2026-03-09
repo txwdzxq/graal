@@ -215,21 +215,6 @@ public final class EngineData {
         return this.closed;
     }
 
-    public static IllegalArgumentException sandboxPolicyException(SandboxPolicy sandboxPolicy, String reason, String fix) {
-        Objects.requireNonNull(sandboxPolicy);
-        Objects.requireNonNull(reason);
-        Objects.requireNonNull(fix);
-        String spawnIsolateHelp;
-        if (sandboxPolicy.isStricterOrEqual(SandboxPolicy.ISOLATED)) {
-            spawnIsolateHelp = " If you switch to a less strict sandbox policy you can still spawn an isolate with an isolated heap using Builder.option(\"engine.SpawnIsolate\",\"true\").";
-        } else {
-            spawnIsolateHelp = "";
-        }
-        String message = String.format("The validation for the given sandbox policy %s failed. %s " +
-                        "In order to resolve this %s or switch to a less strict sandbox policy using Builder.sandbox(SandboxPolicy).%s", sandboxPolicy, reason, fix, spawnIsolateHelp);
-        return new IllegalArgumentException(message);
-    }
-
     public void preinitializeContext() {
         OptimizedRuntimeAccessor.ENGINE.preinitializeContext(this.polyglotEngine);
     }
@@ -486,7 +471,8 @@ public final class EngineData {
     private void validateOptions(SandboxPolicy sandboxPolicy) {
         if (sandboxPolicy.isStricterOrEqual(SandboxPolicy.CONSTRAINED) && compilationFailureAction != ExceptionAction.Silent && compilationFailureAction != ExceptionAction.Print) {
             throw OptimizedRuntimeAccessor.ENGINE.createPolyglotEngineException(
-                            sandboxPolicyException(sandboxPolicy, "The engine.CompilationFailureAction option is set to " + compilationFailureAction.name() + ", but must be set to Silent or Print.",
+                            OptimizedRuntimeAccessor.ENGINE.sandboxPolicyException(sandboxPolicy,
+                                            "The engine.CompilationFailureAction option is set to " + compilationFailureAction.name() + ", but must be set to Silent or Print.",
                                             "use the default value (Silent) by removing Builder.option(\"engine.CompilationFailureAction\", ...) or set it to Print"));
         }
         if (compilationFailureAction == ExceptionAction.Throw && backgroundCompilation) {

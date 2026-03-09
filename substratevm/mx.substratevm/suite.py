@@ -2939,5 +2939,14 @@ suite = {
             "maven" : False,
         },
 
+        "TRUFFLE_LANGUAGE_LIBRARY_COMMUNITY_GRAALVM_SUPPORT" : {
+            "native" : True,
+            "description" : "Community Truffle language library support distribution for the GraalVM",
+            "layout" : {
+                "native-image.properties" : "file:mx.substratevm/macro-truffle-language-library.properties",
+            },
+            "maven" : False,
+        },
+
     },
 }

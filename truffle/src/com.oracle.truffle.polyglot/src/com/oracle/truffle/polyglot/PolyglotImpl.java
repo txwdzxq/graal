@@ -72,6 +72,8 @@ import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 import org.graalvm.options.OptionDescriptors;
+import org.graalvm.options.OptionKey;
+import org.graalvm.options.OptionValues;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.HostAccess.TargetMappingPrecedence;
@@ -104,6 +106,8 @@ import com.oracle.truffle.api.strings.TruffleString.Encoding;
 import com.oracle.truffle.polyglot.EngineAccessor.AbstractClassLoaderSupplier;
 import com.oracle.truffle.polyglot.PolyglotEngineImpl.CancelExecution;
 import com.oracle.truffle.polyglot.PolyglotEngineImpl.LogConfig;
+import com.oracle.truffle.polyglot.PolyglotEngineOptions.IsolatePolicy;
+import com.oracle.truffle.polyglot.PolyglotEngineOptions.UntrustedCodeMitigationPolicy;
 import com.oracle.truffle.polyglot.PolyglotLoggers.EngineLoggerProvider;
 
 /*
@@ -120,8 +124,21 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
                     "engine.CacheStore",
                     "engine.CacheStoreEnabled",
                     "engine.DebugCacheLoad",
-                    "engine.DebugCacheStore",
-                    "engine.SpawnIsolate");
+                    "engine.DebugCacheStore");
+
+    private static final boolean HAS_ENTERPRISE_EXTENSIONS;
+    static {
+        boolean value;
+        try {
+            Class.forName("com.oracle.truffle.runtime.enterprise.EnterpriseTruffle");
+            value = true;
+        } catch (ClassNotFoundException e) {
+            value = false;
+        }
+        HAS_ENTERPRISE_EXTENSIONS = value;
+    }
+
+    static final String[] EMPTY_LANGUAGES = new String[0];
 
     /*
      * Used to prevent implementations of accessible API classes.
@@ -151,8 +168,6 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
     private PolyglotValueDispatch disconnectedHostValue;
     private PolyglotValueDispatch disconnectedBigIntegerHostValue;
     private volatile Object defaultFileSystemContext;
-
-    private static volatile AbstractPolyglotImpl isolatePolyglot;
 
     /**
      * Internal method do not use.
@@ -188,16 +203,6 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
             throw new AssertionError(String.format("%s not found or installed but required.", PolyglotImpl.class.getSimpleName()));
         }
         return (PolyglotImpl) polyglot;
-    }
-
-    static AbstractPolyglotImpl findIsolatePolyglot() {
-        return isolatePolyglot;
-    }
-
-    static void setIsolatePolyglot(AbstractPolyglotImpl instance) {
-        assert instance != null;
-        assert isolatePolyglot == null;
-        isolatePolyglot = instance;
     }
 
     PolyglotEngineImpl getPreinitializedEngine() {
@@ -276,15 +281,37 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
     /**
      * Internal method do not use.
      */
-    @SuppressWarnings("unchecked")
     @Override
     public Engine buildEngine(String[] permittedLanguages, SandboxPolicy sandboxPolicy, OutputStream out, OutputStream err, InputStream in, Map<String, String> options,
+                    boolean allowExperimentalOptions, boolean boundEngine, MessageTransport messageInterceptor, Object logHandler, Object hostLanguage, boolean hostLanguageOnly,
+                    boolean registerInActiveEngines, Object polyglotHostService, Consumer<PolyglotException> exceptionHandler) {
+        if (EngineAccessor.ISOLATE.isIsolateHost()) {
+            Map<String, String> useOptions = validateSandboxOptions(sandboxPolicy, options);
+            String[] spawnIsolate = resolveIsolatedLanguages(useOptions);
+            if (spawnIsolate != null) {
+                IsolatePolicy isolatePolicy = parseOption(PolyglotEngineOptions.IsolateMode, "engine.IsolateMode", options);
+                Engine localEngine = buildLocalEngine(EMPTY_LANGUAGES, sandboxPolicy, out, err, in, PolyglotEngineOptions.hostOptions(createEngineOptionDescriptors(), useOptions),
+                                allowExperimentalOptions, boundEngine, messageInterceptor,
+                                logHandler, hostLanguage, true, false, null, exceptionHandler);
+                String isolateLibrary = parseOption(PolyglotEngineOptions.IsolateLibrary, "engine.IsolateLibrary", options);
+                String isolateLauncher = parseOption(PolyglotEngineOptions.IsolateLauncher, "engine.IsolateLauncher", options);
+                long stackHeadRoom = parseOption(PolyglotEngineOptions.HostCallStackHeadRoom, "engine.HostCallStackHeadRoom", options);
+                return EngineAccessor.ISOLATE.buildIsolatedEngine(this, localEngine, spawnIsolate, permittedLanguages, sandboxPolicy, out, err, in, useOptions,
+                                allowExperimentalOptions, boundEngine, messageInterceptor, registerInActiveEngines, isolatePolicy == IsolatePolicy.EXTERNAL,
+                                stackHeadRoom, isolateLibrary, isolateLauncher);
+            }
+        }
+        return buildLocalEngine(permittedLanguages, sandboxPolicy, out, err, in, options, allowExperimentalOptions, boundEngine, messageInterceptor, logHandler, hostLanguage,
+                        hostLanguageOnly, registerInActiveEngines, polyglotHostService, exceptionHandler);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Engine buildLocalEngine(String[] permittedLanguages, SandboxPolicy sandboxPolicy, OutputStream out, OutputStream err, InputStream in, Map<String, String> options,
                     boolean allowExperimentalOptions, boolean boundEngine, MessageTransport messageInterceptor, Object logHandler, Object hostLanguage, boolean hostLanguageOnly,
                     boolean registerInActiveEngines, Object polyglotHostService, Consumer<PolyglotException> exceptionHandler) {
         PolyglotEngineImpl impl = null;
         try {
             validateVendorOptions(options);
-            validateSandbox(sandboxPolicy);
             if (TruffleOptions.AOT) {
                 EngineAccessor.ACCESSOR.initializeNativeImageTruffleLocator();
             }
@@ -385,8 +412,163 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
         }
     }
 
+    private static Map<String, String> validateSandboxOptions(SandboxPolicy sandboxPolicy, Map<String, String> options) {
+        Map<String, String> optionsWithPresets;
+        IsolatePolicy isolatePolicy = parseOption(PolyglotEngineOptions.IsolateMode, "engine.IsolateMode", options);
+        if (sandboxPolicy == SandboxPolicy.TRUSTED && isolatePolicy == IsolatePolicy.INTERNAL) {
+            optionsWithPresets = options;
+        } else {
+            optionsWithPresets = new HashMap<>(options);
+            if (sandboxPolicy.isStricterOrEqual(SandboxPolicy.ISOLATED)) {
+                long isolateXmx = parseOption(PolyglotEngineOptions.MaxIsolateMemory, "engine.MaxIsolateMemory", options);
+                if (isolateXmx == -1) {
+                    throw sandboxPolicyException(sandboxPolicy, "The engine.MaxIsolateMemory option is not set, but must be set to maximum polyglot isolate heap size.",
+                                    "set Builder.option(\"engine.MaxIsolateMemory\", \"<maximum isolate heap size>\")");
+                }
+                long stackHeadRoom = parseOption(PolyglotEngineOptions.HostCallStackHeadRoom, "engine.HostCallStackHeadRoom", options);
+                if (stackHeadRoom < 128 * 1024) {
+                    throw sandboxPolicyException(sandboxPolicy,
+                                    String.format("The engine.HostCallStackHeadRoom option is set to %dB, but must be set to at least 128KB.", stackHeadRoom),
+                                    String.format("use the default value by removing Builder.option(\"engine.HostCallStackHeadRoom\", \"%dB\") or increase its value",
+                                                    stackHeadRoom));
+                }
+                String[] spawnIsolate = parseOption(PolyglotEngineOptions.SpawnIsolate, "engine.SpawnIsolate", options);
+                if (spawnIsolate == null) {
+                    if (hasBeenSet("engine.SpawnIsolate", options)) {
+                        throw sandboxPolicyException(sandboxPolicy,
+                                        "The engine.SpawnIsolate option is set to false, but must be set to true or to the set of languages that should be initialized.",
+                                        "use the engine's permitted languages by removing Builder.option(\"engine.SpawnIsolate\", \"false\") or set it to the set of languages that should be initialized");
+                    } else {
+                        optionsWithPresets.put("engine.SpawnIsolate", "true");
+                    }
+                }
+            }
+            if (sandboxPolicy.isStricterOrEqual(SandboxPolicy.UNTRUSTED)) {
+                if (hasBeenSet("sandbox.MaxASTDepth", options)) {
+                    OptionKey<Integer> maxASTDepthOptionKey = EngineAccessor.SANDBOX.getMaxASTDepthOption();
+                    int maxASTDepth = parseOption(maxASTDepthOptionKey, "sandbox.MaxASTDepth", options);
+                    long minInterpreterCallStackheadRoom = PolyglotEngineOptions.getMinInterpreterCallStackHeadRoom(maxASTDepth);
+                    if (hasBeenSet("engine.InterpreterCallStackHeadRoom", options)) {
+                        long interpreterCallStackHeadRoom = parseOption(PolyglotEngineOptions.InterpreterCallStackHeadRoom, "engine.InterpreterCallStackHeadRoom", options);
+                        if (interpreterCallStackHeadRoom < minInterpreterCallStackheadRoom) {
+                            throw sandboxPolicyException(sandboxPolicy,
+                                            "The engine.InterpreterCallStackHeadRoom option is set too low, minimum engine.InterpreterCallStackHeadRoom for sandbox.MaxASTDepth " + maxASTDepth +
+                                                            " is " + minInterpreterCallStackheadRoom + " bytes.",
+                                            "set engine.InterpreterCallStackHeadRoom higher, sandbox.MaxASTDepth lower, or leave engine.InterpreterCallStackHeadRoom unset and let the system figure out the right value");
+                        }
+                    } else {
+                        optionsWithPresets.put("engine.InterpreterCallStackHeadRoom", minInterpreterCallStackheadRoom + "B");
+                    }
+                } else {
+                    /*
+                     * MaxASTDepth is mandatory for the UNTRUSTED sandbox policy, we fail later.
+                     */
+                }
+
+                if (isolatePolicy != IsolatePolicy.EXTERNAL) {
+                    UntrustedCodeMitigationPolicy policy = parseOption(PolyglotEngineOptions.UntrustedCodeMitigation, "engine.UntrustedCodeMitigation", options);
+                    if (policy == UntrustedCodeMitigationPolicy.NONE) {
+                        if (hasBeenSet("engine.UntrustedCodeMitigation", options)) {
+                            throw sandboxPolicyException(sandboxPolicy, "The engine.UntrustedCodeMitigation option is set to none, but must be set to software.",
+                                            "use the default value (software) by removing Builder.option(\"engine.UntrustedCodeMitigation\", \"none\") or set it to software");
+                        } else {
+                            optionsWithPresets.put("engine.UntrustedCodeMitigation", "software");
+                        }
+                    } else if (policy == UntrustedCodeMitigationPolicy.HARDWARE) {
+                        // The memory protection key does not cover the Hotspot scenario, where the
+                        // Hotspot heap lacks protection against access GR-36410,
+                        // nor does it extend to the stack, given that the stack is shared between
+                        // isolates and the host GR-27264.
+                        throw sandboxPolicyException(sandboxPolicy, "The engine.UntrustedCodeMitigation option is set to hardware, but must be set to software.",
+                                        "use the default value (software) by removing Builder.option(\"engine.UntrustedCodeMitigation\", \"hardware\") or set it to software");
+                    }
+                }
+            }
+        }
+        if (parseOption(PolyglotEngineOptions.SpawnIsolate, "engine.SpawnIsolate", optionsWithPresets) == null) {
+            // If engine.SpawnIsolate is disabled, none of the isolation-specific options must be
+            // set.
+            String invalidOption = null;
+            for (String isolateSpecificOption : PolyglotEngineOptions.ISOLATE_SPECIFIC_OPTIONS) {
+                if (hasBeenSet(isolateSpecificOption, optionsWithPresets)) {
+                    invalidOption = isolateSpecificOption;
+                    break;
+                }
+            }
+            if (invalidOption != null) {
+                throw new IllegalArgumentException(String.format("The isolated heap is not enabled, but isolate specific option %s is set. " +
+                                "In order to resolve this enable heap isolation by setting Builder.sandbox(SandboxPolicy.ISOLATED) or " +
+                                "by setting the Builder.option(\"engine.SpawnIsolate\", \"true\") or remove the isolate specific option.",
+                                invalidOption));
+            }
+        }
+        UntrustedCodeMitigationPolicy policy = parseOption(PolyglotEngineOptions.UntrustedCodeMitigation, "engine.UntrustedCodeMitigation", optionsWithPresets);
+        if (policy == UntrustedCodeMitigationPolicy.HARDWARE) {
+            boolean memoryProtectionSet = hasBeenSet("engine.IsolateMemoryProtection", optionsWithPresets);
+            boolean memoryProtectionValue = parseOption(PolyglotEngineOptions.IsolateMemoryProtection, "engine.IsolateMemoryProtection", optionsWithPresets);
+            if (memoryProtectionSet && !memoryProtectionValue) {
+                // Conflict in options UntrustedCodeMitigation is set to hardware and
+                // IsolateMemoryProtection is set to false.
+                throw new IllegalArgumentException("The engine.UntrustedCodeMitigation is set to hardware, but the engine.IsolateMemoryProtection is set to false. " +
+                                "In order to resolve this remove Builder.option(\"engine.UntrustedCodeMitigation\", \"hardware\") to use the software untrusted code mitigation or remove " +
+                                "Builder.option(\"engine.IsolateMemoryProtection\", \"false\") to use the hardware untrusted code mitigation");
+            }
+        }
+        if (isolatePolicy == IsolatePolicy.EXTERNAL) {
+            /*
+             * These options are specific to internal (native-image) isolation and have no effect in
+             * external (process) isolate mode. Remove them to avoid unnecessary overhead and
+             * potential confusion.
+             */
+            optionsWithPresets.remove("engine.UntrustedCodeMitigation");
+            optionsWithPresets.remove("engine.IsolateMemoryProtection");
+        }
+        return optionsWithPresets;
+    }
+
+    private static <T> T parseOption(OptionKey<T> key, String keyName, Map<String, String> options) {
+        String value = options.get(keyName);
+        if (value != null) {
+            return key.getType().convert(value);
+        }
+        return key.getDefaultValue();
+    }
+
+    private static boolean hasBeenSet(String keyName, Map<String, String> options) {
+        return options.get(keyName) != null;
+    }
+
+    /**
+     * Returns an array of languages that should be spawned in the isolated engine. An empty array
+     * represents all languages. The {@code null} means no isolation.
+     *
+     */
+    private static String[] resolveIsolatedLanguages(Map<String, String> options) {
+        String[] spawnIsolate = parseOption(PolyglotEngineOptions.SpawnIsolate, "engine.SpawnIsolate", options);
+        if (spawnIsolate == null && parseOption(PolyglotEngineOptions.UntrustedCodeMitigation, "engine.UntrustedCodeMitigation", options) != UntrustedCodeMitigationPolicy.NONE) {
+            spawnIsolate = EMPTY_LANGUAGES;
+        }
+        return spawnIsolate;
+    }
+
     @Override
     public void onEngineCreated(Object polyglotEngine) {
+        PolyglotEngineImpl engineImpl = (PolyglotEngineImpl) polyglotEngine;
+        OptionValues engineOptions = engineImpl.engineOptionValues;
+        long interpreterCallStackHeadRoom = engineOptions.get(PolyglotEngineOptions.InterpreterCallStackHeadRoom);
+        if (interpreterCallStackHeadRoom != 0 && engineImpl.runtimeData != null) {
+            if (isInterpreterCallStackHeadRoomSupported()) {
+                EngineAccessor.RUNTIME.initializeInterpreterCallStackHeadRoom(engineImpl.runtimeData, interpreterCallStackHeadRoom);
+            } else {
+                throw PolyglotEngineException.illegalArgument("The engine.InterpreterCallStackHeadRoom option is set to a non-zero value, but the option is not supported on the current VM. " +
+                                "In order to resolve this either switch to a VM that supports the option or don't set it.");
+            }
+        }
+    }
+
+    private static boolean isInterpreterCallStackHeadRoomSupported() {
+        Runtime.Version jdkVersion = Runtime.version();
+        return TruffleOptions.AOT && jdkVersion.feature() >= 23;
     }
 
     private static void logTruffleRuntimeWarning(Map<String, String> options, OptionValuesImpl engineOptions, EngineLoggerProvider loggerProvider) {
@@ -413,13 +595,13 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
 
     }
 
-    private void validateVendorOptions(Map<String, String> options) {
-        if (this != this.getRootImpl()) {
+    private static void validateVendorOptions(Map<String, String> options) {
+        if (HAS_ENTERPRISE_EXTENSIONS) {
             return;
         }
         Set<String> usedEnterpriseOptions = new HashSet<>();
         for (String key : options.keySet()) {
-            if (TRUFFLE_ENTERPRISE_OPTIONS.contains(key) || key.startsWith("sandbox.") || key.equals("sandbox")) {
+            if (TRUFFLE_ENTERPRISE_OPTIONS.contains(key)) {
                 usedEnterpriseOptions.add(key);
             }
         }
@@ -431,21 +613,6 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
                                             "Note that Truffle Enterprise Extensions are only supported when running on Oracle GraalVM or Oracle JDK. " +
                                             "Remove these option or add the 'org.graalvm.truffle:truffle-enterprise' artefact to resolve this issue.",
                             optionNames));
-        }
-    }
-
-    private void validateSandbox(SandboxPolicy sandboxPolicy) {
-        // When The PolyglotImpl is used as a root polyglot it supports at most the CONSTRAINED
-        // sandboxing policy . When it's used as a delegate of other polyglot it needs to support
-        // all sandboxing policies.
-        if (this == getRootImpl() && sandboxPolicy.isStricterThan(SandboxPolicy.CONSTRAINED)) {
-            throw PolyglotEngineException.illegalArgument(String.format(
-                            "The Builder.sandbox(SandboxPolicy) is configured to %s, but the current Truffle runtime only supports the TRUSTED or CONSTRAINED sandbox policies. " +
-                                            "This typically occurs when a non-Oracle GraalVM Java runtime is used, the org.graalvm.truffle:truffle-enterprise dependency is missing, or the fallback runtime was forced. " +
-                                            "The Truffle fallback runtime may be forced using the truffle.UseFallbackRuntime or truffle.TruffleRuntime system property. " +
-                                            "To resolve this make sure Oracle GraalVM is used, the truffle-enterprise dependency is on the class or module path and the fallback runtime is not forced. " +
-                                            "Alternatively, you can switch to a less strict sandbox policy using Builder.sandbox(SandboxPolicy).",
-                            sandboxPolicy));
         }
     }
 
@@ -665,21 +832,45 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
 
     @Override
     public boolean isDefaultProcessHandler(ProcessHandler processHandler) {
+        if (EngineAccessor.ISOLATE.isIsolateGuest()) {
+            // In polyglot isolate ask the host
+            return EngineAccessor.ISOLATE.isDefaultProcessHandler(processHandler);
+        }
         return ProcessHandlers.isDefault(processHandler);
     }
 
     @Override
     public boolean isInternalFileSystem(FileSystem fileSystem) {
+        if (EngineAccessor.ISOLATE.isIsolateGuest()) {
+            // In polyglot isolate ask the host
+            return EngineAccessor.ISOLATE.isInternalFileSystem(fileSystem);
+        }
         return FileSystems.isInternal(getRootImpl(), fileSystem);
     }
 
     @Override
     public ThreadScope createThreadScope() {
-        return null;
+        if (EngineAccessor.ISOLATE.isIsolateGuest()) {
+            // In polyglot isolate return new scope.
+            return EngineAccessor.ISOLATE.createThreadScope(this);
+        } else {
+            return null;
+        }
+    }
+
+    @Override
+    public void validateVirtualThreadCreation(OptionValues engineOptions) {
+        if (engineOptions.get(PolyglotEngineOptions.SpawnIsolate) != null) {
+            throw PolyglotEngineException.illegalState("Using isolated polyglot contexts together with Java virtual threads is currently not supported.");
+        }
     }
 
     @Override
     public boolean isInCurrentEngineHostCallback(Object engine) {
+        if (EngineAccessor.ISOLATE.isIsolateGuest()) {
+            // In polyglot isolate ask the host.
+            return EngineAccessor.ISOLATE.isInCurrentEngineHostCallback(engine);
+        }
         RootNode topMostGuestToHostRootNode = Truffle.getRuntime().iterateFrames((f) -> {
             RootNode root = ((RootCallTarget) f.getCallTarget()).getRootNode();
             if (EngineAccessor.HOST.isGuestToHostRootNode(root)) {
@@ -862,11 +1053,19 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
 
     @Override
     public <T extends Throwable> T mergeHostStackTrace(Throwable forException, T hostException) {
+        if (EngineAccessor.ISOLATE.isIsolateGuest()) {
+            // In polyglot isolate
+            return EngineAccessor.ISOLATE.mergeHostStackTrace(forException, hostException);
+        }
         return hostException;
     }
 
     @Override
     public Object getEmbedderExceptionStackTrace(Object engine, Throwable exception, boolean inHost) {
+        if (EngineAccessor.ISOLATE.isIsolateHost()) {
+            // Delegate to isolate to get the exception stack trace
+            return EngineAccessor.ISOLATE.getEmbedderExceptionStackTrace(engine, exception, inHost);
+        }
         return EngineAccessor.EXCEPTION.getEmbedderStackTrace(exception, engine, inHost);
     }
 

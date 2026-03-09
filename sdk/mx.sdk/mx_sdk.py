@@ -51,6 +51,7 @@ import mx_sdk_benchmark # pylint: disable=unused-import
 import mx_sdk_clangformat # pylint: disable=unused-import
 import argparse
 import datetime
+import re
 import shutil
 import tempfile
 from typing import Iterable, Tuple
@@ -197,10 +198,27 @@ def mx_register_dynamic_suite_constituents(register_project, register_distributi
     mx_sdk_vm_impl.mx_register_dynamic_suite_constituents(register_project, register_distribution)
     mx_sdk_vm_ng.mx_register_dynamic_suite_constituents(register_project, register_distribution)
 
+def _uses_nativebridge_processor(dist):
+    for dep in dist.deps:
+        if dep.name.startswith('NATIVEBRIDGE_PROCESSOR'):
+            return True
+    truffle_dsl_processors = set()
+    def visit(dep, edge):
+        if dep is not dist and dep.isJavaProject():
+            for ap in dep.annotation_processors():
+                if ap.name.startswith('NATIVEBRIDGE_PROCESSOR'):
+                    truffle_dsl_processors.add(ap)
+    dist.walk_deps(visit=visit)
+    return len(truffle_dsl_processors) != 0
+
 
 def mx_post_parse_cmd_line(args):
     mx_sdk_vm_impl.mx_post_parse_cmd_line(args)
     mx_sdk_benchmark.register_graalvm_vms()
+    for d in mx.dependencies():
+        if d.isJARDistribution():
+            if _uses_nativebridge_processor(d):
+                d.set_archiveparticipant(NativeBridgeArchiveParticipant())
 
 
 mx.update_commands(_suite, {
@@ -534,3 +552,30 @@ def nativebridge_benchmark(args):
     finally:
         if not parsed_args.isolate_library and not parsed_args.target_folder:
             shutil.rmtree(target_dir)
+
+class NativeBridgeArchiveParticipant:
+
+    providersRE = re.compile(r'(?:META-INF/versions/([1-9][0-9]*)/)?META-INF/jni-entry-points/(.+)')
+
+    def __opened__(self, arc, srcArc, services):
+        self.services = services
+        self.arc = arc
+
+    def __process__(self, arcname, contents_supplier, is_source):
+        if is_source:
+            return False
+        m = NativeBridgeArchiveParticipant.providersRE.match(arcname)
+        if m:
+            provider = m.group(2)
+            for service in contents_supplier().decode().strip().split(os.linesep):
+                assert service
+                version = m.group(1)
+                if version is None:
+                    # Non-versioned service
+                    self.services.setdefault(service, []).append(provider)
+                else:
+                    # Versioned service
+                    services = self.services.setdefault(int(version), {})
+                    services.setdefault(service, []).append(provider)
+            return True
+        return False

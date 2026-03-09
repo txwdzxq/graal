@@ -82,6 +82,9 @@ public class SLSeparatedClassLoadersTest {
         URL nativeURL = Class.forName("org.graalvm.nativeimage.ImageInfo").getProtectionDomain().getCodeSource().getLocation();
         Assume.assumeNotNull(nativeURL);
 
+        URL nativeBridgeURL = Class.forName("org.graalvm.nativebridge.ForeignObject").getProtectionDomain().getCodeSource().getLocation();
+        Assume.assumeNotNull(nativeBridgeURL);
+
         URL truffleURL = Truffle.class.getProtectionDomain().getCodeSource().getLocation();
         Assume.assumeNotNull(truffleURL);
 
@@ -90,7 +93,7 @@ public class SLSeparatedClassLoadersTest {
 
         ClassLoader parent = Engine.class.getClassLoader().getParent();
 
-        URLClassLoader sdkLoader = new URLClassLoader(new URL[]{collectionsURL, wordURL, nativeURL, polyglotURL}, parent);
+        URLClassLoader sdkLoader = new URLClassLoader(new URL[]{collectionsURL, wordURL, nativeURL, nativeBridgeURL, polyglotURL}, parent);
         boolean sdkLoaderLoadsTruffleLanguage;
         try {
             Class.forName("com.oracle.truffle.api.TruffleLanguage", false, sdkLoader);

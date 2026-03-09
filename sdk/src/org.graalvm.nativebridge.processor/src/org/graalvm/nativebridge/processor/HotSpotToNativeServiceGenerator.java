@@ -41,7 +41,6 @@
 package org.graalvm.nativebridge.processor;
 
 import javax.lang.model.element.Modifier;
-import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
@@ -829,7 +828,7 @@ final class HotSpotToNativeServiceGenerator extends AbstractNativeServiceGenerat
     }
 
     private String jniCMethodSymbol(MethodData methodData, CharSequence targetClassSimpleName) {
-        String packageName = Utilities.getEnclosingPackageElement((TypeElement) getDefinition().annotatedType.asElement()).getQualifiedName().toString();
+        String packageName = Utilities.getEnclosingPackageElement(getDefinition().annotatedElement).getQualifiedName().toString();
         String classSimpleName = targetClassSimpleName + "$" + factoryMethod.startPointSimpleName;
         StringBuilder dylibSymbol = new StringBuilder();
         dylibSymbol.append("Java_");

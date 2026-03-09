@@ -52,6 +52,10 @@ They are useful to users and language and tool implementers.
 - `--engine.BytecodeHistogramInterval` : Print and reset the opcode histogram at a fixed interval while BytecodeHistogram is enabled. Use 0 to disable periodic printing and print only once at shutdown. Examples: 250ms, 2s, 1m.
 - `--engine.BytecodeLanguageFilter` : Limit tracing and statistics to specific language IDs. Provide a comma-separated list of language IDs, for example: `js`, `python`. An empty value includes all languages. Applies to `--engine.TraceBytecode`, `--engine.TraceBytecodeTransition`, and `--engine.BytecodeHistogram`.
 - `--engine.BytecodeMethodFilter` : Limit tracing and statistics to selected methods. Matches against `RootNode.getQualifiedName()`. Provide a comma-separated list of includes, or excludes prefixed with `~`. An empty value means no restriction. Whitespace around commas is ignored. Applies to `--engine.TraceBytecode`, `--engine.TraceBytecodeTransition`, and `--engine.BytecodeHistogram`.
+- `--engine.HostCallStackHeadRoom=[1, inf)<B>|<KB>|<MB>|<GB>` : Stack space headroom for calls to the host.
+- `--engine.InterpreterCallStackHeadRoom=[0, inf)<B>|<KB>|<MB>|<GB>` : Stack space headroom for any interpreter call. Supported only in the AOT mode.
+- `--engine.IsolateMemoryProtection=true|false` : Enable memory protection for the isolate.
+- `--engine.IsolateOption.<key>=<value>` : Isolate VM options.
 - `--engine.PreinitializeContexts` : Preinitialize language contexts for given languages.
 - `--engine.RelaxStaticObjectSafetyChecks` : On property accesses, the Static Object Model does not perform shape checks and uses unsafe casts
 - `--engine.SourceCacheStatisticDetails` : Print source cache statistics for an engine when the engine is closed. With the details enabled, statistics for all individual sources are printed.
@@ -104,10 +108,6 @@ The accepted values are:
 - `--engine.InliningExpansionBudget` : The base expansion budget for language-agnostic inlining (default: 12000). Syntax: [1, inf)
 - `--engine.InliningInliningBudget` : The base inlining budget for language-agnostic inlining (default: 12000). Syntax: [1, inf)
 - `--engine.InliningRecursionDepth` : Maximum depth for recursive inlining (default: 2, usage: [0, inf)).
-- `--engine.HostCallStackHeadRoom=[1, inf)<B>|<KB>|<MB>|<GB>` : Stack space headroom for calls to the host.
-- `--engine.InterpreterCallStackHeadRoom=[0, inf)<B>|<KB>|<MB>|<GB>` : Stack space headroom for any interpreter call. Supported only in the AOT mode.
-- `--engine.IsolateMemoryProtection=true|false` : Enable memory protection for the isolate.
-- `--engine.IsolateOption.<key>=<value>` : Isolate VM options.
 ```
 <!-- END: expert-engine-options -->
 
@@ -121,6 +121,8 @@ These are internal options for debugging language implementations and tools.
 - `--engine.DisableCodeSharing` : Option to force disable code sharing for this engine, even if the context was created with an explicit engine. This option is intended for testing purposes only.
 - `--engine.ForceCodeSharing` : Option to force enable code sharing for this engine, even if the context was created with a bound engine. This option is intended for testing purposes only.
 - `--engine.InstrumentExceptionsAreThrown=true|false` : Propagates exceptions thrown by instruments. (default: true)
+- `--engine.IsolateLauncher=<path>` : Path to the external isolate launcher.
+- `--engine.IsolateLibrary=<path>` : Path to the isolate library.
 - `--engine.PrintInternalStackTrace` : Printed PolyglotException stacktrace unconditionally contains the stacktrace of the original internal exception as well as the stacktrace of the creation of the PolyglotException instance.
 - `--engine.SafepointALot` : Repeadly submits thread local actions and collects statistics about safepoint intervals in the process. Prints event and interval statistics when the context is closed for each thread. This option significantly slows down execution and is therefore intended for testing purposes only.
 - `--engine.ShowInternalStackFrames` : Show internal frames specific to the language implementation in stack traces.
@@ -294,7 +296,5 @@ These are internal options for debugging language implementations and tools.
 - `--engine.TracePerformanceWarnings` : Print potential performance problems, Performance warnings are: call, instanceof, store, frame_merge, trivial. (syntax: none|all|<perfWarning>,<perfWarning>,...)
 - `--engine.TraceStackTraceLimit` : Number of stack trace elements printed by TraceTruffleTransferToInterpreter, TraceTruffleAssumptions and TraceDeoptimizeFrame (default: 20). Syntax: [1, inf).
 - `--engine.TreatPerformanceWarningsAsErrors` : Treat performance warnings as error. Handling of the error depends on the CompilationFailureAction option value. Performance warnings are: call, instanceof, store, frame_merge, trivial. (syntax: none|all|<perfWarning>,<perfWarning>,...)
-- `--engine.IsolateLauncher=<path>` : Path to the external isolate launcher.
-- `--engine.IsolateLibrary=<path>` : Path to the isolate library.
 ```
 <!-- END: internal-engine-options -->

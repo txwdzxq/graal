@@ -76,6 +76,7 @@ from mx_sigtest import sigtest
 from mx_unittest import unittest
 
 from mx_sdk_shaded import ShadedLibraryProject  # pylint: disable=unused-import
+from mx_sdk_vm_ng import is_enterprise
 
 _suite = mx.suite("truffle")
 
@@ -1813,20 +1814,20 @@ class _PolyglotIsolateResourceProject(mx.JavaProject):
     """
 
     def __init__(
-        self, language_suite, subDir, language_id, all_language_ids, resource_id, os_name, cpu_architecture, placeholder
+        self, language_suite, subDir, language_id, all_language_ids, resource_id, os_name, cpu_architecture, deps, placeholder
     ):
         name = f"com.oracle.truffle.isolate.resource.{language_id}.{os_name}.{cpu_architecture}"
         javaCompliance = str(mx.distribution("truffle:TRUFFLE_API").javaCompliance) + "+"
         project_dir = os.path.join(language_suite.dir, subDir, name)
-        deps = ["truffle:TRUFFLE_API", "truffle-enterprise:TRUFFLE_ENTERPRISE"]
+        all_deps = ["truffle:TRUFFLE_API"] + deps
         if placeholder:
-            deps += ["sdk:NATIVEIMAGE"]
+            all_deps += ["sdk:NATIVEIMAGE"]
         super().__init__(
             language_suite,
             name,
             subDir=subDir,
             srcDirs=[],
-            deps=deps,
+            deps=all_deps,
             javaCompliance=javaCompliance,
             workingSets="Truffle",
             d=project_dir,
@@ -1978,6 +1979,16 @@ def register_polyglot_isolate_distributions(
     ):
         return False
 
+    enterprise_graalvm = mx_sdk_vm_ng.is_enterprise()
+    optional_truffle_enterprise_dist = ['truffle-enterprise:TRUFFLE_ENTERPRISE'] if enterprise_graalvm else []
+    maven_edition_qualifier = '' if enterprise_graalvm else '-community'
+    licenses = set(language_license)
+    if enterprise_graalvm:
+        # The graal-enterprise suite may not be fully loaded.
+        # We cannot look up the TRUFFLE_ENTERPRISE distribution to resolve its license
+        # We pass directly the license id
+        licenses.update(['GFTC'])
+
     if not isinstance(language_license, list):
         assert isinstance(language_license, str)
         language_license = [language_license]
@@ -2028,6 +2039,7 @@ def register_polyglot_isolate_distributions(
             resource_id,
             os_name,
             cpu_architecture,
+            optional_truffle_enterprise_dist,
             not build_for_current_platform,
         )
         register_project(build_internal_resource)
@@ -2039,11 +2051,11 @@ def register_polyglot_isolate_distributions(
             # 2. Register a project building the isolate library
             isolate_deps = [
                 language_pom_distribution,
-                "truffle-enterprise:TRUFFLE_ENTERPRISE",
+                *optional_truffle_enterprise_dist,
                 *additional_image_path_artifacts,
             ]
             build_library = PolyglotIsolateProject(
-                language_suite, main_language_id, isolate_deps, isolate_build_options
+                language_suite, main_language_id, isolate_deps, isolate_build_options, enterprise_graalvm
             )
             register_project(build_library)
 
@@ -2088,14 +2100,13 @@ def register_polyglot_isolate_distributions(
         resources_dist_name = (
             f"{language_id_upper_case}_ISOLATE_RESOURCES_{os_name_upper_case}_{cpu_architecture_upper_case}"
         )
-        maven_artifact_id = resource_id
-        licenses = set(language_license)
-        # The graal-enterprise suite may not be fully loaded.
-        # We cannot look up the TRUFFLE_ENTERPRISE distribution to resolve its license
-        # We pass directly the license id
-        licenses.update(["GFTC"])
+        maven_artifact_id = f"{main_language_id}-isolate-{platform}{maven_edition_qualifier}"
+        if enterprise_graalvm:
+            description = f"Polyglot isolate resources for {main_language_id} for {platform}."
+        else:
+            description = f"Community polyglot isolate resources for {main_language_id} for {platform}."
         attrs = {
-            "description": f"Polyglot isolate resources for {main_language_id} for {platform}.",
+            "description": description,
             "moduleInfo": {
                 "name": build_internal_resource.name,
             },
@@ -2116,7 +2127,7 @@ def register_polyglot_isolate_distributions(
             deps=resources_dist_dependencies,
             mainClass=None,
             excludedLibs=[],
-            distDependencies=["truffle:TRUFFLE_API", "truffle-enterprise:TRUFFLE_ENTERPRISE"],
+            distDependencies=["truffle:TRUFFLE_API"] + optional_truffle_enterprise_dist,
             javaCompliance=str(build_internal_resource.javaCompliance) + "+",
             platformDependent=True,
             theLicense=sorted(licenses),
@@ -2127,8 +2138,12 @@ def register_polyglot_isolate_distributions(
 
         # 5. Register meta POM distribution for the isolate library jar file for a specific platform.
         isolate_dist_name = f"{language_id_upper_case}_ISOLATE_{os_name_upper_case}_{cpu_architecture_upper_case}"
+        if enterprise_graalvm:
+            description = f"The {main_language_id} polyglot isolate for {platform}."
+        else:
+            description = f"The community {main_language_id} polyglot isolate for {platform}."
         attrs = {
-            "description": f"The {main_language_id} polyglot isolate for {platform}.",
+            "description": description,
             "maven": {
                 "groupId": "org.graalvm.polyglot",
                 "artifactId": maven_artifact_id,
@@ -2141,7 +2156,7 @@ def register_polyglot_isolate_distributions(
             distDependencies=[],
             runtimeDependencies=[
                 resources_dist_name,
-                "truffle-enterprise:TRUFFLE_ENTERPRISE",
+                *optional_truffle_enterprise_dist,
             ],
             theLicense=sorted(licenses),
             **attrs,
@@ -2150,11 +2165,15 @@ def register_polyglot_isolate_distributions(
         platform_meta_poms.append(meta_pom_dist)
     # 6. Register meta POM distribution listing all platform specific meta-POMS.
     isolate_dist_name = f"{language_id_upper_case}_ISOLATE"
+    if enterprise_graalvm:
+        description = f"The {main_language_id} polyglot isolate."
+    else:
+        description = f"The community {main_language_id} polyglot isolate."
     attrs = {
-        "description": f"The {main_language_id} polyglot isolate.",
+        "description": description,
         "maven": {
             "groupId": "org.graalvm.polyglot",
-            "artifactId": f"{main_language_id}-isolate",
+            "artifactId": f"{main_language_id}-isolate{maven_edition_qualifier}",
             "tag": ["default", "public"],
         },
     }
@@ -2184,17 +2203,18 @@ class PolyglotIsolateProject(mx_sdk_vm_ng.NativeImageLibraryProject):
     dynamically registers a polyglot isolate distribution.
     """
 
-    def __init__(self, language_suite, language_id, isolate_deps, isolate_build_options):
+    def __init__(self, language_suite, language_id, isolate_deps, isolate_build_options, enterprise_graalvm):
         build_args = [
-            "--features=com.oracle.svm.enterprise.truffle.PolyglotIsolateGuestFeature",
+            "--features=com.oracle.svm.truffle.PolyglotIsolateGuestFeature",
             "-H:APIFunctionPrefix=truffle_isolate_",
             "-H:+CopyLanguageResources",
-            "-H:+ProtectionKeys",
             "-H:+UnlockExperimentalVMOptions",
             "-H:-InitializeVM",
             "-H:-UnlockExperimentalVMOptions",
             *isolate_build_options,
         ]
+        if enterprise_graalvm:
+            build_args.append('-H:+ProtectionKeys')
         super().__init__(
             language_suite,
             f"{language_id}.isolate",
@@ -2583,6 +2603,7 @@ mx_sdk_vm.register_graalvm_component(
         jar_distributions=[],
         jvmci_parent_jars=[
             "sdk:JNIUTILS",
+            'sdk:NATIVEBRIDGE',
             "truffle:TRUFFLE_API",
             "truffle:TRUFFLE_RUNTIME",
         ],

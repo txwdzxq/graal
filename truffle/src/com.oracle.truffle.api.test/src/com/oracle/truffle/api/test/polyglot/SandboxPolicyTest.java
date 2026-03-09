@@ -159,9 +159,8 @@ public class SandboxPolicyTest {
 
     private static boolean supportsSandboxInstrument() {
         try (Engine engine = Engine.create()) {
-            // Polyglot sandbox limits can only be used with runtimes that support enterprise
-            // extensions.
-            return engine.getInstruments().containsKey("sandbox") && TruffleTestAssumptions.isEnterpriseRuntime();
+            // Polyglot sandbox limits can only be used with optimized runtime.
+            return engine.getInstruments().containsKey("sandbox") && TruffleTestAssumptions.isOptimizingRuntime();
         }
     }
 
