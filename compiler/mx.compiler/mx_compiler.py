@@ -986,62 +986,6 @@ def _check_bootstrap_config(args):
     if bootstrap and not useJVMCICompiler:
         mx.warn('-XX:+BootstrapJVMCI is ignored since -XX:+UseJVMCICompiler is not enabled')
 
-class StdoutUnstripping:
-    """
-    A context manager for logging and unstripping the console output for a subprocess
-    execution. The logging and unstripping is only attempted if stdout and stderr
-    for the execution were not already being redirected and existing *.map files
-    were detected in the arguments to the execution.
-    """
-    def __init__(self, args, out, err, mapFiles=None):
-        self.args = args
-        self.out = out
-        self.err = err
-        self.capture = None
-        if mapFiles is not None:
-            mapFiles = [m for m in mapFiles if exists(m)]
-        self.mapFiles = mapFiles
-
-    def __enter__(self):
-        if mx.get_opts().strip_jars and self.out is None and (self.err is None or self.err == subprocess.STDOUT):
-            delims = re.compile('[' + os.pathsep + '=]')
-            for a in self.args:
-                for e in delims.split(a):
-                    candidate = e + '.map'
-                    if exists(candidate):
-                        if self.mapFiles is None:
-                            self.mapFiles = []
-                        self.mapFiles.append(candidate)
-            self.capture = mx.OutputCapture()
-            self.out = mx.TeeOutputCapture(self.capture)
-            self.err = self.out
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if self.mapFiles and self.capture and len(self.capture.data):
-            data = self.capture.data
-            tmp_fd, tmp_file = tempfile.mkstemp(suffix='.txt', prefix='unstrip')
-            os.close(tmp_fd) # Don't leak file descriptors
-            try:
-                with open(tmp_file, 'w', encoding='utf-8') as fp:
-                    fp.write(data)
-                retraceOut = mx.OutputCapture()
-                unstrip_args = list(set(self.mapFiles)) + [tmp_file]
-                mx.unstrip(unstrip_args, out=retraceOut)
-                retraceOut = retraceOut.data
-                if data != retraceOut and mx.is_windows():
-                    # On Windows, ReTrace might duplicate line endings
-                    dedupOut = retraceOut.replace(os.linesep + os.linesep, os.linesep)
-                    if data == dedupOut:
-                        retraceOut = dedupOut
-                if data != retraceOut:
-                    mx.log('>>>> BEGIN UNSTRIPPED OUTPUT')
-                    mx.log(retraceOut)
-                    mx.log('<<<< END UNSTRIPPED OUTPUT')
-            except BaseException as e:
-                mx.log('Error unstripping output from VM execution with stripped jars: ' + str(e))
-            finally:
-                os.remove(tmp_file)
 
 def _graaljdk_dist(edition=None):
     """
@@ -1158,19 +1102,17 @@ def run_java(args, out=None, err=None, addDefaultArgs=True, command_mapper_hooks
     args = ['-XX:+UnlockExperimentalVMOptions', '-XX:+EnableJVMCI', '--add-exports=java.base/jdk.internal.misc=jdk.graal.compiler'] + vm_args
     _check_bootstrap_config(args)
     cmd = get_vm_prefix() + [graaljdk.java] + ['-server'] + args
-    map_file = join(graaljdk.home, 'proguard.map')
 
-    with StdoutUnstripping(args, out, err, mapFiles=[map_file]) as u:
-        try:
-            cmd = mx.apply_command_mapper_hooks(cmd, command_mapper_hooks)
-            return mx.run(cmd, out=u.out, err=u.err, **kw_args)
-        finally:
-            # Collate AggratedMetricsFile
-            for a in vm_args:
-                if a.startswith('-Djdk.graal.AggregatedMetricsFile='):
-                    metrics_file = a[len('-Djdk.graal.AggregatedMetricsFile='):]
-                    if metrics_file:
-                        collate_metrics([metrics_file])
+    try:
+        cmd = mx.apply_command_mapper_hooks(cmd, command_mapper_hooks)
+        return mx.run(cmd, out=out, err=err, **kw_args)
+    finally:
+        # Collate AggratedMetricsFile
+        for a in vm_args:
+            if a.startswith('-Djdk.graal.AggregatedMetricsFile='):
+                metrics_file = a[len('-Djdk.graal.AggregatedMetricsFile='):]
+                if metrics_file:
+                    collate_metrics([metrics_file])
 
 
 class GraalJVMCIJDKConfig(mx.JDKConfig):
