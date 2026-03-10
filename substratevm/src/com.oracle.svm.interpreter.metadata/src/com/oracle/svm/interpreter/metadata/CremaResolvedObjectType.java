@@ -34,15 +34,25 @@ import com.oracle.svm.espresso.classfile.ParserKlass;
 import com.oracle.svm.espresso.classfile.attributes.Attribute;
 import com.oracle.svm.espresso.classfile.attributes.AttributedElement;
 import com.oracle.svm.espresso.classfile.attributes.BootstrapMethodsAttribute;
+import com.oracle.svm.espresso.classfile.attributes.EnclosingMethodAttribute;
+import com.oracle.svm.espresso.classfile.attributes.InnerClassesAttribute;
 import com.oracle.svm.espresso.classfile.attributes.NestHostAttribute;
 import com.oracle.svm.espresso.classfile.attributes.NestMembersAttribute;
+import com.oracle.svm.espresso.classfile.attributes.PermittedSubclassesAttribute;
+import com.oracle.svm.espresso.classfile.descriptors.Descriptor;
+import com.oracle.svm.espresso.classfile.descriptors.Name;
 import com.oracle.svm.espresso.classfile.descriptors.ParserSymbols;
+import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.shared.singletons.MultiLayeredImageSingleton;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.vm.ci.meta.JavaType;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
+import jdk.vm.ci.meta.ResolvedJavaType;
 
+/**
+ * A runtime-loaded, classfile-backed specialization of {@link InterpreterResolvedObjectType}.
+ */
 public final class CremaResolvedObjectType extends InterpreterResolvedObjectType implements CremaResolvedJavaType, AttributedElement {
     // GR-70288: Only keep a subset of the parsed attributes.
     private final Attribute[] attributes;
@@ -91,7 +101,7 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
     }
 
     @Override
-    public CremaResolvedJavaMethod[] getDeclaredConstructors() {
+    public CremaResolvedJavaMethod[] getDeclaredCremaConstructors() {
         ArrayList<CremaResolvedJavaMethod> result = new ArrayList<>();
         for (InterpreterResolvedJavaMethod declaredMethod : getDeclaredMethods()) {
             if (declaredMethod.isConstructor()) {
@@ -137,8 +147,20 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
 
     @Override
     public ResolvedJavaMethod getEnclosingMethod() {
-        // (GR-69095)
-        throw VMError.unimplemented("getEnclosingMethod");
+        EnclosingMethodInfo info = getEnclosingMethodInfo();
+        if (info == null || info.isPartial()) {
+            return null;
+        }
+
+        InterpreterResolvedJavaMethod[] methods = info.isMethod() ? info.enclosingClass.getDeclaredMethods() : info.isConstructor() ? info.enclosingClass.getDeclaredConstructors() : null;
+        if (methods != null) {
+            for (InterpreterResolvedJavaMethod m : methods) {
+                if (info.name.equals(m.getSymbolicName()) && info.descriptor.equals(m.getSymbolicSignature())) {
+                    return m;
+                }
+            }
+        }
+        return null;
     }
 
     @Override
@@ -271,5 +293,134 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
     @Override
     public Attribute[] getAttributes() {
         return attributes;
+    }
+
+    /**
+     * Resolves the declaring class of this type from the {@code InnerClasses} attribute.
+     *
+     * @return the declaring class, or {@code null} if this type is not declared as an inner class
+     */
+    public Class<?> getDeclaringClass() {
+        InnerClassesAttribute innerClassesAttribute = getAttribute(InnerClassesAttribute.NAME, InnerClassesAttribute.class);
+        if (innerClassesAttribute == null) {
+            return null;
+        }
+        InterpreterConstantPool pool = getConstantPool();
+
+        for (int i = 0; i < innerClassesAttribute.entryCount(); i++) {
+            InnerClassesAttribute.Entry entry = innerClassesAttribute.entryAt(i);
+            if (entry.innerClassIndex == 0) {
+                continue;
+            }
+            Symbol<Name> innerDescriptor = pool.className(entry.innerClassIndex);
+            // Check descriptors/names before resolving.
+            if (!innerDescriptor.equals(getSymbolicName())) {
+                continue;
+            }
+            InterpreterResolvedObjectType innerKlass = pool.resolvedTypeAt(this, entry.innerClassIndex);
+            if (innerKlass != this) {
+                continue;
+            }
+            if (entry.outerClassIndex == 0) {
+                return null;
+            }
+            InterpreterResolvedObjectType outerKlass = pool.resolvedTypeAt(this, entry.outerClassIndex);
+            if (outerKlass.isArray()) {
+                // An array class cannot declare inner classes.
+                throw new IncompatibleClassChangeError(toClassName() + " and " + outerKlass.toClassName() + " disagree on InnerClasses attribute");
+            }
+            if (outerKlass instanceof CremaResolvedObjectType cremaOuterKlass) {
+                // Only if the outer class is also runtime-loaded can we check consistency
+                // of the inner-outer class relationship between the two.
+                checkOuterAndInnerClassAgree(cremaOuterKlass, this);
+            } else {
+                // InnerClassesAttribute is unavailable for outer class so the
+                // consistency check cannot be performed.
+            }
+            return outerKlass.getJavaClass();
+        }
+        return null;
+    }
+
+    /**
+     * Checks that {@code outerKlass} has declared {@code innerKlass} as an inner klass.
+     *
+     * @throws IncompatibleClassChangeError if the check fails
+     */
+    @SuppressWarnings("unused")
+    private void checkOuterAndInnerClassAgree(CremaResolvedObjectType outerKlass, CremaResolvedObjectType innerKlass) {
+        InnerClassesAttribute outerInnerClasses = outerKlass.getAttribute(InnerClassesAttribute.NAME, InnerClassesAttribute.class);
+        if (outerInnerClasses != null) {
+            InterpreterConstantPool pool = outerKlass.getConstantPool();
+            for (int i = 0; i < outerInnerClasses.entryCount(); i++) {
+                InnerClassesAttribute.Entry entry = outerInnerClasses.entryAt(i);
+                if (entry.innerClassIndex == 0 || entry.outerClassIndex == 0) {
+                    continue;
+                }
+                if (!pool.className(entry.outerClassIndex).equals(outerKlass.getSymbolicName()) || !pool.className(entry.innerClassIndex).equals(innerKlass.getSymbolicName())) {
+                    continue;
+                }
+                InterpreterResolvedObjectType resolvedOuterKlass = pool.resolvedTypeAt(outerKlass, entry.outerClassIndex);
+                if (resolvedOuterKlass != outerKlass) {
+                    continue;
+                }
+                InterpreterResolvedObjectType resolvedInnerKlass = pool.resolvedTypeAt(outerKlass, entry.innerClassIndex);
+                if (resolvedInnerKlass == innerKlass) {
+                    return;
+                }
+            }
+        }
+        throw new IncompatibleClassChangeError(outerKlass.toClassName() + " and " + innerKlass.toClassName() + " disagree on InnerClasses attribute");
+    }
+
+    public record EnclosingMethodInfo(
+                    InterpreterResolvedObjectType enclosingClass,
+                    Symbol<Name> name,
+                    Symbol<? extends Descriptor> descriptor) {
+        public boolean isPartial() {
+            return name == null || descriptor == null;
+        }
+
+        boolean isConstructor() {
+            return !isPartial() && name == ParserSymbols.ParserNames._init_;
+        }
+
+        boolean isMethod() {
+            return !isPartial() && !isConstructor() && name != ParserSymbols.ParserNames._clinit_;
+        }
+
+        private static String asStringOrNull(Symbol<?> sym) {
+            if (sym == null) {
+                return null;
+            }
+            return sym.toString();
+        }
+
+        public Object[] toJDKInfo() {
+            return new Object[]{enclosingClass.getJavaClass(), asStringOrNull(name), asStringOrNull(descriptor)};
+        }
+    }
+
+    public EnclosingMethodInfo getEnclosingMethodInfo() {
+        EnclosingMethodAttribute enclosingMethodAttr = getAttribute(EnclosingMethodAttribute.NAME, EnclosingMethodAttribute.class);
+        if (enclosingMethodAttr == null) {
+            return null;
+        }
+        int classIndex = enclosingMethodAttr.getClassIndex();
+        if (classIndex == 0) {
+            return null;
+        }
+        InterpreterConstantPool pool = getConstantPool();
+        InterpreterResolvedObjectType enclosingKlass = pool.resolvedTypeAt(this, classIndex);
+
+        // Not a method, but a NameAndType entry.
+        int nameAndTypeIndex = enclosingMethodAttr.getNameAndTypeIndex();
+        Symbol<Name> methodName = null;
+        Symbol<? extends Descriptor> methodDesc = null;
+        if (nameAndTypeIndex != 0) {
+            methodName = pool.nameAndTypeName(nameAndTypeIndex);
+            methodDesc = pool.nameAndTypeDescriptor(nameAndTypeIndex);
+        }
+        return new EnclosingMethodInfo(enclosingKlass, methodName, methodDesc);
     }
 }

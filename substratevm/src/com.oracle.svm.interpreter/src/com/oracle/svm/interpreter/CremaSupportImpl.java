@@ -130,6 +130,7 @@ import com.oracle.svm.interpreter.fieldlayout.FieldLayout;
 import com.oracle.svm.interpreter.metadata.CremaResolvedJavaFieldImpl;
 import com.oracle.svm.interpreter.metadata.CremaResolvedJavaMethodImpl;
 import com.oracle.svm.interpreter.metadata.CremaResolvedObjectType;
+import com.oracle.svm.interpreter.metadata.CremaResolvedObjectType.EnclosingMethodInfo;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaField;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaMethod;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaType;
@@ -266,7 +267,6 @@ public class CremaSupportImpl implements CremaSupport {
         String simpleBinaryName = getSimpleBinaryName(parsed);
         String sourceFile = getSourceFile(parsed);
         // The declaring class must be computed lazily
-        Object declaringClass = UNINITIALIZED_DECLARING_CLASS_SENTINEL;
         String classSignature = getClassSignature(parsed);
         boolean isValueBased = (parsed.getFlags() & Constants.ACC_VALUE_BASED) != 0;
         int modifiers = getClassModifiers(parsed);
@@ -352,7 +352,7 @@ public class CremaSupportImpl implements CremaSupport {
         /* Allocate DynamicHub. */
         int hubNumVTableEntries = dispatchTable.cremaVTableLength(transitiveSuperInterfaces);
         DynamicHub hub = DynamicHub.allocate(externalName, superHub, interfacesEncoding, null,
-                        sourceFile, modifiers, hubFlags, classLoader, simpleBinaryName, module, declaringClass, classSignature,
+                        sourceFile, modifiers, hubFlags, classLoader, simpleBinaryName, module, UNINITIALIZED_DECLARING_CLASS_SENTINEL, classSignature,
                         typeID, interfaceID,
                         hasClassInitializer(parsed), numClassTypes, typeIDDepth, numIterableInterfaces, openTypeWorldTypeCheckSlots, openTypeWorldInterfaceHashTable, openTypeWorldInterfaceHashParam,
                         hubNumVTableEntries,
@@ -1602,14 +1602,16 @@ public class CremaSupportImpl implements CremaSupport {
     }
 
     @Override
-    public Object computeEnclosingClass(DynamicHub hub) {
+    public Class<?> computeDeclaringClass(DynamicHub hub) {
         CremaResolvedObjectType type = (CremaResolvedObjectType) hub.getInterpreterType();
-        InnerClassesAttribute innerClassesAttribute = type.getAttribute(InnerClassesAttribute.NAME, InnerClassesAttribute.class);
-        if (innerClassesAttribute == null) {
-            return null;
-        }
-        // GR-70363
-        throw VMError.unimplemented("computeEnclosingClass");
+        return type.getDeclaringClass();
+    }
+
+    @Override
+    public Object[] computeEnclosingMethod(DynamicHub hub) {
+        CremaResolvedObjectType type = (CremaResolvedObjectType) hub.getInterpreterType();
+        EnclosingMethodInfo info = type.getEnclosingMethodInfo();
+        return info == null ? null : info.toJDKInfo();
     }
 
     @Override

@@ -100,6 +100,10 @@ public final class RuntimeReflectionMetadata implements ReflectionMetadata {
         CremaResolvedJavaMethod[] declaredMethods = type.getDeclaredCremaMethods();
         ArrayList<Method> result = new ArrayList<>();
         for (CremaResolvedJavaMethod declaredMethod : declaredMethods) {
+            if (declaredMethod.isClassInitializer()) {
+                // <clinit> cannot be represented as a Method
+                continue;
+            }
             if (!publicOnly || Modifier.isPublic(declaredMethod.getModifiers())) {
                 result.add(fromResolvedMethod(declaringClass, declaredMethod));
             }
@@ -132,7 +136,7 @@ public final class RuntimeReflectionMetadata implements ReflectionMetadata {
 
     @Override
     public Constructor<?>[] getDeclaredConstructors(DynamicHub declaringClass, boolean publicOnly, @SuppressWarnings("unused") int layerNum) {
-        CremaResolvedJavaMethod[] declaredConstructors = type.getDeclaredConstructors();
+        CremaResolvedJavaMethod[] declaredConstructors = type.getDeclaredCremaConstructors();
         ArrayList<Constructor<?>> result = new ArrayList<>();
         for (CremaResolvedJavaMethod declaredConstructor : declaredConstructors) {
             if (!publicOnly || Modifier.isPublic(declaredConstructor.getModifiers())) {

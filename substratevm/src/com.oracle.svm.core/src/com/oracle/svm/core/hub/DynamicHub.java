@@ -1395,7 +1395,7 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
             if (!RuntimeClassLoading.isSupported()) {
                 throw VMError.shouldNotReachHere("UNINITIALIZED_DECLARING_CLASS_SENTINEL but no runtime class loading");
             }
-            companion.declaringClass = CremaSupport.singleton().computeEnclosingClass(this);
+            companion.declaringClass = CremaSupport.singleton().computeDeclaringClass(this);
             VMError.guarantee(companion.declaringClass != UNINITIALIZED_DECLARING_CLASS_SENTINEL);
             return getDeclaringClass0();
         } else if (declaringClass instanceof LinkageError) {
