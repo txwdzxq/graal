@@ -5930,9 +5930,13 @@ public class FlatNodeGenFactory {
             if (useSpecializationClass) {
                 method.addParameter(new CodeVariableElement(specializationType, specializationLocalName));
             }
+            for (VariableElement arg : plugs.additionalArguments()) {
+                method.addParameter(arg);
+            }
             CodeTreeBuilder builder = method.createBuilder();
             if (!useSpecializationClass || !specialization.hasMultipleInstances()) {
                 // single instance remove
+                builder.tree(multiState.createForceLoad(frameState, StateQuery.create(SpecializationActive.class, specialization)));
                 builder.tree((multiState.createSet(frameState, null, StateQuery.create(SpecializationActive.class, specialization), false, true)));
                 plugs.notifySpecialize(this, builder, frameState, specialization);
                 if (useSpecializationClass) {
@@ -5999,6 +6003,9 @@ public class FlatNodeGenFactory {
         }
         if (useSpecializationClass) {
             builder.string(specializationLocalName);
+        }
+        for (VariableElement arg : plugs.additionalArguments()) {
+            builder.variable(arg);
         }
         builder.end().end();
         builder.tree(createCallExecuteAndSpecialize(builder, forType, frameState));
