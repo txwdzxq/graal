@@ -24,11 +24,7 @@
  */
 package com.oracle.svm.guest.staging;
 
-/**
- * Marker type that keeps the transitional guest-staging root package non-empty, otherwise mx would
- * complain.
- */
-final class GuestStaging {
-    private GuestStaging() {
+public final class SubstrateGuestOptions {
+    private SubstrateGuestOptions() {
     }
 }
