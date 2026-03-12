@@ -38,7 +38,9 @@ import java.nio.file.ProviderNotFoundException;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
+import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.RuntimeClassLoading.ClassDefinitionInfo;
+import com.oracle.svm.core.hub.crema.CremaSupport;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.espresso.classfile.descriptors.Type;
 import com.oracle.svm.espresso.classfile.descriptors.TypeSymbols;
@@ -123,7 +125,9 @@ public final class BootClassRegistry extends AbstractRuntimeClassRegistry {
                 return null;
             }
             byte[] bytes = Files.readAllBytes(classPath);
-            return defineClass(type, bytes, 0, bytes.length, ClassDefinitionInfo.EMPTY);
+            Class<?> loaded = defineClass(type, bytes, 0, bytes.length, ClassDefinitionInfo.EMPTY);
+            CremaSupport.singleton().recordLoadingConstraint(type, DynamicHub.fromClass(loaded), null);
+            return loaded;
         } catch (IOException e) {
             throw VMError.shouldNotReachHere(e);
         }

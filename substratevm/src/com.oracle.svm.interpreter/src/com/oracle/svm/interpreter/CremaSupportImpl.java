@@ -1669,10 +1669,19 @@ public class CremaSupportImpl implements CremaSupport {
     }
 
     @Override
-    public void verifyAndPrepare(DynamicHub hub) {
-        CremaResolvedObjectType type = (CremaResolvedObjectType) hub.getInterpreterType();
-        CremaVerifier.verifyClass(type);
+    public void prepareAndVerify(DynamicHub hub) {
+        if (!(hub.getInterpreterType() instanceof CremaResolvedObjectType type)) {
+            // This hub does not represent a class derived from a classfile.
+            return;
+        }
+        // Preparation involves creating the static fields for a class or interface and initializing
+        // such fields to their default values (JVMS 2.3, 2.4).
         initStaticFields(type);
+        // During preparation of a class or interface C, the Java Virtual Machine also imposes
+        // loading constraints (JVMS 5.3.4)
+        type.imposeLoadingConstraints();
+
+        CremaVerifier.verifyClass(type);
     }
 
     @Override
@@ -1686,11 +1695,23 @@ public class CremaSupportImpl implements CremaSupport {
 
     @Override
     public void checkLoadingConstraint(Symbol<Type> type, ClassLoader loader1, ClassLoader loader2) {
+        if (loader1 == loader2) {
+            return;
+        }
+        Symbol<Type> elementalType = SymbolsSupport.getTypes().getElementalType(type);
+        if (TypeSymbols.isPrimitive(elementalType)) {
+            return;
+        }
         try {
-            loadingConstraints.checkConstraint(type, loader1, loader2);
+            loadingConstraints.checkConstraint(elementalType, loader1, loader2);
         } catch (LoadingConstraintViolationException e) {
             throw new LinkageError(e.getMessage());
         }
+    }
+
+    @Override
+    public void purgeLoadingConstraints() {
+        loadingConstraints.purge();
     }
 
     @Override

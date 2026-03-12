@@ -57,8 +57,8 @@ import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.espresso.classfile.descriptors.Type;
 import com.oracle.svm.espresso.classfile.descriptors.TypeSymbols;
 import com.oracle.svm.espresso.classfile.descriptors.ValidationException;
-import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.shared.util.ReflectionUtil;
+import com.oracle.svm.shared.util.VMError;
 
 import jdk.internal.loader.ClassLoaders;
 import jdk.internal.misc.Unsafe;
@@ -142,8 +142,7 @@ public abstract sealed class AbstractRuntimeClassRegistry extends AbstractClassR
             // The boot class loader can return null
             return null;
         }
-        var prev = runtimeClasses.put(name, result);
-        assert prev == null || prev == result : prev;
+        registerClass(result, name);
         return result;
     }
 
@@ -415,11 +414,9 @@ public abstract sealed class AbstractRuntimeClassRegistry extends AbstractClassR
     }
 
     private void registerClass(Class<?> clazz, Symbol<Type> type) {
-        if (RuntimeClassLoading.isSupported()) {
-            CremaSupport.singleton().recordLoadingConstraint(type, DynamicHub.fromClass(clazz), getClassLoader());
-        }
+        CremaSupport.singleton().recordLoadingConstraint(type, DynamicHub.fromClass(clazz), getClassLoader());
         var previous = runtimeClasses.put(type, clazz);
-        assert previous == null;
+        assert previous == null || previous == clazz;
     }
 
     private void registerStrongHiddenClass(Class<?> clazz) {

@@ -43,8 +43,6 @@ import org.graalvm.word.impl.Word;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.classinitialization.EnsureClassInitializedNode;
 import com.oracle.svm.core.config.ConfigurationValues;
-import com.oracle.svm.core.graal.meta.KnownOffsets;
-import com.oracle.svm.core.graal.snippets.OpenTypeWorldDispatchTableSnippets;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.DynamicHubUtils;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
@@ -762,7 +760,8 @@ public final class InterpreterToVM {
         VMError.guarantee(thisType != null);
         VMError.guarantee(thisType instanceof InterpreterResolvedObjectType);
 
-        InterpreterResolvedJavaMethod[] vTable = ((InterpreterResolvedObjectType) thisType).getVtable();
+        InterpreterResolvedObjectType objectType = (InterpreterResolvedObjectType) thisType;
+        InterpreterResolvedJavaMethod[] vTable = objectType.getVtable();
         VMError.guarantee(vTable != null);
 
         DynamicHub seedHub = DynamicHub.fromClass(seedClass);
@@ -771,23 +770,10 @@ public final class InterpreterToVM {
         if (SubstrateOptions.useClosedTypeWorldHubLayout() || !seedHub.isInterface()) {
             idx = vTableIndex;
         } else {
-            idx = vTableIndex + determineITableStartingIndex(DynamicHub.fromClass(thisClass), seedHub.getInterfaceID());
+            idx = vTableIndex + objectType.determineITableStartingIndex((InterpreterResolvedObjectType) DynamicHub.fromClass(seedClass).getInterpreterType());
         }
         VMError.guarantee(idx >= 0 && idx < vTable.length);
         return vTable[idx];
-    }
-
-    private static int determineITableStartingIndex(DynamicHub thisHub, int interfaceID) {
-        /*
-         * iTableStartingOffset includes the initial offset to the vtable array and describes an
-         * offset (not index)
-         */
-        long iTableStartingOffset = OpenTypeWorldDispatchTableSnippets.determineITableStartingOffset(thisHub, interfaceID);
-
-        int vtableBaseOffset = KnownOffsets.singleton().getVTableBaseOffset();
-        int vtableEntrySize = KnownOffsets.singleton().getVTableEntrySize();
-
-        return (int) (iTableStartingOffset - vtableBaseOffset) / vtableEntrySize;
     }
 
     public static Object dispatchInvocation(InterpreterResolvedJavaMethod seedMethod, Object[] calleeArgs, CallKind callKind,
