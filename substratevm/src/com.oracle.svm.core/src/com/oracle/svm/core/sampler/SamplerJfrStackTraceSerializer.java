@@ -25,7 +25,7 @@
 
 package com.oracle.svm.core.sampler;
 
-import static com.oracle.svm.guest.staging.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
+import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
 import org.graalvm.nativeimage.StackValue;
 import org.graalvm.nativeimage.c.function.CodePointer;
@@ -48,7 +48,7 @@ import com.oracle.svm.core.jfr.JfrStackTraceRepository;
 import com.oracle.svm.core.jfr.JfrThreadLocal;
 import com.oracle.svm.core.jfr.SubstrateJVM;
 import com.oracle.svm.core.jfr.events.ExecutionSampleEvent;
-import com.oracle.svm.guest.staging.Uninterruptible;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.SingleLayer;
 import com.oracle.svm.shared.singletons.traits.SingletonLayeredInstallationKind.InitialLayerOnly;

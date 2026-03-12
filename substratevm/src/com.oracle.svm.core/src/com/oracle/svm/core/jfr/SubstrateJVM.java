@@ -49,7 +49,7 @@ import com.oracle.svm.core.sampler.SubstrateSigprofHandler;
 import com.oracle.svm.core.thread.JavaThreads;
 import com.oracle.svm.core.thread.JavaVMOperation;
 import com.oracle.svm.core.thread.VMThreads;
-import com.oracle.svm.guest.staging.Uninterruptible;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.PartiallyLayerAware;

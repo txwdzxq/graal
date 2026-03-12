@@ -34,7 +34,7 @@ import com.oracle.svm.core.thread.PlatformThreads;
 import com.oracle.svm.core.thread.ThreadListener;
 import com.oracle.svm.core.thread.ThreadListenerSupport;
 import com.oracle.svm.core.thread.VMOperationControl;
-import com.oracle.svm.guest.staging.Uninterruptible;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;

@@ -40,7 +40,7 @@ import com.oracle.svm.core.util.UnsignedUtils;
 import com.oracle.svm.core.windows.headers.MemoryAPI;
 import com.oracle.svm.core.windows.headers.WinBase;
 import com.oracle.svm.core.windows.headers.WinBase.HANDLE;
-import com.oracle.svm.guest.staging.Uninterruptible;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;

@@ -37,7 +37,7 @@ import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.feature.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.core.heap.UnknownObjectField;
 import com.oracle.svm.core.util.UnsignedUtils;
-import com.oracle.svm.guest.staging.Uninterruptible;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.PartiallyLayerAware;

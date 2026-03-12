@@ -26,7 +26,7 @@
 
 package com.oracle.svm.core.nmt;
 
-import static com.oracle.svm.guest.staging.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
+import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
@@ -42,7 +42,7 @@ import com.oracle.svm.core.jdk.RuntimeSupport;
 import com.oracle.svm.core.memory.NativeMemory;
 import com.oracle.svm.core.os.ImageHeapProvider;
 import com.oracle.svm.core.util.UnsignedUtils;
-import com.oracle.svm.guest.staging.Uninterruptible;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.SingleLayer;
 import com.oracle.svm.shared.singletons.traits.SingletonLayeredInstallationKind.InitialLayerOnly;

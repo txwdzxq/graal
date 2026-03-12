@@ -25,7 +25,7 @@
 package com.oracle.svm.core.gc.shared;
 
 import static com.oracle.svm.core.thread.VMOperationControl.isDedicatedVMOperationThread;
-import static com.oracle.svm.guest.staging.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
+import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
 import org.graalvm.nativeimage.Isolate;
 import org.graalvm.nativeimage.IsolateThread;
@@ -55,7 +55,7 @@ import com.oracle.svm.core.thread.VMOperation;
 import com.oracle.svm.core.thread.VMOperationControl;
 import com.oracle.svm.core.thread.VMThreads.StatusSupport;
 import com.oracle.svm.core.util.DuplicatedInNativeCode;
-import com.oracle.svm.guest.staging.Uninterruptible;
+import com.oracle.svm.shared.Uninterruptible;
 
 /**
  * GC-related VM operations can be scheduled by any isolate thread (including the VM operation

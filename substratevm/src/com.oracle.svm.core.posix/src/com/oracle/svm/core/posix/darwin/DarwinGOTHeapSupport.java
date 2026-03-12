@@ -45,7 +45,7 @@ import com.oracle.svm.core.os.VirtualMemoryProvider;
 import com.oracle.svm.core.os.VirtualMemoryProvider.Access;
 import com.oracle.svm.core.pltgot.GOTHeapSupport;
 import com.oracle.svm.core.posix.headers.darwin.DarwinVirtualMemory;
-import com.oracle.svm.guest.staging.Uninterruptible;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;

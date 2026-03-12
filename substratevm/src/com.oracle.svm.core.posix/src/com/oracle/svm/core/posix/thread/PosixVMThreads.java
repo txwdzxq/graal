@@ -48,7 +48,7 @@ import com.oracle.svm.core.posix.headers.darwin.DarwinPthread;
 import com.oracle.svm.core.posix.linux.LinuxLibCHelper;
 import com.oracle.svm.core.thread.VMThreads;
 import com.oracle.svm.core.util.TimeUtils;
-import com.oracle.svm.guest.staging.Uninterruptible;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.RuntimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.SingleLayer;
 import com.oracle.svm.shared.singletons.traits.SingletonLayeredInstallationKind.InitialLayerOnly;

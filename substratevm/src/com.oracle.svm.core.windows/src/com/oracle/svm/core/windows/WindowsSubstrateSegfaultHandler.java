@@ -44,7 +44,7 @@ import com.oracle.svm.core.heap.RestrictHeapAccess;
 import com.oracle.svm.core.log.Log;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.core.windows.headers.ErrHandlingAPI;
-import com.oracle.svm.guest.staging.Uninterruptible;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.SingleLayer;

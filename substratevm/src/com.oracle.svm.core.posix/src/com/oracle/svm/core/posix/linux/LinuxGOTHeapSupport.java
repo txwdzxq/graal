@@ -52,7 +52,7 @@ import com.oracle.svm.core.posix.headers.Errno;
 import com.oracle.svm.core.posix.headers.Fcntl;
 import com.oracle.svm.core.posix.headers.Unistd;
 import com.oracle.svm.core.thread.VMThreads;
-import com.oracle.svm.guest.staging.Uninterruptible;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
