@@ -110,10 +110,20 @@ public final class Target_java_lang_ClassLoader {
     public volatile AbstractClassRegistry classRegistry;
 
     /**
-     * Initialized in {@link ClassRegistries#getRegistry(ClassLoader)}.
+     * Used to implement
+     * {@linkplain com.oracle.svm.espresso.shared.constraints.LoadingConstraintsShared loading
+     * constraints} in Crema, in such a way that the constraints storage does not prevent collection
+     * of loader or their classes.
+     * <p>
+     * These weak references are registered to the {@link java.lang.ref.ReferenceQueue queue} in
+     * {@link ClassRegistries}{@code .collectedLoaders}, in order to get notified when such a loader
+     * is collected.
+     * <p>
+     * They are attached to the corresponding loader so that there is no need to create multiple
+     * references to a single loader.
      */
-    @Inject @RecomputeFieldValue(kind = Kind.Custom, declClass = RuntimeClassLoading.WeakSelfComputer.class)//
-    @TargetElement(onlyWith = RuntimeClassLoading.WithRuntimeClassLoading.class)//
+    @Inject @RecomputeFieldValue(kind = Kind.Custom, declClass = ClassRegistries.WeakSelfComputer.class) //
+    @TargetElement(onlyWith = RuntimeClassLoading.WithRuntimeClassLoading.class) //
     public volatile WeakReference<Object> weakSelf;
 
     @Alias

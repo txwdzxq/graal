@@ -27,6 +27,7 @@ package com.oracle.svm.core.hub.registry;
 import static com.oracle.svm.core.MissingRegistrationUtils.throwMissingRegistrationErrors;
 import static jdk.graal.compiler.options.OptionStability.EXPERIMENTAL;
 
+import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.HashSet;
 import java.util.Set;
@@ -48,6 +49,7 @@ import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.PredefinedClassesSupport;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.core.hub.RuntimeClassLoading.ClassDefinitionInfo;
+import com.oracle.svm.core.hub.crema.CremaSupport;
 import com.oracle.svm.core.jdk.Target_java_lang_ClassLoader;
 import com.oracle.svm.core.log.Log;
 import com.oracle.svm.core.metadata.MetadataTracer;
@@ -122,6 +124,8 @@ public final class ClassRegistries implements ParsingContext {
     public static boolean respectClassLoader() {
         return Options.ClassForNameRespectsClassLoader.getValue();
     }
+
+    private static final ReferenceQueue<Object> collectedLoaders = new ReferenceQueue<>();
 
     public final TimerCollection timers = TimerCollection.create(false);
 
@@ -462,7 +466,8 @@ public final class ClassRegistries implements ParsingContext {
                 if (registry == null) {
                     if (RuntimeClassLoading.isSupported()) {
                         registry = new UserDefinedClassRegistry(loader);
-                        svmLoader.weakSelf = new WeakReference<>(loader);
+                        initializeLoaderWeakSelf(loader);
+                        maybePurgeConstraints();
                     } else {
                         registry = new AOTClassRegistry(loader);
                     }
@@ -471,6 +476,20 @@ public final class ClassRegistries implements ParsingContext {
             }
         }
         return registry;
+    }
+
+    private static void initializeLoaderWeakSelf(Object loader) {
+        SubstrateUtil.cast(loader, Target_java_lang_ClassLoader.class).weakSelf = new WeakReference<>(loader, collectedLoaders);
+    }
+
+    private static void maybePurgeConstraints() {
+        if (collectedLoaders.poll() != null) {
+            while (collectedLoaders.poll() != null) {
+                // Clear the reference queue.
+            }
+            // Reclaim recorded constraints for collected loaders.
+            CremaSupport.singleton().purgeLoadingConstraints();
+        }
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
@@ -527,14 +546,6 @@ public final class ClassRegistries implements ParsingContext {
             }
             return newRegistry;
         });
-    }
-
-    public static class ClassRegistryComputer implements FieldValueTransformer {
-        @Override
-        public Object transform(Object receiver, Object originalValue) {
-            assert receiver != null;
-            return ClassRegistries.currentLayer().getBuildTimeRegistry((ClassLoader) receiver);
-        }
     }
 
     @Override
@@ -600,5 +611,31 @@ public final class ClassRegistries implements ParsingContext {
 
     private static boolean shouldFollowReflectionConfiguration() {
         return ClassLoadingSupport.singleton().followReflectionConfiguration();
+    }
+
+    @Platforms(Platform.HOSTED_ONLY.class)
+    public static class ClassRegistryComputer implements FieldValueTransformer {
+        @Override
+        public Object transform(Object receiver, Object originalValue) {
+            assert receiver != null;
+            return ClassRegistries.currentLayer().getBuildTimeRegistry((ClassLoader) receiver);
+        }
+    }
+
+    @Platforms(Platform.HOSTED_ONLY.class)
+    public static final class WeakSelfComputer implements FieldValueTransformer {
+        @Override
+        public Object transform(Object receiver, Object originalValue) {
+            if (RuntimeClassLoading.isSupported()) {
+                assert receiver != null;
+                /*
+                 * Note: in the image heap, these are effectively strong references. We are still
+                 * storing `WeakReference` to unify the logic that uses this field, at the cost of a
+                 * couple extra objects.
+                 */
+                return new WeakReference<>(receiver, collectedLoaders);
+            }
+            return originalValue;
+        }
     }
 }
