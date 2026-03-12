@@ -305,6 +305,11 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
         }
     }
 
+    @Override
+    public InterpreterResolvedJavaType resolveClassConstantInPool(int cpi) {
+        return getConstantPool().resolvedTypeAt(this, cpi);
+    }
+
     private boolean sameRuntimePackage(InterpreterResolvedJavaType other) {
         // GR-62339 true package access checks
         return this.getJavaClass().getClassLoader() == other.getJavaClass().getClassLoader() && this.getSymbolicRuntimePackage() == other.getSymbolicRuntimePackage();

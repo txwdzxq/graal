@@ -195,8 +195,8 @@ public class InterpreterResolvedObjectType extends InterpreterResolvedJavaType {
     }
 
     @Override
-    public final InterpreterResolvedJavaType resolveClassConstantInPool(int cpi) {
-        return getConstantPool().resolvedTypeAt(this, cpi);
+    public InterpreterResolvedJavaType resolveClassConstantInPool(int cpi) {
+        throw VMError.unimplemented("should be unneeded for AOT types.");
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
