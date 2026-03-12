@@ -231,6 +231,7 @@ public final class RuntimeInterpreterConstantPool extends InterpreterConstantPoo
         assert type != null;
 
         try (var _ = ClassLoading.allowArbitraryClassLoading(allowArbitraryClassLoading)) {
+            /*- GR-73965: Access Checks */
             return resolveObjectType(type, accessingKlass);
         } catch (LinkageError e) {
             // Comment from Hotspot:
@@ -275,7 +276,8 @@ public final class RuntimeInterpreterConstantPool extends InterpreterConstantPoo
         }
 
         // TODO(peterssen): Enable access checks and loading constraints.
-        InterpreterResolvedJavaField result = CremaLinkResolver.resolveFieldSymbolOrThrow(CremaRuntimeAccess.getInstance(), accessingClass, fieldName, fieldType, holder, false, false);
+        InterpreterResolvedJavaField result = CremaLinkResolver.resolveFieldSymbolOrThrow(CremaRuntimeAccess.getInstance(), accessingClass, fieldName, fieldType, holder,
+                        false /*- GR-73965: Access Checks */, true);
         return result;
     }
 
@@ -310,8 +312,8 @@ public final class RuntimeInterpreterConstantPool extends InterpreterConstantPoo
             throw VMError.shouldNotReachHere("Invalid cached CP entry, expected unresolved method, but got " + entry);
         }
 
-        // TODO(peterssen): Enable access checks and loading constraints.
-        InterpreterResolvedJavaMethod classMethod = CremaLinkResolver.resolveMethodSymbol(CremaRuntimeAccess.getInstance(), accessingClass, methodName, methodSignature, holder, false, false, false);
+        InterpreterResolvedJavaMethod classMethod = CremaLinkResolver.resolveMethodSymbol(CremaRuntimeAccess.getInstance(), accessingClass, methodName, methodSignature, holder, false,
+                        false /*- GR-73965: Access Checks */, true);
 
         if (classMethod.getSignaturePolymorphicIntrinsic() == SignaturePolymorphicIntrinsic.InvokeGeneric && classMethod.isNative()) {
             return InterpreterResolvedInvokeGenericJavaMethod.linkInvokeGeneric(classMethod, accessingClass);
@@ -350,9 +352,8 @@ public final class RuntimeInterpreterConstantPool extends InterpreterConstantPoo
             throw VMError.shouldNotReachHere("Invalid cached CP entry, expected unresolved method, but got " + entry);
         }
 
-        // TODO(peterssen): Enable access checks and loading constraints.
-        InterpreterResolvedJavaMethod interfaceMethod = CremaLinkResolver.resolveMethodSymbol(CremaRuntimeAccess.getInstance(), accessingClass, methodName, methodSignature, holder, true, false,
-                        false);
+        InterpreterResolvedJavaMethod interfaceMethod = CremaLinkResolver.resolveMethodSymbol(CremaRuntimeAccess.getInstance(), accessingClass, methodName, methodSignature, holder, true,
+                        false /*- GR-73965: Access Checks */, true);
 
         // TODO(peterssen): Support MethodHandle invoke intrinsics.
 
@@ -395,7 +396,7 @@ public final class RuntimeInterpreterConstantPool extends InterpreterConstantPoo
     private static Class<?> resolveSymbolAndAccessCheck(InterpreterResolvedObjectType accessingClass, Symbol<Type> type) {
         try (var _ = ClassLoading.allowArbitraryClassLoading()) {
             Class<?> clazz = CremaSupport.singleton().resolveOrThrow(type, accessingClass);
-            // GR-62339 check access
+            /*- GR-73965: Access Checks */
             return clazz;
         }
     }
