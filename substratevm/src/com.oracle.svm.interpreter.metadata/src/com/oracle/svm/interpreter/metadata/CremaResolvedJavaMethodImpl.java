@@ -36,6 +36,7 @@ import com.oracle.svm.espresso.classfile.ParserMethod;
 import com.oracle.svm.espresso.classfile.attributes.Attribute;
 import com.oracle.svm.espresso.classfile.attributes.AttributedElement;
 import com.oracle.svm.espresso.classfile.attributes.CodeAttribute;
+import com.oracle.svm.espresso.classfile.attributes.SignatureAttribute;
 import com.oracle.svm.espresso.classfile.descriptors.ParserSymbols;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.espresso.classfile.descriptors.Type;
@@ -174,6 +175,10 @@ public final class CremaResolvedJavaMethodImpl extends InterpreterResolvedJavaMe
 
     @Override
     public String getGenericSignature() {
-        return getSymbolicSignature().toString();
+        SignatureAttribute signatureAttribute = getAttribute(SignatureAttribute.NAME, SignatureAttribute.class);
+        if (signatureAttribute == null) {
+            return null;
+        }
+        return getDeclaringClass().getConstantPool().utf8At(signatureAttribute.getSignatureIndex(), "signature").toString();
     }
 }

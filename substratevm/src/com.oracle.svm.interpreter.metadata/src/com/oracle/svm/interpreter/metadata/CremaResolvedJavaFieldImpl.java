@@ -33,6 +33,7 @@ import com.oracle.svm.core.imagelayer.DynamicImageLayerInfo;
 import com.oracle.svm.espresso.classfile.ParserField;
 import com.oracle.svm.espresso.classfile.attributes.Attribute;
 import com.oracle.svm.espresso.classfile.attributes.AttributedElement;
+import com.oracle.svm.espresso.classfile.attributes.SignatureAttribute;
 import com.oracle.svm.espresso.classfile.descriptors.ParserSymbols;
 
 import jdk.graal.compiler.core.common.NumUtil;
@@ -119,8 +120,11 @@ public class CremaResolvedJavaFieldImpl extends InterpreterResolvedJavaField imp
 
     @Override
     public String getGenericSignature() {
-        /* (GR-69096) resolvedJavaMethod.getGenericSignature() */
-        return getSymbolicType().toString();
+        SignatureAttribute signatureAttribute = getAttribute(SignatureAttribute.NAME, SignatureAttribute.class);
+        if (signatureAttribute == null) {
+            return null;
+        }
+        return getDeclaringClass().getConstantPool().utf8At(signatureAttribute.getSignatureIndex(), "signature").toString();
     }
 
     @Override
