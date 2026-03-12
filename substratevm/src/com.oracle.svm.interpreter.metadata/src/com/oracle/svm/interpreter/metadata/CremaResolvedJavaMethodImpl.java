@@ -150,7 +150,7 @@ public final class CremaResolvedJavaMethodImpl extends InterpreterResolvedJavaMe
 
     @Override
     public byte[] getRawParameters() {
-        // (GR-69096)
+        // (GR-74007)
         throw VMError.unimplemented("getRawParameters");
     }
 
