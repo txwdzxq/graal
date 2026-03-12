@@ -35,7 +35,6 @@ import org.graalvm.word.WordBase;
 
 import com.oracle.svm.core.SubstrateMetadata;
 import com.oracle.svm.core.hub.DynamicHub;
-import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.core.hub.registry.SymbolsSupport;
 import com.oracle.svm.espresso.classfile.descriptors.Name;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
@@ -271,7 +270,10 @@ public abstract class InterpreterResolvedJavaType extends InterpreterAnnotated i
 
     @Override
     public void link() {
-        RuntimeClassLoading.ensureLinked(DynamicHub.fromClass(clazz));
+        if (!DynamicHub.fromClass(clazz).isLinked()) {
+            VMError.guarantee(!DynamicHub.fromClass(clazz).isRuntimeLoaded(), "Should have gone to the Crema resolved type implementation.");
+            throw new LinkageError(MetadataUtil.fmt("Cannot link an AOT type at runtime: %s", this));
+        }
     }
 
     @Override

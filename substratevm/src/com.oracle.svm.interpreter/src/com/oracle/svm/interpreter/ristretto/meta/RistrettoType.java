@@ -84,15 +84,6 @@ public final class RistrettoType extends SubstrateType {
     }
 
     @Override
-    public boolean isLinked() {
-        /*
-         * TODO GR-59739, GR-71851 - crema does not implement linking at the moment, so we assume
-         * all resolved (==loaded) types successfully linked as well
-         */
-        return true;
-    }
-
-    @Override
     public ResolvedJavaField[] getStaticFields() {
         return RistrettoUtils.toRFields(interpreterType.getStaticFields());
     }

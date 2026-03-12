@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.oracle.svm.core.hub.DynamicHub;
+import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.core.hub.crema.CremaResolvedJavaMethod;
 import com.oracle.svm.core.hub.crema.CremaResolvedJavaRecordComponent;
 import com.oracle.svm.core.hub.crema.CremaResolvedJavaType;
@@ -303,6 +304,11 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
              */
             return this;
         }
+    }
+
+    @Override
+    public void link() {
+        RuntimeClassLoading.ensureLinked(DynamicHub.fromClass(clazz));
     }
 
     @Override
