@@ -417,7 +417,8 @@ public abstract class LoadingConstraintsShared<Loader, Storage, Klass> {
         }
 
         void merge(Constraint<Loader, Storage> other) {
-            for (Storage stored : other.loaders) {
+            for (int i = 0; i < other.size; i++) {
+                Storage stored = other.loaders[i];
                 if (!contains(stored)) {
                     add(stored);
                 }
