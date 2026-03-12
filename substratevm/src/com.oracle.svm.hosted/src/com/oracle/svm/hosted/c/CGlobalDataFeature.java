@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -37,6 +37,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import com.oracle.svm.core.c.CGlobalDataLoadPolicy;
 import org.graalvm.nativeimage.ImageSingletons;
 
 import com.oracle.graal.pointsto.ObjectScanner.OtherReason;
@@ -139,6 +140,7 @@ public class CGlobalDataFeature implements InternalFeature {
     @Override
     public void duringSetup(DuringSetupAccess a) {
         a.registerObjectReplacer(this::replaceObject);
+        ImageSingletons.add(CGlobalDataLoadPolicy.class, new CGlobalDataLoadPolicy());
     }
 
     @Override

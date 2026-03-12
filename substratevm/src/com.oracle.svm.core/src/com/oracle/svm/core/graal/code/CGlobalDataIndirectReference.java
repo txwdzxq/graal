@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2026, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -24,40 +24,17 @@
  */
 package com.oracle.svm.core.graal.code;
 
-import java.util.Objects;
-
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
-import jdk.vm.ci.code.site.Reference;
-
+/**
+ * Reference to CGlobalData, accessed indirectly through the image heap. Use to avoid emitting a
+ * dynamic linker relocation. Final address is computed at runtime by reading the CGlobalData base
+ * address from the image heap and adding a relative offset to it.
+ */
 @Platforms(Platform.HOSTED_ONLY.class)
-public abstract sealed class CGlobalDataReference extends Reference permits CGlobalDataDirectReference, CGlobalDataIndirectReference {
-
-    private final CGlobalDataInfo dataInfo;
-
-    protected CGlobalDataReference(CGlobalDataInfo dataInfo) {
-        this.dataInfo = Objects.requireNonNull(dataInfo);
-    }
-
-    public CGlobalDataInfo getDataInfo() {
-        return dataInfo;
-    }
-
-    @Override
-    public final boolean equals(Object o) {
-        if (o == this) {
-            return true;
-        }
-        if (o == null || o.getClass() != getClass()) {
-            return false;
-        }
-        CGlobalDataReference that = (CGlobalDataReference) o;
-        return dataInfo.equals(that.dataInfo);
-    }
-
-    @Override
-    public final int hashCode() {
-        return dataInfo.hashCode();
+public final class CGlobalDataIndirectReference extends CGlobalDataReference {
+    public CGlobalDataIndirectReference(CGlobalDataInfo dataInfo) {
+        super(dataInfo);
     }
 }

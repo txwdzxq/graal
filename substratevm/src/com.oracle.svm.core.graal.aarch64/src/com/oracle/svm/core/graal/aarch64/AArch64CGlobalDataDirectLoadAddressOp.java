@@ -27,11 +27,11 @@ package com.oracle.svm.core.graal.aarch64;
 import static jdk.graal.compiler.lir.LIRInstruction.OperandFlag.REG;
 import static jdk.vm.ci.code.ValueUtil.asRegister;
 
+import com.oracle.svm.core.graal.code.CGlobalDataDirectReference;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
 import com.oracle.svm.core.graal.code.CGlobalDataInfo;
-import com.oracle.svm.core.graal.code.CGlobalDataReference;
 
 import jdk.graal.compiler.asm.aarch64.AArch64MacroAssembler;
 import jdk.graal.compiler.lir.LIRInstructionClass;
@@ -41,14 +41,14 @@ import jdk.vm.ci.code.Register;
 import jdk.vm.ci.meta.AllocatableValue;
 
 @Platforms(Platform.HOSTED_ONLY.class)
-public final class AArch64CGlobalDataLoadAddressOp extends AArch64LIRInstruction {
-    public static final LIRInstructionClass<AArch64CGlobalDataLoadAddressOp> TYPE = LIRInstructionClass.create(AArch64CGlobalDataLoadAddressOp.class);
+public final class AArch64CGlobalDataDirectLoadAddressOp extends AArch64LIRInstruction {
+    public static final LIRInstructionClass<AArch64CGlobalDataDirectLoadAddressOp> TYPE = LIRInstructionClass.create(AArch64CGlobalDataDirectLoadAddressOp.class);
 
     @Def(REG) private AllocatableValue result;
 
     private final CGlobalDataInfo dataInfo;
 
-    AArch64CGlobalDataLoadAddressOp(CGlobalDataInfo dataInfo, AllocatableValue result) {
+    AArch64CGlobalDataDirectLoadAddressOp(CGlobalDataInfo dataInfo, AllocatableValue result) {
         super(TYPE);
         this.dataInfo = dataInfo;
         this.result = result;
@@ -59,7 +59,7 @@ public final class AArch64CGlobalDataLoadAddressOp extends AArch64LIRInstruction
         int addressBitSize = result.getPlatformKind().getSizeInBytes() * Byte.SIZE;
         assert addressBitSize == 64;
 
-        crb.compilationResult.recordDataPatch(masm.position(), new CGlobalDataReference(dataInfo));
+        crb.compilationResult.recordDataPatch(masm.position(), new CGlobalDataDirectReference(dataInfo));
         Register resultRegister = asRegister(result);
         if (dataInfo.isSymbolReference()) {
             // Pure symbol reference: the data contains the symbol's address, load it

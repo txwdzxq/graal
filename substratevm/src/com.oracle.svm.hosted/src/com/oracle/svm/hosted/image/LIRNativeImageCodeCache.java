@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -407,8 +407,7 @@ public class LIRNativeImageCodeCache extends NativeImageCodeCache {
         }
     }
 
-    private static void processDataReferences(RelocatableBuffer relocs, HostedMethod method, CompilationResult compilation, Map<Integer, HostedPatcher> patches) {
-        int compStart = method.getCodeAddressOffset();
+    protected void processDataReferences(RelocatableBuffer relocs, HostedMethod method, CompilationResult compilation, Map<Integer, HostedPatcher> patches) {
         for (DataPatch dataPatch : compilation.getDataPatches()) {
             assert dataPatch.note == null : "Unexpected note: " + dataPatch.note;
             Reference ref = dataPatch.reference;
@@ -417,10 +416,15 @@ public class LIRNativeImageCodeCache extends NativeImageCodeCache {
             /*
              * Constants are (1) allocated offsets in a separate space, which can be emitted as
              * read-only (.rodata) section, or (2) method pointers that are computed relative to the
-             * PC.
+             * PC, or (3) directly patched accesses to other sections via base address located in
+             * the image heap.
              */
-            patcher.relocate(ref, relocs, compStart);
+            processDataPatch(relocs, method, compilation, ref, patcher);
         }
+    }
+
+    protected void processDataPatch(RelocatableBuffer buffer, HostedMethod method, @SuppressWarnings("unused") CompilationResult compilation, Reference reference, HostedPatcher patcher) {
+        patcher.relocate(reference, buffer, method.getCodeAddressOffset());
     }
 
     private static void processImageHeapConstantsReferences(CompilationResult compilation, Map<Integer, HostedPatcher> patches) {

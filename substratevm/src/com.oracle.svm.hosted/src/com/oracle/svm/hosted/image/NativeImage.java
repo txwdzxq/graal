@@ -82,8 +82,8 @@ import com.oracle.svm.core.c.libc.TemporaryBuildDirectoryProvider;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.graal.code.CGlobalDataBasePointer;
+import com.oracle.svm.core.graal.code.CGlobalDataDirectReference;
 import com.oracle.svm.core.graal.code.CGlobalDataInfo;
-import com.oracle.svm.core.graal.code.CGlobalDataReference;
 import com.oracle.svm.core.graal.nodes.TLABObjectHeaderConstant;
 import com.oracle.svm.core.heap.Heap;
 import com.oracle.svm.core.hub.DynamicHub;
@@ -717,7 +717,7 @@ public abstract class NativeImage extends AbstractImage {
             long addend = ((DataSectionReference) target).getOffset() - info.getAddend();
             assert isAddendAligned(arch, addend, info.getRelocationKind()) : "improper addend alignment";
             sectionImpl.markRelocationSite(offset, info.getRelocationKind(), roDataSection.getName(), addend);
-        } else if (target instanceof CGlobalDataReference ref) {
+        } else if (target instanceof CGlobalDataDirectReference ref) {
             validateNoDirectRelocationsInTextSection(info);
 
             CGlobalDataInfo dataInfo = ref.getDataInfo();
