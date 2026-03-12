@@ -197,17 +197,17 @@ public final class ClassInitializationInfo {
     }
 
     /** For classes that are loaded at run-time. */
-    private ClassInitializationInfo(boolean typeReachedTracked, boolean hasClassInitializer) {
+    private ClassInitializationInfo(boolean isArray, boolean hasClassInitializer) {
         assert RuntimeClassLoading.isSupported();
 
         this.buildTimeInitialized = false;
         this.hasInitializer = hasClassInitializer;
         this.runtimeClassInitializer = hasClassInitializer ? INTERPRETER_INITIALIZATION_MARKER : null;
-        this.slowPathRequired = true;
-        this.initLock = new ReentrantLock();
-        this.initState = InitState.Loaded;
-        this.typeReachedTracked = typeReachedTracked;
-        this.typeReached = typeReachedTracked ? TypeReached.NOT_REACHED : TypeReached.UNTRACKED;
+        this.slowPathRequired = !isArray;
+        this.initLock = isArray ? null : new ReentrantLock();
+        this.initState = isArray ? InitState.FullyInitialized : InitState.Loaded;
+        this.typeReachedTracked = false;
+        this.typeReached = TypeReached.UNTRACKED;
 
         assert !this.typeReachedTracked || slowPathRequired;
     }
@@ -232,8 +232,8 @@ public final class ClassInitializationInfo {
         return new ClassInitializationInfo(methodPointer, typeReachedTracked);
     }
 
-    public static ClassInitializationInfo forRuntimeLoadedClass(boolean typeReachedTracked, boolean hasClassInitializer) {
-        return new ClassInitializationInfo(typeReachedTracked, hasClassInitializer);
+    public static ClassInitializationInfo forRuntimeLoadedClass(boolean isArray, boolean hasClassInitializer) {
+        return new ClassInitializationInfo(isArray, hasClassInitializer);
     }
 
     public boolean isBuildTimeInitialized() {
@@ -477,7 +477,7 @@ public final class ClassInitializationInfo {
                 superInfo.ensureLinked(interfaceHub);
             }
 
-            CremaSupport.singleton().verifyAndPrepare(hub);
+            CremaSupport.singleton().prepareAndVerify(hub);
         } catch (Throwable ex) {
             setInitializationStateAndNotify(InitState.Loaded);
             throw ex;
