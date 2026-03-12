@@ -139,6 +139,20 @@ public class SecurityServiceTest {
         Assert.assertNull("Provider should not be present.", registered);
     }
 
+    @Test
+    public void testMissingBuiltInProviderErrorMessage() {
+        Assume.assumeTrue("needs runtime initialization", FutureDefaultsOptions.securityProvidersInitializedAtRunTime());
+        try {
+            Security.getProvider("SunEC");
+            Assert.fail("Fetching an omitted built-in provider should fail.");
+        } catch (SecurityException e) {
+            Assert.assertTrue("Missing provider message should mention the provider name.", e.getMessage().contains("SunEC"));
+            Assert.assertTrue("Missing provider message should mention the provider class.", e.getMessage().contains("sun.security.ec.SunEC"));
+            Assert.assertTrue("Missing provider message should mention AdditionalSecurityProviders.",
+                            e.getMessage().contains("-H:AdditionalSecurityProviders=sun.security.ec.SunEC"));
+        }
+    }
+
     private static final class NoOpProvider extends Provider {
 
         static final long serialVersionUID = 1234L;
