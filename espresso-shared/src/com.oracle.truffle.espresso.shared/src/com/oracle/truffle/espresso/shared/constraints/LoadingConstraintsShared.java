@@ -26,10 +26,12 @@ package com.oracle.truffle.espresso.shared.constraints;
 
 import java.lang.invoke.VarHandle;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.oracle.truffle.espresso.classfile.descriptors.Symbol;
 import com.oracle.truffle.espresso.classfile.descriptors.Type;
+import com.oracle.truffle.espresso.classfile.descriptors.TypeSymbols;
 
 /**
  * This class handles Loading Constraints as described in {@code JVMS - 5.3.4. Loading Constraints}.
@@ -47,9 +49,10 @@ import com.oracle.truffle.espresso.classfile.descriptors.Type;
  * One may also call {@link #purge()} to remove recorded entries that are stale. A good time to do
  * so would be when it is known a class loader has been unloaded.
  *
- * @param <Loader>
- * @param <Storage>
- * @param <Klass>
+ * @param <Loader> The type of the representation of class loaders used by the runtime.
+ * @param <Klass> The type of the representation of classes used by the runtime.
+ * @param <Storage> The type of the storage that should be used. It must be possible to uniquely
+ *            obtain the {@code Loader} from the {@code Storage} and vice versa.
  */
 public abstract class LoadingConstraintsShared<Loader, Storage, Klass> {
     private static final long NOT_YET_LOADED_ID = -1;
@@ -93,18 +96,21 @@ public abstract class LoadingConstraintsShared<Loader, Storage, Klass> {
 
     /**
      * Checks that {@code loader1} and {@code loader2} resolve {@code type} as the same Klass
-     * instance.
+     * instance. {@code type} must not be an array type, nor a primitive type.
      */
     public final void checkConstraint(Symbol<Type> type, Loader loader1, Loader loader2) throws LoadingConstraintViolationException {
+        assert !TypeSymbols.isArray(type) && !TypeSymbols.isPrimitive(type);
         Klass k1 = findLoadedClass(type, loader1);
         Klass k2 = findLoadedClass(type, loader2);
         checkOrAdd(type, getClassID(k1), getClassID(k2), loader1, loader2);
     }
 
     /**
-     * Records that {@code loader} resolves {@code type} as {@code klass}.
+     * Records that {@code loader} resolves {@code type} as {@code klass}. {@code type} must not be
+     * an array type, nor a primitive type.
      */
     public final void recordConstraint(Symbol<Type> type, Klass k, Loader loader) throws LoadingConstraintViolationException {
+        assert !TypeSymbols.isArray(type) && !TypeSymbols.isPrimitive(type);
         long klass = getClassID(k);
         ConstraintBucket<Loader, Storage> bucket = lookup(type);
         if (bucket == null) {
@@ -152,18 +158,23 @@ public abstract class LoadingConstraintsShared<Loader, Storage, Klass> {
         Loader loader = getDefiningClassLoader(klass);
         long oldKlassId = getClassID(klass);
         ConstraintBucket<Loader, Storage> bucket = lookup(type);
-        Constraint<Loader, Storage> origConstraint = bucket.lookupLoader(this, loader);
+        if (bucket == null) {
+            // Nothing to update
+            return;
+        }
+        synchronized (bucket) {
+            Constraint<Loader, Storage> origConstraint = bucket.lookupLoader(this, loader);
 
-        // Ensure we are updating the constraint of the defining loader.
-        Constraint<Loader, Storage> validation = bucket.lookupClass(oldKlassId);
-        assert validation == null || origConstraint == validation;
+            // Ensure we are updating the constraint of the defining loader.
+            assert bucket.lookupClass(oldKlassId) == null || origConstraint == bucket.lookupClass(oldKlassId);
 
-        if (origConstraint != null) {
-            if (newKlass == null) {
-                bucket.remove(origConstraint);
-            } else {
-                long newKlassId = getClassID(newKlass);
-                origConstraint.swapKlass(newKlassId);
+            if (origConstraint != null) {
+                if (newKlass == null) {
+                    bucket.remove(origConstraint);
+                } else {
+                    long newKlassId = getClassID(newKlass);
+                    origConstraint.swapKlass(newKlassId);
+                }
             }
         }
     }
@@ -203,7 +214,7 @@ public abstract class LoadingConstraintsShared<Loader, Storage, Klass> {
             bucket = new ConstraintBucket<>(newConstraint);
             ConstraintBucket<Loader, Storage> previous = pairings.putIfAbsent(type, bucket);
             if (previous != null) {
-                bucket = lookup(type);
+                bucket = previous;
             }
         }
         synchronized (bucket) {
@@ -253,6 +264,7 @@ public abstract class LoadingConstraintsShared<Loader, Storage, Klass> {
     }
 
     private void mergeConstraints(ConstraintBucket<Loader, Storage> bucket, Constraint<Loader, Storage> c1, Constraint<Loader, Storage> c2) {
+        assert Thread.holdsLock(bucket);
         Constraint<Loader, Storage> merge;
         Constraint<Loader, Storage> delete;
         if (c1.loaders.length < c2.loaders.length) {
@@ -274,6 +286,10 @@ public abstract class LoadingConstraintsShared<Loader, Storage, Klass> {
         return klass != NOT_YET_LOADED_ID;
     }
 
+    /**
+     * While simply holding a reference to the head of a list, these instances are being
+     * synchronized on.
+     */
     private static final class ConstraintBucket<Loader, Storage> {
 
         private Constraint<Loader, Storage> head;
@@ -285,6 +301,7 @@ public abstract class LoadingConstraintsShared<Loader, Storage, Klass> {
         }
 
         Constraint<Loader, Storage> lookupLoader(LoadingConstraintsShared<Loader, Storage, ?> provider, Loader loader) {
+            assert Thread.holdsLock(this);
             Constraint<Loader, Storage> curr = head;
             while (curr != null) {
                 if (curr.contains(provider, loader)) {
@@ -296,6 +313,7 @@ public abstract class LoadingConstraintsShared<Loader, Storage, Klass> {
         }
 
         Constraint<Loader, Storage> lookupClass(long klass) {
+            assert Thread.holdsLock(this);
             Constraint<Loader, Storage> curr = head;
             while (curr != null) {
                 if (curr.klass == klass) {
@@ -307,6 +325,7 @@ public abstract class LoadingConstraintsShared<Loader, Storage, Klass> {
         }
 
         void add(Constraint<Loader, Storage> newConstraint) {
+            assert Thread.holdsLock(this);
             newConstraint.next = head;
             newConstraint.prev = null;
             if (head != null) {
@@ -316,6 +335,7 @@ public abstract class LoadingConstraintsShared<Loader, Storage, Klass> {
         }
 
         void remove(Constraint<Loader, Storage> toRemove) {
+            assert Thread.holdsLock(this);
             Constraint<Loader, Storage> prev = toRemove.prev;
             Constraint<Loader, Storage> next = toRemove.next;
             if (prev != null) {
@@ -385,7 +405,7 @@ public abstract class LoadingConstraintsShared<Loader, Storage, Klass> {
             if (size >= capacity) {
                 loaders = Arrays.copyOf(loaders, capacity <<= 1);
             }
-            loaders[size++] = provider.toStorage(loader);
+            loaders[size++] = Objects.requireNonNull(provider.toStorage(loader));
         }
 
         void add(Storage storage) {
@@ -393,7 +413,7 @@ public abstract class LoadingConstraintsShared<Loader, Storage, Klass> {
             if (size >= capacity) {
                 loaders = Arrays.copyOf(loaders, capacity <<= 1);
             }
-            loaders[size++] = storage;
+            loaders[size++] = Objects.requireNonNull(storage);
         }
 
         void merge(Constraint<Loader, Storage> other) {
@@ -408,7 +428,7 @@ public abstract class LoadingConstraintsShared<Loader, Storage, Klass> {
             int i = 0;
             while (i < size) {
                 if (!provider.isAlive(loaders[i])) {
-                    swap(i, --size, loaders);
+                    swap(i, --size);
                 } else {
                     i++;
                 }
@@ -433,10 +453,10 @@ public abstract class LoadingConstraintsShared<Loader, Storage, Klass> {
             VarHandle.fullFence();
         }
 
-        static <T> void swap(int i, int j, T[] arr) {
-            T a = arr[i];
-            arr[i] = arr[j];
-            arr[j] = a;
+        void swap(int i, int j) {
+            Storage a = loaders[i];
+            loaders[i] = Objects.requireNonNull(loaders[j]);
+            loaders[j] = Objects.requireNonNull(a);
         }
 
         static <Loader, Storage> Constraint<Loader, Storage> create(LoadingConstraintsShared<Loader, Storage, ?> provider, long klass, Loader loader1, Loader loader2) {

@@ -71,7 +71,6 @@ import com.oracle.svm.espresso.classfile.descriptors.ByteSequence;
 import com.oracle.svm.espresso.classfile.descriptors.Name;
 import com.oracle.svm.espresso.classfile.descriptors.ParserSymbols;
 import com.oracle.svm.espresso.classfile.descriptors.Signature;
-import com.oracle.svm.espresso.classfile.descriptors.SignatureSymbols;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.espresso.classfile.descriptors.Type;
 import com.oracle.svm.espresso.shared.meta.SignaturePolymorphicIntrinsic;
@@ -860,9 +859,12 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
     public final void loadingConstraints(InterpreterResolvedJavaType accessingClass) {
         ClassLoader loader1 = accessingClass.getClassLoader();
         ClassLoader loader2 = getDeclaringClass().getClassLoader();
+        checkLoadingConstraints(loader1, loader2);
+    }
 
+    public final void checkLoadingConstraints(ClassLoader loader1, ClassLoader loader2) {
         if (loader1 != loader2) {
-            for (Symbol<Type> type : SignatureSymbols.parse(SymbolsSupport.getTypes(), getSymbolicSignature())) {
+            for (Symbol<Type> type : SymbolsSupport.getSignatures().parsed(getSymbolicSignature())) {
                 CremaSupport.singleton().checkLoadingConstraint(type, loader1, loader2);
             }
         }

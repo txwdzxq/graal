@@ -41,7 +41,9 @@ import com.oracle.svm.shared.util.SubstrateUtil;
  * Note: loading constraints are currently not recorded for AOT classes (GR-74285).
  */
 public class CremaLoadingConstraints extends LoadingConstraintsShared<ClassLoader, WeakReference<Object>, DynamicHub> {
+    // This must remain strongly reachable.
     private static final Object MARKER = new Object();
+    // This must refer to something that is always strongly reachable.
     private static final WeakReference<Object> BOOT_LOADER_STORAGE = new WeakReference<>(MARKER);
 
     @Override
@@ -65,7 +67,7 @@ public class CremaLoadingConstraints extends LoadingConstraintsShared<ClassLoade
             return BOOT_LOADER_STORAGE;
         }
         WeakReference<Object> weakSelf = SubstrateUtil.cast(classLoader, Target_java_lang_ClassLoader.class).weakSelf;
-        assert weakSelf != null : classLoader;
+        InterpreterUtil.guarantee(weakSelf != null, "uninitialized weakSelf for: %s", classLoader);
         return weakSelf;
     }
 
@@ -78,7 +80,7 @@ public class CremaLoadingConstraints extends LoadingConstraintsShared<ClassLoade
     }
 
     @Override
-    public boolean isAlive(WeakReference<Object> loader) {
-        return loader.get() != null;
+    public boolean isAlive(WeakReference<Object> storage) {
+        return storage.get() != null;
     }
 }
