@@ -24,6 +24,8 @@
  */
 package com.oracle.svm.interpreter.metadata;
 
+import static com.oracle.svm.espresso.classfile.Constants.ACC_IS_HIDDEN_CLASS;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -200,8 +202,7 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
 
     @Override
     public boolean isHidden() {
-        // (GR-69095)
-        throw VMError.unimplemented("isHidden");
+        return (getModifiers() & ACC_IS_HIDDEN_CLASS) != 0;
     }
 
     @Override
