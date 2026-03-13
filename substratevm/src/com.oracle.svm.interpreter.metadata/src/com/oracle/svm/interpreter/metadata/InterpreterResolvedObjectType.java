@@ -574,15 +574,12 @@ public class InterpreterResolvedObjectType extends InterpreterResolvedJavaType {
         }
     }
 
-    public int determineITableStartingIndex(InterpreterResolvedObjectType superInterface) {
-        assert superInterface.isAssignableFrom(this);
-        DynamicHub thisHub = DynamicHub.fromClass(getJavaClass());
-        int interfaceID = DynamicHub.fromClass(superInterface.getJavaClass()).getInterfaceID();
+    public int determineITableStartingIndex(InterpreterResolvedObjectType seedInterface) {
         /*
          * iTableStartingOffset includes the initial offset to the vtable array and describes an
          * offset (not index)
          */
-        long iTableStartingOffset = OpenTypeWorldDispatchTableSnippets.determineITableStartingOffset(thisHub, interfaceID);
+        long iTableStartingOffset = OpenTypeWorldDispatchTableSnippets.determineITableStartingOffset(getHub(), seedInterface.getHub().getInterfaceID());
 
         int vtableBaseOffset = KnownOffsets.singleton().getVTableBaseOffset();
         int vtableEntrySize = KnownOffsets.singleton().getVTableEntrySize();

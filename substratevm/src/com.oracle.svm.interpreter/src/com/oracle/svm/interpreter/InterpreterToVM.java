@@ -748,7 +748,7 @@ public final class InterpreterToVM {
         return (CFunctionPointer) codePointer;
     }
 
-    private static InterpreterResolvedJavaMethod peekAtInterpreterVTable(Class<?> seedClass, Class<?> thisClass, int vTableIndex) {
+    private static InterpreterResolvedJavaMethod peekAtInterpreterVTable(InterpreterResolvedObjectType seedType, Class<?> thisClass, int vTableIndex) {
         ResolvedJavaType thisType;
         if (RuntimeClassLoading.isSupported()) {
             thisType = DynamicHub.fromClass(thisClass).getInterpreterType();
@@ -764,13 +764,11 @@ public final class InterpreterToVM {
         InterpreterResolvedJavaMethod[] vTable = objectType.getVtable();
         VMError.guarantee(vTable != null);
 
-        DynamicHub seedHub = DynamicHub.fromClass(seedClass);
-
         int idx;
-        if (SubstrateOptions.useClosedTypeWorldHubLayout() || !seedHub.isInterface()) {
+        if (SubstrateOptions.useClosedTypeWorldHubLayout() || !seedType.isInterface()) {
             idx = vTableIndex;
         } else {
-            idx = vTableIndex + objectType.determineITableStartingIndex((InterpreterResolvedObjectType) DynamicHub.fromClass(seedClass).getInterpreterType());
+            idx = vTableIndex + objectType.determineITableStartingIndex(seedType);
         }
         VMError.guarantee(idx >= 0 && idx < vTable.length);
         return vTable[idx];
@@ -837,7 +835,7 @@ public final class InterpreterToVM {
                 // Arrays do not have a vtable
                 return seedMethod;
             } else {
-                return peekAtInterpreterVTable(seedMethod.getDeclaringClass().getJavaClass(), receiverClass, seedMethod.getVTableIndex());
+                return peekAtInterpreterVTable(seedMethod.getDeclaringClass(), receiverClass, seedMethod.getVTableIndex());
             }
         } else if (isVirtual && seedMethod.isDevirtualized()) {
             InterpreterResolvedJavaMethod target = seedMethod.devirtualizationTarget();

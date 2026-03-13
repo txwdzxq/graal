@@ -1269,7 +1269,7 @@ public class CremaSupportImpl implements CremaSupport {
 
     @Override
     public Class<?> findLoadedClass(Symbol<Type> type, ResolvedJavaType accessingClass) {
-        return findLoadedClass(type, DynamicHub.fromClass(((InterpreterResolvedJavaType) accessingClass).getJavaClass()).getClassLoader());
+        return findLoadedClass(type, ((InterpreterResolvedJavaType) accessingClass).getHub().getClassLoader());
     }
 
     @Override

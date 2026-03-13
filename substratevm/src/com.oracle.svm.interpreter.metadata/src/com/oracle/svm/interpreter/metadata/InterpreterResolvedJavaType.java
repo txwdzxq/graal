@@ -40,7 +40,6 @@ import com.oracle.svm.espresso.classfile.descriptors.Name;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.espresso.classfile.descriptors.Type;
 import com.oracle.svm.espresso.classfile.descriptors.TypeSymbols;
-import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.vm.ci.meta.Assumptions;
@@ -121,6 +120,10 @@ public abstract class InterpreterResolvedJavaType extends InterpreterAnnotated i
     // This is only here for performance, otherwise the clazzConstant must be unwrapped every time.
     public final Class<?> getJavaClass() {
         return MetadataUtil.requireNonNull(clazz);
+    }
+
+    public final DynamicHub getHub() {
+        return DynamicHub.fromClass(getJavaClass());
     }
 
     public final boolean isWordType() {
@@ -210,7 +213,7 @@ public abstract class InterpreterResolvedJavaType extends InterpreterAnnotated i
     }
 
     public final ClassLoader getClassLoader() {
-        return SubstrateUtil.cast(getJavaClass(), DynamicHub.class).getClassLoader();
+        return getHub().getClassLoader();
     }
 
     @Override

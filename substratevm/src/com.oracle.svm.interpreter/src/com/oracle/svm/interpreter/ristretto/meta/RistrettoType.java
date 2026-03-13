@@ -50,7 +50,7 @@ public final class RistrettoType extends SubstrateType {
     private final InterpreterResolvedJavaType interpreterType;
 
     private RistrettoType(InterpreterResolvedJavaType interpreterType) {
-        super(interpreterType.getJavaKind(), DynamicHub.fromClass(interpreterType.getJavaClass()));
+        super(interpreterType.getJavaKind(), interpreterType.getHub());
         this.interpreterType = interpreterType;
     }
 
