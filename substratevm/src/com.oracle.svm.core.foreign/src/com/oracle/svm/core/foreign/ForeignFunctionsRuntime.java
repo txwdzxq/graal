@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -72,6 +72,7 @@ import com.oracle.svm.core.image.DisallowedImageHeapObjects.DisallowedObjectRepo
 import com.oracle.svm.core.snippets.SnippetRuntime;
 import com.oracle.svm.core.snippets.SubstrateForeignCallTarget;
 import com.oracle.svm.core.util.ImageHeapMap;
+import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
@@ -472,6 +473,12 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
                             "However, C memory from the image generator is no longer available at image runtime.", memorySessionImpl,
                             "Try avoiding to initialize the class that called 'Arena.ofConfined/ofShared'.");
         }
+    }
+
+    @AlwaysInline("method handle interpreter performance")
+    @Override
+    public MethodType getMethodTypeFromNativeEntryPoint(Object nativeEntryPoint) {
+        return ((Target_jdk_internal_foreign_abi_NativeEntryPoint) nativeEntryPoint).type();
     }
 
     /**

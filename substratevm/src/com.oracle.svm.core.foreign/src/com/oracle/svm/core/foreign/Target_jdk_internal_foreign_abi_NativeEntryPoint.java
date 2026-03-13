@@ -26,30 +26,41 @@ package com.oracle.svm.core.foreign;
 
 import java.lang.invoke.MethodType;
 
+import org.graalvm.nativeimage.MissingForeignRegistrationError;
+import org.graalvm.nativeimage.hosted.FieldValueTransformer;
+
 import com.oracle.svm.core.FunctionPointerHolder;
-import com.oracle.svm.core.annotate.Alias;
+import com.oracle.svm.core.annotate.RecomputeFieldValue;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
+import com.oracle.svm.shared.util.VMError;
+import com.oracle.svm.util.GuestAccess;
 
 import jdk.internal.foreign.abi.ABIDescriptor;
+import jdk.internal.foreign.abi.NativeEntryPoint;
 import jdk.internal.foreign.abi.VMStorage;
+import jdk.vm.ci.meta.JavaConstant;
 
 /**
  * Packs the address of a {@link com.oracle.svm.hosted.foreign.DowncallStub} with some extra
  * information.
  */
 @SuppressWarnings("javadoc")
-@TargetClass(className = "jdk.internal.foreign.abi.NativeEntryPoint", onlyWith = ForeignAPIPredicates.Enabled.class)
+@TargetClass(value = NativeEntryPoint.class, onlyWith = ForeignAPIPredicates.Enabled.class)
 @Substitute
 public final class Target_jdk_internal_foreign_abi_NativeEntryPoint {
 
-    @Alias //
-    final MethodType methodType;
+    @Substitute //
+    @RecomputeFieldValue(isFinal = true, kind = RecomputeFieldValue.Kind.Custom, declClass = MethodTypeTransformer.class) //
+    private MethodType methodType;
 
+    @RecomputeFieldValue(isFinal = true, kind = RecomputeFieldValue.Kind.Custom, declClass = DowncallAddressTransformer.class) //
     final FunctionPointerHolder downcallStubPointerHolder;
 
+    @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.Reset) //
     final int captureMask;
 
+    @RecomputeFieldValue(isFinal = true, kind = RecomputeFieldValue.Kind.Custom, declClass = DowncallInvokerAddressTransformer.class) //
     final FunctionPointerHolder downcallInvokerPointerHolder;
 
     Target_jdk_internal_foreign_abi_NativeEntryPoint(MethodType methodType, FunctionPointerHolder downcallStubPointerHolder, int captureMask) {
@@ -93,5 +104,41 @@ public final class Target_jdk_internal_foreign_abi_NativeEntryPoint {
     @Substitute
     public MethodType type() {
         return methodType;
+    }
+
+    static final class MethodTypeTransformer implements FieldValueTransformer {
+        @Override
+        public Object transform(Object receiver, Object originalValue) {
+            VMError.guarantee(receiver.getClass() == NativeEntryPoint.class);
+            return ((NativeEntryPoint) receiver).type();
+        }
+    }
+
+    static final class DowncallAddressTransformer implements FieldValueTransformer {
+        @Override
+        public Object transform(Object receiver, Object originalValue) {
+            VMError.guarantee(receiver.getClass() == NativeEntryPoint.class);
+            try {
+                JavaConstant nativeEntryPoint = GuestAccess.get().getSnippetReflection().forObject(receiver);
+                NativeEntryPointInfo nativeEntryPointInfo = NativeEntryPointHelper.extractNativeEntryPointInfo(nativeEntryPoint);
+                return ForeignFunctionsRuntime.singleton().getDowncallStubPointerHolder(nativeEntryPointInfo);
+            } catch (MissingForeignRegistrationError e) {
+                // explicitly catch and rethrow with VMError; otherwise, it may be ignored
+                throw VMError.shouldNotReachHere(e);
+            }
+        }
+    }
+
+    static final class DowncallInvokerAddressTransformer implements FieldValueTransformer {
+        @Override
+        public Object transform(Object receiver, Object originalValue) {
+            VMError.guarantee(receiver.getClass() == NativeEntryPoint.class);
+            try {
+                return ForeignFunctionsRuntime.singleton().getDowncallStubInvokerPointerHolder(((NativeEntryPoint) receiver).type());
+            } catch (MissingForeignRegistrationError e) {
+                // explicitly catch and rethrow with VMError; otherwise, it may be ignored
+                throw VMError.shouldNotReachHere(e);
+            }
+        }
     }
 }
