@@ -207,8 +207,29 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
 
     @Override
     public JavaType[] getPermittedSubClasses() {
-        // (GR-69095)
-        throw VMError.unimplemented("getPermittedSubClasses");
+        PermittedSubclassesAttribute permittedSubclasses = getAttribute(PermittedSubclassesAttribute.NAME, PermittedSubclassesAttribute.class);
+        if (permittedSubclasses == null || permittedSubclasses.getClasses().length == 0) {
+            return EMPTY_ARRAY;
+        }
+
+        InterpreterConstantPool pool = getConstantPool();
+        ArrayList<JavaType> result = new ArrayList<>(permittedSubclasses.getClasses().length);
+        for (int classIndex : permittedSubclasses.getClasses()) {
+            try {
+                JavaType permittedSubclass = pool.resolvedTypeAt(this, classIndex);
+                if (permittedSubclass instanceof InterpreterResolvedObjectType && !permittedSubclass.isArray()) {
+                    result.add(permittedSubclass);
+                }
+            } catch (VirtualMachineError e) {
+                // Propagate this error like HotSpot does
+                throw e;
+            } catch (Throwable t) {
+                // Javadoc for Class.getPermittedSubclasses:
+                // If a Class object cannot be obtained, it is silently ignored, and not included in
+                // the result array.
+            }
+        }
+        return result.isEmpty() ? EMPTY_ARRAY : result.toArray(EMPTY_ARRAY);
     }
 
     @Override
