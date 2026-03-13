@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -165,8 +165,37 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
 
     @Override
     public JavaType[] getDeclaredClasses() {
-        // (GR-69095)
-        throw VMError.unimplemented("getDeclaredClasses");
+        InnerClassesAttribute innerClasses = getAttribute(InnerClassesAttribute.NAME, InnerClassesAttribute.class);
+        if (innerClasses == null || innerClasses.entryCount() == 0) {
+            return new JavaType[0];
+        }
+
+        InterpreterConstantPool pool = getConstantPool();
+        ArrayList<JavaType> innerKlasses = new ArrayList<>();
+        for (int i = 0; i < innerClasses.entryCount(); i++) {
+            InnerClassesAttribute.Entry entry = innerClasses.entryAt(i);
+            if (entry.innerClassIndex == 0 || entry.outerClassIndex == 0) {
+                continue;
+            }
+
+            Symbol<Name> outerDescriptor = pool.className(entry.outerClassIndex);
+            if (!outerDescriptor.equals(getSymbolicName())) {
+                continue;
+            }
+
+            InterpreterResolvedObjectType outerKlass = pool.resolvedTypeAt(this, entry.outerClassIndex);
+            if (outerKlass != this) {
+                continue;
+            }
+
+            InterpreterResolvedObjectType innerKlass = pool.resolvedTypeAt(this, entry.innerClassIndex);
+            if (innerKlass.isArray()) {
+                throw new IncompatibleClassChangeError(toClassName() + " and " + innerKlass.toClassName() + " disagree on InnerClasses attribute");
+            }
+            checkOuterAndInnerClassAgree(this, innerKlass);
+            innerKlasses.add(innerKlass);
+        }
+        return innerKlasses.toArray(new JavaType[0]);
     }
 
     @Override
@@ -347,11 +376,13 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
      *
      * @throws IncompatibleClassChangeError if the check fails
      */
-    @SuppressWarnings("unused")
-    private void checkOuterAndInnerClassAgree(CremaResolvedObjectType outerKlass, CremaResolvedObjectType innerKlass) {
-        InnerClassesAttribute outerInnerClasses = outerKlass.getAttribute(InnerClassesAttribute.NAME, InnerClassesAttribute.class);
+    private static void checkOuterAndInnerClassAgree(InterpreterResolvedObjectType outerKlass, InterpreterResolvedObjectType innerKlass) {
+        if (!(outerKlass instanceof CremaResolvedObjectType cremaOuterKlass)) {
+            return;
+        }
+        InnerClassesAttribute outerInnerClasses = cremaOuterKlass.getAttribute(InnerClassesAttribute.NAME, InnerClassesAttribute.class);
         if (outerInnerClasses != null) {
-            InterpreterConstantPool pool = outerKlass.getConstantPool();
+            InterpreterConstantPool pool = cremaOuterKlass.getConstantPool();
             for (int i = 0; i < outerInnerClasses.entryCount(); i++) {
                 InnerClassesAttribute.Entry entry = outerInnerClasses.entryAt(i);
                 if (entry.innerClassIndex == 0 || entry.outerClassIndex == 0) {
@@ -360,11 +391,11 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
                 if (!pool.className(entry.outerClassIndex).equals(outerKlass.getSymbolicName()) || !pool.className(entry.innerClassIndex).equals(innerKlass.getSymbolicName())) {
                     continue;
                 }
-                InterpreterResolvedObjectType resolvedOuterKlass = pool.resolvedTypeAt(outerKlass, entry.outerClassIndex);
+                InterpreterResolvedObjectType resolvedOuterKlass = pool.resolvedTypeAt(cremaOuterKlass, entry.outerClassIndex);
                 if (resolvedOuterKlass != outerKlass) {
                     continue;
                 }
-                InterpreterResolvedObjectType resolvedInnerKlass = pool.resolvedTypeAt(outerKlass, entry.innerClassIndex);
+                InterpreterResolvedObjectType resolvedInnerKlass = pool.resolvedTypeAt(cremaOuterKlass, entry.innerClassIndex);
                 if (resolvedInnerKlass == innerKlass) {
                     return;
                 }
