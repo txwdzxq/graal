@@ -26,43 +26,50 @@
 
 package com.oracle.svm.core.posix.jfr;
 
-import com.oracle.svm.core.VMInspectionOptions;
-import com.oracle.svm.core.headers.LibC;
-import com.oracle.svm.core.nmt.NmtCategory;
-import com.oracle.svm.core.posix.headers.Dirent;
-import com.oracle.svm.core.posix.headers.Errno;
-import com.oracle.svm.core.posix.headers.Fcntl;
-import com.oracle.svm.core.posix.headers.Unistd;
-import org.graalvm.word.Pointer;
-import org.graalvm.word.impl.Word;
-import org.graalvm.nativeimage.c.type.CCharPointer;
+import static com.oracle.svm.core.posix.headers.Fcntl.O_NOFOLLOW;
+import static com.oracle.svm.core.posix.headers.Fcntl.O_RDONLY;
+
+import java.nio.charset.StandardCharsets;
+
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.StackValue;
+import org.graalvm.nativeimage.c.type.CCharPointer;
+import org.graalvm.word.Pointer;
+import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.shared.Uninterruptible;
+import com.oracle.svm.core.VMInspectionOptions;
+import com.oracle.svm.core.collections.GrowableWordArray;
+import com.oracle.svm.core.collections.GrowableWordArrayAccess;
 import com.oracle.svm.core.feature.InternalFeature;
+import com.oracle.svm.core.headers.LibC;
 import com.oracle.svm.core.jfr.JfrEmergencyDumpSupport;
 import com.oracle.svm.core.jfr.SubstrateJVM;
 import com.oracle.svm.core.memory.NativeMemory;
 import com.oracle.svm.core.memory.NullableNativeMemory;
+import com.oracle.svm.core.nmt.NmtCategory;
 import com.oracle.svm.core.os.RawFileOperationSupport;
 import com.oracle.svm.core.os.RawFileOperationSupport.FileAccessMode;
 import com.oracle.svm.core.os.RawFileOperationSupport.FileCreationMode;
 import com.oracle.svm.core.os.RawFileOperationSupport.RawFileDescriptor;
-import com.oracle.svm.core.collections.GrowableWordArray;
-import com.oracle.svm.core.collections.GrowableWordArrayAccess;
+import com.oracle.svm.core.posix.headers.Dirent;
+import com.oracle.svm.core.posix.headers.Errno;
+import com.oracle.svm.core.posix.headers.Fcntl;
+import com.oracle.svm.core.posix.headers.Unistd;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
+import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
+import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
+import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
+import com.oracle.svm.shared.singletons.traits.BuiltinTraits.PartiallyLayerAware;
+import com.oracle.svm.shared.singletons.traits.SingletonLayeredInstallationKind.Duplicable;
+import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.util.BasedOnJDKFile;
 import com.oracle.svm.shared.util.SubstrateUtil;
 
-import java.nio.charset.StandardCharsets;
-
-import static com.oracle.svm.core.posix.headers.Fcntl.O_NOFOLLOW;
-import static com.oracle.svm.core.posix.headers.Fcntl.O_RDONLY;
-
 @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25-ga/src/hotspot/share/jfr/recorder/repository/jfrEmergencyDump.cpp#L43-L445")
+@SingletonTraits(access = AllAccess.class, layeredCallbacks = NoLayeredCallbacks.class, layeredInstallationKind = Duplicable.class, other = PartiallyLayerAware.class)
 public class PosixJfrEmergencyDumpSupport implements com.oracle.svm.core.jfr.JfrEmergencyDumpSupport {
     private static final int CHUNK_FILE_HEADER_SIZE = 68;
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25-ga/src/hotspot/os/posix/include/jvm_md.h#L57") //
@@ -599,6 +606,7 @@ public class PosixJfrEmergencyDumpSupport implements com.oracle.svm.core.jfr.Jfr
 }
 
 @AutomaticallyRegisteredFeature
+@SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class, other = PartiallyLayerAware.class)
 class PosixJfrEmergencyDumpFeature implements InternalFeature {
     @Override
     public boolean isInConfiguration(IsInConfigurationAccess access) {

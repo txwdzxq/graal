@@ -24,21 +24,25 @@
  */
 package com.oracle.svm.truffle;
 
+import java.lang.reflect.Method;
+
 import org.graalvm.jniutils.NativeBridgeSupport;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.hosted.Feature;
+import org.graalvm.nativeimage.hosted.RuntimeJNIAccess;
 
-import com.oracle.svm.guest.staging.SubstrateGuestOptions;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
 import com.oracle.svm.core.snippets.KnownIntrinsics;
 import com.oracle.svm.core.util.UserError;
+import com.oracle.svm.guest.staging.SubstrateGuestOptions;
+import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
+import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
+import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
+import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.truffle.polyglot.isolate.PolyglotIsolateBridgeSupport;
 import com.oracle.truffle.polyglot.isolate.PolyglotIsolateGuestFeatureEnabled;
 import com.oracle.truffle.polyglot.isolate.ProcessIsolateEntryPoint;
-import org.graalvm.nativeimage.hosted.RuntimeJNIAccess;
-
-import java.lang.reflect.Method;
 
 /**
  * A feature enabling the guest part of the Truffle isolate support. The Truffle isolate support
@@ -53,6 +57,7 @@ import java.lang.reflect.Method;
  * @see NativeBridgeSupport
  * @see PolyglotIsolateGuestFeatureEnabled
  */
+@SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class, other = Disallowed.class)
 public final class PolyglotIsolateGuestFeature implements Feature {
 
     @Override
