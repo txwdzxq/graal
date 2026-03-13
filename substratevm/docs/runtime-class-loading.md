@@ -4,9 +4,10 @@ Run-time class loading (a.k.a. "Crema") allows `ClassLoader.defineClass` to work
 It is enabled at build time with the `-H:+RuntimeClassLoading` option.
 
 ## Extra Setup
-While this is sufficient to allow `defineClass` to work, additional setup may be needed depending on the specific use case.
-* If jar files are loaded through a `URLClassLoader`, use the build-time `-H:EnableURLProtocols=jar` option.
-* If JDK classes need to be loaded at run time, set `-H:+AllowJRTFileSystem` at build time, and ensure the `java.home` system property points to JDK at run time.
+While `-H:+RuntimeClassLoading` is sufficient to allow `defineClass` to work, additional setup may be needed depending on the specific use case.
+* If jar files are to be loaded with a `URLClassLoader`, use the build-time `-H:EnableURLProtocols=jar` option.
+* If JDK classes need to be loaded at run time (e.g. to allow a dynamically loaded app to access JDK classes not in the image),
+  set `-H:+AllowJRTFileSystem` at build time, and ensure the `java.home` system property points to a JDK at run time.
   For example, pass `-Djava.home=...` when starting the native image.
   Note that the only requirement for this directory is to contain a `lib/modules` file with the necessary classes.
 * If classes from the system (a.k.a. "App") class loader need to be loaded at run time, use `--initialize-at-run-time=jdk.internal.loader.ClassLoaders` at build time, and set the `java.class.path` system property at run time.
