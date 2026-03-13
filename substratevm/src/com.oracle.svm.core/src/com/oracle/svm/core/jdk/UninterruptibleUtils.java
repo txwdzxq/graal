@@ -24,7 +24,7 @@
  */
 package com.oracle.svm.core.jdk;
 
-import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
+import static com.oracle.svm.guest.staging.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
 import org.graalvm.word.Pointer;
 import org.graalvm.word.PointerBase;
@@ -33,7 +33,7 @@ import org.graalvm.word.impl.Word;
 import org.graalvm.word.WordBase;
 
 import com.oracle.svm.shared.util.SubstrateUtil;
-import com.oracle.svm.shared.Uninterruptible;
+import com.oracle.svm.guest.staging.Uninterruptible;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.core.common.SuppressFBWarnings;
@@ -548,7 +548,7 @@ public class UninterruptibleUtils {
          * Gets the number of bytes for a char in modified UTF8 format.
          */
         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
-        private static int modifiedUTF8Length(char c) {
+        public static int modifiedUTF8Length(char c) {
             if (c >= 0x0001 && c <= 0x007F) {
                 // ASCII character.
                 return 1;
@@ -565,7 +565,7 @@ public class UninterruptibleUtils {
          * Write a char in modified UTF8 format into the buffer.
          */
         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
-        private static Pointer writeModifiedUTF8(Pointer buffer, char c) {
+        public static Pointer writeModifiedUTF8(Pointer buffer, char c) {
             Pointer pos = buffer;
             if (c >= 0x0001 && c <= 0x007F) {
                 pos.writeByte(0, (byte) c);

@@ -51,7 +51,7 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.VMInspectionOptions;
-import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
+import com.oracle.svm.core.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.headers.LibC;
 import com.oracle.svm.core.imagelayer.ImageLayerBuildingSupport;
@@ -74,7 +74,7 @@ import com.oracle.svm.core.posix.headers.Mman;
 import com.oracle.svm.core.posix.headers.PosixFile;
 import com.oracle.svm.core.posix.headers.Signal;
 import com.oracle.svm.core.posix.headers.Unistd;
-import com.oracle.svm.shared.Uninterruptible;
+import com.oracle.svm.guest.staging.Uninterruptible;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.RuntimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.SingleLayer;
@@ -356,7 +356,7 @@ class PosixPerfMemoryProvider implements PerfMemoryProvider {
 
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-24+13/src/hotspot/os/posix/perfMemory_posix.cpp#L291-L341")
     private static SecureDirectory openDirectorySecure(CCharPointer directory) {
-        int fd = restartableOpen(directory, O_RDONLY() | O_NOFOLLOW(), 0);
+        int fd = Fcntl.NoTransitions.restartableOpen(directory, O_RDONLY() | O_NOFOLLOW(), 0);
         if (fd == -1) {
             return null;
         }
@@ -470,16 +470,6 @@ class PosixPerfMemoryProvider implements PerfMemoryProvider {
             return errno == ESRCH() || errno == EPERM();
         }
         return false;
-    }
-
-    @Uninterruptible(reason = "LibC.errno() must not be overwritten accidentally.")
-    private static int restartableOpen(CCharPointer directory, int flags, int mode) {
-        int result;
-        do {
-            result = Fcntl.NoTransitions.open(directory, flags, mode);
-        } while (result == -1 && LibC.errno() == Errno.EINTR());
-
-        return result;
     }
 
     @Uninterruptible(reason = "LibC.errno() must not be overwritten accidentally.")
