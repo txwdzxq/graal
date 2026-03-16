@@ -27,6 +27,7 @@ package com.oracle.svm.core;
 import static com.oracle.svm.core.option.RuntimeOptionKey.RuntimeOptionKeyFlag.Immutable;
 import static com.oracle.svm.core.option.RuntimeOptionKey.RuntimeOptionKeyFlag.RegisterForIsolateArgumentParser;
 import static com.oracle.svm.core.option.RuntimeOptionKey.RuntimeOptionKeyFlag.RelevantForCompilationIsolates;
+import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 import static jdk.graal.compiler.core.common.SpectrePHTMitigations.None;
 import static jdk.graal.compiler.core.common.SpectrePHTMitigations.Options.SpectrePHTBarriers;
 import static jdk.graal.compiler.options.OptionType.Expert;
@@ -62,6 +63,7 @@ import com.oracle.svm.core.pltgot.PLTGOTConfiguration;
 import com.oracle.svm.core.thread.VMOperationControl;
 import com.oracle.svm.core.util.TimeUtils;
 import com.oracle.svm.core.util.UserError;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.option.APIOption;
 import com.oracle.svm.shared.option.APIOptionGroup;
 import com.oracle.svm.shared.option.AccumulatingLocatableMultiOptionValue;
@@ -78,6 +80,7 @@ import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.util.LogUtils;
+import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.JVMCIReflectionUtil;
 
@@ -1262,7 +1265,22 @@ public class SubstrateOptions {
 
         /** Use {@link SubstrateOptions#isSignalHandlingAllowed()} instead. */
         @Option(help = "Enables signal handling", stability = OptionStability.EXPERIMENTAL, type = Expert)//
-        public static final RuntimeOptionKey<Boolean> EnableSignalHandling = new RuntimeOptionKey<>(null, Immutable);
+        public static final RuntimeOptionKey<Boolean> EnableSignalHandling = new RuntimeOptionKey<>(null, RegisterForIsolateArgumentParser) {
+            @Override
+            protected void onValueUpdate(EconomicMap<OptionKey<?>, Object> values, Boolean oldValue, Boolean newValue) {
+                if (!SubstrateUtil.HOSTED && !SubstrateOptions.installSignalHandlersEarly()) {
+                    /*
+                     * If signal handlers are not installed during early VM startup, then it is fine
+                     * if this option value changes after early startup. We need to copy the new
+                     * value to the isolate argument parser though to ensure that the values there
+                     * are up-to-date as well.
+                     */
+                    int optionIndex = IsolateArgumentParser.getOptionIndex(EnableSignalHandling);
+                    IsolateArgumentParser.singleton().setBooleanOptionValue(optionIndex, newValue);
+                }
+                super.onValueUpdate(values, oldValue, newValue);
+            }
+        };
 
         /** Use {@link SubstrateOptions#useRistretto()} instead. */
         @Option(help = "Prepare native image to compile bytecodes at runtime.")//
@@ -1561,12 +1579,23 @@ public class SubstrateOptions {
         return InterfaceHashingMaxId.getValue();
     }
 
+    /** By default, signal handling is only allowed for executables. */
+    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public static boolean isSignalHandlingAllowed() {
-        Boolean value = ConcealedOptions.EnableSignalHandling.getValue();
-        if (value != null) {
-            return value;
+        int optionIndex = IsolateArgumentParser.getOptionIndex(ConcealedOptions.EnableSignalHandling);
+        if (IsolateArgumentParser.singleton().isNull(optionIndex)) {
+            return isExecutableHelper();
         }
-        return isExecutableHelper();
+        return IsolateArgumentParser.singleton().getBooleanOptionValue(optionIndex);
+    }
+
+    /**
+     * Determines if the installation of important signal handlers should be tried during early
+     * isolate startup.
+     */
+    @Fold
+    public static boolean installSignalHandlersEarly() {
+        return InitializeVM.getValue();
     }
 
     /**
@@ -1574,7 +1603,8 @@ public class SubstrateOptions {
      * executable, or a shared library. For this reason, the exit handlers should always be
      * installed in the initial layer and the decision to run it or not is delayed to run time.
      */
-    private static boolean isExecutableHelper() {
+    @Fold
+    static boolean isExecutableHelper() {
         return ImageLayerBuildingSupport.buildingInitialLayer() || ImageInfo.isExecutable();
     }
 

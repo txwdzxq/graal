@@ -62,6 +62,7 @@ import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.RuntimeAssertionsSupport;
 import com.oracle.svm.core.SubstrateDiagnostics;
 import com.oracle.svm.core.SubstrateOptions;
+import com.oracle.svm.core.SubstrateSegfaultHandler;
 import com.oracle.svm.core.UnmanagedMemoryUtil;
 import com.oracle.svm.core.c.CGlobalData;
 import com.oracle.svm.core.c.CGlobalDataFactory;
@@ -87,6 +88,7 @@ import com.oracle.svm.core.imagelayer.ImageLayerBuildingSupport;
 import com.oracle.svm.core.imagelayer.ImageLayerSection;
 import com.oracle.svm.core.jdk.PlatformNativeLibrarySupport;
 import com.oracle.svm.core.jdk.RuntimeSupport;
+import com.oracle.svm.core.jdk.SignalHandlerSupport;
 import com.oracle.svm.core.log.Log;
 import com.oracle.svm.core.option.RuntimeOptionParser;
 import com.oracle.svm.core.option.RuntimeOptionValues;
@@ -344,6 +346,12 @@ public final class CEntryPointSnippets extends SubstrateTemplates implements Sni
         assert Heap.getHeap().verifyImageHeapMapping();
         IsolateArgumentParser.singleton().persistOptions(arguments);
         IsolateListenerSupport.singleton().afterCreateIsolate(isolate);
+
+        /* Try to install important signal handlers as early as possible. */
+        if (SubstrateOptions.installSignalHandlersEarly()) {
+            SubstrateSegfaultHandler.singleton().tryInstall();
+            SignalHandlerSupport.singleton().tryInstallHandlersForIgnoredSignals();
+        }
 
         CodeInfoTable.prepareImageCodeInfo();
         if (!VMThreads.initialize()) {
