@@ -29,6 +29,7 @@ import static com.oracle.svm.espresso.classfile.Constants.ACC_IS_HIDDEN_CLASS;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.crema.CremaResolvedJavaMethod;
 import com.oracle.svm.core.hub.crema.CremaResolvedJavaRecordComponent;
 import com.oracle.svm.core.hub.crema.CremaResolvedJavaType;
@@ -318,9 +319,11 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
         members.add(host);
         InterpreterConstantPool pool = host.getConstantPool();
         for (int memberIndex : nestMembersAttribute.getClasses()) {
-            InterpreterResolvedObjectType member = null;
+            DynamicHub memberHub;
+            InterpreterResolvedObjectType member;
             try {
                 member = pool.resolvedTypeAt(host, memberIndex);
+                memberHub = DynamicHub.fromClass(member.getJavaClass());
             } catch (Throwable e) {
                 /*
                  * Don't allow badly constructed nest members to break execution here, only report
@@ -328,11 +331,8 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
                  */
                 continue;
             }
-            if (!(member instanceof CremaResolvedObjectType cremaMember)) {
-                // Specifying an AOT type as nest member is currently unsupported in crema.
-                continue;
-            }
-            if (host != cremaMember.getNestHost()) {
+            ResolvedJavaType memberActualNestHost = DynamicHub.fromClass(memberHub.getNestHost()).getInterpreterType();
+            if (host != memberActualNestHost) {
                 // Skip nest members that do not declare 'this' as their host.
                 continue;
             }
