@@ -261,7 +261,7 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
     }
 
     // Used at run-time for signature-polymorphic instantiation
-    private InterpreterResolvedJavaMethod(Symbol<Name> name, int maxLocals, int flags,
+    protected InterpreterResolvedJavaMethod(Symbol<Name> name, int maxLocals, int flags,
                     InterpreterResolvedObjectType declaringClass, InterpreterUnresolvedSignature signature, Symbol<Signature> signatureSymbol,
                     int vtableIndex, int gotOffset, int enterStubOffset, int methodId, SignaturePolymorphicIntrinsic intrinsic) {
         this.name = MetadataUtil.requireNonNull(name);

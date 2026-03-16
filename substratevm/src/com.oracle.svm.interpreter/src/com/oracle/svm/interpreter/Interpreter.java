@@ -284,6 +284,7 @@ import com.oracle.svm.interpreter.debug.SteppingControl;
 import com.oracle.svm.interpreter.metadata.BytecodeStream;
 import com.oracle.svm.interpreter.metadata.Bytecodes;
 import com.oracle.svm.interpreter.metadata.InterpreterConstantPool;
+import com.oracle.svm.interpreter.metadata.InterpreterResolvedInvokeGenericJavaMethod;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaField;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaMethod;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaType;
@@ -1527,6 +1528,15 @@ public final class Interpreter {
                 callKind = resolvedCall.getCallKind();
             } catch (Throwable e) {
                 throw SemanticJavaException.raise(e);
+            }
+            if (seedMethod instanceof InterpreterResolvedInvokeGenericJavaMethod invokeGenericJavaMethod) {
+                Object appendix = invokeGenericJavaMethod.getAppendix();
+                if (appendix != null) {
+                    EspressoFrame.putObject(callerFrame, top, appendix);
+                    invokeTop = top + 1;
+                }
+                seedMethod = invokeGenericJavaMethod.getInvoker();
+                callKind = CallKind.DIRECT;
             }
             if (InterpreterTraceSupport.getValue()) {
                 traceInterpreter().string("Linking for call site of ").string(Bytecodes.nameOf(opcode)).string(" with resolved cp entry ").string(symbolicResolution.toString()).string(":")
