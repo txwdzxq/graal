@@ -3327,7 +3327,7 @@ _baristaConfig = {
     # Should currently only contain round numbers due to the field incorrectly being indexed as integer in the DB (GR-57487)
     "latency_percentiles": [50.0, 75.0, 90.0, 99.0, 100.0],
     "rss_percentiles": [100, 99, 98, 97, 96, 95, 90, 75, 50, 25],
-    "supported_trackers": [mx_benchmark.EnergyConsumptionTracker],
+    "supported_trackers": [mx_benchmark.EnergyConsumptionTracker, mx_benchmark.PagefaultsTracker],
 }
 
 class BaristaBenchmarkSuite(mx_benchmark.CustomHarnessBenchmarkSuite):
