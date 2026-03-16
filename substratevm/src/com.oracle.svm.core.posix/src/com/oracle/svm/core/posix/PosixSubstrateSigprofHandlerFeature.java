@@ -25,10 +25,9 @@
 
 package com.oracle.svm.core.posix;
 
-import static com.oracle.svm.core.posix.PosixSubstrateSigprofHandler.isSignalHandlerBasedExecutionSamplerEnabled;
-
 import java.util.List;
 
+import com.oracle.svm.core.jfr.JfrOptions;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.hosted.Feature;
@@ -74,7 +73,7 @@ public class PosixSubstrateSigprofHandlerFeature implements InternalFeature {
 
     @Override
     public void afterRegistration(AfterRegistrationAccess access) {
-        if (JfrExecutionSamplerSupported.isSupported() && isSignalHandlerBasedExecutionSamplerEnabled() && shouldUseAsyncSampler()) {
+        if (JfrExecutionSamplerSupported.isSupported() && JfrOptions.SignalHandlerBasedExecutionSampler.getValue()) {
             SubstrateSigprofHandler sampler = makeNewSigprofHandler();
             ImageSingletons.add(JfrExecutionSampler.class, sampler);
             ImageSingletons.add(SubstrateSigprofHandler.class, sampler);
@@ -82,10 +81,6 @@ public class PosixSubstrateSigprofHandlerFeature implements InternalFeature {
             ThreadListenerSupport.get().register(sampler);
             IsolateListenerSupport.singleton().register(sampler);
         }
-    }
-
-    protected boolean shouldUseAsyncSampler() {
-        return true;
     }
 
     /**
@@ -96,11 +91,9 @@ public class PosixSubstrateSigprofHandlerFeature implements InternalFeature {
      * method is using a per-thread handler (see {@link LinuxSubstrateSigprofHandler}), where each
      * thread must handle the signal after the timer expires. Note that per-thread signal handling
      * is supported only on Linux.
-     * </p>
      * <p>
      * For JFR, we should use a global handler instead of a per-thread handler to adhere to the
      * sampling frequency specified in .jfc (JFR's configuration).
-     * </p>
      */
     private static SubstrateSigprofHandler makeNewSigprofHandler() {
         if (Platform.includedIn(Platform.DARWIN.class) || HasJfrSupport.get()) {
