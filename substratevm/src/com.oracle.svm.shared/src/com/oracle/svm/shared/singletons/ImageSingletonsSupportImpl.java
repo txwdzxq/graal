@@ -444,6 +444,7 @@ public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport imp
             Object prevValue = configObjects.putIfAbsent(key, singletonInfo);
             Invariants.guarantee(prevValue == null, "ImageSingletons.add must not overwrite existing key %s%nExisting value: %s%nNew value: %s", key.getTypeName(), prevValue, value);
         }
+
         private static boolean filterOnKind(SingletonInfo singletonInfo, SingletonLayeredInstallationKind kind) {
             /*
              * We must filter out forbidden objects, as they are not actually installed in this
@@ -467,6 +468,7 @@ public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport imp
             return Collections.unmodifiableSet(configObjects.entrySet().stream().filter(e -> filterOnKind(e.getValue(), kind)).map(Entry::getKey)
                             .collect(Collectors.toCollection(() -> Collections.newSetFromMap(new IdentityHashMap<>()))));
         }
+
         /**
          * @param buildtimeAccess If true, only allow lookup of singletons with buildtime access
          *            permissions. If false, only allow lookup of singletons within runtime access
