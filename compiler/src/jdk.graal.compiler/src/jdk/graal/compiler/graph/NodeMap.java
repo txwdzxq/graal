@@ -48,10 +48,19 @@ public class NodeMap<T> extends NodeIdAccessor implements EconomicMap<Node, T> {
     }
 
     @Override
+    public T get(Node key) {
+        return get(key, null);
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
-    public T get(Node node) {
+    public T get(Node node, T defaultValue) {
         assert check(node);
-        return (T) values[getNodeId(node)];
+        T value = (T) values[getNodeId(node)];
+        if (value == null) {
+            return defaultValue;
+        }
+        return value;
     }
 
     @SuppressWarnings("unchecked")

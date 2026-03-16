@@ -59,7 +59,9 @@ public interface UnmodifiableEconomicMap<K, V> {
 
     /**
      * Returns the value to which {@code key} is mapped, or {@code defaultValue} if this map
-     * contains no mapping for {@code key}. The {@code key} must not be {@code null}.
+     * contains no mapping for {@code key}. The {@code key} must not be {@code null}. Maps that
+     * support {code null} values, need to overwrite this method to appropriate handle the {code
+     * null} case.
      *
      * @throws UnsupportedOperationException if {@code key == null}
      * @since 19.0

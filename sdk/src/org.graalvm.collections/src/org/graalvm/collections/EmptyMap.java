@@ -120,6 +120,12 @@ class EmptyMap {
         }
 
         @Override
+        public Object get(Object key, Object defaultValue) {
+            EconomicMapImpl.checkNonNull(key);
+            return defaultValue;
+        }
+
+        @Override
         public boolean containsKey(Object key) {
             EconomicMapImpl.checkNonNull(key);
             return false;
