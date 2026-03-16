@@ -232,7 +232,7 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
         return holder;
     }
 
-    CFunctionPointer getDowncallStubPointer(NativeEntryPointInfo nep) {
+    public CFunctionPointer getDowncallStubPointer(NativeEntryPointInfo nep) {
         return getDowncallStubPointerHolder(nep).functionPointer;
     }
 

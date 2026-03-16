@@ -42,6 +42,7 @@ import com.oracle.svm.configure.config.ForeignConfiguration.ConfigurationFunctio
 import com.oracle.svm.configure.config.ForeignConfiguration.StubDesc;
 import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.core.ArenaIntrinsics;
+import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.foreign.ForeignFunctionsRuntime.LinkRequest;
 import com.oracle.svm.core.nodes.foreign.ScopedMemExceptionHandlerClusterNode.ClusterBeginNode;
@@ -201,5 +202,15 @@ public class SubstrateForeignUtil {
             return "align(" + memoryLayout.byteAlignment() + ", " + layoutString + ")";
         }
         return layoutString;
+    }
+
+    @NeverInline("inlining cut off")
+    static IllegalArgumentException getSymbolIsNullException(MemorySegment symbol) {
+        return new IllegalArgumentException("Symbol is NULL: " + symbol);
+    }
+
+    @NeverInline("inlining cut off")
+    static IllegalArgumentException getHeapSegmentNotAllowedException(MemorySegment segment) {
+        return new IllegalArgumentException("Heap segment not allowed: " + segment);
     }
 }

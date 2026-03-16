@@ -64,6 +64,7 @@ import org.graalvm.nativeimage.impl.RuntimeReflectionSupport;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 
+import com.oracle.graal.pointsto.heap.ImageHeapConstant;
 import com.oracle.graal.pointsto.meta.AnalysisMetaAccess;
 import com.oracle.graal.pointsto.meta.AnalysisMethod;
 import com.oracle.graal.pointsto.meta.AnalysisUniverse;
@@ -77,11 +78,11 @@ import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.UnmanagedMemoryUtil;
 import com.oracle.svm.core.code.FactoryMethodHolder;
 import com.oracle.svm.core.code.FactoryThrowMethodHolder;
-import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.foreign.AbiUtils;
 import com.oracle.svm.core.foreign.ForeignFunctionsRuntime;
 import com.oracle.svm.core.foreign.JavaEntryPointInfo;
+import com.oracle.svm.core.foreign.NativeEntryPointHelper;
 import com.oracle.svm.core.foreign.NativeEntryPointInfo;
 import com.oracle.svm.core.foreign.RuntimeSystemLookup;
 import com.oracle.svm.core.foreign.SubstrateForeignUtil;
@@ -92,6 +93,8 @@ import com.oracle.svm.core.graal.RuntimeCompilation;
 import com.oracle.svm.core.graal.code.SubstrateBackend;
 import com.oracle.svm.core.graal.code.SubstrateBackendWithAssembler;
 import com.oracle.svm.core.graal.meta.SubstrateForeignCallsProvider;
+import com.oracle.svm.core.hub.DynamicHub;
+import com.oracle.svm.core.hub.DynamicHubCompanion;
 import com.oracle.svm.core.jdk.VectorAPIEnabled;
 import com.oracle.svm.core.meta.MethodPointer;
 import com.oracle.svm.core.nodes.SubstrateMethodCallTargetNode;
@@ -100,6 +103,7 @@ import com.oracle.svm.core.util.UserError;
 import com.oracle.svm.hosted.ConditionalConfigurationRegistry;
 import com.oracle.svm.hosted.FeatureImpl;
 import com.oracle.svm.hosted.FeatureImpl.BeforeAnalysisAccessImpl;
+import com.oracle.svm.hosted.ForeignHostedSupport;
 import com.oracle.svm.hosted.ImageClassLoader;
 import com.oracle.svm.hosted.ProgressReporter;
 import com.oracle.svm.hosted.SharedArenaSupport;
@@ -108,6 +112,7 @@ import com.oracle.svm.hosted.config.ConfigurationParserUtils;
 import com.oracle.svm.hosted.jdk.VarHandleFeature;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.hosted.meta.HostedType;
+import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.PartiallyLayerAware;
@@ -121,12 +126,15 @@ import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.AnnotationUtil;
 
 import jdk.graal.compiler.api.replacements.Fold;
+import jdk.graal.compiler.core.common.type.StampFactory;
 import jdk.graal.compiler.debug.GraalError;
 import jdk.graal.compiler.nodes.CallTargetNode.InvokeKind;
 import jdk.graal.compiler.nodes.ConstantNode;
 import jdk.graal.compiler.nodes.ValueNode;
+import jdk.graal.compiler.nodes.graphbuilderconf.GraphBuilderConfiguration;
 import jdk.graal.compiler.nodes.graphbuilderconf.GraphBuilderConfiguration.Plugins;
 import jdk.graal.compiler.nodes.graphbuilderconf.GraphBuilderContext;
+import jdk.graal.compiler.nodes.graphbuilderconf.InvocationPlugin;
 import jdk.graal.compiler.nodes.graphbuilderconf.InvocationPlugin.RequiredInvocationPlugin;
 import jdk.graal.compiler.nodes.graphbuilderconf.InvocationPlugins;
 import jdk.graal.compiler.nodes.graphbuilderconf.NodePlugin;
@@ -137,6 +145,7 @@ import jdk.graal.compiler.phases.common.CanonicalizerPhase;
 import jdk.graal.compiler.phases.common.IterativeConditionalEliminationPhase;
 import jdk.graal.compiler.phases.tiers.MidTierContext;
 import jdk.graal.compiler.phases.util.Providers;
+import jdk.graal.compiler.replacements.MethodHandleWithExceptionPlugin;
 import jdk.graal.compiler.word.WordTypes;
 import jdk.internal.foreign.AbstractMemorySegmentImpl;
 import jdk.internal.foreign.MemorySessionImpl;
@@ -147,13 +156,15 @@ import jdk.internal.misc.ScopedMemoryAccess.ScopedAccessError;
 import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.JavaKind;
 import jdk.vm.ci.meta.MetaAccessProvider;
+import jdk.vm.ci.meta.MethodHandleAccessProvider;
+import jdk.vm.ci.meta.ResolvedJavaField;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
 
 @AutomaticallyRegisteredFeature
 @Platforms(Platform.HOSTED_ONLY.class)
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class, other = PartiallyLayerAware.class)
-public class ForeignFunctionsFeature implements InternalFeature {
+public class ForeignFunctionsFeature implements InternalFeature, ForeignHostedSupport {
 
     private static final Map<String, String[]> REQUIRES_CONCEALED = Map.of(
                     "jdk.internal.vm.ci", new String[]{"jdk.vm.ci.code", "jdk.vm.ci.meta", "jdk.vm.ci.amd64", "jdk.vm.ci.aarch64"},
@@ -187,6 +198,51 @@ public class ForeignFunctionsFeature implements InternalFeature {
     @Fold
     public static ForeignFunctionsFeature singleton() {
         return ImageSingletons.lookup(ForeignFunctionsFeature.class);
+    }
+
+    @Override
+    public MethodHandleWithExceptionPlugin createHandleWithExceptionPlugin(MethodHandleAccessProvider methodHandleAccess) {
+        return new NativeMethodHandleWithExceptionPlugin(methodHandleAccess);
+    }
+
+    @Override
+    public ResolvedJavaMethod resolveDowncallStub(JavaConstant nativeEntryPoint) {
+        assert !nativeEntryPoint.isNull();
+        JavaConstant hostedConstant = toHostedConstant(nativeEntryPoint);
+        if (hostedConstant == null) {
+            /*
+             * The ImageHeapConstant may not be backed by a hosted object. This is usually the case
+             * when building layered native images which is currently unsupported.
+             */
+            return null;
+        }
+        NativeEntryPointInfo resolve = NativeEntryPointHelper.extractNativeEntryPointInfo(hostedConstant);
+        MethodPointer downcallStubPointer = ensureDowncallStub(resolve);
+        assert downcallStubPointer != null;
+        return downcallStubPointer.getMethod();
+    }
+
+    private static JavaConstant toHostedConstant(JavaConstant c) {
+        if (c instanceof ImageHeapConstant ihc) {
+            return ihc.getHostedObject(); // may be null
+        }
+        return c;
+    }
+
+    MethodPointer ensureDowncallStub(NativeEntryPointInfo resolve) {
+        if (!foreignFunctionsRuntime.downcallStubExists(resolve)) {
+            DowncallStub stub = accessSupport.createStub(DowncallStubFactory.INSTANCE, resolve);
+            /*
+             * If the downcall stub was just created (i.e. 'stub != null'), we also need to ensure
+             * that the downcall stub invoker exists. Downcall stub invokers exist per MethodType
+             * and may be used to invoke several downcall stubs. Hence, the invoker may already
+             * exist.
+             */
+            if (stub != null && !foreignFunctionsRuntime.downcallStubInvokerExists(stub.getMethodType())) {
+                accessSupport.createStub(DowncallStubInvokerFactory.INSTANCE, resolve.methodType());
+            }
+        }
+        return (MethodPointer) foreignFunctionsRuntime.getDowncallStubPointer(resolve);
     }
 
     /**
@@ -413,6 +469,7 @@ public class ForeignFunctionsFeature implements InternalFeature {
         ImageSingletons.add(AbiUtils.class, abiUtils);
         ImageSingletons.add(ForeignSupport.class, foreignFunctionsRuntime);
         ImageSingletons.add(ForeignFunctionsRuntime.class, foreignFunctionsRuntime);
+        ImageSingletons.add(ForeignHostedSupport.class, this);
     }
 
     @Override
@@ -734,6 +791,12 @@ public class ForeignFunctionsFeature implements InternalFeature {
         }
 
         /*
+         * Allow constant folding of stable field 'MemorySessionImpl.state' to enable cut-offs for
+         * implicit/global sessions.
+         */
+        access.allowStableFieldFoldingBeforeAnalysis(ReflectionUtil.lookupField(MemorySessionImpl.class, "state"));
+
+        /*
          * Specializing an adapter would define a new class at runtime, which is not allowed in
          * SubstrateVM
          */
@@ -899,6 +962,26 @@ public class ForeignFunctionsFeature implements InternalFeature {
                 }
                 MethodCallTargetNode mt = b.add(new SubstrateMethodCallTargetNode(InvokeKind.Static, checkValidStateRawInRuntimeCompiledCode, args, b.getInvokeReturnStamp(b.getAssumptions())));
                 b.handleReplacedInvoke(mt, b.getInvokeReturnType().getJavaKind());
+                return true;
+            }
+        });
+    }
+
+    @Override
+    public void registerInvocationPlugins(Providers providers, GraphBuilderConfiguration.Plugins plugins, ParsingReason reason) {
+        InvocationPlugins.Registration r = new InvocationPlugins.Registration(plugins.getInvocationPlugins(), MethodHandles.class).setAllowOverwrite(true);
+        r.register(new InvocationPlugin("classData", Class.class) {
+            @Override
+            public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode arg) {
+                assert receiver == null;
+                if (!arg.isConstant() || arg.isNullConstant()) {
+                    return false;
+                }
+                ResolvedJavaField fieldCompanion = b.getMetaAccess().lookupJavaField(ReflectionUtil.lookupField(DynamicHub.class, "companion"));
+                JavaConstant companion = b.getConstantReflection().readFieldValue(fieldCompanion, arg.asJavaConstant());
+                ResolvedJavaField fieldClassData = b.getMetaAccess().lookupJavaField(ReflectionUtil.lookupField(DynamicHubCompanion.class, "classData"));
+                JavaConstant classData = b.getConstantReflection().readFieldValue(fieldClassData, companion);
+                b.addPush(JavaKind.Object, ConstantNode.forConstant(StampFactory.object(), classData, b.getMetaAccess()));
                 return true;
             }
         });

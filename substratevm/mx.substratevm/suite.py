@@ -839,6 +839,7 @@ suite = {
                     "jdk.internal.foreign.layout",
                     "jdk.internal.loader",
                     "jdk.internal.reflect",
+                    "jdk.internal.vm.annotation",
                 ],
                 "jdk.internal.vm.ci" : [
                     "jdk.vm.ci.aarch64",

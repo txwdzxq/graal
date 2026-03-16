@@ -118,6 +118,7 @@ import com.oracle.svm.common.meta.MethodVariant;
 import com.oracle.svm.core.BuildArtifacts;
 import com.oracle.svm.core.BuildPhaseProvider;
 import com.oracle.svm.core.ClassLoaderSupport;
+import com.oracle.svm.core.ForeignSupport;
 import com.oracle.svm.core.FutureDefaultsOptions;
 import com.oracle.svm.core.JavaMainWrapper.JavaMainSupport;
 import com.oracle.svm.core.LinkerInvocation;
@@ -1600,7 +1601,11 @@ public class NativeImageGenerator {
         plugins.appendInlineInvokePlugin(replacements);
 
         if (reason.duringAnalysis()) {
-            plugins.appendNodePlugin(new SVMMethodHandleWithExceptionPlugin(providers.getConstantReflection().getMethodHandleAccess(), false));
+            if (ForeignSupport.isAvailable()) {
+                plugins.appendNodePlugin(ForeignHostedSupport.singleton().createHandleWithExceptionPlugin(providers.getConstantReflection().getMethodHandleAccess()));
+            } else {
+                plugins.appendNodePlugin(new SVMMethodHandleWithExceptionPlugin(providers.getConstantReflection().getMethodHandleAccess(), false));
+            }
             plugins.appendNodePlugin(new DevirtualizeInterfaceCallPlugin());
         }
         plugins.appendNodePlugin(new DeletedFieldsPlugin());

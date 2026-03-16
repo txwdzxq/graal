@@ -132,6 +132,10 @@ class DowncallStub extends NonBytecodeMethod {
         this.nepi = nepi;
     }
 
+    MethodType getMethodType() {
+        return nepi.methodType();
+    }
+
     private static final List<AnnotationValue> INJECTED_ANNOTATIONS_FOR_ALLOW_HEAP_ACCESS = List.of(
                     newAnnotationValue(GuestAccess.elements().Uninterruptible,
                                     "reason", "See DowncallStub.getInjectedAnnotations.",

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,36 +22,45 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package jdk.graal.compiler.replacements;
+package com.oracle.svm.hosted.foreign;
 
-import jdk.graal.compiler.core.common.type.Stamp;
+import com.oracle.svm.hosted.methodhandles.SVMMethodHandleWithExceptionPlugin;
+
 import jdk.graal.compiler.core.common.type.StampPair;
 import jdk.graal.compiler.nodes.CallTargetNode;
 import jdk.graal.compiler.nodes.Invoke;
-import jdk.graal.compiler.nodes.InvokeWithExceptionNode;
 import jdk.graal.compiler.nodes.ValueNode;
 import jdk.graal.compiler.nodes.graphbuilderconf.GraphBuilderContext;
 import jdk.graal.compiler.replacements.nodes.MacroInvokable;
 import jdk.graal.compiler.replacements.nodes.MacroNode;
-import jdk.graal.compiler.replacements.nodes.MethodHandleWithExceptionNode;
+import jdk.graal.compiler.replacements.nodes.MethodHandleNode.GraphAdder;
+import jdk.graal.compiler.replacements.nodes.MethodHandleNode.InvokeFactory;
 import jdk.vm.ci.meta.MethodHandleAccessProvider;
+import jdk.vm.ci.meta.MethodHandleAccessProvider.IntrinsicMethod;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 
-public class MethodHandleWithExceptionPlugin extends MethodHandlePlugin {
-    public MethodHandleWithExceptionPlugin(MethodHandleAccessProvider methodHandleAccess, boolean safeForDeoptimization) {
-        super(methodHandleAccess, safeForDeoptimization);
+public class NativeMethodHandleWithExceptionPlugin extends SVMMethodHandleWithExceptionPlugin {
+    public NativeMethodHandleWithExceptionPlugin(MethodHandleAccessProvider methodHandleAccess) {
+        super(methodHandleAccess, false);
     }
 
     @Override
-    protected Invoke createInvoke(CallTargetNode callTarget, int bci, Stamp stamp) {
-        InvokeWithExceptionNode invoke = new InvokeWithExceptionNode(callTarget, null, bci);
-        invoke.setStamp(stamp);
-        return invoke;
+    protected boolean canHandleIntrinsicMethod(IntrinsicMethod intrinsicMethod) {
+        return intrinsicMethod == IntrinsicMethod.LINK_TO_NATIVE || super.canHandleIntrinsicMethod(intrinsicMethod);
     }
 
     @Override
     protected MacroInvokable createMethodHandleNode(GraphBuilderContext b, ResolvedJavaMethod method, ValueNode[] args,
-                    MethodHandleAccessProvider.IntrinsicMethod intrinsicMethod, CallTargetNode.InvokeKind invokeKind, StampPair invokeReturnStamp) {
-        return new MethodHandleWithExceptionNode(intrinsicMethod, MacroNode.MacroParams.of(invokeKind, b.getMethod(), method, b.bci(), invokeReturnStamp, args));
+                    IntrinsicMethod intrinsicMethod, CallTargetNode.InvokeKind invokeKind, StampPair invokeReturnStamp) {
+        return new NativeMethodHandleWithExceptionNode(intrinsicMethod, MacroNode.MacroParams.of(invokeKind, b.getMethod(), method, b.bci(), invokeReturnStamp, args));
+    }
+
+    @Override
+    protected <T extends Invoke> T tryResolveTargetInvoke(GraphAdder adder, InvokeFactory<T> factory, IntrinsicMethod intrinsicMethod, ResolvedJavaMethod original, int bci, StampPair returnStamp,
+                    ValueNode... arguments) {
+        if (intrinsicMethod == IntrinsicMethod.LINK_TO_NATIVE) {
+            return NativeMethodHandleWithExceptionNode.getLinkToNativeTarget(adder, factory, methodHandleAccess, original, bci, returnStamp, arguments);
+        }
+        return super.tryResolveTargetInvoke(adder, factory, intrinsicMethod, original, bci, returnStamp, arguments);
     }
 }
