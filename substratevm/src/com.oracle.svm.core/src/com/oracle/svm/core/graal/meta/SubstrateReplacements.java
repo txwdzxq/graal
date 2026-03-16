@@ -41,8 +41,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 import org.graalvm.collections.EconomicSet;
-import jdk.graal.compiler.nodes.NodeClassMap;
-import org.graalvm.nativeimage.AnnotationAccess;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.hosted.Feature.BeforeHeapLayoutAccess;

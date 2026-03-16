@@ -24,15 +24,10 @@
  */
 package com.oracle.svm.shared.option;
 
-import org.graalvm.collections.EconomicMap;
-import org.graalvm.nativeimage.ImageSingletons;
-
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 
-import jdk.graal.compiler.options.OptionKey;
-import jdk.graal.compiler.options.OptionValues;
 import jdk.graal.compiler.options.OptionKey;
 import jdk.graal.compiler.options.OptionValues;
 import org.graalvm.collections.EconomicMap;
