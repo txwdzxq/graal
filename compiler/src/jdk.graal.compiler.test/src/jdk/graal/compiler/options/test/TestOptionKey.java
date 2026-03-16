@@ -126,14 +126,6 @@ public class TestOptionKey {
     }
 
     @Test
-    public void testGetValueOrDefault() {
-        EconomicMap<OptionKey<?>, Object> map = newOptionMap();
-        Assert.assertEquals("original", MyOption.getValueOrDefault(map));
-        MyOption.putIfAbsent(map, "new value 1");
-        Assert.assertEquals("new value 1", MyOption.getValueOrDefault(map));
-    }
-
-    @Test
     public void testToString() throws IOException {
         Assert.assertEquals("MyOption", MyOption.toString());
         EconomicMap<OptionKey<?>, Object> map = asMap(MyOption, "new value 1");
@@ -382,15 +374,11 @@ public class TestOptionKey {
         Assert.assertEquals(MyOption.getValue(values), "value 2");
         Assert.assertTrue(MyOption.hasBeenSet(values));
         Assert.assertEquals(MySecondOption.getValue(values), "other 1");
-        values.update(MyOption, ModifiableOptionValues.UNSET_KEY);
-        Assert.assertFalse(MyOption.hasBeenSet(values));
 
         values.update(newOptionMap());
         values.update(asMap(MyOption, "value 3"));
         Assert.assertTrue(MyOption.hasBeenSet(values));
         Assert.assertEquals(MyOption.getValue(values), "value 3");
-        values.update(asMap(MyOption, ModifiableOptionValues.UNSET_KEY));
-        Assert.assertFalse(MyOption.hasBeenSet(values));
     }
 
     @Test

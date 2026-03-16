@@ -51,7 +51,7 @@ public class OptionValues {
     public OptionValues(OptionValues initialValues, UnmodifiableEconomicMap<OptionKey<?>, Object> extraPairs) {
         EconomicMap<OptionKey<?>, Object> map = newOptionMap();
         if (initialValues != null) {
-            map.putAll(initialValues.getMap());
+            initMap(map, initialValues.getMap());
         }
         initMap(map, extraPairs);
         this.values = map;
@@ -69,8 +69,7 @@ public class OptionValues {
     }
 
     /**
-     * Gets an immutable view of the key/value pairs in this object. Values read from this view
-     * should be {@linkplain #decodeNull(Object) decoded} before being used.
+     * Gets an immutable view of the key/value pairs in this object.
      */
     public UnmodifiableEconomicMap<OptionKey<?>, Object> getMap() {
         return values;
@@ -102,34 +101,9 @@ public class OptionValues {
     protected static void initMap(EconomicMap<OptionKey<?>, Object> map, UnmodifiableEconomicMap<OptionKey<?>, Object> values) {
         UnmodifiableMapCursor<OptionKey<?>, Object> cursor = values.getEntries();
         while (cursor.advance()) {
-            map.put(cursor.getKey(), encodeNull(cursor.getValue()));
+            cursor.getKey().notifySet();
+            map.put(cursor.getKey(), cursor.getValue());
         }
-    }
-
-    protected <T> T get(OptionKey<T> key) {
-        return get(values, key);
-    }
-
-    @SuppressWarnings("unchecked")
-    protected static <T> T get(UnmodifiableEconomicMap<OptionKey<?>, Object> values, OptionKey<T> key) {
-        Object value = values.get(key);
-        if (value == null) {
-            return key.getDefaultValue();
-        }
-        return (T) decodeNull(value);
-    }
-
-    private static final Object NULL = new Object();
-
-    protected static Object encodeNull(Object value) {
-        return value == null ? NULL : value;
-    }
-
-    /**
-     * Decodes a value that may be the sentinel value for {@code null} in a map.
-     */
-    public static Object decodeNull(Object value) {
-        return value == NULL ? null : value;
     }
 
     @Override
@@ -142,7 +116,7 @@ public class OptionValues {
         SortedMap<OptionKey<?>, Object> sorted = new TreeMap<>(comparator);
         UnmodifiableMapCursor<OptionKey<?>, Object> cursor = values.getEntries();
         while (cursor.advance()) {
-            sorted.put(cursor.getKey(), decodeNull(cursor.getValue()));
+            sorted.put(cursor.getKey(), cursor.getValue());
         }
         return sorted.toString();
     }

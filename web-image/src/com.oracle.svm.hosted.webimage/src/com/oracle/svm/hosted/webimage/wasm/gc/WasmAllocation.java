@@ -29,7 +29,6 @@ import static jdk.graal.compiler.nodes.extended.BranchProbabilityNode.EXTREMELY_
 import static jdk.graal.compiler.nodes.extended.BranchProbabilityNode.probability;
 import static org.graalvm.word.impl.Word.nullPointer;
 
-import org.graalvm.collections.UnmodifiableEconomicMap;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.StackValue;
 import org.graalvm.nativeimage.c.struct.RawField;
@@ -63,7 +62,6 @@ import com.oracle.svm.webimage.wasmgc.annotation.WasmExport;
 
 import jdk.graal.compiler.api.replacements.Fold;
 import jdk.graal.compiler.options.Option;
-import jdk.graal.compiler.options.OptionKey;
 import jdk.graal.compiler.options.OptionValues;
 import jdk.graal.compiler.replacements.AllocationSnippets.FillContent;
 
@@ -115,16 +113,11 @@ public final class WasmAllocation {
         @Option(help = "Make sure free memory is cleared.")//
         public static final HostedOptionKey<Boolean> ClearFreeMemory = new HostedOptionKey<>(false) {
             @Override
-            public Boolean getValueOrDefault(UnmodifiableEconomicMap<OptionKey<?>, Object> values) {
-                if (!values.containsKey(this)) {
-                    return VerifyAllocations.getValueOrDefault(values);
-                }
-                return super.getValueOrDefault(values);
-            }
-
-            @Override
             public Boolean getValue(OptionValues values) {
-                return getValueOrDefault(values.getMap());
+                if (!hasBeenSet(values)) {
+                    return VerifyAllocations.getValue(values);
+                }
+                return super.getValue(values);
             }
         };
     }

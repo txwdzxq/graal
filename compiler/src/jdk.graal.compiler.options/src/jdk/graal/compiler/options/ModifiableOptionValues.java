@@ -50,16 +50,7 @@ public class ModifiableOptionValues extends OptionValues {
     }
 
     /**
-     * Value that can be used in {@link #update(UnmodifiableEconomicMap)} and
-     * {@link #update(OptionKey, Object)} to remove an explicitly set value for a key such that
-     * {@link OptionKey#hasBeenSet(OptionValues)} will return {@code false} for the key.
-     */
-    public static final Object UNSET_KEY = new Object();
-
-    /**
      * Updates this object with the given key/value pair.
-     *
-     * @see #UNSET_KEY
      */
     public void update(OptionKey<?> key, Object value) {
         UnmodifiableEconomicMap<OptionKey<?>, Object> expect;
@@ -67,13 +58,9 @@ public class ModifiableOptionValues extends OptionValues {
         do {
             expect = v.get();
             newMap = EconomicMap.create(Equivalence.IDENTITY, expect);
-            if (value == UNSET_KEY) {
-                newMap.removeKey(key);
-            } else {
-                key.update(newMap, value);
-                // Need to do the null encoding here as `key.update()` doesn't do it
-                newMap.put(key, encodeNull(value));
-            }
+            key.notifySet();
+            key.update(newMap, value);
+            newMap.put(key, value);
         } while (!v.compareAndSet(expect, newMap));
 
         key.afterValueUpdate();
@@ -81,8 +68,6 @@ public class ModifiableOptionValues extends OptionValues {
 
     /**
      * Updates this object with the key/value pairs in {@code values}.
-     *
-     * @see #UNSET_KEY
      */
     public void update(UnmodifiableEconomicMap<OptionKey<?>, Object> values) {
         if (values.isEmpty()) {
@@ -97,13 +82,9 @@ public class ModifiableOptionValues extends OptionValues {
             while (cursor.advance()) {
                 OptionKey<?> key = cursor.getKey();
                 Object value = cursor.getValue();
-                if (value == UNSET_KEY) {
-                    newMap.removeKey(key);
-                } else {
-                    key.update(newMap, value);
-                    // Need to do the null encoding here as `key.update()` doesn't do it
-                    newMap.put(key, encodeNull(value));
-                }
+                key.notifySet();
+                key.update(newMap, value);
+                newMap.put(key, value);
             }
         } while (!v.compareAndSet(expect, newMap));
 
@@ -112,11 +93,6 @@ public class ModifiableOptionValues extends OptionValues {
             OptionKey<?> key = cursor.getKey();
             key.afterValueUpdate();
         }
-    }
-
-    @Override
-    protected <T> T get(OptionKey<T> key) {
-        return get(v.get(), key);
     }
 
     @Override

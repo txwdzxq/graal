@@ -25,7 +25,6 @@
 package jdk.graal.compiler.options;
 
 import org.graalvm.collections.EconomicMap;
-import org.graalvm.collections.UnmodifiableEconomicMap;
 
 /**
  * A key for an option. The value for an option is obtained from an {@link OptionValues} object.
@@ -36,8 +35,23 @@ public class OptionKey<T> {
 
     private OptionDescriptor descriptor;
 
+    /**
+     * Flag to enable fast path check on option lookup for options that have never been set in any
+     * option map. This boolean relies on the implementations of {@link OptionValues} to update the
+     * boolean flag accordingly.
+     */
+    private boolean hasEverBeenSet;
+
     public OptionKey(T defaultValue) {
         this.defaultValue = defaultValue;
+    }
+
+    /**
+     * Method that needs to be called whenever this option is set in any of the {@link OptionValues}
+     * instances.
+     */
+    void notifySet() {
+        hasEverBeenSet = true;
     }
 
     /**
@@ -148,21 +162,14 @@ public class OptionKey<T> {
     /**
      * Gets the value of this option in {@code values}.
      */
-    public T getValue(OptionValues values) {
-        assert checkDescriptorExists();
-        return values.get(this);
-    }
-
-    /**
-     * Gets the value of this option in {@code values} if it is present, otherwise
-     * {@link #getDefaultValue()}.
-     */
     @SuppressWarnings("unchecked")
-    public T getValueOrDefault(UnmodifiableEconomicMap<OptionKey<?>, Object> values) {
-        if (!values.containsKey(this)) {
+    public T getValue(OptionValues values) {
+        if (hasEverBeenSet) {
+            assert checkDescriptorExists();
+            return (T) values.getMap().get(this, defaultValue);
+        } else {
             return defaultValue;
         }
-        return (T) values.get(this);
     }
 
     /**

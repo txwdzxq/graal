@@ -366,13 +366,14 @@ public class ProgressReporter {
          * Step 2: scan HostedOptionValues and collect migrationMessage, alternatives, and origins.
          */
         Map<String, ExperimentalOptionDetails> experimentalOptions = new HashMap<>();
-        var hostedOptionValues = HostedOptionValues.singleton().getMap();
-        for (OptionKey<?> option : hostedOptionValues.getKeys()) {
+        OptionValues hostedOptionValues = HostedOptionValues.singleton();
+        var hostedOptionValuesMap = hostedOptionValues.getMap();
+        for (OptionKey<?> option : hostedOptionValuesMap.getKeys()) {
             if (option instanceof RuntimeOptionKey || option == SubstrateOptions.UnlockExperimentalVMOptions || option.getDescriptor().getStability() != OptionStability.EXPERIMENTAL) {
                 continue;
             }
             OptionDescriptor descriptor = option.getDescriptor();
-            Object optionValue = option.getValueOrDefault(hostedOptionValues);
+            Object optionValue = option.getValue(hostedOptionValues);
             String emptyOrBooleanValue = "";
             if (descriptor.getOptionValueType() == Boolean.class) {
                 emptyOrBooleanValue = Boolean.parseBoolean(optionValue.toString()) ? "+" : "-";
