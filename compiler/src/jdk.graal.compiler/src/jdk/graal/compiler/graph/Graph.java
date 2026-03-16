@@ -65,16 +65,11 @@ public class Graph implements EventCounter {
         @Option(help = "Verify graphs often during compilation when assertions are turned on", type = OptionType.Debug)//
         public static final OptionKey<Boolean> VerifyGraalGraphs = new OptionKey<>(true) {
             @Override
-            public Boolean getValueOrDefault(UnmodifiableEconomicMap<OptionKey<?>, Object> values) {
+            public Boolean getValue(OptionValues values) {
                 if (!Assertions.assertionsEnabled()) {
                     return false;
                 }
-                return super.getValueOrDefault(values);
-            }
-
-            @Override
-            public Boolean getValue(OptionValues values) {
-                return getValueOrDefault(values.getMap());
+                return super.getValue(values);
             }
         };
         @Option(help = "Perform expensive verification of graph inputs, usages, successors and predecessors", type = OptionType.Debug)//

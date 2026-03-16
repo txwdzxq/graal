@@ -515,7 +515,7 @@ public class CompilationTask implements CompilationWatchDog.EventHandler {
             }
 
             if (values != null) {
-                newOptions = new OptionValues(newOptions, values);
+                newOptions = newOptions.derive(values);
                 if (PrintCompilation.getValue(newOptions)) {
                     TTY.println("Compiling " + getMethod() + " with extra options: " + new OptionValues(values));
                 }
@@ -533,7 +533,7 @@ public class CompilationTask implements CompilationWatchDog.EventHandler {
                 m.put(InlineDuringParsing, false);
             }
             if (!m.isEmpty()) {
-                newOptions = new OptionValues(newOptions, m);
+                newOptions = newOptions.derive(m);
             }
         }
 

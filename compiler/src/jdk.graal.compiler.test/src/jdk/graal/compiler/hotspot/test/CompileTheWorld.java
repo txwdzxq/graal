@@ -277,7 +277,7 @@ public final class CompileTheWorld extends LibGraalCompilationDriver {
                         Options.ScratchDir.getValue(harnessOptions),
                         Options.Verbose.hasBeenSet(harnessOptions) ? Options.Verbose.getValue(harnessOptions) : !Options.MultiThreaded.getValue(harnessOptions),
                         harnessOptions,
-                        new OptionValues(compilerOptions, parseOptions(Options.Config.getValue(harnessOptions))));
+                        compilerOptions.derive(parseOptions(Options.Config.getValue(harnessOptions))));
     }
 
     /**

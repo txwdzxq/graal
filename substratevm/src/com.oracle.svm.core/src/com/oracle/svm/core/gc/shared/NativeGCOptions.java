@@ -304,7 +304,7 @@ public class NativeGCOptions {
                     Class<?> type = field.getType();
                     if (HostedOptionKey.class.isAssignableFrom(type)) {
                         HostedOptionKey<?> key = (HostedOptionKey<?>) field.get(null);
-                        Object value = key.getValueOrDefault(map);
+                        Object value = key.getValue(new OptionValues(map));
                         if (key.shouldPassToNativeGC() && value != null) {
                             buffer.putString(key.getName());
                             buffer.putPrimitive(value);
@@ -331,7 +331,7 @@ public class NativeGCOptions {
         @Override
         public byte[] get() {
             NativeGCArgumentsBuffer buffer = new NativeGCArgumentsBuffer();
-            OptionValues optionValues = RuntimeOptionValues.singleton();
+            OptionValues optionValues = RuntimeOptionValues.singleton().get();
             for (Field field : optionFields) {
                 try {
                     Class<?> type = field.getType();

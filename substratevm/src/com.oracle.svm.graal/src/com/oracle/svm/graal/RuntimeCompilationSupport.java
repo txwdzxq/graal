@@ -116,7 +116,7 @@ public class RuntimeCompilationSupport {
     protected Function<Providers, SubstrateBackend> runtimeBackendProvider;
 
     protected final GlobalMetrics metricValues = new GlobalMetrics();
-    protected final DiagnosticsOutputDirectory outputDirectory = new DiagnosticsOutputDirectory(RuntimeOptionValues.singleton());
+    protected final DiagnosticsOutputDirectory outputDirectory = new DiagnosticsOutputDirectory(RuntimeOptionValues.singleton().get());
     protected final Map<ExceptionAction, Integer> compilationProblemsPerAction = new EnumMap<>(ExceptionAction.class);
 
     public DebugContext openDebugContext(OptionValues options, CompilationIdentifier compilationId, Object compilable, PrintStream logStream) {

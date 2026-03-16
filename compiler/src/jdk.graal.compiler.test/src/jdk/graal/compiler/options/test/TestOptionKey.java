@@ -25,7 +25,6 @@
 package jdk.graal.compiler.options.test;
 
 import static jdk.graal.compiler.options.OptionValues.asMap;
-import static jdk.graal.compiler.options.OptionValues.newOptionMap;
 import static jdk.graal.compiler.options.OptionsParser.parseOptionValue;
 import static jdk.graal.compiler.options.test.TestOptionKey.Options.MyBooleanOption;
 import static jdk.graal.compiler.options.test.TestOptionKey.Options.MyDebugOption;
@@ -59,7 +58,6 @@ import org.junit.Test;
 
 import jdk.graal.compiler.options.EnumMultiOptionKey;
 import jdk.graal.compiler.options.EnumOptionKey;
-import jdk.graal.compiler.options.ModifiableOptionValues;
 import jdk.graal.compiler.options.OptionDescriptor;
 import jdk.graal.compiler.options.OptionDescriptors;
 import jdk.graal.compiler.options.OptionDescriptorsMap;
@@ -270,7 +268,7 @@ public class TestOptionKey {
      */
     @Test
     public void testDerived() {
-        OptionValues initialOptions = new ModifiableOptionValues(asMap(MyOption, "new value 1"));
+        OptionValues initialOptions = new OptionValues(asMap(MyOption, "new value 1"));
         OptionValues derivedOptions = new OptionValues(initialOptions, MyOtherOption, "ignore");
         Assert.assertEquals("new value 1", MyOption.getValue(derivedOptions));
 
@@ -360,25 +358,6 @@ public class TestOptionKey {
                 // Expected
             }
         }
-    }
-
-    @Test
-    public void testModifiableOptionValues() {
-        EconomicMap<OptionKey<?>, Object> map = asMap(MyOption, "value 1", MySecondOption, "other 1");
-        ModifiableOptionValues values = new ModifiableOptionValues(map);
-        Assert.assertTrue(MyOption.hasBeenSet(values));
-        Assert.assertTrue(MySecondOption.hasBeenSet(values));
-        Assert.assertEquals(MyOption.getValue(values), "value 1");
-        Assert.assertEquals(MySecondOption.getValue(values), "other 1");
-        values.update(MyOption, "value 2");
-        Assert.assertEquals(MyOption.getValue(values), "value 2");
-        Assert.assertTrue(MyOption.hasBeenSet(values));
-        Assert.assertEquals(MySecondOption.getValue(values), "other 1");
-
-        values.update(newOptionMap());
-        values.update(asMap(MyOption, "value 3"));
-        Assert.assertTrue(MyOption.hasBeenSet(values));
-        Assert.assertEquals(MyOption.getValue(values), "value 3");
     }
 
     @Test

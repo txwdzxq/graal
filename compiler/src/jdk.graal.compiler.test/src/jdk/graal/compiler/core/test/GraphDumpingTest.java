@@ -122,7 +122,7 @@ public class GraphDumpingTest extends GraalCompilerTest {
         overrides.put(DebugOptions.MethodFilter, null);
 
         ResolvedJavaMethod method = getResolvedJavaMethod(methodName);
-        StructuredGraph graph = parseForCompile(method, new OptionValues(getInitialOptions(), overrides));
+        StructuredGraph graph = parseForCompile(method, getInitialOptions().derive(overrides));
         getCode(method, graph);
 
         return graph;

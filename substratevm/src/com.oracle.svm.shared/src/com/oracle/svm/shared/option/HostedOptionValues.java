@@ -33,6 +33,10 @@ import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 
 import jdk.graal.compiler.options.OptionKey;
 import jdk.graal.compiler.options.OptionValues;
+import jdk.graal.compiler.options.OptionKey;
+import jdk.graal.compiler.options.OptionValues;
+import org.graalvm.collections.EconomicMap;
+import org.graalvm.nativeimage.ImageSingletons;
 
 /**
  * The singleton holder of hosted options.
@@ -40,13 +44,19 @@ import jdk.graal.compiler.options.OptionValues;
  * See {@code com.oracle.svm.core.option}.
  */
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
-public class HostedOptionValues extends OptionValues {
+public final class HostedOptionValues {
+
+    private final OptionValues optionValues;
 
     public HostedOptionValues(EconomicMap<OptionKey<?>, Object> values) {
-        super(values);
+        optionValues = new OptionValues(values);
+    }
+
+    public OptionValues get() {
+        return optionValues;
     }
 
     public static OptionValues singleton() {
-        return ImageSingletons.lookup(HostedOptionValues.class);
+        return ImageSingletons.lookup(HostedOptionValues.class).optionValues;
     }
 }

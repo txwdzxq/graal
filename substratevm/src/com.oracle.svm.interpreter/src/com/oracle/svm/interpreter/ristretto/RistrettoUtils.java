@@ -182,7 +182,7 @@ public class RistrettoUtils {
     public static StructuredGraph parseOnly(SubstrateMethod method) {
         if (method instanceof RistrettoMethod) {
             final RuntimeConfiguration runtimeConfig = RuntimeCompilationSupport.getRuntimeConfig();
-            final DebugContext debug = new DebugContext.Builder(RuntimeOptionValues.singleton(), new GraalDebugHandlersFactory(runtimeConfig.getProviders().getSnippetReflection())).build();
+            final DebugContext debug = new DebugContext.Builder(RuntimeOptionValues.singleton().get(), new GraalDebugHandlersFactory(runtimeConfig.getProviders().getSnippetReflection())).build();
             final OptionValues options = debug.getOptions();
             final SpeculationLog speculationLog = new SubstrateSpeculationLog();
             final ProfileProvider profileProvider = new StableProfileProvider();
@@ -208,7 +208,7 @@ public class RistrettoUtils {
             Log.log().string("[Ristretto Compiler] Starting compilation of ").string(method.format("%H.%n(%p)")).newline();
         }
         RuntimeConfiguration runtimeConfiguration = RuntimeCompilationSupport.getRuntimeConfig();
-        DebugContext debug = new DebugContext.Builder(RuntimeOptionValues.singleton(), new GraalDebugHandlersFactory(runtimeConfiguration.getProviders().getSnippetReflection())).build();
+        DebugContext debug = new DebugContext.Builder(RuntimeOptionValues.singleton().get(), new GraalDebugHandlersFactory(runtimeConfiguration.getProviders().getSnippetReflection())).build();
         SubstrateInstalledCodeImpl installedCode = (SubstrateInstalledCodeImpl) installedCodeFactory.createSubstrateInstalledCode();
         CompilationResult compilationResult = doCompile(debug, RuntimeCompilationSupport.getRuntimeConfig(), RuntimeCompilationSupport.getLIRSuites(), method);
         RuntimeCodeInstaller.install(method, compilationResult, installedCode);
@@ -253,7 +253,7 @@ public class RistrettoUtils {
 
             @Override
             protected CompilationResult performCompilation(DebugContext d) {
-                try (DebugContext debug = new DebugContext.Builder(RuntimeOptionValues.singleton(), new GraalDebugHandlersFactory(runtimeConfig.getProviders().getSnippetReflection()))
+                try (DebugContext debug = new DebugContext.Builder(RuntimeOptionValues.singleton().get(), new GraalDebugHandlersFactory(runtimeConfig.getProviders().getSnippetReflection()))
                                 .description(getDescription(method))
                                 .build()) {
                     try (CompilationWatchDog _ = CompilationWatchDog.watch(compilationId, debug.getOptions(), false, SubstrateGraalUtils.COMPILATION_WATCH_DOG_EVENT_HANDLER, null)) {

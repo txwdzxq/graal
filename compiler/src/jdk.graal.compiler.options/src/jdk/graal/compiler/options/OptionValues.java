@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -40,14 +41,17 @@ import org.graalvm.collections.UnmodifiableMapCursor;
 /**
  * A context for obtaining values for {@link OptionKey}s.
  */
-public class OptionValues {
+public final class OptionValues {
 
     private final UnmodifiableEconomicMap<OptionKey<?>, Object> values;
 
-    protected boolean containsKey(OptionKey<?> key) {
+    public boolean containsKey(OptionKey<?> key) {
         return values.containsKey(key);
     }
 
+    /**
+     * Please use method {@link #derive(UnmodifiableEconomicMap)} instead.
+     */
     public OptionValues(OptionValues initialValues, UnmodifiableEconomicMap<OptionKey<?>, Object> extraPairs) {
         EconomicMap<OptionKey<?>, Object> map = newOptionMap();
         if (initialValues != null) {
@@ -57,6 +61,9 @@ public class OptionValues {
         this.values = map;
     }
 
+    /**
+     * Please use method {@link #derive(OptionKey, Object, Object...)} instead.
+     */
     public OptionValues(OptionValues initialValues, OptionKey<?> key1, Object value1, Object... extraPairs) {
         this(initialValues, asMap(key1, value1, extraPairs));
     }
@@ -98,7 +105,7 @@ public class OptionValues {
         this.values = map;
     }
 
-    protected static void initMap(EconomicMap<OptionKey<?>, Object> map, UnmodifiableEconomicMap<OptionKey<?>, Object> values) {
+    private static void initMap(EconomicMap<OptionKey<?>, Object> map, UnmodifiableEconomicMap<OptionKey<?>, Object> values) {
         UnmodifiableMapCursor<OptionKey<?>, Object> cursor = values.getEntries();
         while (cursor.advance()) {
             cursor.getKey().notifySet();
@@ -241,5 +248,38 @@ public class OptionValues {
     private static boolean excludeOptionFromHelp(OptionDescriptor desc) {
         /* Filter out debug options. */
         return desc.getOptionType() == OptionType.Debug;
+    }
+
+    /**
+     * Derives new option values where the respective keys are set to the respective values. The
+     * values are set also if they would be the default value for their respective key.
+     */
+    public OptionValues derive(UnmodifiableEconomicMap<OptionKey<?>, Object> changedValues) {
+        if (changedValues.isEmpty()) {
+            return this;
+        } else {
+            EconomicMap<OptionKey<?>, Object> newMap = EconomicMap.create(values);
+            newMap.putAll(changedValues);
+            return new OptionValues(newMap);
+        }
+    }
+
+    /**
+     * Derives new option values where the respective keys are set to the respective values. A key
+     * is not set, if its default value would anyway return the correct value.
+     */
+    public OptionValues derive(OptionKey<?> key1, Object value1, Object... extraPairs) {
+        EconomicMap<OptionKey<?>, Object> map = newOptionMap();
+        if (!Objects.equals(key1.getValue(this), value1)) {
+            map.put(key1, value1);
+        }
+        for (int i = 0; i < extraPairs.length; i += 2) {
+            OptionKey<?> key = (OptionKey<?>) extraPairs[i];
+            Object value = extraPairs[i + 1];
+            if (!Objects.equals(key.getValue(this), value)) {
+                map.put(key, value);
+            }
+        }
+        return derive(map);
     }
 }

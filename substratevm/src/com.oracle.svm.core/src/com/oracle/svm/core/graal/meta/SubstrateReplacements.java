@@ -42,8 +42,6 @@ import java.util.function.Function;
 
 import org.graalvm.collections.EconomicSet;
 import jdk.graal.compiler.nodes.NodeClassMap;
-import jdk.graal.compiler.options.OptionKey;
-import org.graalvm.collections.EconomicMap;
 import org.graalvm.nativeimage.AnnotationAccess;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
@@ -65,6 +63,7 @@ import jdk.graal.compiler.core.common.type.Stamp;
 import jdk.graal.compiler.core.common.type.StampFactory;
 import jdk.graal.compiler.core.common.type.TypeReference;
 import jdk.graal.compiler.debug.DebugContext;
+import jdk.graal.compiler.debug.DebugOptions;
 import jdk.graal.compiler.graph.NodeSourcePosition;
 import jdk.graal.compiler.nodes.EncodedGraph;
 import jdk.graal.compiler.nodes.GraphEncoder;
@@ -229,20 +228,8 @@ public class SubstrateReplacements extends ReplacementsImpl {
             parameterPlugin = new ConstantBindingParameterPlugin(args, providers.getMetaAccess(), providers.getSnippetReflection());
         }
 
-        EconomicMap<OptionKey<?>, Object> map = EconomicMap.create();
-        if (GraalOptions.TraceInliningForStubsAndSnippets.getValue(options) != GraalOptions.TraceInlining.getValue(options)) {
-            map.put(GraalOptions.TraceInlining, GraalOptions.TraceInliningForStubsAndSnippets.getValue(options));
-        }
-
-        // Disable the optimization log for stubs.
-        if (OptimizationLog.hasBeenSet(options)) {
-            map.put(OptimizationLog, null);
-        }
-
-        OptionValues optionValues = options;
-        if (!map.isEmpty()) {
-            optionValues = new OptionValues(options, map);
-        }
+        OptionValues optionValues = options.derive(GraalOptions.TraceInlining, GraalOptions.TraceInliningForStubsAndSnippets.getValue(options),
+                        DebugOptions.OptimizationLog, null);
 
         try (DebugContext debug = openSnippetDebugContext("SVMSnippet_", method, optionValues)) {
             StructuredGraph result = new StructuredGraph.Builder(optionValues, debug)

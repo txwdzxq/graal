@@ -44,7 +44,6 @@ import jdk.graal.compiler.nodes.ReturnNode;
 import jdk.graal.compiler.nodes.StructuredGraph;
 import jdk.graal.compiler.nodes.calc.AddNode;
 import jdk.graal.compiler.nodes.spi.CoreProviders;
-import jdk.graal.compiler.options.OptionKey;
 import jdk.graal.compiler.options.OptionValues;
 import jdk.graal.compiler.phases.BasePhase;
 import jdk.graal.compiler.phases.ClassTypeSequence;
@@ -179,14 +178,12 @@ public class OptimizationLogTest extends GraalCompilerTest {
      */
     private StructuredGraph parseGraph(String methodName, boolean enableOptimizationLog) {
         ResolvedJavaMethod method = getResolvedJavaMethod(methodName);
-        EconomicMap<OptionKey<?>, Object> extraOptions = EconomicMap.create();
         EconomicSet<DebugOptions.OptimizationLogTarget> optimizationLogTargets = EconomicSet.create();
         if (enableOptimizationLog) {
             optimizationLogTargets.add(DebugOptions.OptimizationLogTarget.Stdout);
         }
-        extraOptions.put(DebugOptions.OptimizationLog, optimizationLogTargets);
-        extraOptions.put(GraalOptions.TrackNodeSourcePosition, true);
-        OptionValues options = new OptionValues(getInitialOptions(), extraOptions);
+        OptionValues options = getInitialOptions().derive(DebugOptions.OptimizationLog, optimizationLogTargets,
+                        GraalOptions.TrackNodeSourcePosition, true);
         DebugContext debugContext = getDebugContext(options, null, method);
         StructuredGraph.Builder builder = new StructuredGraph.Builder(options, debugContext, null).method(method).compilationId(getCompilationId(method));
         return parse(builder, getEagerGraphBuilderSuite());

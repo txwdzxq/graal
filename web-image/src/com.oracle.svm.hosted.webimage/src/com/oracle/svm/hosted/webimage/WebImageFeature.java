@@ -238,7 +238,7 @@ public class WebImageFeature implements InternalFeature {
     public void duringSetup(DuringSetupAccess a) {
         FeatureImpl.DuringSetupAccessImpl access = (FeatureImpl.DuringSetupAccessImpl) a;
 
-        String entryPointConfig = WebImageOptions.EntryPointsConfig.getValue(ImageSingletons.lookup(HostedOptionValues.class));
+        String entryPointConfig = WebImageOptions.EntryPointsConfig.getValue(HostedOptionValues.singleton());
         if (entryPointConfig != null) {
             AccessConditionResolver<AccessCondition> conditionResolver = new NativeImageConditionResolver(access.getImageClassLoader(),
                             ClassInitializationSupport.singleton());

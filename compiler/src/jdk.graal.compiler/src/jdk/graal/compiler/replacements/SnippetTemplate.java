@@ -952,20 +952,8 @@ public class SnippetTemplate {
                         SnippetTemplates.increment(outer);
                         args.info.creationCounter.increment(outer);
 
-                        EconomicMap<OptionKey<?>, Object> map = EconomicMap.create();
-                        if (GraalOptions.TraceInliningForStubsAndSnippets.getValue(options) != GraalOptions.TraceInlining.getValue(options)) {
-                            map.put(GraalOptions.TraceInlining, GraalOptions.TraceInliningForStubsAndSnippets.getValue(options));
-                        }
-
-                        // Disable the optimization log for snippets.
-                        if (OptimizationLog.hasBeenSet(options)) {
-                            map.put(OptimizationLog, null);
-                        }
-
-                        OptionValues snippetOptions = options;
-                        if (!map.isEmpty()) {
-                            snippetOptions = new OptionValues(options, map);
-                        }
+                        OptionValues snippetOptions = options.derive(GraalOptions.TraceInlining, GraalOptions.TraceInliningForStubsAndSnippets.getValue(options),
+                                        OptimizationLog, null);
 
                         template = new SnippetTemplate(snippetOptions,
                                         debug,

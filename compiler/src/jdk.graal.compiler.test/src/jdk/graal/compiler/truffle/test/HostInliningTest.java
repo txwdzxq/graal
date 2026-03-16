@@ -314,7 +314,7 @@ public class HostInliningTest extends TruffleCompilerImplTest {
         if (explorationDepth != -1) {
             values.put(HostInliningPhase.Options.TruffleHostInliningMaxExplorationDepth, explorationDepth);
         }
-        OptionValues options = new OptionValues(getInitialOptions(), values);
+        OptionValues options = getInitialOptions().derive(values);
         return options;
     }
 

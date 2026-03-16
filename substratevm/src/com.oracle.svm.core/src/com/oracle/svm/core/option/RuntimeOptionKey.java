@@ -104,11 +104,10 @@ public class RuntimeOptionKey<T> extends OptionKey<T> implements SubstrateOption
     @Override
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public final T getValue(OptionValues values) {
-        VMError.guarantee(RuntimeOptionValues.singleton() == values);
+        VMError.guarantee(RuntimeOptionValues.singleton().get() == values);
         return getValue();
     }
 
-    @Override
     public final T getValueOrDefault(UnmodifiableEconomicMap<OptionKey<?>, Object> values) {
         throw VMError.shouldNotReachHere("RuntimeOptionKey.getValueOrDefault() is not supported. Please use getValue() instead.");
     }
@@ -122,12 +121,16 @@ public class RuntimeOptionKey<T> extends OptionKey<T> implements SubstrateOption
     @Override
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public final boolean hasBeenSet(OptionValues values) {
-        VMError.guarantee(RuntimeOptionValues.singleton() == values);
+        VMError.guarantee(RuntimeOptionValues.singleton().get() == values);
         return hasBeenSet();
     }
 
     public void update(T newValue) {
         RuntimeOptionValues.singleton().update(this, newValue);
+    }
+
+    void afterValueUpdateFromRuntimeValues() {
+        super.afterValueUpdate();
     }
 
     /**
