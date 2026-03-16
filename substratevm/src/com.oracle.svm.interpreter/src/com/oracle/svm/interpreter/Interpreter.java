@@ -541,12 +541,14 @@ public final class Interpreter {
                     MethodHandle mh = (MethodHandle) EspressoFrame.getThis(frame);
                     Target_java_lang_invoke_MemberName vmentry = MethodHandleInterpreterUtils.extractVMEntry(mh);
                     InterpreterResolvedJavaMethod target = InterpreterResolvedJavaMethod.fromMemberName(vmentry);
-                    Object[] calleeArgs = frame.getArguments();
+                    InterpreterUnresolvedSignature signature = method.getSignature();
+                    Object[] calleeArgs = rebasic(frame.getArguments(), signature, !method.isStatic());
                     // This should integrate with the debugger GR-70801
                     boolean preferStayInInterpreter = forceStayInInterpreter;
                     traceInvokeBasic(target, indent);
                     try {
-                        yield InterpreterToVM.dispatchInvocation(target, calleeArgs, CallKind.DIRECT, forceStayInInterpreter, preferStayInInterpreter, false);
+                        Object result = InterpreterToVM.dispatchInvocation(target, calleeArgs, CallKind.DIRECT, forceStayInInterpreter, preferStayInInterpreter, false);
+                        yield unbasic(result, signature.getReturnKind());
                     } catch (SemanticJavaException e) {
                         throw uncheckedThrow(e.getCause());
                     }
@@ -591,6 +593,20 @@ public final class Interpreter {
         for (int i = start; i < parameterCount; i++) {
             JavaKind kind = targetSig.getParameterKind(i - start);
             res[i] = unbasic(arguments[i], kind);
+        }
+        return res;
+    }
+
+    static Object[] rebasic(Object[] arguments, InterpreterUnresolvedSignature srcSig, boolean inclReceiver) {
+        int parameterCount = srcSig.getParameterCount(inclReceiver);
+        Object[] res = new Object[parameterCount];
+        int start = 0;
+        if (inclReceiver) {
+            res[start++] = arguments[0];
+        }
+        for (int i = start; i < parameterCount; i++) {
+            JavaKind kind = srcSig.getParameterKind(i - start);
+            res[i] = rebasic(arguments[i], kind);
         }
         return res;
     }
