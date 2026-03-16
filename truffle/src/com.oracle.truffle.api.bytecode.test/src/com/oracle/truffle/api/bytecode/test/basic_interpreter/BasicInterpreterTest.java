@@ -2575,8 +2575,8 @@ public class BasicInterpreterTest extends AbstractBasicInterpreterTest {
 
         node.getBytecodeNode().setUncachedThreshold(10);
         assertEquals(BytecodeTier.UNCACHED, node.getBytecodeNode().getTier());
-        // 1 call + 9 backedges causes on-stack transition to cached.
-        assertEquals(9L, node.getCallTarget().call());
+        // 1 call + 10 backedges causes on-stack transition to cached.
+        assertEquals(10L, node.getCallTarget().call());
         assertEquals(BytecodeTier.CACHED, node.getBytecodeNode().getTier());
     }
 
