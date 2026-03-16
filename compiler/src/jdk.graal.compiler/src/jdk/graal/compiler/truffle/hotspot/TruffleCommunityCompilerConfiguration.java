@@ -64,7 +64,7 @@ public final class TruffleCommunityCompilerConfiguration extends CommunityCompil
         if (OutlineTruffleInterpreterBytecodeHandler.getValue(options)) {
             HotSpotOutlineBytecodeHandlerPhase.install(defaultHighTier);
         }
-        HostInliningPhase.install(defaultHighTier, options);
+        HotSpotHostInliningPhase.install(defaultHighTier, options);
     }
 
     @Override
