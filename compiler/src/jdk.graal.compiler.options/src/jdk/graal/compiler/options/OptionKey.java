@@ -40,7 +40,7 @@ public class OptionKey<T> {
      * option map. This boolean relies on the implementations of {@link OptionValues} to update the
      * boolean flag accordingly.
      */
-    private boolean hasEverBeenSet;
+    private volatile boolean hasEverBeenSet;
 
     public OptionKey(T defaultValue) {
         this.defaultValue = defaultValue;
