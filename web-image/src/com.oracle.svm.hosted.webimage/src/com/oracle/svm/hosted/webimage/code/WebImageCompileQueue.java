@@ -187,8 +187,10 @@ public abstract class WebImageCompileQueue extends CompileQueue {
         @Override
         @SuppressWarnings("try")
         public void run(DebugContext debug) {
-            try (LoggerContext loggerContext = new LoggerContext.Builder(HostedOptionValues.singleton().get()).stream(WebImageOptions.compilerPrinter(HostedOptionValues.singleton().get())).deleteMetricFile(
-                            false).onCloseHandler(this::saveHighTierCounters).build()) {
+            try (LoggerContext loggerContext = new LoggerContext.Builder(HostedOptionValues.singleton().get()).stream(WebImageOptions.compilerPrinter(HostedOptionValues.singleton().get()))
+                            .deleteMetricFile(
+                                            false)
+                            .onCloseHandler(this::saveHighTierCounters).build()) {
                 try (LoggerScope scope = loggerContext.scope(COMPILE_TASK_SCOPE_NAME);
                                 DebugContext.Scope s = debug.scope("(compilation)", method.compilationInfo.getCompilationGraph(), method, this)) {
                     super.run(debug);
