@@ -1140,7 +1140,7 @@ public class SubstrateOptions {
         @Override
         public Boolean getValue(OptionValues values) {
             if (!hasBeenSet(values)) {
-                return ImageInfo.isExecutable();
+                return isExecutableHelper();
             }
             return super.getValue(values);
         }
