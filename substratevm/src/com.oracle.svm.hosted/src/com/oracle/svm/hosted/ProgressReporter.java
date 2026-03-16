@@ -868,8 +868,8 @@ public class ProgressReporter {
             l().println();
             l().dim().a("> %s", unhandledThrowable).reset().println();
             l().println();
-            l().a("Please inspect the generated error report at:").println();
-            l().link(NativeImageOptions.getErrorFilePath(parsedHostedOptions)).println();
+            // Keep in sync with the {@code catch_files} array in {@code ci/common.jsonnet}.
+            l().a("Please inspect the generated error report at: '").link(NativeImageOptions.getErrorFilePath(parsedHostedOptions)).a("'").println();
             l().println();
             l().a("If you are unable to resolve this problem, please file an issue with the error report at:").println();
             var supportUrl = VM.getSupportUrl();

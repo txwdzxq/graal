@@ -33,7 +33,6 @@ import static jdk.graal.compiler.replacements.StandardGraphBuilderPlugins.regist
 
 import java.io.IOException;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.nio.ByteOrder;
 import java.nio.file.Files;
@@ -269,10 +268,10 @@ import com.oracle.svm.common.meta.MethodVariant;
 import com.oracle.svm.shared.option.HostedOptionValues;
 import com.oracle.svm.shared.option.OptionClassFilter;
 import com.oracle.svm.shared.option.SubstrateOptionsParser;
-import com.oracle.svm.shared.util.ClassUtil;
 import com.oracle.svm.shared.singletons.ImageSingletonsSupportImpl;
 import com.oracle.svm.shared.singletons.ImageSingletonsSupportImpl.HostedManagement;
 import com.oracle.svm.shared.singletons.LayeredImageSingletonSupport;
+import com.oracle.svm.shared.util.ClassUtil;
 import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.ReflectionUtil.ReflectionUtilError;
 import com.oracle.svm.shared.util.StringUtil;
@@ -281,6 +280,7 @@ import com.oracle.svm.util.AnnotationUtil;
 import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.util.ImageBuildStatistics;
 import com.oracle.svm.util.JVMCIReflectionUtil;
+import com.oracle.svm.util.OriginalClassProvider;
 
 import jdk.graal.compiler.api.replacements.Fold;
 import jdk.graal.compiler.api.replacements.SnippetReflectionProvider;
@@ -1189,12 +1189,12 @@ public class NativeImageGenerator {
                                 new SubstrateClassInitializationPlugin(hostVM), this.isStubBasedPluginsSupported(), aProviders);
 
                 if (ImageLayerBuildingSupport.buildingSharedLayer()) {
-                    HostedImageLayerBuildingSupport.registerBaseLayerTypes(bb, loader.classLoaderSupport);
-                    HostedImageLayerBuildingSupport.registerNativeMethodsForBaseImage(bb, loader);
+                    HostedImageLayerBuildingSupport.registerBaseLayerTypes(bb, loader.guestTypes);
+                    HostedImageLayerBuildingSupport.registerNativeMethodsForBaseImage(bb, loader.guestTypes);
                 }
 
                 if (loader.classLoaderSupport.isPreserveMode()) {
-                    PreserveOptionsSupport.registerPreservedClasses(bb, loader.classLoaderSupport);
+                    PreserveOptionsSupport.registerPreservedClasses(bb, loader.guestTypes);
                 }
 
                 registerEntryPointStubs(entryPoints);
@@ -1207,7 +1207,7 @@ public class NativeImageGenerator {
     private static JavaConstant fromEnum(Enum<?> kind) {
         GuestAccess access = GuestAccess.get();
         ResolvedJavaType enumType = access.getProviders().getMetaAccess().lookupJavaType(kind.getDeclaringClass());
-        JavaConstant enumName = access.getProviders().getSnippetReflection().forObject(kind.name());
+        JavaConstant enumName = access.asGuestString(kind.name());
         ResolvedJavaMethod valueOf = JVMCIReflectionUtil.getUniqueDeclaredMethod(access.getProviders().getMetaAccess(), enumType, "valueOf", String.class);
         JavaKind.valueOf(kind.name());
         return access.invoke(valueOf, null, enumName);
@@ -1561,7 +1561,7 @@ public class NativeImageGenerator {
     }
 
     protected void registerEntryPoints(Map<ResolvedJavaMethod, CEntryPointData> entryPoints) {
-        for (ResolvedJavaMethod m : loader.findAnnotatedResolvedJavaMethods(CEntryPoint.class)) {
+        for (ResolvedJavaMethod m : loader.guestTypes.findAnnotatedMethods(CEntryPoint.class)) {
             if (!m.isStatic()) {
                 throw UserError.abort("Entry point method %s.%s is not static. Add a static modifier to the method.", m.format("%H.%n"));
             }
@@ -2011,52 +2011,51 @@ public class NativeImageGenerator {
     }
 
     protected void processNativeLibraryImports(NativeLibraries nativeLibs, ClassInitializationSupport classInitializationSupport) {
-        MetaAccessProvider metaAccess = nativeLibs.getMetaAccess();
-        for (Method method : loader.findAnnotatedMethods(CConstant.class)) {
+        GuestTypes guestTypes = loader.guestTypes;
+        for (ResolvedJavaMethod method : guestTypes.findAnnotatedMethods(CConstant.class)) {
             if (HostedLibCBase.isMethodProvidedInCurrentLibc(method)) {
                 initializeAtBuildTime(method.getDeclaringClass(), classInitializationSupport, CConstant.class);
-                nativeLibs.loadJavaMethod(metaAccess.lookupJavaMethod(method));
+                nativeLibs.loadJavaMethod(aUniverse.lookup(method));
             }
         }
-        for (Method method : loader.findAnnotatedMethods(CFunction.class)) {
+        for (ResolvedJavaMethod method : guestTypes.findAnnotatedMethods(CFunction.class)) {
             if (HostedLibCBase.isMethodProvidedInCurrentLibc(method)) {
-                nativeLibs.loadJavaMethod(metaAccess.lookupJavaMethod(method));
+                nativeLibs.loadJavaMethod(aUniverse.lookup(method));
             }
         }
-        for (Class<?> clazz : loader.findAnnotatedClasses(CStruct.class, false)) {
-            if (HostedLibCBase.isTypeProvidedInCurrentLibc(clazz)) {
-                initializeAtBuildTime(clazz, classInitializationSupport, CStruct.class);
-                nativeLibs.loadJavaType(metaAccess.lookupJavaType(clazz));
+        for (ResolvedJavaType type : guestTypes.findAnnotatedTypes(CStruct.class, false)) {
+            if (HostedLibCBase.isTypeProvidedInCurrentLibc(type)) {
+                initializeAtBuildTime(type, classInitializationSupport, CStruct.class);
+                nativeLibs.loadJavaType(aUniverse.lookup(type));
             }
         }
-        for (Class<?> clazz : loader.findAnnotatedClasses(RawStructure.class, false)) {
-            if (HostedLibCBase.isTypeProvidedInCurrentLibc(clazz)) {
-                initializeAtBuildTime(clazz, classInitializationSupport, RawStructure.class);
-                nativeLibs.loadJavaType(metaAccess.lookupJavaType(clazz));
+        for (ResolvedJavaType type : guestTypes.findAnnotatedTypes(RawStructure.class, false)) {
+            if (HostedLibCBase.isTypeProvidedInCurrentLibc(type)) {
+                initializeAtBuildTime(type, classInitializationSupport, RawStructure.class);
+                nativeLibs.loadJavaType(aUniverse.lookup(type));
             }
         }
-        for (Class<?> clazz : loader.findAnnotatedClasses(CPointerTo.class, false)) {
-            if (HostedLibCBase.isTypeProvidedInCurrentLibc(clazz)) {
-                initializeAtBuildTime(clazz, classInitializationSupport, CPointerTo.class);
-                nativeLibs.loadJavaType(metaAccess.lookupJavaType(clazz));
+        for (ResolvedJavaType type : guestTypes.findAnnotatedTypes(CPointerTo.class, false)) {
+            if (HostedLibCBase.isTypeProvidedInCurrentLibc(type)) {
+                initializeAtBuildTime(type, classInitializationSupport, CPointerTo.class);
+                nativeLibs.loadJavaType(aUniverse.lookup(type));
             }
         }
-        for (Class<?> clazz : loader.findAnnotatedClasses(RawPointerTo.class, false)) {
-            if (HostedLibCBase.isTypeProvidedInCurrentLibc(clazz)) {
-                initializeAtBuildTime(clazz, classInitializationSupport, RawPointerTo.class);
-                nativeLibs.loadJavaType(metaAccess.lookupJavaType(clazz));
+        for (ResolvedJavaType type : guestTypes.findAnnotatedTypes(RawPointerTo.class, false)) {
+            if (HostedLibCBase.isTypeProvidedInCurrentLibc(type)) {
+                initializeAtBuildTime(type, classInitializationSupport, RawPointerTo.class);
+                nativeLibs.loadJavaType(aUniverse.lookup(type));
             }
         }
-        for (Class<?> clazz : loader.findAnnotatedClasses(CEnum.class, false)) {
-            if (HostedLibCBase.isTypeProvidedInCurrentLibc(clazz)) {
-                ResolvedJavaType type = metaAccess.lookupJavaType(clazz);
-                initializeAtBuildTime(clazz, classInitializationSupport, CEnum.class);
-                nativeLibs.loadJavaType(type);
+        for (ResolvedJavaType type : guestTypes.findAnnotatedTypes(CEnum.class, false)) {
+            if (HostedLibCBase.isTypeProvidedInCurrentLibc(type)) {
+                initializeAtBuildTime(type, classInitializationSupport, CEnum.class);
+                nativeLibs.loadJavaType(aUniverse.lookup(type));
             }
         }
-        for (Class<?> clazz : loader.findAnnotatedClasses(CContext.class, false)) {
-            if (HostedLibCBase.isTypeProvidedInCurrentLibc(clazz)) {
-                initializeAtBuildTime(clazz, classInitializationSupport, CContext.class);
+        for (ResolvedJavaType type : guestTypes.findAnnotatedTypes(CContext.class, false)) {
+            if (HostedLibCBase.isTypeProvidedInCurrentLibc(type)) {
+                initializeAtBuildTime(type, classInitializationSupport, CContext.class);
             }
         }
         nativeLibs.processCLibraryAnnotations(loader);
@@ -2065,10 +2064,10 @@ public class NativeImageGenerator {
         nativeLibs.reportErrors();
     }
 
-    protected static void initializeAtBuildTime(Class<?> clazz, ClassInitializationSupport classInitializationSupport, Class<? extends Annotation> annotationForMessage) {
+    protected static void initializeAtBuildTime(ResolvedJavaType type, ClassInitializationSupport classInitializationSupport, Class<? extends Annotation> annotationForMessage) {
         String message = "classes annotated with " + ClassUtil.getUnqualifiedName(annotationForMessage) + " are always initialized at image build time";
-        classInitializationSupport.initializeAtBuildTime(clazz, message);
-        classInitializationSupport.forceInitializeHosted(clazz, message, false);
+        classInitializationSupport.initializeAtBuildTime(type, message);
+        classInitializationSupport.forceInitializeHosted(OriginalClassProvider.getJavaClass(type), message, false);
     }
 
     public AbstractImage getBuiltImage() {

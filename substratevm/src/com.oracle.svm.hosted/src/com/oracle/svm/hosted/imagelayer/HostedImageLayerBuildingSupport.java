@@ -55,6 +55,7 @@ import com.oracle.svm.core.option.RuntimeOptionKey;
 import com.oracle.svm.core.util.ArchiveSupport;
 import com.oracle.svm.core.util.ConcurrentUtils;
 import com.oracle.svm.core.util.UserError;
+import com.oracle.svm.hosted.GuestTypes;
 import com.oracle.svm.hosted.ImageClassLoader;
 import com.oracle.svm.hosted.NativeImageClassLoaderSupport;
 import com.oracle.svm.hosted.c.NativeLibraries;
@@ -215,7 +216,7 @@ public final class HostedImageLayerBuildingSupport extends ImageLayerBuildingSup
     }
 
     public ResolvedJavaType lookupType(boolean optional, String className) {
-        TypeResult<ResolvedJavaType> typeResult = imageClassLoader.findType(className);
+        TypeResult<ResolvedJavaType> typeResult = imageClassLoader.guestTypes.findType(className);
         if (!typeResult.isPresent()) {
             if (optional) {
                 return null;
@@ -523,8 +524,8 @@ public final class HostedImageLayerBuildingSupport extends ImageLayerBuildingSup
         nativeLibs.addDynamicNonJniLibrary(libName);
     }
 
-    public static void registerBaseLayerTypes(BigBang bb, NativeImageClassLoaderSupport classLoaderSupport) {
-        classLoaderSupport.getClassesToIncludeUnconditionally().forEach(bb::tryRegisterTypeForBaseImage);
+    public static void registerBaseLayerTypes(BigBang bb, GuestTypes guestTypes) {
+        guestTypes.getTypesToIncludeUnconditionally().forEach(bb::tryRegisterTypeForBaseImage);
     }
 
     /**
@@ -535,7 +536,7 @@ public final class HostedImageLayerBuildingSupport extends ImageLayerBuildingSup
      * native library need to be in the same layer. This method iterate through all native methods
      * and try to include them in the current layer.
      */
-    public static void registerNativeMethodsForBaseImage(BigBang bb, ImageClassLoader loader) {
+    public static void registerNativeMethodsForBaseImage(BigBang bb, GuestTypes loader) {
         loader.getApplicationTypes().forEach(bb::tryRegisterNativeMethodsForBaseImage);
     }
 }

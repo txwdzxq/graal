@@ -32,7 +32,6 @@ import java.util.List;
 
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.hosted.Feature;
-import org.graalvm.nativeimage.hosted.RuntimeClassInitialization;
 
 import com.oracle.svm.core.BuildPhaseProvider;
 import com.oracle.svm.core.feature.AutomaticallyRegisteredFeature;
@@ -47,6 +46,7 @@ import com.oracle.svm.core.jfr.traceid.JfrTraceId;
 import com.oracle.svm.core.jfr.traceid.JfrTraceIdMap;
 import com.oracle.svm.core.meta.SharedType;
 import com.oracle.svm.hosted.FeatureImpl;
+import com.oracle.svm.hosted.GuestTypes;
 import com.oracle.svm.hosted.ameta.FieldValueInterceptionSupport;
 import com.oracle.svm.hosted.reflect.ReflectionFeature;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
@@ -54,12 +54,14 @@ import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.util.JVMCIReflectionUtil;
+import com.oracle.svm.util.JVMCIRuntimeClassInitializationSupport;
 import com.oracle.svm.util.dynamicaccess.JVMCIRuntimeReflection;
 
 import jdk.internal.event.Event;
 import jdk.jfr.internal.JVM;
 import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.MetaAccessProvider;
+import jdk.vm.ci.meta.ResolvedJavaType;
 import sun.nio.ch.FileChannelImpl;
 
 /**
@@ -93,8 +95,10 @@ public class JfrEventFeature implements InternalFeature {
         FeatureImpl.DuringSetupAccessImpl config = (FeatureImpl.DuringSetupAccessImpl) c;
         MetaAccessProvider metaAccess = config.getMetaAccess().getWrapped();
 
-        for (Class<?> eventSubClass : config.findSubclasses(Event.class)) {
-            RuntimeClassInitialization.initializeAtBuildTime(eventSubClass.getName());
+        GuestTypes guestTypes = config.getImageClassLoader().guestTypes;
+        for (ResolvedJavaType eventSubClass : guestTypes.findSubtypes(guestTypes.getGuestAccess().lookupType(Event.class), false)) {
+            String reason = "from feature " + JfrEventFeature.class + " with '" + eventSubClass.toJavaName(false) + "'";
+            JVMCIRuntimeClassInitializationSupport.singleton().initializeAtBuildTime(eventSubClass, reason);
         }
         config.registerSubstitutionProcessor(new JfrEventSubstitution(metaAccess, config.getUniverse().getHeapScanner()));
 

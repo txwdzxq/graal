@@ -78,6 +78,7 @@ import com.oracle.svm.hosted.ConditionalConfigurationRegistry;
 import com.oracle.svm.hosted.ConfigurationTypeResolver;
 import com.oracle.svm.hosted.FeatureImpl;
 import com.oracle.svm.hosted.FeatureImpl.BeforeAnalysisAccessImpl;
+import com.oracle.svm.hosted.GuestTypes;
 import com.oracle.svm.hosted.ImageClassLoader;
 import com.oracle.svm.hosted.SVMHost;
 import com.oracle.svm.hosted.classinitialization.ClassInitializationSupport;
@@ -327,8 +328,7 @@ final class SerializationBuilder extends ConditionalConfigurationRegistry implem
             return;
         } else if (!Serializable.class.isAssignableFrom(clazz)) {
             return;
-        } else if (access.findSubclasses(clazz).size() > 1) {
-            // The classes returned from access.findSubclasses API including the base class itself
+        } else if (hasSubclasses(clazz)) {
             LogUtils.warning("Class %s has subclasses. No classes were registered for object serialization.", targetClassName);
             return;
         }
@@ -360,6 +360,12 @@ final class SerializationBuilder extends ConditionalConfigurationRegistry implem
         for (ObjectStreamField field : osc.getFields()) {
             registerIncludingAssociatedClasses(condition, field.getType(), alreadyVisited);
         }
+    }
+
+    private boolean hasSubclasses(Class<?> clazz) {
+        // The classes returned from findSubtypes API includes clazz itself
+        GuestTypes guestTypes = access.getImageClassLoader().guestTypes;
+        return guestTypes.findSubtypes(guestTypes.getGuestAccess().lookupType(clazz), false).size() > 1;
     }
 
     @Override
