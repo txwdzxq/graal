@@ -108,7 +108,7 @@ public class RuntimeOptionKey<T> extends OptionKey<T> implements SubstrateOption
     }
 
     public final T getValueOrDefault(UnmodifiableEconomicMap<OptionKey<?>, Object> values) {
-        throw VMError.shouldNotReachHere("RuntimeOptionKey.getValueOrDefault() is not supported. Please use getValue() instead.");
+        throw VMError.shouldNotReachHere("RuntimeOptionKey.getValueOrDefault(" + values + ") is not supported. Please use getValue() instead.");
     }
 
     @Override
