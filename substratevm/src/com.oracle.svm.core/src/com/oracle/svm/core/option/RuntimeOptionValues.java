@@ -92,6 +92,14 @@ public class RuntimeOptionValues {
     }
 
     public void update(OptionKey<?> key, Object value) {
+        if (key instanceof RuntimeOptionKey<?> r) {
+            /*
+             * RuntimeOptionKey reads go through the per-key cache, so keep the old publication
+             * order and update that cache before publishing the new snapshot.
+             */
+            r.setRawCachedValue(value);
+        }
+
         OptionValues expect;
         OptionValues newValues;
         EconomicMap<OptionKey<?>, Object> newMap;
@@ -103,8 +111,6 @@ public class RuntimeOptionValues {
         } while (!v.compareAndSet(expect, newValues));
 
         if (key instanceof RuntimeOptionKey<?> r) {
-            /* Update the cached value so that it is in-sync with the map. */
-            r.setRawCachedValue(value);
             r.afterValueUpdateFromRuntimeValues();
         }
     }
@@ -113,6 +119,8 @@ public class RuntimeOptionValues {
         if (values.isEmpty()) {
             return;
         }
+
+        updateCache(values);
 
         OptionValues expect;
         OptionValues newValues;
@@ -129,8 +137,6 @@ public class RuntimeOptionValues {
             newValues = new OptionValues(newMap);
         } while (!v.compareAndSet(expect, newValues));
 
-        /* Update the cached values so that they are in-sync with the map. */
-        updateCache(values);
         var cursor = values.getEntries();
         while (cursor.advance()) {
             if (cursor.getKey() instanceof RuntimeOptionKey<?> runtimeOptionKey) {

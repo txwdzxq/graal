@@ -104,7 +104,6 @@ public class RuntimeOptionKey<T> extends OptionKey<T> implements SubstrateOption
     @Override
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public final T getValue(OptionValues values) {
-        VMError.guarantee(RuntimeOptionValues.singleton().get() == values);
         return getValue();
     }
 
@@ -121,7 +120,6 @@ public class RuntimeOptionKey<T> extends OptionKey<T> implements SubstrateOption
     @Override
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public final boolean hasBeenSet(OptionValues values) {
-        VMError.guarantee(RuntimeOptionValues.singleton().get() == values);
         return hasBeenSet();
     }
 
