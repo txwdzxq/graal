@@ -3897,11 +3897,17 @@ class RenaissanceBenchmarkSuite(mx_benchmark.JavaBenchmarkSuite, mx_benchmark.Av
                 del benchmarks["log-regression"]
                 del benchmarks["naive-bayes"]
 
-        if self.version() in ["0.16.0"]:
-            del benchmarks["chi-square"]
-            del benchmarks["gauss-mix"]
+        if self.version() in ["0.16.0", "0.16.1"]:
             del benchmarks["page-rank"]
+            del benchmarks["neo4j-analytics"]
+            del benchmarks["naive-bayes"]
             del benchmarks["movie-lens"]
+            del benchmarks["log-regression"]
+            del benchmarks["gauss-mix"]
+            del benchmarks["dec-tree"]
+            del benchmarks["db-shootout"]
+            del benchmarks["chi-square"]
+            del benchmarks["als"]
 
         return benchmarks
 
