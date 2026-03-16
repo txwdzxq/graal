@@ -1789,7 +1789,10 @@ class PolyglotIsolateProject(mx_sdk_vm_ng.NativeImageLibraryProject):
             '--features=com.oracle.svm.enterprise.truffle.PolyglotIsolateGuestFeature',
             '-H:APIFunctionPrefix=truffle_isolate_',
             '-H:+CopyLanguageResources',
-            '-H:+ProtectionKeys'
+            '-H:+ProtectionKeys',
+            '-H:+UnlockExperimentalVMOptions',
+            '-H:-InitializeVM',
+            '-H:-UnlockExperimentalVMOptions',
         ] + isolate_build_options
         super().__init__(language_suite, f'{language_id}.isolate', isolate_deps, ['Truffle'], None, f'{language_id}vm', **{'build_args': build_args})
 
