@@ -31,7 +31,6 @@ import org.graalvm.collections.EconomicMap;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 
-import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.shared.option.HostedOptionKey;
 import com.oracle.svm.core.util.UserError;
 import com.oracle.svm.hosted.ImageClassLoader;
@@ -294,14 +293,7 @@ public class WebImageOptions {
     public static final OptionKey<Boolean> OutlineRuntimeChecks = new OptionKey<>(true);
 
     @Option(help = "Generate source maps to debug Java code")//
-    public static final OptionKey<Boolean> GenerateSourceMap = new OptionKey<>(false) {
-        @Override
-        protected void onValueUpdate(EconomicMap<OptionKey<?>, Object> values, Boolean oldValue, Boolean newValue) {
-            if (newValue) {
-                SubstrateOptions.IncludeNodeSourcePositions.update(values, oldValue);
-            }
-        }
-    };
+    public static final OptionKey<Boolean> GenerateSourceMap = new OptionKey<>(false);
 
     @Option(help = "Directory containing source files for DevTools. May be relative to output file.")//
     public static final OptionKey<String> SourceMapSourceRoot = new OptionKey<>("");

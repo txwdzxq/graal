@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -376,7 +377,7 @@ public class ProgressReporter {
             Object optionValue = option.getValue(hostedOptionValues);
             String emptyOrBooleanValue = "";
             if (descriptor.getOptionValueType() == Boolean.class) {
-                emptyOrBooleanValue = Boolean.parseBoolean(optionValue.toString()) ? "+" : "-";
+                emptyOrBooleanValue = Boolean.parseBoolean(Objects.toString(optionValue)) ? "+" : "-";
             }
             String prefixedOptionName = CommonOptionParser.HOSTED_OPTION_PREFIX + emptyOrBooleanValue + option.getName();
             if (!experimentalBuilderOptionsAndOrigins.containsKey(prefixedOptionName)) {

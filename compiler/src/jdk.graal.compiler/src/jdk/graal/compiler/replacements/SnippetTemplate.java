@@ -28,6 +28,7 @@ import static java.util.FormattableFlags.ALTERNATE;
 import static jdk.graal.compiler.core.common.NativeImageSupport.inRuntimeCode;
 import static jdk.graal.compiler.debug.DebugContext.applyFormattingFlagsAndWidth;
 import static jdk.graal.compiler.debug.DebugOptions.DumpOnError;
+import static jdk.graal.compiler.debug.DebugOptions.OptimizationLog;
 import static jdk.graal.compiler.graph.iterators.NodePredicates.isNotA;
 import static jdk.graal.compiler.nodeinfo.NodeCycles.CYCLES_IGNORED;
 import static jdk.graal.compiler.nodeinfo.NodeSize.SIZE_IGNORED;
@@ -74,7 +75,6 @@ import jdk.graal.compiler.debug.Assertions;
 import jdk.graal.compiler.debug.CounterKey;
 import jdk.graal.compiler.debug.DebugCloseable;
 import jdk.graal.compiler.debug.DebugContext;
-import jdk.graal.compiler.debug.DebugOptions;
 import jdk.graal.compiler.debug.GraalError;
 import jdk.graal.compiler.debug.TimerKey;
 import jdk.graal.compiler.graph.Graph.Mark;
@@ -951,8 +951,22 @@ public class SnippetTemplate {
                                     CompilationAlarm alarm = CompilationAlarm.disable()) {
                         SnippetTemplates.increment(outer);
                         args.info.creationCounter.increment(outer);
-                        OptionValues snippetOptions = new OptionValues(options, GraalOptions.TraceInlining, GraalOptions.TraceInliningForStubsAndSnippets.getValue(options),
-                                        DebugOptions.OptimizationLog, null);
+
+                        EconomicMap<OptionKey<?>, Object> map = EconomicMap.create();
+                        if (GraalOptions.TraceInliningForStubsAndSnippets.getValue(options) != GraalOptions.TraceInlining.getValue(options)) {
+                            map.put(GraalOptions.TraceInlining, GraalOptions.TraceInliningForStubsAndSnippets.getValue(options));
+                        }
+
+                        // Disable the optimization log for snippets.
+                        if (OptimizationLog.hasBeenSet(options)) {
+                            map.put(OptimizationLog, null);
+                        }
+
+                        OptionValues snippetOptions = options;
+                        if (!map.isEmpty()) {
+                            snippetOptions = new OptionValues(options, map);
+                        }
+
                         template = new SnippetTemplate(snippetOptions,
                                         debug,
                                         context,

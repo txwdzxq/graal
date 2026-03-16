@@ -164,8 +164,8 @@ public class OptionKey<T> {
      */
     @SuppressWarnings("unchecked")
     public T getValue(OptionValues values) {
+        assert checkDescriptorExists();
         if (hasEverBeenSet) {
-            assert checkDescriptorExists();
             return (T) values.getMap().get(this, defaultValue);
         } else {
             return defaultValue;
