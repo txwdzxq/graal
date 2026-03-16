@@ -109,7 +109,7 @@ public class FoldedReflectionFeature implements InternalFeature {
     @Override
     public void afterAnalysis(AfterAnalysisAccess access) {
         BigBang bb = ((FeatureImpl.AfterAnalysisAccessImpl) access).getBigBang();
-        Path reportsPath = NativeImageGenerator.generatedFiles(HostedOptionValues.singleton()).resolve("reports");
+        Path reportsPath = NativeImageGenerator.generatedFiles(HostedOptionValues.singleton().get()).resolve("reports");
         ReportUtils.report("folded reflection elements", reportsPath.resolve("folded_reflection_stats.json"), writer -> printElements(writer, bb));
     }
 

@@ -155,14 +155,14 @@ public class WebImageOptions {
      * This value should not be used to make compilation decisions.
      */
     public static String getTargetVM() {
-        return JSRuntime.getValue(HostedOptionValues.singleton()).name();
+        return JSRuntime.getValue(HostedOptionValues.singleton().get()).name();
     }
 
     /**
      * Returns true if the given target runtime should be supported.
      */
     public static boolean supportRuntime(VMType target) {
-        return JSRuntime.getValue(HostedOptionValues.singleton()).includes(target);
+        return JSRuntime.getValue(HostedOptionValues.singleton().get()).includes(target);
     }
 
     /**
@@ -357,7 +357,7 @@ public class WebImageOptions {
      * {@link CommentVerbosity#NORMAL} is {@code null}).
      */
     public static boolean genJSComments(CommentVerbosity verbosity) {
-        return JSComments.getValue(HostedOptionValues.singleton()).isEnabled(verbosity == null ? CommentVerbosity.NORMAL : verbosity);
+        return JSComments.getValue(HostedOptionValues.singleton().get()).isEnabled(verbosity == null ? CommentVerbosity.NORMAL : verbosity);
     }
 
     @Option(help = "Determine if the Web Image compilation should be silent and not dump info")//

@@ -431,12 +431,12 @@ public class SubstrateOptions {
 
     @Fold
     public static boolean useEconomyCompilerConfig() {
-        return useEconomyCompilerConfig(HostedOptionValues.singleton());
+        return useEconomyCompilerConfig(HostedOptionValues.singleton().get());
     }
 
     @Fold
     public static boolean useCodeSizeCompilerConfig() {
-        return useCodeSizeCompilerConfig(HostedOptionValues.singleton());
+        return useCodeSizeCompilerConfig(HostedOptionValues.singleton().get());
     }
 
     @Fold
@@ -501,7 +501,7 @@ public class SubstrateOptions {
 
     @Platforms(HOSTED_ONLY.class)
     public static Path getImagePath() {
-        return getImagePath(HostedOptionValues.singleton());
+        return getImagePath(HostedOptionValues.singleton().get());
     }
 
     public static final class GCGroup implements APIOptionGroup {

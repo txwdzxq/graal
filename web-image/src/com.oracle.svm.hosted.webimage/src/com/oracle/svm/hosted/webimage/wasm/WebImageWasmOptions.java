@@ -95,7 +95,7 @@ public class WebImageWasmOptions {
      * Returns true if wasm comments should be emitted.
      */
     public static boolean genComments(CommentVerbosity verbosity) {
-        return WasmComments.getValue(HostedOptionValues.singleton()).isEnabled(verbosity);
+        return WasmComments.getValue(HostedOptionValues.singleton().get()).isEnabled(verbosity);
     }
 
     public static boolean genComments() {

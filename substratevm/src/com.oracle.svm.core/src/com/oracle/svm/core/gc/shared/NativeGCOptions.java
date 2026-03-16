@@ -298,7 +298,7 @@ public class NativeGCOptions {
         @Override
         public byte[] get() {
             NativeGCArgumentsBuffer buffer = new NativeGCArgumentsBuffer();
-            UnmodifiableEconomicMap<OptionKey<?>, Object> map = HostedOptionValues.singleton().getMap();
+            UnmodifiableEconomicMap<OptionKey<?>, Object> map = HostedOptionValues.singleton().get().getMap();
             for (Field field : optionFields) {
                 try {
                     Class<?> type = field.getType();

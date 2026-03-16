@@ -739,7 +739,7 @@ public class DebuggerFeature implements InternalFeature {
                             }
                         }));
 
-        Path destDir = NativeImageGenerator.generatedFiles(HostedOptionValues.singleton());
+        Path destDir = NativeImageGenerator.generatedFiles(HostedOptionValues.singleton().get());
 
         // Be explicit here: .metadata file is derived from <final binary name (including
         // extension)>

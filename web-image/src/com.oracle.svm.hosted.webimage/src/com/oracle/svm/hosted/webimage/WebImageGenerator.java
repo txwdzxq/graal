@@ -115,7 +115,7 @@ public class WebImageGenerator extends NativeImageGenerator {
     protected void doRun(Map<ResolvedJavaMethod, CEntryPointData> entryPoints,
                     JavaMainWrapper.JavaMainSupport javaMainSupport, String imageName, AbstractImage.NativeImageKind k,
                     SubstitutionProcessor harnessSubstitutions) {
-        OptionValues options = HostedOptionValues.singleton();
+        OptionValues options = HostedOptionValues.singleton().get();
         setWebImageSystemProperties();
         try (LoggerContext loggerContext = new LoggerContext.Builder(options).stream(WebImageOptions.compilerPrinter(options)).build()) {
             try (Timer.StopTimer ignoredTimer = TimerCollection.createTimerAndStart(WebImageTotalTime)) {

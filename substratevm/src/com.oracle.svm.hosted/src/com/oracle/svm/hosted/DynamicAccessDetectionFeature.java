@@ -113,7 +113,7 @@ public final class DynamicAccessDetectionFeature implements InternalFeature {
     // package names
     private final Map<String, MethodsByAccessKind> callsBySourceEntry;
     private final BuildArtifacts buildArtifacts = BuildArtifacts.singleton();
-    private final OptionValues hostedOptionValues = HostedOptionValues.singleton();
+    private final OptionValues hostedOptionValues = HostedOptionValues.singleton().get();
 
     private boolean printToConsole;
     private boolean dumpJsonFiles = true;

@@ -367,7 +367,7 @@ public class ProgressReporter {
          * Step 2: scan HostedOptionValues and collect migrationMessage, alternatives, and origins.
          */
         Map<String, ExperimentalOptionDetails> experimentalOptions = new HashMap<>();
-        OptionValues hostedOptionValues = HostedOptionValues.singleton();
+        OptionValues hostedOptionValues = HostedOptionValues.singleton().get();
         var hostedOptionValuesMap = hostedOptionValues.getMap();
         for (OptionKey<?> option : hostedOptionValuesMap.getKeys()) {
             if (option instanceof RuntimeOptionKey || option == SubstrateOptions.UnlockExperimentalVMOptions || option.getDescriptor().getStability() != OptionStability.EXPERIMENTAL) {
@@ -950,7 +950,7 @@ public class ProgressReporter {
 
     private static Path reportImageBuildStatistics() {
         Consumer<PrintWriter> statsReporter = ImageSingletons.lookup(ImageBuildStatistics.class).getReporter();
-        Path reportsPath = NativeImageGenerator.generatedFiles(HostedOptionValues.singleton()).resolve("reports");
+        Path reportsPath = NativeImageGenerator.generatedFiles(HostedOptionValues.singleton().get()).resolve("reports");
         return ReportUtils.report("image build statistics", reportsPath.resolve("image_build_statistics.json"), statsReporter, false);
     }
 

@@ -937,7 +937,7 @@ public final class RuntimeCompilationFeature implements Feature, RuntimeCompilat
      * {@code RUNTIME_COMPILED_METHOD}s.
      */
     private class RuntimeCompilationInlineBeforeAnalysisPolicy extends InlineBeforeAnalysisPolicy {
-        private final int trivialAllowingInliningDepth = InlineDuringParsingMaxDepth.getValue(HostedOptionValues.singleton());
+        private final int trivialAllowingInliningDepth = InlineDuringParsingMaxDepth.getValue(HostedOptionValues.singleton().get());
 
         final SVMHost hostVM;
         final InlineBeforeAnalysisPolicyUtils inliningUtils;

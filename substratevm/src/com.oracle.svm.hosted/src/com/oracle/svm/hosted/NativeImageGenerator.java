@@ -622,7 +622,7 @@ public class NativeImageGenerator {
     protected void doRun(Map<ResolvedJavaMethod, CEntryPointData> entryPoints, JavaMainSupport javaMainSupport, String imageName, NativeImageKind k, SubstitutionProcessor harnessSubstitutions) {
         List<HostedMethod> hostedEntryPoints = new ArrayList<>();
 
-        OptionValues options = HostedOptionValues.singleton();
+        OptionValues options = HostedOptionValues.singleton().get();
 
         try (DebugContext debug = new Builder(options, new GraalDebugHandlersFactory(GuestAccess.get().getSnippetReflection())).build();
                         DebugCloseable _ = () -> featureHandler.forEachFeature(Feature::cleanup)) {
@@ -805,7 +805,7 @@ public class NativeImageGenerator {
                  * not is an implementation detail of the image.
                  */
                 Path tmpDir = ImageSingletons.lookup(TemporaryBuildDirectoryProvider.class).getTemporaryBuildDirectory();
-                LinkerInvocation inv = image.write(debug, generatedFiles(HostedOptionValues.singleton()), tmpDir, imageName, beforeConfig);
+                LinkerInvocation inv = image.write(debug, generatedFiles(HostedOptionValues.singleton().get()), tmpDir, imageName, beforeConfig);
                 if (NativeImageOptions.ExitAfterRelocatableImageWrite.getValue()) {
                     return;
                 }
@@ -1658,7 +1658,7 @@ public class NativeImageGenerator {
 
     public static void registerReplacements(DebugContext debug, FeatureHandler featureHandler, RuntimeConfiguration runtimeConfig, Providers providers,
                     boolean hosted, boolean initForeignCalls, GraphEncoder encoder) {
-        OptionValues options = hosted ? HostedOptionValues.singleton() : RuntimeOptionValues.singleton().get();
+        OptionValues options = hosted ? HostedOptionValues.singleton().get() : RuntimeOptionValues.singleton().get();
 
         SubstrateForeignCallsProvider foreignCallsProvider = (SubstrateForeignCallsProvider) providers.getForeignCalls();
         if (initForeignCalls) {
@@ -1709,7 +1709,7 @@ public class NativeImageGenerator {
         SubstrateBackend backend = runtimeConfig.getBackendForNormalMethod();
         Suites suites;
         if (hosted) {
-            suites = GraalConfiguration.hostedInstance().createSuites(optionsToUse == null ? HostedOptionValues.singleton() : optionsToUse, hosted, ConfigurationValues.getTarget().arch);
+            suites = GraalConfiguration.hostedInstance().createSuites(optionsToUse == null ? HostedOptionValues.singleton().get() : optionsToUse, hosted, ConfigurationValues.getTarget().arch);
         } else {
             suites = GraalConfiguration.runtimeInstance().createSuites(optionsToUse == null ? RuntimeOptionValues.singleton().get() : optionsToUse, hosted, ConfigurationValues.getTarget().arch);
         }
@@ -1724,7 +1724,7 @@ public class NativeImageGenerator {
         SubstrateBackend backend = runtimeConfig.getBackendForNormalMethod();
         Suites suites;
         if (hosted) {
-            suites = GraalConfiguration.hostedInstance().createFirstTierSuites(HostedOptionValues.singleton(), hosted, ConfigurationValues.getTarget().arch);
+            suites = GraalConfiguration.hostedInstance().createFirstTierSuites(HostedOptionValues.singleton().get(), hosted, ConfigurationValues.getTarget().arch);
         } else {
             suites = GraalConfiguration.runtimeInstance().createFirstTierSuites(RuntimeOptionValues.singleton().get(), hosted, ConfigurationValues.getTarget().arch);
         }
@@ -1740,7 +1740,7 @@ public class NativeImageGenerator {
         SubstrateBackend backend = runtimeConfig.getBackendForNormalMethod();
         Suites suites;
         if (hosted) {
-            suites = GraalConfiguration.hostedInstance().createFallbackSuites(HostedOptionValues.singleton(), hosted, ConfigurationValues.getTarget().arch);
+            suites = GraalConfiguration.hostedInstance().createFallbackSuites(HostedOptionValues.singleton().get(), hosted, ConfigurationValues.getTarget().arch);
         } else {
             suites = GraalConfiguration.runtimeInstance().createFallbackSuites(RuntimeOptionValues.singleton().get(), hosted, ConfigurationValues.getTarget().arch);
         }
@@ -1818,7 +1818,7 @@ public class NativeImageGenerator {
 
         featureHandler.forEachGraalFeature(feature -> feature.registerGraalPhases(runtimeCallProviders, suites, hosted, fallback));
 
-        if (hosted && ImageBuildStatistics.Options.CollectImageBuildStatistics.getValue(HostedOptionValues.singleton())) {
+        if (hosted && ImageBuildStatistics.Options.CollectImageBuildStatistics.getValue(HostedOptionValues.singleton().get())) {
             highTier.prependPhase(new ImageBuildStatisticsCounterPhase(ImageBuildStatistics.CheckCountLocation.BEFORE_HIGH_TIER));
             highTier.prependPhase(CanonicalizerPhase.create());
             highTier.findLastPhase().add(CanonicalizerPhase.create());
@@ -1856,7 +1856,7 @@ public class NativeImageGenerator {
         LIRSuites lirSuites;
 
         if (hosted) {
-            lirSuites = GraalConfiguration.hostedInstance().createLIRSuites(HostedOptionValues.singleton());
+            lirSuites = GraalConfiguration.hostedInstance().createLIRSuites(HostedOptionValues.singleton().get());
             /*
              * Even though this is a verification phase, we want it enabled all the time and not
              * just when assertions are enabled.
@@ -1875,7 +1875,7 @@ public class NativeImageGenerator {
     public static LIRSuites createFirstTierLIRSuites(FeatureHandler featureHandler, Providers providers, boolean hosted) {
         LIRSuites lirSuites;
         if (hosted) {
-            lirSuites = GraalConfiguration.hostedInstance().createFirstTierLIRSuites(HostedOptionValues.singleton());
+            lirSuites = GraalConfiguration.hostedInstance().createFirstTierLIRSuites(HostedOptionValues.singleton().get());
             lirSuites.getFinalCodeAnalysisStage().appendPhase(new VerifyCFunctionReferenceMapsLIRPhase());
         } else {
             lirSuites = GraalConfiguration.runtimeInstance().createFirstTierLIRSuites(RuntimeOptionValues.singleton().get());
@@ -1890,7 +1890,7 @@ public class NativeImageGenerator {
     public static LIRSuites createFallbackLIRSuites(FeatureHandler featureHandler, Providers providers, boolean hosted) {
         LIRSuites lirSuites;
         if (hosted) {
-            lirSuites = GraalConfiguration.hostedInstance().createFallbackLIRSuites(HostedOptionValues.singleton());
+            lirSuites = GraalConfiguration.hostedInstance().createFallbackLIRSuites(HostedOptionValues.singleton().get());
             lirSuites.getFinalCodeAnalysisStage().appendPhase(new VerifyCFunctionReferenceMapsLIRPhase());
         } else {
             lirSuites = GraalConfiguration.runtimeInstance().createFallbackLIRSuites(RuntimeOptionValues.singleton().get());
@@ -2079,7 +2079,7 @@ public class NativeImageGenerator {
     }
 
     public static Path getOutputDirectory() {
-        return NativeImageGenerator.generatedFiles(HostedOptionValues.singleton());
+        return NativeImageGenerator.generatedFiles(HostedOptionValues.singleton().get());
     }
 
     public static Path generatedFiles(OptionValues optionValues) {

@@ -73,7 +73,7 @@ public class HostedOptionKey<T> extends OptionKey<T> implements SubstrateOptionK
     @GuestFold
     public T getValue() {
         VMError.guarantee(!ImageInfo.inImageRuntimeCode(), "Must not be called at run time");
-        return getValue(HostedOptionValues.singleton());
+        return getValue(HostedOptionValues.singleton().get());
     }
 
     /**
@@ -83,7 +83,7 @@ public class HostedOptionKey<T> extends OptionKey<T> implements SubstrateOptionK
     @GuestFold
     public boolean hasBeenSet() {
         VMError.guarantee(!ImageInfo.inImageRuntimeCode(), "Must not be called at run time");
-        return hasBeenSet(HostedOptionValues.singleton());
+        return hasBeenSet(HostedOptionValues.singleton().get());
     }
 
     /**

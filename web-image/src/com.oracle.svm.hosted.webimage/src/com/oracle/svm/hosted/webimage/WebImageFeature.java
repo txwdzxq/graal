@@ -238,7 +238,7 @@ public class WebImageFeature implements InternalFeature {
     public void duringSetup(DuringSetupAccess a) {
         FeatureImpl.DuringSetupAccessImpl access = (FeatureImpl.DuringSetupAccessImpl) a;
 
-        String entryPointConfig = WebImageOptions.EntryPointsConfig.getValue(HostedOptionValues.singleton());
+        String entryPointConfig = WebImageOptions.EntryPointsConfig.getValue(HostedOptionValues.singleton().get());
         if (entryPointConfig != null) {
             AccessConditionResolver<AccessCondition> conditionResolver = new NativeImageConditionResolver(access.getImageClassLoader(),
                             ClassInitializationSupport.singleton());
@@ -282,7 +282,7 @@ public class WebImageFeature implements InternalFeature {
         if (WebImageOptions.supportRuntime(WebImageOptions.VMType.Browser)) {
             ImageSingletons.add(WebImageHttpHandlerSubstitutions.class, new WebImageHttpHandlerSubstitutions());
         }
-        if (WebImageOptions.UseRandomForTempFiles.getValue(HostedOptionValues.singleton())) {
+        if (WebImageOptions.UseRandomForTempFiles.getValue(HostedOptionValues.singleton().get())) {
             ImageSingletons.add(WebImageTempFileHelperSupport.class, new WebImageTempFileHelperSupportWithoutSecureRandom());
         } else {
             ImageSingletons.add(WebImageTempFileHelperSupport.class, new WebImageTempFileHelperSupport());

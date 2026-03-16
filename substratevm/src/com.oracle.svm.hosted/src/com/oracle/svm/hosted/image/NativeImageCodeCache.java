@@ -281,7 +281,7 @@ public abstract class NativeImageCodeCache {
             }
             watchdog.recordActivity();
         }
-        dataSection.close(HostedOptionValues.singleton(), 1);
+        dataSection.close(HostedOptionValues.singleton().get(), 1);
     }
 
     /** Get constants embedded in the data section and compilation results. */

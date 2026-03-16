@@ -51,7 +51,7 @@ public final class HostedOptionValues {
         return optionValues;
     }
 
-    public static OptionValues singleton() {
-        return ImageSingletons.lookup(HostedOptionValues.class).optionValues;
+    public static HostedOptionValues singleton() {
+        return ImageSingletons.lookup(HostedOptionValues.class);
     }
 }

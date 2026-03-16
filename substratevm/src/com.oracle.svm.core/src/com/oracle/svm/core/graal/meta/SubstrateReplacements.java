@@ -340,7 +340,7 @@ public class SubstrateReplacements extends ReplacementsImpl {
         Map<ResolvedJavaMethod, InvocationPlugin> result = new HashMap<>(builder.delayedInvocationPluginMethods.size());
         for (ResolvedJavaMethod method : builder.delayedInvocationPluginMethods) {
             ResolvedJavaMethod replacedMethod = (ResolvedJavaMethod) objectReplacer.apply(method);
-            InvocationPlugin plugin = plugins.getInvocationPlugins().lookupInvocation(replacedMethod, HostedOptionValues.singleton());
+            InvocationPlugin plugin = plugins.getInvocationPlugins().lookupInvocation(replacedMethod, HostedOptionValues.singleton().get());
             assert plugin != null : "expected invocation plugin for " + replacedMethod;
             result.put(replacedMethod, plugin);
         }
