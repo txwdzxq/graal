@@ -23,6 +23,7 @@
 # questions.
 #
 
+import filecmp
 import os
 import pathlib
 import platform
@@ -120,6 +121,47 @@ def svmbuild_dir(suite=None):
         suite = svm_suite()
     out_root = suite.get_output_root()
     return join(out_root, 'svmbuild')
+
+
+def _abort_if_skills_are_not_synchronized():
+    repo_root = pathlib.Path(suite.dir).parent.resolve()
+    substrate_skills_dir = pathlib.Path(os.path.join(suite.dir, 'skills')).resolve()
+    docs_skills_dir = pathlib.Path(os.path.join(suite.dir, '..', 'docs', 'reference-manual', 'native-image', 'assets', 'skills')).resolve()
+
+    missing_dirs = [str(path) for path in (substrate_skills_dir, docs_skills_dir) if not path.is_dir()]
+    if missing_dirs:
+        mx.abort('Could not verify synchronized skills directories:\n  ' + '\n  '.join(missing_dirs))
+
+    def _relative_files(root):
+        return {path.relative_to(root).as_posix() for path in root.rglob('*') if path.is_file()}
+
+    substrate_files = _relative_files(substrate_skills_dir)
+    docs_files = _relative_files(docs_skills_dir)
+
+    only_in_substrate = sorted(substrate_files - docs_files)
+    only_in_docs = sorted(docs_files - substrate_files)
+    mismatched_files = sorted(
+        rel_path for rel_path in substrate_files & docs_files
+        if not filecmp.cmp(substrate_skills_dir / rel_path, docs_skills_dir / rel_path, shallow=False)
+    )
+
+    if only_in_substrate or only_in_docs or mismatched_files:
+        substrate_skills_rel = os.path.relpath(substrate_skills_dir, repo_root)
+        docs_skills_rel = os.path.relpath(docs_skills_dir, repo_root)
+        details = []
+        if only_in_substrate:
+            details.append(f'Only in {substrate_skills_rel}:\n  ' + '\n  '.join(only_in_substrate))
+        if only_in_docs:
+            details.append(f'Only in {docs_skills_rel}:\n  ' + '\n  '.join(only_in_docs))
+        if mismatched_files:
+            details.append('Different file contents:\n  ' + '\n  '.join(mismatched_files))
+        mx.abort(
+            'The skills shipped with Graal must stay synchronized with the Native Image reference manual assets.\n'
+            'Sync these directories:\n'
+            f'  {substrate_skills_dir}\n'
+            f'  {docs_skills_dir}\n'
+            + '\n'.join(details)
+        )
 
 def is_musl_supported():
     jdk = get_jdk()
@@ -546,6 +588,10 @@ def svm_gate_body(args, tasks):
 
             schemas_dir = os.path.join(suite.dir, '..', 'docs', 'reference-manual', 'native-image', 'assets')
             mx_sdk.validate_dir_files_with_file_schema_pairs(schemas_dir, svmbuild_dir(), json_and_schema_file_pairs)
+
+    with Task('Validate synchronized skills assets', tasks, tags=[GraalTags.helloworld]) as t:
+        if t:
+            _abort_if_skills_are_not_synchronized()
 
     with Task('java agent tests', tasks, tags=[GraalTags.java_agent]) as t:
         if t:
@@ -3019,6 +3065,5 @@ class StandalonePointstoUnittestsConfig(mx_unittest.MxUnittestConfig):
         mainClassArgs.extend(['-JUnitOpenPackages', 'org.graalvm.nativeimage/*=ALL-UNNAMED'])
 
         return (vmArgs, mainClass, mainClassArgs)
-
 
 mx_unittest.register_unittest_config(StandalonePointstoUnittestsConfig())
