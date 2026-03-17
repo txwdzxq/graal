@@ -173,6 +173,15 @@ final class PolyglotEngineOptions {
                     "Combine with engine.BytecodeMethodFilter and engine.BytecodeLanguageFilter to limit output.")//
     public static final OptionKey<Boolean> TraceBytecode = new OptionKey<>(false);
 
+    @Option(category = OptionCategory.EXPERT, usageSyntax = "true|false|<kind>[,<kind>...]", stability = OptionStability.STABLE, help = "" + //
+                    "Trace bytecode interpreter transitions (for example uncached-to-cached updates, source materialization, and deoptimization transfers). " + //
+                    "Set to 'true' to trace all transitions, or to a comma-separated subset of transition kinds. " + //
+                    "Available kinds are transferToInterpreter, bytecode, source, tier, tag, instrumentation. " + //
+                    "The 'bytecode' kind traces all bytecode updates; tier, tag, and instrumentation select subsets of bytecode updates. " + //
+                    "Supported only by Bytecode DSL interpreters. " + //
+                    "Combine with engine.BytecodeMethodFilter and engine.BytecodeLanguageFilter to limit output.")//
+    public static final OptionKey<List<BytecodeTransitionKind>> TraceBytecodeTransition = new OptionKey<>(null, createBytecodeTransitionType());
+
     @Option(category = OptionCategory.EXPERT, usageSyntax = "true|false|<group>[,<group>...]", stability = OptionStability.STABLE, help = "" + //
                     "Collect and print a histogram of executed bytecode opcodes. " + //
                     "Set to 'true' to enable basic mode or use a comma separated list to configure grouping (e.g. source,root)." + //
@@ -193,14 +202,14 @@ final class PolyglotEngineOptions {
                     "Provide a comma-separated list of includes, or excludes prefixed with '~'. " + //
                     "Empty means no restriction. " + //
                     "Whitespace around commas is ignored. " + //
-                    "Applies to engine.TraceBytecode and engine.BytecodeHistogram.") //
+                    "Applies to engine.TraceBytecode, engine.TraceBytecodeTransition, and engine.BytecodeHistogram.") //
     public static final OptionKey<String> BytecodeMethodFilter = new OptionKey<>("");
 
     @Option(category = OptionCategory.EXPERT, stability = OptionStability.STABLE, help = "" + //
                     "Limit tracing and statistics to specific language IDs. " + //
                     "Provide a comma-separated list of language IDs, for example: js, python. " + //
                     "Empty means that all languages are included. " + //
-                    "Applies to engine.TraceBytecode and engine.BytecodeHistogram.") //
+                    "Applies to engine.TraceBytecode, engine.TraceBytecodeTransition, and engine.BytecodeHistogram.") //
     public static final OptionKey<String> BytecodeLanguageFilter = new OptionKey<>("");
 
     enum StaticObjectStorageStrategies {
@@ -253,6 +262,15 @@ final class PolyglotEngineOptions {
         thread,
     }
 
+    enum BytecodeTransitionKind {
+        transferToInterpreter,
+        bytecode,
+        source,
+        tier,
+        tag,
+        instrumentation,
+    }
+
     private static OptionType<List<BytecodeHistogramGrouping>> createBytecodeHistogramType() {
         return new OptionType<>("histogram", new Function<String, List<BytecodeHistogramGrouping>>() {
 
@@ -269,6 +287,31 @@ final class PolyglotEngineOptions {
                     List<BytecodeHistogramGrouping> result = new ArrayList<>();
                     for (String s : t.split(",")) {
                         result.add(TYPE.convert(s));
+                    }
+                    return List.copyOf(result);
+                }
+            }
+
+        });
+    }
+
+    private static OptionType<List<BytecodeTransitionKind>> createBytecodeTransitionType() {
+        return new OptionType<>("transition", new Function<String, List<BytecodeTransitionKind>>() {
+
+            private static final OptionType<BytecodeTransitionKind> TYPE = OptionType.defaultType(BytecodeTransitionKind.class);
+
+            @SuppressWarnings("ResultOfMethodCallIgnored")
+            @Override
+            public List<BytecodeTransitionKind> apply(String t) {
+                String value = t == null ? null : t.trim();
+                if (value == null || value.isBlank() || "false".equals(value)) {
+                    return null;
+                } else if ("true".equals(value)) {
+                    return List.of();
+                } else {
+                    List<BytecodeTransitionKind> result = new ArrayList<>();
+                    for (String s : value.split(",")) {
+                        result.add(TYPE.convert(s.trim()));
                     }
                     return List.copyOf(result);
                 }

@@ -149,7 +149,7 @@ import com.oracle.truffle.api.nodes.RootNode;
  */
 public abstract class BytecodeDescriptor<R extends RootNode & BytecodeRootNode, L extends TruffleLanguage<?>, B extends BytecodeBuilder> {
 
-    private static volatile boolean engineDescriptorLookupEnabled;
+    static volatile boolean engineDescriptorLookupEnabled;
     private volatile boolean descriptorLookupEnabled;
 
     protected BytecodeDescriptor(Object token) {
@@ -444,6 +444,20 @@ public abstract class BytecodeDescriptor<R extends RootNode & BytecodeRootNode, 
             b.append(v);
         }
         return b.toString();
+    }
+
+    /**
+     * Internal method called by generated code to notify the engine of a transition. This method
+     * unconditionally routes the transition to the engine-level logger and cannot be overridden by
+     * bytecode interpreter implementations.
+     *
+     * @since 25.1
+     */
+    @TruffleBoundary
+    protected final void onTransition(TruffleLanguage<?> language, R rootNode, BytecodeTransition transition) {
+        if (isDescriptorLookupEnabled(language)) {
+            BytecodeEngineData.get(language).traceTransition(rootNode, transition);
+        }
     }
 
     /**

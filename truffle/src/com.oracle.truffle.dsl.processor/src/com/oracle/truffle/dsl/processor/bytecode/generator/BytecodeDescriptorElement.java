@@ -91,6 +91,7 @@ final class BytecodeDescriptorElement extends AbstractElement {
         this.add(createNewConfigBuilder());
 
         this.add(createPrepareForCall());
+        this.add(createOnTransition());
 
         this.add(createAddInstructionTracer());
         this.add(createRemoveInstructionTracer());
@@ -107,6 +108,16 @@ final class BytecodeDescriptorElement extends AbstractElement {
         ex.addParameter(new CodeVariableElement(parent.asType(), "rootNode"));
         CodeTreeBuilder b = ex.createBuilder();
         b.statement("onPrepareForLoad(language, rootNode)");
+        return ex;
+    }
+
+    private CodeExecutableElement createOnTransition() {
+        CodeExecutableElement ex = new CodeExecutableElement(Set.of(PRIVATE), type(void.class), "onTransitionImpl");
+        ex.addParameter(new CodeVariableElement(parent.model.languageClass, "language"));
+        ex.addParameter(new CodeVariableElement(parent.asType(), "rootNode"));
+        ex.addParameter(new CodeVariableElement(types.BytecodeTransition, "transition"));
+        CodeTreeBuilder b = ex.createBuilder();
+        b.statement("onTransition(language, rootNode, transition)");
         return ex;
     }
 

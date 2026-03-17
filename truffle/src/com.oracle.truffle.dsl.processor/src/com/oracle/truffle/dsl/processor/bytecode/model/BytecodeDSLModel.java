@@ -181,6 +181,7 @@ public class BytecodeDSLModel extends Template implements PrettyPrintable {
     public ExecutableElement interceptControlFlowException;
     public ExecutableElement interceptInternalException;
     public ExecutableElement interceptTruffleException;
+    public ExecutableElement traceTransition;
 
     public TypeSystemData typeSystem;
     public Set<TypeMirror> boxingEliminatedTypes = Set.of();
