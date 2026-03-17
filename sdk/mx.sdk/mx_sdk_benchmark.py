@@ -3872,19 +3872,22 @@ class RenaissanceBenchmarkSuite(mx_benchmark.JavaBenchmarkSuite, mx_benchmark.Av
 
     def renaissanceIterations(self):
         benchmarks = _renaissanceConfig.copy()
+        version = self.version()
 
-        if mx.get_jdk().javaCompliance >= '21' and self.version() in ["0.14.1"]:
-            del benchmarks["als"]
-            del benchmarks["chi-square"]
-            del benchmarks["dec-tree"]
-            del benchmarks["gauss-mix"]
-            del benchmarks["log-regression"]
-            del benchmarks["movie-lens"]
-            del benchmarks["naive-bayes"]
-            del benchmarks["page-rank"]
-            del benchmarks["neo4j-analytics"]
+        if version in ["0.14.1"]:
+            if mx.get_jdk().javaCompliance >= '21':
+                del benchmarks["als"]
+                del benchmarks["chi-square"]
+                del benchmarks["dec-tree"]
+                del benchmarks["gauss-mix"]
+                del benchmarks["log-regression"]
+                del benchmarks["movie-lens"]
+                del benchmarks["naive-bayes"]
+                del benchmarks["page-rank"]
+                del benchmarks["neo4j-analytics"]
+            return benchmarks
 
-        if self.version() in ["0.15.0"]:
+        if version in ["0.15.0"]:
             del benchmarks["chi-square"]
             del benchmarks["gauss-mix"]
             del benchmarks["page-rank"]
@@ -3896,14 +3899,22 @@ class RenaissanceBenchmarkSuite(mx_benchmark.JavaBenchmarkSuite, mx_benchmark.Av
                 del benchmarks["dec-tree"]
                 del benchmarks["log-regression"]
                 del benchmarks["naive-bayes"]
+            return benchmarks
 
-        if self.version() in ["0.16.0"]:
-            del benchmarks["chi-square"]
-            del benchmarks["gauss-mix"]
+        if version in ["0.16.0", "0.16.1"]:
             del benchmarks["page-rank"]
+            del benchmarks["neo4j-analytics"]
+            del benchmarks["naive-bayes"]
             del benchmarks["movie-lens"]
+            del benchmarks["log-regression"]
+            del benchmarks["gauss-mix"]
+            del benchmarks["dec-tree"]
+            del benchmarks["db-shootout"]
+            del benchmarks["chi-square"]
+            del benchmarks["als"]
+            return benchmarks
 
-        return benchmarks
+        raise ValueError(f"Unhandled Renaissance version for native-image benchmark filtering: {version}")
 
     def completeBenchmarkList(self, bmSuiteArgs):
         return sorted(bench for bench in _renaissanceConfig)
