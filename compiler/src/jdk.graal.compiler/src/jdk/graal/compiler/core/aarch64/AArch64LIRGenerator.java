@@ -590,15 +590,8 @@ public abstract class AArch64LIRGenerator extends LIRGenerator {
     public Variable emitArrayCompareTo(Stride strideA, Stride strideB, EnumSet<?> runtimeCheckedCPUFeatures,
                     Value arrayA, Value lengthA, Value arrayB, Value lengthB) {
         LIRKind resultKind = LIRKind.value(AArch64Kind.DWORD);
-        // DMS TODO: check calling conversion and registers used
-        RegisterValue res = AArch64.r0.asValue(resultKind);
-        RegisterValue cntA = AArch64.r1.asValue(lengthA.getValueKind());
-        RegisterValue cntB = AArch64.r2.asValue(lengthB.getValueKind());
-        emitMove(cntA, lengthA);
-        emitMove(cntB, lengthB);
-        append(new AArch64ArrayCompareToOp(this, strideA, strideB, res, arrayA, cntA, arrayB, cntB));
         Variable result = newVariable(resultKind);
-        emitMove(result, res);
+        append(new AArch64ArrayCompareToOp(this, strideA, strideB, result, asAllocatable(arrayA), asAllocatable(lengthA), asAllocatable(arrayB), asAllocatable(lengthB)));
         return result;
     }
 
@@ -975,11 +968,7 @@ public abstract class AArch64LIRGenerator extends LIRGenerator {
     }
 
     protected final void emitZeroMemory(Value address, Value length, boolean isAligned, boolean useDcZva, int zvaLength) {
-        RegisterValue regAddress = AArch64.r0.asValue(address.getValueKind());
-        RegisterValue regLength = AArch64.r1.asValue(length.getValueKind());
-        emitMove(regAddress, address);
-        emitMove(regLength, length);
-        append(new AArch64ZeroMemoryOp(regAddress, regLength, isAligned, useDcZva, zvaLength));
+        append(new AArch64ZeroMemoryOp(asAllocatable(address), asAllocatable(length), isAligned, useDcZva, zvaLength));
     }
 
     public boolean supportsCPUFeature(AArch64.CPUFeature feature) {

@@ -25,15 +25,6 @@
 
 package jdk.graal.compiler.core.amd64;
 
-import static jdk.vm.ci.amd64.AMD64.rax;
-import static jdk.vm.ci.amd64.AMD64.rbx;
-import static jdk.vm.ci.amd64.AMD64.r8;
-import static jdk.vm.ci.amd64.AMD64.r9;
-import static jdk.vm.ci.amd64.AMD64.rcx;
-import static jdk.vm.ci.amd64.AMD64.rdi;
-import static jdk.vm.ci.amd64.AMD64.rdx;
-import static jdk.vm.ci.amd64.AMD64.rsi;
-
 import static jdk.graal.compiler.asm.amd64.AMD64BaseAssembler.OperandSize.BYTE;
 import static jdk.graal.compiler.asm.amd64.AMD64BaseAssembler.OperandSize.DWORD;
 import static jdk.graal.compiler.asm.amd64.AMD64BaseAssembler.OperandSize.PD;
@@ -46,8 +37,17 @@ import static jdk.graal.compiler.lir.LIRValueUtil.asJavaConstant;
 import static jdk.graal.compiler.lir.LIRValueUtil.isConstantValue;
 import static jdk.graal.compiler.lir.LIRValueUtil.isIntConstant;
 import static jdk.graal.compiler.lir.LIRValueUtil.isJavaConstant;
+import static jdk.vm.ci.amd64.AMD64.r8;
+import static jdk.vm.ci.amd64.AMD64.r9;
+import static jdk.vm.ci.amd64.AMD64.rax;
+import static jdk.vm.ci.amd64.AMD64.rbx;
+import static jdk.vm.ci.amd64.AMD64.rcx;
+import static jdk.vm.ci.amd64.AMD64.rdi;
+import static jdk.vm.ci.amd64.AMD64.rdx;
+import static jdk.vm.ci.amd64.AMD64.rsi;
 import static jdk.vm.ci.code.ValueUtil.asRegister;
 import static jdk.vm.ci.code.ValueUtil.isAllocatableValue;
+import static jdk.vm.ci.code.ValueUtil.isIllegal;
 import static jdk.vm.ci.code.ValueUtil.isRegister;
 
 import java.util.EnumSet;
@@ -60,6 +60,7 @@ import jdk.graal.compiler.asm.amd64.AMD64Assembler.SSEOp;
 import jdk.graal.compiler.asm.amd64.AMD64Assembler.VexRMOp;
 import jdk.graal.compiler.asm.amd64.AMD64Assembler.VexRROp;
 import jdk.graal.compiler.asm.amd64.AMD64BaseAssembler.OperandSize;
+import jdk.graal.compiler.asm.amd64.AMD64MacroAssembler;
 import jdk.graal.compiler.asm.amd64.AVXKind;
 import jdk.graal.compiler.asm.amd64.AVXKind.AVXSize;
 import jdk.graal.compiler.core.common.LIRKind;
@@ -91,6 +92,8 @@ import jdk.graal.compiler.lir.amd64.AMD64ArrayCopyWithConversionsOp;
 import jdk.graal.compiler.lir.amd64.AMD64ArrayEqualsOp;
 import jdk.graal.compiler.lir.amd64.AMD64ArrayIndexOfOp;
 import jdk.graal.compiler.lir.amd64.AMD64ArrayRegionCompareToOp;
+import jdk.graal.compiler.lir.amd64.AMD64Base64DecodeOp;
+import jdk.graal.compiler.lir.amd64.AMD64Base64EncodeOp;
 import jdk.graal.compiler.lir.amd64.AMD64BigIntegerMulAddOp;
 import jdk.graal.compiler.lir.amd64.AMD64BigIntegerMultiplyToLenOp;
 import jdk.graal.compiler.lir.amd64.AMD64BigIntegerSquareToLenOp;
@@ -119,8 +122,6 @@ import jdk.graal.compiler.lir.amd64.AMD64ControlFlow.StrategySwitchOp;
 import jdk.graal.compiler.lir.amd64.AMD64ControlFlow.TestBranchOp;
 import jdk.graal.compiler.lir.amd64.AMD64ControlFlow.TestByteBranchOp;
 import jdk.graal.compiler.lir.amd64.AMD64ControlFlow.TestConstBranchOp;
-import jdk.graal.compiler.lir.amd64.AMD64Base64DecodeOp;
-import jdk.graal.compiler.lir.amd64.AMD64Base64EncodeOp;
 import jdk.graal.compiler.lir.amd64.AMD64CountPositivesOp;
 import jdk.graal.compiler.lir.amd64.AMD64CounterModeAESCryptOp;
 import jdk.graal.compiler.lir.amd64.AMD64ElectronicCodeBookAESDecryptOp;
@@ -305,6 +306,12 @@ public abstract class AMD64LIRGenerator extends LIRGenerator {
                 return result;
             }
         }
+    }
+
+    private AllocatableValue emitConvertNullToZero(Value value) {
+        AllocatableValue result = newVariable(value.getValueKind());
+        emitConvertNullToZero(result, value);
+        return result;
     }
 
     @Override
@@ -760,9 +767,11 @@ public abstract class AMD64LIRGenerator extends LIRGenerator {
                     Value arrayA, Value lengthA,
                     Value arrayB, Value lengthB) {
         LIRKind resultKind = LIRKind.value(AMD64Kind.DWORD);
+        // AMD64ArrayCompareToOp emits pcmpestri, which implicitly uses rcx, rdx, and rax.
+        // Pre-allocate the lengths and result into those fixed registers so the op can reuse them.
         RegisterValue raxRes = rax.asValue(resultKind);
-        RegisterValue cntA = AMD64.rcx.asValue(lengthA.getValueKind());
-        RegisterValue cntB = AMD64.rdx.asValue(lengthB.getValueKind());
+        RegisterValue cntA = rcx.asValue(lengthA.getValueKind());
+        RegisterValue cntB = rdx.asValue(lengthB.getValueKind());
         emitMove(cntA, lengthA);
         emitMove(cntB, lengthB);
         append(new AMD64ArrayCompareToOp(this, getAVX3Threshold(), strideA, strideB, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
@@ -776,9 +785,9 @@ public abstract class AMD64LIRGenerator extends LIRGenerator {
     @Override
     public Variable emitArrayRegionCompareTo(EnumSet<?> runtimeCheckedCPUFeatures, Value arrayA, Value offsetA, Value arrayB, Value offsetB, Value length, Value dynamicStrides) {
         Variable result = newVariable(LIRKind.value(AMD64Kind.DWORD));
-        append(AMD64ArrayRegionCompareToOp.movParamsAndCreate(this, null, null, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
-                        result, arrayA, offsetA, arrayB, offsetB, length, dynamicStrides,
-                        ZERO_EXTEND));
+        append(new AMD64ArrayRegionCompareToOp(this, null, null, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
+                        result, emitConvertNullToZero(arrayA), asAllocatable(offsetA), emitConvertNullToZero(arrayB), asAllocatable(offsetB),
+                        asAllocatable(length), dynamicStrides == null ? Value.ILLEGAL : asAllocatable(dynamicStrides), ZERO_EXTEND));
         return result;
     }
 
@@ -786,9 +795,9 @@ public abstract class AMD64LIRGenerator extends LIRGenerator {
     @Override
     public Variable emitArrayRegionCompareTo(Stride strideA, Stride strideB, EnumSet<?> runtimeCheckedCPUFeatures, Value arrayA, Value offsetA, Value arrayB, Value offsetB, Value length) {
         Variable result = newVariable(LIRKind.value(AMD64Kind.DWORD));
-        append(AMD64ArrayRegionCompareToOp.movParamsAndCreate(this, strideA, strideB, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
-                        result, arrayA, offsetA, arrayB, offsetB, length, null,
-                        ZERO_EXTEND));
+        append(new AMD64ArrayRegionCompareToOp(this, strideA, strideB, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
+                        result, emitConvertNullToZero(arrayA), asAllocatable(offsetA), emitConvertNullToZero(arrayB), asAllocatable(offsetB),
+                        asAllocatable(length), Value.ILLEGAL, ZERO_EXTEND));
         return result;
     }
 
@@ -796,7 +805,11 @@ public abstract class AMD64LIRGenerator extends LIRGenerator {
     @Override
     public Variable emitVectorizedMismatch(EnumSet<?> runtimeCheckedCPUFeatures, Value arrayA, Value arrayB, Value length, Value stride) {
         Variable result = newVariable(LIRKind.value(AMD64Kind.DWORD));
-        append(AMD64VectorizedMismatchOp.movParamsAndCreate(this, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures, result, arrayA, arrayB, length, stride));
+        // Only stride stays fixed because shlq(length) takes its shift count from cl/rcx. The
+        // array pointers and length remain allocatable @UseKill operands.
+        RegisterValue regStride = rcx.asValue(stride.getValueKind());
+        emitMove(regStride, stride);
+        append(new AMD64VectorizedMismatchOp(this, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures, result, asAllocatable(arrayA), asAllocatable(arrayB), asAllocatable(length), regStride));
         return result;
     }
 
@@ -817,10 +830,10 @@ public abstract class AMD64LIRGenerator extends LIRGenerator {
                     Value length) {
         Variable result = newVariable(LIRKind.value(AMD64Kind.DWORD));
         Stride stride = Stride.fromJavaKind(commonElementKind);
-        append(AMD64ArrayEqualsOp.movParamsAndCreate(this, commonElementKind, stride, stride, stride,
-                        (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
-                        result, arrayA, offsetA, arrayB, offsetB, null, length, null,
-                        ZERO_EXTEND));
+        int constLength = isJavaConstant(length) ? asJavaConstant(length).asInt() : -1;
+        append(new AMD64ArrayEqualsOp(this, commonElementKind, stride, stride, stride, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
+                        result, emitConvertNullToZero(arrayA), asAllocatable(offsetA), emitConvertNullToZero(arrayB), asAllocatable(offsetB),
+                        Value.ILLEGAL, asAllocatable(length), Value.ILLEGAL, ZERO_EXTEND, constLength));
         return result;
     }
 
@@ -833,10 +846,10 @@ public abstract class AMD64LIRGenerator extends LIRGenerator {
                     Value arrayB, Value offsetB,
                     Value length) {
         Variable result = newVariable(LIRKind.value(AMD64Kind.DWORD));
-        append(AMD64ArrayEqualsOp.movParamsAndCreate(this, strideA, strideB, strideB,
-                        (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
-                        result, arrayA, offsetA, arrayB, offsetB, null, length,
-                        ZERO_EXTEND));
+        int constLength = isJavaConstant(length) ? asJavaConstant(length).asInt() : -1;
+        append(new AMD64ArrayEqualsOp(this, JavaKind.Byte, strideA, strideB, strideB, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
+                        result, emitConvertNullToZero(arrayA), asAllocatable(offsetA), emitConvertNullToZero(arrayB), asAllocatable(offsetB),
+                        Value.ILLEGAL, asAllocatable(length), Value.ILLEGAL, ZERO_EXTEND, constLength));
         return result;
     }
 
@@ -849,9 +862,10 @@ public abstract class AMD64LIRGenerator extends LIRGenerator {
                     Value length,
                     Value dynamicStrides) {
         Variable result = newVariable(LIRKind.value(AMD64Kind.DWORD));
-        append(AMD64ArrayEqualsOp.movParamsAndCreate(this, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
-                        result, arrayA, offsetA, arrayB, offsetB, null, length, dynamicStrides,
-                        ZERO_EXTEND));
+        int constLength = isJavaConstant(length) ? asJavaConstant(length).asInt() : -1;
+        append(new AMD64ArrayEqualsOp(this, JavaKind.Byte, null, null, null, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
+                        result, emitConvertNullToZero(arrayA), asAllocatable(offsetA), emitConvertNullToZero(arrayB), asAllocatable(offsetB),
+                        Value.ILLEGAL, asAllocatable(length), asAllocatable(dynamicStrides), ZERO_EXTEND, constLength));
         return result;
     }
 
@@ -867,10 +881,10 @@ public abstract class AMD64LIRGenerator extends LIRGenerator {
                     Value mask,
                     Value length) {
         Variable result = newVariable(LIRKind.value(AMD64Kind.DWORD));
-        append(AMD64ArrayEqualsOp.movParamsAndCreate(this, strideA, strideB, strideMask,
-                        (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
-                        result, arrayA, offsetA, arrayB, offsetB, mask, length,
-                        ZERO_EXTEND));
+        int constLength = isJavaConstant(length) ? asJavaConstant(length).asInt() : -1;
+        append(new AMD64ArrayEqualsOp(this, JavaKind.Byte, strideA, strideB, strideMask, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
+                        result, emitConvertNullToZero(arrayA), asAllocatable(offsetA), emitConvertNullToZero(arrayB), asAllocatable(offsetB),
+                        asAllocatable(mask), asAllocatable(length), Value.ILLEGAL, ZERO_EXTEND, constLength));
         return result;
     }
 
@@ -884,10 +898,10 @@ public abstract class AMD64LIRGenerator extends LIRGenerator {
                     Value length,
                     Value dynamicStrides) {
         Variable result = newVariable(LIRKind.value(AMD64Kind.DWORD));
-        append(AMD64ArrayEqualsOp.movParamsAndCreate(this,
-                        (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
-                        result, arrayA, offsetA, arrayB, offsetB, mask, length, dynamicStrides,
-                        ZERO_EXTEND));
+        int constLength = isJavaConstant(length) ? asJavaConstant(length).asInt() : -1;
+        append(new AMD64ArrayEqualsOp(this, JavaKind.Byte, null, null, null, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
+                        result, emitConvertNullToZero(arrayA), asAllocatable(offsetA), emitConvertNullToZero(arrayB), asAllocatable(offsetB),
+                        asAllocatable(mask), asAllocatable(length), asAllocatable(dynamicStrides), ZERO_EXTEND, constLength));
         return result;
     }
 
@@ -895,23 +909,29 @@ public abstract class AMD64LIRGenerator extends LIRGenerator {
     @Override
     public void emitArrayCopyWithConversion(Stride strideSrc, Stride strideDst, EnumSet<?> runtimeCheckedCPUFeatures,
                     Value arraySrc, Value offsetSrc, Value arrayDst, Value offsetDst, Value length) {
-        append(AMD64ArrayCopyWithConversionsOp.movParamsAndCreate(this, strideSrc, strideDst, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
-                        arraySrc, offsetSrc, arrayDst, offsetDst, length,
-                        ZERO_EXTEND));
+        append(new AMD64ArrayCopyWithConversionsOp(this, strideSrc, strideDst, false, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
+                        emitConvertNullToZero(arraySrc), asAllocatable(offsetSrc),
+                        emitConvertNullToZero(arrayDst), asAllocatable(offsetDst),
+                        asAllocatable(length), Value.ILLEGAL, AMD64MacroAssembler.ExtendMode.ZERO_EXTEND));
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public void emitArrayCopyWithConversion(EnumSet<?> runtimeCheckedCPUFeatures,
                     Value arraySrc, Value offsetSrc, Value arrayDst, Value offsetDst, Value length, Value dynamicStrides) {
-        append(AMD64ArrayCopyWithConversionsOp.movParamsAndCreate(this, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures, arraySrc, offsetSrc, arrayDst, offsetDst, length, dynamicStrides,
-                        ZERO_EXTEND));
+        append(new AMD64ArrayCopyWithConversionsOp(this, null, null, false, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
+                        emitConvertNullToZero(arraySrc), asAllocatable(offsetSrc),
+                        emitConvertNullToZero(arrayDst), asAllocatable(offsetDst),
+                        asAllocatable(length), isIllegal(dynamicStrides) ? Value.ILLEGAL : asAllocatable(dynamicStrides), AMD64MacroAssembler.ExtendMode.ZERO_EXTEND));
     }
 
     @SuppressWarnings("unchecked")
     @Override
     public void emitArrayCopyWithReverseBytes(Stride stride, EnumSet<?> runtimeCheckedCPUFeatures, Value arraySrc, Value offsetSrc, Value arrayDst, Value offsetDst, Value length) {
-        append(AMD64ArrayCopyWithConversionsOp.movParamsAndCreateReverseBytes(this, stride, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures, arraySrc, offsetSrc, arrayDst, offsetDst, length));
+        append(new AMD64ArrayCopyWithConversionsOp(this, stride, stride, true, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
+                        emitConvertNullToZero(arraySrc), asAllocatable(offsetSrc),
+                        emitConvertNullToZero(arrayDst), asAllocatable(offsetDst),
+                        asAllocatable(length), Value.ILLEGAL, AMD64MacroAssembler.ExtendMode.ZERO_EXTEND));
     }
 
     @SuppressWarnings("unchecked")
@@ -919,7 +939,12 @@ public abstract class AMD64LIRGenerator extends LIRGenerator {
     public Variable emitCalcStringAttributes(CalcStringAttributesEncoding encoding, EnumSet<?> runtimeCheckedCPUFeatures,
                     Value array, Value offset, Value length, boolean assumeValid) {
         Variable result = newVariable(LIRKind.value(encoding == CalcStringAttributesEncoding.UTF_8 || encoding.isUTF16() ? AMD64Kind.QWORD : AMD64Kind.DWORD));
-        append(AMD64CalcStringAttributesOp.movParamsAndCreate(this, encoding, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures, array, offset, length, result, assumeValid));
+        // AMD64CalcStringAttributesOp reuses offset as lengthTail, and the ordered 4-7 byte tail
+        // load consumes that value via the implicit rcx shift count.
+        RegisterValue regOffset = AMD64.rcx.asValue(offset.getValueKind());
+        emitMove(regOffset, offset);
+        append(new AMD64CalcStringAttributesOp(this, encoding, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
+                        emitConvertNullToZero(array), regOffset, asAllocatable(length), result, assumeValid));
         return result;
     }
 
@@ -1216,8 +1241,19 @@ public abstract class AMD64LIRGenerator extends LIRGenerator {
     public Variable emitArrayIndexOf(Stride stride, ArrayIndexOfVariant variant, EnumSet<?> runtimeCheckedCPUFeatures,
                     Value arrayPointer, Value arrayOffset, Value arrayLength, Value fromIndex, Value... searchValues) {
         Variable result = newVariable(LIRKind.value(AMD64Kind.DWORD));
-        append(AMD64ArrayIndexOfOp.movParamsAndCreate(stride, variant, this, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
-                        result, arrayPointer, arrayOffset, arrayLength, fromIndex, searchValues));
+        int nValues = searchValues.length;
+        int constOffset = isConstantValue(arrayOffset) && asConstantValue(arrayOffset).isJavaConstant() &&
+                        asConstantValue(arrayOffset).getJavaConstant().asLong() >= 0 &&
+                        asConstantValue(arrayOffset).getJavaConstant().asLong() <= Integer.MAX_VALUE
+                                        ? (int) asConstantValue(arrayOffset).getJavaConstant().asLong()
+                                        : -1;
+        Value searchValue1 = asAllocatable(searchValues[0]);
+        Value searchValue2 = nValues > 1 ? asAllocatable(searchValues[1]) : Value.ILLEGAL;
+        Value searchValue3 = nValues > 2 ? asAllocatable(searchValues[2]) : Value.ILLEGAL;
+        Value searchValue4 = nValues > 3 ? asAllocatable(searchValues[3]) : Value.ILLEGAL;
+        append(new AMD64ArrayIndexOfOp(stride, variant, constOffset, nValues, this, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures,
+                        result, emitConvertNullToZero(arrayPointer), asAllocatable(arrayOffset), asAllocatable(arrayLength), asAllocatable(fromIndex),
+                        searchValue1, searchValue2, searchValue3, searchValue4));
         return result;
     }
 
@@ -1269,7 +1305,8 @@ public abstract class AMD64LIRGenerator extends LIRGenerator {
     public Variable emitCodepointIndexToByteIndex(StringCodepointIndexToByteIndexNode.InputEncoding inputEncoding, EnumSet<?> runtimeCheckedCPUFeatures, Value array, Value offset, Value length,
                     Value index) {
         Variable result = newVariable(LIRKind.value(AMD64Kind.DWORD));
-        append(AMD64CodepointIndexToByteIndexOp.movParamsAndCreate(this, inputEncoding, (EnumSet<AMD64.CPUFeature>) runtimeCheckedCPUFeatures, array, offset, length, index, result));
+        append(new AMD64CodepointIndexToByteIndexOp(this, inputEncoding, (EnumSet<AMD64.CPUFeature>) runtimeCheckedCPUFeatures,
+                        emitConvertNullToZero(array), asAllocatable(offset), asAllocatable(length), asAllocatable(index), result));
         return result;
     }
 
