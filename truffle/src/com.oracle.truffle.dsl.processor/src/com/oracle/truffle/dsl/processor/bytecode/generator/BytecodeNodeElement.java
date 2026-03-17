@@ -1429,6 +1429,7 @@ final class BytecodeNodeElement extends AbstractElement {
 
         if (tier.isCached()) {
             b.startDeclaration(type(boolean.class), "wasCompiled").startStaticCall(types.CompilerDirectives, "inCompiledCode").end().end();
+            b.startStatement().startStaticCall(types.CompilerDirectives, "preserveFrameStateHere").end().end();
         }
 
         b.startDeclaration(types.FrameWithoutBoxing, "frame").startCall("ACCESS.uncheckedCast").string("frame_").typeLiteral(types.FrameWithoutBoxing).end().end();
