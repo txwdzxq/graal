@@ -47,7 +47,7 @@ import com.oracle.svm.core.c.struct.OffsetOf;
 import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.deopt.DeoptimizationSlotPacking;
 import com.oracle.svm.core.graal.code.InterpreterAccessStubData;
-import com.oracle.svm.core.graal.code.PreparedArgumentType;
+import com.oracle.svm.core.graal.code.PreparedSignature;
 import com.oracle.svm.core.graal.meta.SubstrateRegisterConfig;
 import com.oracle.svm.core.jdk.UninterruptibleUtils;
 import com.oracle.svm.core.meta.SharedMethod;
@@ -520,7 +520,7 @@ public class AMD64InterpreterStubs {
 
         @Override
         @Uninterruptible(reason = REASON_RAW_POINTER, callerMustBe = true)
-        public long getGpArgumentAt(PreparedArgumentType cArgType, Pointer data, int pos) {
+        public long getGpArgumentAt(int cArgType, Pointer data, int pos) {
             InterpreterDataAMD64 p = (InterpreterDataAMD64) data;
             return switch (pos) {
                 case 0 -> p.getAbiGp0();
@@ -530,20 +530,20 @@ public class AMD64InterpreterStubs {
                 case 4 -> p.getAbiGp4();
                 case 5 -> p.getAbiGp5();
                 default -> {
-                    VMError.guarantee(cArgType.isStackSlot());
+                    VMError.guarantee(PreparedSignature.isStackSlot(cArgType));
                     Pointer sp = Word.pointer(p.getAbiSpReg());
 
-                    yield sp.readLong(spAdjustOnCall(cArgType.getStackOffset()));
+                    yield sp.readLong(spAdjustOnCall(PreparedSignature.getStackOffset(cArgType)));
                 }
             };
         }
 
         @Override
         @Uninterruptible(reason = REASON_RAW_POINTER, callerMustBe = true)
-        public void setGpArgumentAt(PreparedArgumentType cArgType, Pointer data, int pos, long val, boolean incoming) {
+        public void setGpArgumentAt(int cArgType, Pointer data, int pos, long val, boolean incoming) {
             InterpreterDataAMD64 p = (InterpreterDataAMD64) data;
             if (pos >= 0 && pos <= 5) {
-                VMError.guarantee(cArgType.isRegister());
+                VMError.guarantee(PreparedSignature.isRegister(cArgType));
                 switch (pos) {
                     case 0 -> p.setAbiGp0(val);
                     case 1 -> p.setAbiGp1(val);
@@ -554,10 +554,10 @@ public class AMD64InterpreterStubs {
                 }
                 return;
             }
-            VMError.guarantee(cArgType.isStackSlot());
+            VMError.guarantee(PreparedSignature.isStackSlot(cArgType));
 
             Pointer sp = Word.pointer(p.getAbiSpReg());
-            int offset = cArgType.getStackOffset();
+            int offset = PreparedSignature.getStackOffset(cArgType);
             if (incoming) {
                 offset = spAdjustOnCall(offset);
             }
@@ -576,10 +576,10 @@ public class AMD64InterpreterStubs {
 
         @Override
         @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-        public long getFpArgumentAt(PreparedArgumentType cArgType, Pointer data, int pos) {
+        public long getFpArgumentAt(int cArgType, Pointer data, int pos) {
             InterpreterDataAMD64 p = (InterpreterDataAMD64) data;
             if (pos >= 0 && pos <= upperFpEnd()) {
-                VMError.guarantee(cArgType.isRegister());
+                VMError.guarantee(PreparedSignature.isRegister(cArgType));
                 switch (pos) {
                     case 0:
                         return p.getAbiFpArg0();
@@ -599,18 +599,18 @@ public class AMD64InterpreterStubs {
                         return p.getAbiFpArg7();
                 }
             }
-            VMError.guarantee(cArgType.isStackSlot());
+            VMError.guarantee(PreparedSignature.isStackSlot(cArgType));
             Pointer sp = Word.pointer(p.getAbiSpReg());
 
-            return sp.readLong(spAdjustOnCall(cArgType.getStackOffset()));
+            return sp.readLong(spAdjustOnCall(PreparedSignature.getStackOffset(cArgType)));
         }
 
         @Override
         @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-        public void setFpArgumentAt(PreparedArgumentType cArgType, Pointer data, int pos, long val) {
+        public void setFpArgumentAt(int cArgType, Pointer data, int pos, long val) {
             InterpreterDataAMD64 p = (InterpreterDataAMD64) data;
             if (pos >= 0 && pos <= upperFpEnd()) {
-                VMError.guarantee(cArgType.isRegister());
+                VMError.guarantee(PreparedSignature.isRegister(cArgType));
                 switch (pos) {
                     case 0 -> p.setAbiFpArg0(val);
                     case 1 -> p.setAbiFpArg1(val);
@@ -622,10 +622,10 @@ public class AMD64InterpreterStubs {
                     case 7 -> p.setAbiFpArg7(val);
                 }
             } else {
-                VMError.guarantee(cArgType.isStackSlot());
+                VMError.guarantee(PreparedSignature.isStackSlot(cArgType));
 
                 Pointer sp = Word.pointer(p.getAbiSpReg());
-                int offset = cArgType.getStackOffset();
+                int offset = PreparedSignature.getStackOffset(cArgType);
 
                 VMError.guarantee(sp.isNonNull());
                 VMError.guarantee(offset < p.getStackSize());

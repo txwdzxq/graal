@@ -49,6 +49,7 @@ import static jdk.vm.ci.aarch64.AArch64.v5;
 import static jdk.vm.ci.aarch64.AArch64.v6;
 import static jdk.vm.ci.aarch64.AArch64.v7;
 
+import com.oracle.svm.core.graal.code.PreparedSignature;
 import org.graalvm.nativeimage.c.struct.RawField;
 import org.graalvm.nativeimage.c.struct.RawStructure;
 import org.graalvm.nativeimage.c.struct.SizeOf;
@@ -59,7 +60,6 @@ import org.graalvm.word.impl.Word;
 import com.oracle.svm.core.c.struct.OffsetOf;
 import com.oracle.svm.core.deopt.DeoptimizationSlotPacking;
 import com.oracle.svm.core.graal.code.InterpreterAccessStubData;
-import com.oracle.svm.core.graal.code.PreparedArgumentType;
 import com.oracle.svm.core.jdk.UninterruptibleUtils;
 import com.oracle.svm.core.meta.SharedMethod;
 import com.oracle.svm.shared.Uninterruptible;
@@ -516,7 +516,7 @@ public class AArch64InterpreterStubs {
 
         @Override
         @Uninterruptible(reason = REASON_RAW_POINTER, callerMustBe = true)
-        public long getGpArgumentAt(PreparedArgumentType cArgType, Pointer data, int pos) {
+        public long getGpArgumentAt(int cArgType, Pointer data, int pos) {
             InterpreterDataAArch64 p = (InterpreterDataAArch64) data;
             return switch (pos) {
                 case 0 -> p.getAbiGpArg0();
@@ -528,19 +528,19 @@ public class AArch64InterpreterStubs {
                 case 6 -> p.getAbiGpArg6();
                 case 7 -> p.getAbiGpArg7();
                 default -> {
-                    VMError.guarantee(cArgType.isStackSlot());
+                    VMError.guarantee(PreparedSignature.isStackSlot(cArgType));
                     Pointer spVal = Word.pointer(p.getAbiSpReg());
-                    yield spVal.readLong(cArgType.getStackOffset());
+                    yield spVal.readLong(PreparedSignature.getStackOffset(cArgType));
                 }
             };
         }
 
         @Override
         @Uninterruptible(reason = REASON_RAW_POINTER, callerMustBe = true)
-        public void setGpArgumentAt(PreparedArgumentType cArgType, Pointer data, int pos, long val, boolean incoming) {
+        public void setGpArgumentAt(int cArgType, Pointer data, int pos, long val, boolean incoming) {
             InterpreterDataAArch64 p = (InterpreterDataAArch64) data;
             if (pos >= 0 && pos <= 7) {
-                VMError.guarantee(cArgType.isRegister());
+                VMError.guarantee(PreparedSignature.isRegister(cArgType));
                 switch (pos) {
                     case 0 -> p.setAbiGpArg0(val);
                     case 1 -> p.setAbiGpArg1(val);
@@ -553,10 +553,10 @@ public class AArch64InterpreterStubs {
                 }
                 return;
             }
-            VMError.guarantee(cArgType.isStackSlot());
+            VMError.guarantee(PreparedSignature.isStackSlot(cArgType));
 
             Pointer spVal = Word.pointer(p.getAbiSpReg());
-            int offset = cArgType.getStackOffset();
+            int offset = PreparedSignature.getStackOffset(cArgType);
             VMError.guarantee(spVal.isNonNull());
             VMError.guarantee(incoming || offset < p.getStackSize());
 
@@ -565,7 +565,7 @@ public class AArch64InterpreterStubs {
 
         @Override
         @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-        public long getFpArgumentAt(PreparedArgumentType cArgType, Pointer data, int pos) {
+        public long getFpArgumentAt(int cArgType, Pointer data, int pos) {
             InterpreterDataAArch64 p = (InterpreterDataAArch64) data;
             return switch (pos) {
                 case 0 -> p.getAbiFpArg0();
@@ -577,16 +577,16 @@ public class AArch64InterpreterStubs {
                 case 6 -> p.getAbiFpArg6();
                 case 7 -> p.getAbiFpArg7();
                 default -> {
-                    VMError.guarantee(cArgType.isStackSlot());
+                    VMError.guarantee(PreparedSignature.isStackSlot(cArgType));
                     Pointer spVal = Word.pointer(p.getAbiSpReg());
-                    yield spVal.readLong(cArgType.getStackOffset());
+                    yield spVal.readLong(PreparedSignature.getStackOffset(cArgType));
                 }
             };
         }
 
         @Override
         @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-        public void setFpArgumentAt(PreparedArgumentType cArgType, Pointer data, int pos, long val) {
+        public void setFpArgumentAt(int cArgType, Pointer data, int pos, long val) {
             InterpreterDataAArch64 p = (InterpreterDataAArch64) data;
             switch (pos) {
                 case 0 -> p.setAbiFpArg0(val);
@@ -598,10 +598,10 @@ public class AArch64InterpreterStubs {
                 case 6 -> p.setAbiFpArg6(val);
                 case 7 -> p.setAbiFpArg7(val);
                 default -> {
-                    VMError.guarantee(cArgType.isStackSlot());
+                    VMError.guarantee(PreparedSignature.isStackSlot(cArgType));
 
                     Pointer spVal = Word.pointer(p.getAbiSpReg());
-                    int offset = cArgType.getStackOffset();
+                    int offset = PreparedSignature.getStackOffset(cArgType);
 
                     VMError.guarantee(spVal.isNonNull());
                     VMError.guarantee(offset < p.getStackSize());
