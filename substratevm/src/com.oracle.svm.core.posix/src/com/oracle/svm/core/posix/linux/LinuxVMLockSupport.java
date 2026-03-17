@@ -36,7 +36,7 @@ import com.oracle.svm.core.locks.VMLockSupport;
 import com.oracle.svm.core.locks.VMSemaphore;
 import com.oracle.svm.core.posix.headers.Semaphore;
 import com.oracle.svm.core.posix.pthread.PthreadVMLockSupport;
-import com.oracle.svm.guest.staging.Uninterruptible;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.SingleLayer;
 import com.oracle.svm.shared.singletons.traits.SingletonLayeredInstallationKind.InitialLayerOnly;
