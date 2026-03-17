@@ -99,8 +99,13 @@ public final class TruffleAPIFeature implements Feature {
     public void duringAnalysis(DuringAnalysisAccess access) {
         /*
          * Polyglot must be initialized after TruffleFeature#beforeAnalysis. Otherwise,
-         * EnterpriseTruffle#supportsEnterpriseExtensions does not work and EnterprisePolyglotIMpl
-         * is not used.
+         * EnterpriseTruffle#supportsEnterpriseExtensions will not function correctly, and
+         * EnterprisePolyglotImpl will not be used.
+         *
+         * All involved types originate from java.base and are therefore already included in the
+         * analysis, so re-running the analysis is unnecessary.
+         *
+         * TODO GR-74134: Move to beforeAnalysis.
          */
         DefaultRuntimeAccessor.ENGINE.collectDefaultEngineOptions();
     }
