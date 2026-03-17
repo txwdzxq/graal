@@ -24,7 +24,7 @@
  */
 package com.oracle.svm.core.windows;
 
-import com.oracle.svm.core.feature.AutomaticallyRegisteredImageSingleton;
+import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.core.windows.headers.WinBase;
 import com.oracle.svm.core.windows.headers.WinSock;
 import com.oracle.svm.shared.Uninterruptible;

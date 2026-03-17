@@ -29,7 +29,7 @@ import java.util.function.Supplier;
 import org.graalvm.nativeimage.libgraal.impl.GlobalDataSupport;
 
 import com.oracle.svm.core.c.GlobalLongSupplier;
-import com.oracle.svm.core.feature.AutomaticallyRegisteredImageSingleton;
+import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.core.libgraal.LibGraalBuild;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
