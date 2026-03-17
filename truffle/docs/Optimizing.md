@@ -645,22 +645,33 @@ Related options:
   `TraceBytecode`, `TraceBytecodeTransition`, and `BytecodeHistogram` output to selected methods
   and languages.
 
-Example output (truncated):
+Example output (truncated, captured from the bytecode tests):
 
 ```text
 # --engine.TraceBytecode=true
-[bytecode] language=js root=main bci=12 operation=LoadConstant operands=[42]
-[bytecode] language=js root=main bci=14 operation=StoreLocal local=0
+[bc]      1:while-loop.demo:[002] 001 load.argument                   index(0)                                                                                                               | while-loop.demo   1:1  -  1:11    source-code
+[bc]      2:while-loop.demo:[008] 012 store.local                     local_offset(0) local_index(0) child0(0002)                                                                            | while-loop.demo   1:1  -  1:11    source-code
+[bc]      3:while-loop.demo:[014] 009 load.local                      local_offset(0) local_index(0)                                                                                         | while-loop.demo   1:1  -  1:11    source-code
+[bc]      ...
 
-# --engine.TraceBytecodeTransition=transferToInterpreter,bytecode
-[bc-transition] kinds=transferToInterpreter,bytecode lang=sl root=run bytecode=MyRootNode#47 oldBci=103 newBci=103
-[bc-transition] details=operation=Deoptimize source=test.sl~6:13-31 tier=uncached->cached
+# --engine.TraceBytecodeTransition=transferToInterpreter
+[bc-transition] kinds=transferToInterpreter lang=BytecodeDSLTestLanguage root=TransitionTracingRootNodeGen@661649b thread=main
+  old: tier=cached bci=4 op=c.Inc src=none tag=none instr=false
+  new: tier=cached bci=4 op=c.Inc src=none tag=none instr=false
+  changes: addedTags=none addedInstrumentations=none
 
-# --engine.BytecodeHistogram=language,tier
-[bytecode-histogram] group=language=sl,tier=cached total=15642
-  LoadConstant=5020
-  Add=3011
-  Return=1024
+# --engine.BytecodeHistogram=tier,root,thread
+[bc] Instruction histogram for: com.oracle.truffle.api.bytecode.test.InstructionTracingTest$InstructionTracingRootNode
+  -----------------------------------------
+   Count  | Percent | Group / Instruction
+  -----------------------------------------
+     600  |    84.9 | ▶ Tier 1: Profiled Interpreter
+     600  |    84.9 |   ▶ Root: InstructionTracingRootNodeGen@6f96c77
+     600  |    84.9 |     ▶ Thread[#3,main,5,main]
+     169  |    23.9 |       00d load.local$Int$unboxed
+      85  |    12.0 |       01b branch.backward
+  ...
+  Total executed instructions: 707
 ```
 
 ## Debugging Deoptimizations
