@@ -58,12 +58,12 @@ public class EconomicMapWrap<K, V> implements EconomicMap<K, V> {
         this.map = map;
     }
 
+    /** @since 21.1 */
     @Override
     public V get(K key) {
         return map.get(key);
     }
 
-    /** @since 21.1 */
     @Override
     public V get(K key, V defaultValue) {
         return map.getOrDefault(key, defaultValue);

@@ -30,7 +30,6 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 import org.graalvm.collections.EconomicMap;
-import org.graalvm.collections.UnmodifiableEconomicMap;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
@@ -42,8 +41,6 @@ import com.oracle.svm.guest.staging.Uninterruptible;
 import com.oracle.svm.shared.collections.EnumBitmask;
 import com.oracle.svm.shared.option.HostedOptionKey;
 import com.oracle.svm.shared.option.SubstrateOptionKey;
-import com.oracle.svm.shared.util.VMError;
-
 import jdk.graal.compiler.api.replacements.Fold;
 import jdk.graal.compiler.options.Option;
 import jdk.graal.compiler.options.OptionKey;
@@ -105,10 +102,6 @@ public class RuntimeOptionKey<T> extends OptionKey<T> implements SubstrateOption
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public final T getValue(OptionValues values) {
         return getValue();
-    }
-
-    public final T getValueOrDefault(UnmodifiableEconomicMap<OptionKey<?>, Object> values) {
-        throw VMError.shouldNotReachHere("RuntimeOptionKey.getValueOrDefault(" + values + ") is not supported. Please use getValue() instead.");
     }
 
     @Override
