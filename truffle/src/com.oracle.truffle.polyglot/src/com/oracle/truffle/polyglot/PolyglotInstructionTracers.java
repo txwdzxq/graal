@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -233,14 +233,8 @@ final class PolyglotInstructionTracers {
                 return false;
             }
         }
-        if (methodFilter != null) {
-            String name = rootNode.getQualifiedName();
-            if (name == null) {
-                name = rootNode.toString();
-            }
-            if (!applyMethodFilter(name, methodFilter)) {
-                return false;
-            }
+        if (methodFilter != null && !applyMethodFilter(rootNode.getQualifiedName(), methodFilter)) {
+            return false;
         }
         return true;
     }
@@ -341,9 +335,6 @@ final class PolyglotInstructionTracers {
     }
 
     private static Set<BytecodeTransitionKind> parseTransitionKinds(List<BytecodeTransitionKind> optionKinds) {
-        if (optionKinds.isEmpty()) {
-            return EnumSet.allOf(BytecodeTransitionKind.class);
-        }
         return EnumSet.copyOf(optionKinds);
     }
 
@@ -399,7 +390,7 @@ final class PolyglotInstructionTracers {
         }
         List<String> names = new ArrayList<>(classes.size());
         for (Class<?> clazz : classes) {
-            names.add(clazz == null ? "<unknown>" : clazz.getSimpleName());
+            names.add(clazz.getSimpleName());
         }
         names.sort(String::compareTo);
         return String.join(",", names);
@@ -468,7 +459,7 @@ final class PolyglotInstructionTracers {
                 kinds.add(BytecodeTransitionKind.instrumentation);
             }
         }
-        if (transition.isSourceUpdate()) {
+        if (transition.isSourceInformationUpdate()) {
             kinds.add(BytecodeTransitionKind.source);
         }
         if (transition.isTransferToInterpreter()) {

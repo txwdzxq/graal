@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -60,6 +60,8 @@ import com.oracle.truffle.api.bytecode.BytecodeRootNode;
 import com.oracle.truffle.api.bytecode.GenerateBytecode;
 import com.oracle.truffle.api.bytecode.Instrumentation;
 import com.oracle.truffle.api.bytecode.Operation;
+import com.oracle.truffle.api.dsl.Bind;
+import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.frame.FrameDescriptor;
 import com.oracle.truffle.api.instrumentation.StandardTags.StatementTag;
@@ -147,11 +149,11 @@ public class TransitionTracingTest {
     }
 
     /**
-     * With {@code engine.TraceBytecodeTransition=source}, only source-update events are logged and
-     * bytecode events are suppressed.
+     * With {@code engine.TraceBytecodeTransition=source}, only source-information update events are
+     * logged and bytecode events are suppressed.
      */
     @Test
-    public void testFilterSourceUpdate() {
+    public void testFilterSourceInformationUpdateWithoutOnStackTransition() {
         Context.Builder cb = Context.newBuilder(BytecodeDSLTestLanguage.ID).option("engine.TraceBytecodeTransition", "source");
         List<String> messages = captureLog(cb);
 
@@ -166,6 +168,26 @@ public class TransitionTracingTest {
         assertFalse("Expected no bytecode log line (filtered out by source filter)", hasTransitionLog(messages, "bytecode"));
         // No source updates fire in interpreter mode for metadata-only source updates.
         assertFalse("Expected no source log line", hasTransitionLog(messages, "source"));
+    }
+
+    /**
+     * With {@code engine.TraceBytecodeTransition=true}, enabling instrumentation on-stack in a
+     * bytecode-updatable interpreter reports both {@code bytecode} and {@code instrumentation}
+     * kinds.
+     */
+    @Test
+    public void testEngineTransitionTracingInstrumentationUpdate() {
+        Context.Builder cb = Context.newBuilder(BytecodeDSLTestLanguage.ID).option("engine.TraceBytecodeTransition", "true");
+        List<String> messages = captureLog(cb);
+
+        BytecodeDSLTestLanguage language = setupLanguage(cb);
+        TransitionTracingRootNode node = BYTECODE.create(language, BytecodeConfig.DEFAULT, TransitionTracingTest::emitInstrumentationUpdateInc).getNode(0);
+
+        node.getBytecodeNode().setUncachedThreshold(0);
+        node.getCallTarget().call(Boolean.FALSE, 42);
+
+        assertTrue("Expected instrumentation log line for on-stack instrumentation enablement", hasTransitionLog(messages, "instrumentation"));
+        assertTrue("Expected bytecode log line for on-stack instrumentation enablement", hasTransitionLog(messages, "bytecode"));
     }
 
     @Test
@@ -211,8 +233,8 @@ public class TransitionTracingTest {
     }
 
     /**
-     * With {@code engine.BytecodeMethodFilter} set to a substring that matches the root node class
-     * name, matching transitions would be logged. For uncached-to-cached transitions with unchanged
+     * With {@code engine.BytecodeMethodFilter} set, matching transitions would be logged if the
+     * root's qualified name matched. For uncached-to-cached transitions with unchanged
      * bytecode-array identity, no transition kinds are emitted.
      */
     @Test
@@ -261,7 +283,7 @@ public class TransitionTracingTest {
     }
 
     /**
-     * With {@code engine.BytecodeMethodFilter} set to exclude the root node class name, no
+     * With {@code engine.BytecodeMethodFilter} set to exclude the root's qualified name, no
      * transition events are logged.
      */
     @Test
@@ -355,6 +377,33 @@ public class TransitionTracingTest {
         b.endRoot();
     }
 
+    private static void emitInstrumentationUpdateInc(TransitionTracingRootNodeGen.Builder b) {
+        b.beginRoot();
+
+        var local = b.createLocal();
+        b.beginStoreLocal(local);
+        b.beginInc();
+        b.emitLoadArgument(1);
+        b.endInc();
+        b.endStoreLocal();
+
+        b.emitEnableTraceValueInstrumentation();
+
+        b.beginStoreLocal(local);
+        b.beginTraceValue();
+        b.beginInc();
+        b.emitLoadLocal(local);
+        b.endInc();
+        b.endTraceValue();
+        b.endStoreLocal();
+
+        b.beginReturn();
+        b.emitLoadLocal(local);
+        b.endReturn();
+
+        b.endRoot();
+    }
+
     private static boolean hasTransitionLog(List<String> messages, String kind) {
         synchronized (messages) {
             for (String msg : messages) {
@@ -379,6 +428,22 @@ public class TransitionTracingTest {
 
         protected TransitionTracingRootNode(BytecodeDSLTestLanguage language, FrameDescriptor frameDescriptor) {
             super(language, frameDescriptor);
+        }
+
+        @Operation(storeBytecodeIndex = false)
+        public static final class EnableTraceValueInstrumentation {
+            @Specialization
+            static void doDefault(@Bind TransitionTracingRootNode root,
+                            @Cached(value = "getConfig()", allowUncached = true, neverDefault = true) BytecodeConfig config) {
+                root.getRootNodes().update(config);
+            }
+
+            @TruffleBoundary
+            protected static BytecodeConfig getConfig() {
+                BytecodeConfig.Builder configBuilder = TransitionTracingTest.BYTECODE.newConfigBuilder();
+                configBuilder.addInstrumentation(TraceValue.class);
+                return configBuilder.build();
+            }
         }
 
         @Operation

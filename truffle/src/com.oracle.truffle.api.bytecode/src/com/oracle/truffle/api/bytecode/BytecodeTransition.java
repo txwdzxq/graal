@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -50,7 +50,7 @@ import com.oracle.truffle.api.frame.Frame;
  * {@link BytecodeRootNode#traceTransition(BytecodeTransition, Frame)}.
  * <p>
  * Transition kinds are not mutually exclusive; for example, a single transition can simultaneously
- * report {@link #isBytecodeUpdate()} and {@link #isSourceUpdate()}.
+ * report {@link #isBytecodeUpdate()} and {@link #isSourceInformationUpdate()}.
  *
  * @since 25.1
  */
@@ -70,7 +70,7 @@ public abstract class BytecodeTransition {
      *
      * @since 25.1
      */
-    public abstract boolean isSourceUpdate();
+    public abstract boolean isSourceInformationUpdate();
 
     /**
      * Returns {@code true} if bytecode metadata or instructions changed for this transition, e.g.
@@ -94,9 +94,7 @@ public abstract class BytecodeTransition {
      *
      * @since 25.1
      */
-    public Set<Class<?>> getAddedTags() {
-        return Set.of();
-    }
+    public abstract Set<Class<?>> getAddedTags();
 
     /**
      * Returns instrumentations that were newly added by this transition.
@@ -105,9 +103,7 @@ public abstract class BytecodeTransition {
      *
      * @since 25.1
      */
-    public Set<Class<?>> getAddedInstrumentations() {
-        return Set.of();
-    }
+    public abstract Set<Class<?>> getAddedInstrumentations();
 
     /**
      * Returns the bytecode location before the transition.
@@ -127,7 +123,7 @@ public abstract class BytecodeTransition {
     public String toString() {
         return "BytecodeTransition [old=" + getOldLocation() + ", new=" + getNewLocation() +
                         ", transferToInterpreter=" + isTransferToInterpreter() +
-                        ", sourceUpdate=" + isSourceUpdate() +
+                        ", sourceInformationUpdate=" + isSourceInformationUpdate() +
                         ", bytecodeUpdate=" + isBytecodeUpdate() +
                         ", addedTags=" + getAddedTags() +
                         ", addedInstrumentations=" + getAddedInstrumentations() +

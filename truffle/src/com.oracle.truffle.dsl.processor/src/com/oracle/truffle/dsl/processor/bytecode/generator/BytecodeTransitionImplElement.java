@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -72,7 +72,7 @@ final class BytecodeTransitionImplElement extends AbstractElement {
         this.add(createToClassSet());
         this.add(createMapAddedTags());
         this.add(createMapAddedInstrumentations());
-        this.add(createIsSourceUpdate());
+        this.add(createIsSourceInformationUpdate());
         this.add(createIsBytecodeUpdate());
         this.add(createIsTransferToInterpreter());
         this.add(createGetAddedTags());
@@ -171,8 +171,8 @@ final class BytecodeTransitionImplElement extends AbstractElement {
         return ex;
     }
 
-    private CodeExecutableElement createIsSourceUpdate() {
-        CodeExecutableElement ex = GeneratorUtils.override(types.BytecodeTransition, "isSourceUpdate");
+    private CodeExecutableElement createIsSourceInformationUpdate() {
+        CodeExecutableElement ex = GeneratorUtils.override(types.BytecodeTransition, "isSourceInformationUpdate");
         ex.createBuilder().statement("return ((oldBytecodeNode.configEncoding ^ newBytecodeNode.configEncoding) & 0x1L) != 0");
         return ex;
     }

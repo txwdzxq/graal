@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -151,12 +151,12 @@ public interface BytecodeRootNode {
     }
 
     /**
-     * Optional hook invoked when the interpreter transitions from one bytecode node to another.
-     * Transitions are emitted when execution continues in a different bytecode node, for example
-     * when moving from uncached to cached tier, when reparsing updates the bytecode due to
-     * {@link BytecodeConfig} changes (tags, instrumentations, source information), or when
-     * deoptimization transfers execution from Truffle runtime-compiled code back to the
-     * interpreter.
+     * Optional hook invoked when executing bytecode transitions from one bytecode node to another.
+     * Transitions are emitted only for on-stack changes observed during execution, for example when
+     * moving from uncached to cached tier, when reparsing updates the bytecode due to
+     * {@link BytecodeConfig} changes (tags, instrumentations, source information) and execution
+     * continues in the new bytecode node, or when deoptimization transfers execution from Truffle
+     * runtime-compiled code back to the interpreter.
      * <p>
      * The frame is only valid during the invocation of this method. The transition object may
      * outlive the execution of this method.

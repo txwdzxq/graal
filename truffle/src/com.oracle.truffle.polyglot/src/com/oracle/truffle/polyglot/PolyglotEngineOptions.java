@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -174,7 +174,7 @@ final class PolyglotEngineOptions {
     public static final OptionKey<Boolean> TraceBytecode = new OptionKey<>(false);
 
     @Option(category = OptionCategory.EXPERT, usageSyntax = "true|false|<kind>[,<kind>...]", stability = OptionStability.STABLE, help = "" + //
-                    "Trace bytecode interpreter transitions (for example uncached-to-cached updates, source materialization, and deoptimization transfers). " + //
+                    "Trace on-stack bytecode interpreter transitions while bytecode is executing (for example uncached-to-cached updates, source information materialization that triggers a transition, and deoptimization transfers). " + //
                     "Set to 'true' to trace all transitions, or to a comma-separated subset of transition kinds. " + //
                     "Available kinds are transferToInterpreter, bytecode, source, tier, tag, instrumentation. " + //
                     "The 'bytecode' kind traces all bytecode updates; tier, tag, and instrumentation select subsets of bytecode updates. " + //
@@ -184,8 +184,9 @@ final class PolyglotEngineOptions {
 
     @Option(category = OptionCategory.EXPERT, usageSyntax = "true|false|<group>[,<group>...]", stability = OptionStability.STABLE, help = "" + //
                     "Collect and print a histogram of executed bytecode opcodes. " + //
-                    "Set to 'true' to enable basic mode or use a comma separated list to configure grouping (e.g. source,root)." + //
-                    "Available groupings are root, tier, source, language, thread." + //
+                    "Set to 'true' to enable basic mode or use a comma separated list to configure grouping (e.g. source,root). " + //
+                    "Available groupings are root, tier, source, language, thread. " + //
+                    "Grouping order matters and controls the primary, secondary, ... nesting in the printed histogram. " + //
                     "This feature adds high overhead, use for profiling in non-production runs only. " + //
                     "Supported only by Bytecode DSL interpreters. " + //
                     "Prints when the engine is closed by default, or periodically if BytecodeHistogramInterval > 0.") //
@@ -199,6 +200,7 @@ final class PolyglotEngineOptions {
 
     @Option(category = OptionCategory.EXPERT, stability = OptionStability.STABLE, help = "" + //
                     "Limit tracing and statistics to selected methods. " + //
+                    "Matches against RootNode.getQualifiedName(). " + //
                     "Provide a comma-separated list of includes, or excludes prefixed with '~'. " + //
                     "Empty means no restriction. " + //
                     "Whitespace around commas is ignored. " + //
@@ -307,7 +309,7 @@ final class PolyglotEngineOptions {
                 if (value == null || value.isBlank() || "false".equals(value)) {
                     return null;
                 } else if ("true".equals(value)) {
-                    return List.of();
+                    return List.of(BytecodeTransitionKind.values());
                 } else {
                     List<BytecodeTransitionKind> result = new ArrayList<>();
                     for (String s : value.split(",")) {

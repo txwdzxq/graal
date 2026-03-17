@@ -623,17 +623,21 @@ interpreter behavior.
 * `--engine.TraceBytecode=true` traces every executed bytecode instruction.
   This has very high overhead and is intended only for debugging.
 
-* `--engine.TraceBytecodeTransition=...` traces transitions between bytecode nodes.
+* `--engine.TraceBytecodeTransition=...` traces on-stack transitions between bytecode nodes while
+  bytecode is executing.
   * `true` traces all transition kinds.
   * You can also select a comma-separated subset of kinds:
     `transferToInterpreter,bytecode,source,tier,tag,instrumentation`.
   * `bytecode` includes all bytecode updates; `tier`, `tag`, and `instrumentation` select
     subsets of bytecode updates.
+  * Updates applied between calls are not reported by this option. For example, `source` is only
+    reported when source information materialization causes an on-stack transition.
 
 * `--engine.BytecodeHistogram=...` collects and prints a histogram of executed bytecode opcodes.
   * `true` enables the default histogram.
   * You can select grouping dimensions with a comma-separated list:
     `root,tier,source,language,thread`.
+  * Grouping order matters, so `tier,root` and `root,tier` produce different nesting.
   * Histograms are printed when the engine closes.
 
 Related options:
@@ -643,7 +647,7 @@ Related options:
 
 * `--engine.BytecodeMethodFilter=...` and `--engine.BytecodeLanguageFilter=...` restrict
   `TraceBytecode`, `TraceBytecodeTransition`, and `BytecodeHistogram` output to selected methods
-  and languages.
+  and languages. `BytecodeMethodFilter` matches against `RootNode.getQualifiedName()`.
 
 Example output (truncated, captured from the bytecode tests):
 

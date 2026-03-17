@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2024, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -77,6 +77,7 @@ public class TransitionInterceptionTest {
         return nodes.getNode(0);
     }
 
+
     /**
      * When an uncached interpreter transitions to cached, only the tier changes. The bytecode array
      * identity stays the same, so {@code isBytecodeUpdate()} must be {@code false}.
@@ -100,25 +101,26 @@ public class TransitionInterceptionTest {
         assertEquals(1, root.transitions.size());
         BytecodeTransition transition = root.transitions.get(0);
         assertFalse("Expected !isBytecodeUpdate when bytecode array identity is unchanged", transition.isBytecodeUpdate());
-        assertFalse("Expected !isSourceUpdate", transition.isSourceUpdate());
+        assertFalse("Expected !isSourceInformationUpdate", transition.isSourceInformationUpdate());
         assertFalse("Expected !isTransferToInterpreter (not compiled)", transition.isTransferToInterpreter());
         assertNotNull(transition.getOldLocation());
         assertNotNull(transition.getNewLocation());
+        assertTrue(transition.getOldLocation().getBytecodeNode().getTier() != transition.getNewLocation().getBytecodeNode().getTier());
     }
 
     /**
      * For simple interpreters, {@link BytecodeNode#ensureSourceInformation()} performs a
      * metadata-only update: the source info arrays are updated but the bytecodes array is unchanged
      * ({@code bytecodes_ == null}). Because the old bytecodes are never patched with INVALIDATE
-     * instructions, the execute loop cannot detect the change mid-execution, and no sourceUpdate
-     * transition fires.
+     * instructions, the execute loop cannot detect the change mid-execution, and no
+     * source-information update transition fires.
      * <p>
      * This test verifies that calling {@link BytecodeNode#ensureSourceInformation()} from within an
      * executing cached bytecode works correctly: only the uncached->cached tier-only transition
      * fires, and the interpreter correctly reports source information afterwards.
      */
     @Test
-    public void testSourceUpdateTransition() {
+    public void testSourceInformationUpdateWithoutBytecodeTransition() {
         TransitionTracingInterpreter root = parse(b -> {
             b.beginRoot();
             // Trigger source info materialization during cached execution. For simple interpreters
@@ -136,12 +138,12 @@ public class TransitionInterceptionTest {
 
         assertEquals(42L, root.getCallTarget().call());
 
-        // Only the uncached->cached tier-only transition fires; no sourceUpdate in interpreter
-        // mode.
+        // Only the uncached->cached tier-only transition fires; no source-information update is
+        // observed in this interpreter configuration.
         assertEquals(1, root.transitions.size());
         BytecodeTransition transition = root.transitions.get(0);
         assertFalse("Expected !isBytecodeUpdate when bytecode array identity is unchanged", transition.isBytecodeUpdate());
-        assertFalse("Expected !isSourceUpdate", transition.isSourceUpdate());
+        assertFalse("Expected !isSourceInformationUpdate", transition.isSourceInformationUpdate());
         assertFalse("Expected !isTransferToInterpreter (not compiled)", transition.isTransferToInterpreter());
 
         // The bytecode node should now report source information (metadata was updated).
@@ -216,9 +218,7 @@ abstract class TransitionTracingInterpreter extends RootNode implements Bytecode
     }
 
     /**
-     * Triggers source materialization from within an executing bytecode. This patches INVALIDATE
-     * instructions into the currently-executing bytecodes, causing the interpreter loop to detect a
-     * bytecode change on the next instruction and fire a {@code sourceUpdate} transition.
+     * Triggers source materialization from within an executing bytecode.
      */
     @Operation
     static final class EnsureSourceInformation {
