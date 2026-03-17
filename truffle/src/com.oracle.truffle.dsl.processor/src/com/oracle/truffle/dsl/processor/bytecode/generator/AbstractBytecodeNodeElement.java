@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -272,7 +272,7 @@ final class AbstractBytecodeNodeElement extends AbstractElement {
         CodeExecutableElement ex = new CodeExecutableElement(Set.of(PRIVATE, FINAL), type(boolean.class), "isInstructionTracingEnabled");
         CodeTreeBuilder b = ex.createBuilder();
         b.startReturn();
-        b.string("readValidBytecode(this.bytecodes, 0) == ").tree(parent.createInstructionConstant(parent.model.traceInstruction));
+        b.string("(this.configEncoding & 0x").string(Long.toHexString(1L << (BytecodeRootNodeElement.INSTRUMENTATION_OFFSET + parent.model.traceInstructionInstrumentationIndex))).string("L) != 0");
         b.end();
         return ex;
     }

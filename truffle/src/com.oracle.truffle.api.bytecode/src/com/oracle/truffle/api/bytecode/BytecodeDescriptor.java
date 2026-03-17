@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -149,7 +149,7 @@ import com.oracle.truffle.api.nodes.RootNode;
  */
 public abstract class BytecodeDescriptor<R extends RootNode & BytecodeRootNode, L extends TruffleLanguage<?>, B extends BytecodeBuilder> {
 
-    static volatile boolean engineDescriptorLookupEnabled;
+    private static volatile boolean engineDescriptorLookupEnabled;
     private volatile boolean descriptorLookupEnabled;
 
     protected BytecodeDescriptor(Object token) {
