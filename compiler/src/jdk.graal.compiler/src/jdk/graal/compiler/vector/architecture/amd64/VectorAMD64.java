@@ -611,14 +611,27 @@ public final class VectorAMD64 extends VectorArchitecture {
     }
 
     @Override
-    public int getSupportedVectorCompressExpandLength(Stamp elementStamp, int maxLength) {
+    public int getSupportedVectorCompressExpandLength(Stamp elementStamp, int maxLength, CompressExpandOp op) {
         if (!hasMinimumVectorizationRequirements(maxLength)) {
             return 1;
         }
 
         AVXSize avxSize = compressExpandOps.getSupportedAVXSize(elementStamp, maxLength);
         int supportedLength = getSupportedVectorLength(elementStamp, maxLength, avxSize);
+        if (op == CompressExpandOp.COMPRESS && supportedLength == 1 && supportsByteCompressFallback(elementStamp)) {
+            /*
+             * AVX byte-compress fallback: emulate byte compress with shuffle-based code paths.
+             */
+            supportedLength = getSupportedVectorLength(elementStamp, maxLength, getMaxSupportedAVXSize(arch.getFeatures()));
+        }
         return Math.min(supportedLength, maxLength);
+    }
+
+    private boolean supportsByteCompressFallback(Stamp elementStamp) {
+        return elementStamp instanceof IntegerStamp integerStamp &&
+                        integerStamp.getBits() == Byte.SIZE &&
+                        arch.getFeatures().contains(CPUFeature.AVX2) &&
+                        arch.getFeatures().contains(CPUFeature.POPCNT);
     }
 
     @Override

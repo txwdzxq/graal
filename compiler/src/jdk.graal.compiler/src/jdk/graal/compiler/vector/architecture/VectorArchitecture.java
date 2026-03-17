@@ -58,6 +58,12 @@ import jdk.vm.ci.meta.JavaKind;
  */
 public abstract class VectorArchitecture {
 
+    /** Distinguishes between vector compress and expand operation support. */
+    public enum CompressExpandOp {
+        COMPRESS,
+        EXPAND
+    }
+
     /**
      * The stride (in bytes) for vectors of ordinary object pointers in memory. That is, this is the
      * compressed reference size if compressed references are enabled.
@@ -365,11 +371,12 @@ public abstract class VectorArchitecture {
     /**
      * Get the maximum supported vector length for a vector compress/expand based on a mask.
      *
-     * @param elementStamp the stamp of the elements to be blended
+     * @param elementStamp the stamp of the elements to be compressed/expanded
      * @param maxLength the maximum length to return
+     * @param op the operation (compress or expand)
      * @return the number of elements that can be compressed/expanded by a single instruction
      */
-    public abstract int getSupportedVectorCompressExpandLength(Stamp elementStamp, int maxLength);
+    public abstract int getSupportedVectorCompressExpandLength(Stamp elementStamp, int maxLength, CompressExpandOp op);
 
     /**
      * Determine the minimum alignment in bytes that is guaranteed for objects.

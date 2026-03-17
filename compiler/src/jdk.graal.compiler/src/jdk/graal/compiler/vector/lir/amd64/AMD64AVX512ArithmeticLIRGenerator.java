@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -252,6 +252,7 @@ import jdk.graal.compiler.lir.amd64.vector.AMD64VectorShuffle;
 import jdk.graal.compiler.lir.amd64.vector.AMD64VectorUnary;
 import jdk.graal.compiler.lir.amd64.vector.AVX512CompressExpand;
 import jdk.graal.compiler.lir.amd64.vector.AVX512MaskedOp;
+import jdk.graal.compiler.lir.amd64.vector.AVXByteCompress;
 import jdk.graal.compiler.nodes.ValueNode;
 import jdk.graal.compiler.nodes.calc.AbsNode;
 import jdk.graal.compiler.nodes.calc.AddNode;
@@ -2076,6 +2077,25 @@ public class AMD64AVX512ArithmeticLIRGenerator extends AMD64VectorArithmeticLIRG
 
     @Override
     public Variable emitVectorCompress(LIRKind resultKind, Value source, Value mask) {
+        GraalError.guarantee(AMD64BaseAssembler.supportsFullAVX512(this.getArchitecture().getFeatures()), "should only use AVX-512 paths with 'full' AVX-512 support");
+        AMD64Kind kind = (AMD64Kind) resultKind.getPlatformKind();
+        AVXSize size = AVXKind.getRegisterSize(kind);
+        if (kind.getScalar() == AMD64Kind.BYTE &&
+                        !supports(AMD64.CPUFeature.AVX512_VBMI2) &&
+                        supports(AMD64.CPUFeature.AVX2) &&
+                        supports(AMD64.CPUFeature.POPCNT)) {
+            /*
+             * VPCOMPRESSB (native byte compress) requires AVX512_VBMI2. Without it, byte compress
+             * must be emulated with the AVX2 shuffle-based fallback.
+             */
+            Variable result = getLIRGen().newVariable(resultKind);
+            AMD64Kind maskKind = size == AVXSize.ZMM ? AMD64Kind.QWORD : AMD64Kind.DWORD;
+            Value scalarMask = emitMoveOpMaskToInteger(LIRKind.value(maskKind), mask, kind.getVectorLength());
+            getLIRGen().append(new AVXByteCompress.CompressBytesWithMaskOp(getLIRGen(), asAllocatable(result), asAllocatable(source), asAllocatable(scalarMask)));
+            return result;
+        }
+
+        GraalError.guarantee(kind.getScalar().getSizeInBytes() >= Integer.BYTES || supports(AMD64.CPUFeature.AVX512_VBMI2), "sub-word compress without fallback requires AVX512_VBMI2");
         Variable result = getLIRGen().newVariable(resultKind);
         getLIRGen().append(new AVX512CompressExpand.CompressOp(result, asAllocatable(source), asAllocatable(mask)));
         return result;
