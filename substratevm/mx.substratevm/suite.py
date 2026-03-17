@@ -2596,6 +2596,7 @@ suite = {
             "distDependencies": [
                 "compiler:GRAAL",
                 "NATIVE_IMAGE_BASE",
+                "SVM_SHARED",
             ],
             "exclude": [
             ],
