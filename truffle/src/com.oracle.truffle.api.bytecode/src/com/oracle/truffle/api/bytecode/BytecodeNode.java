@@ -1010,10 +1010,10 @@ public abstract class BytecodeNode extends Node {
     public abstract List<LocalVariable> getLocals();
 
     /**
-     * Sets the number of times the uncached interpreter must be invoked/resumed or branch backwards
-     * before transitioning to cached. See {@link GenerateBytecode#defaultUncachedThreshold} for
-     * information about the default threshold and the meaning of different {@code threshold}
-     * values.
+     * Sets the number of invocations/resumptions or backward branches for which this interpreter
+     * executes uncached before transitioning to cached on the next such event. See
+     * {@link GenerateBytecode#defaultUncachedThreshold} for information about the default threshold
+     * and the meaning of different {@code threshold} values.
      * <p>
      * This method should be called before executing the root node. It will not have any effect on
      * an uncached interpreter that is currently executing, an interpreter that is already cached,
