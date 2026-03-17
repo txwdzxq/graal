@@ -45,7 +45,7 @@ import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.util.JVMCIReflectionUtil;
 import com.oracle.svm.shared.util.ReflectionUtil;
 
-import jdk.graal.compiler.options.ModifiableOptionValues;
+import com.oracle.svm.core.option.RuntimeOptionValues;
 import jdk.internal.misc.Unsafe;
 import jdk.vm.ci.meta.ConstantReflectionProvider;
 import jdk.vm.ci.meta.JavaConstant;
@@ -112,6 +112,6 @@ public class InitialLayerFeature implements InternalFeature {
     @Override
     public void beforeAnalysis(BeforeAnalysisAccess access) {
         // GR-71504 automatically detect accesses to fields of application layer only singletons
-        access.registerAsUnsafeAccessed(ReflectionUtil.lookupField(ModifiableOptionValues.class, "v"));
+        access.registerAsUnsafeAccessed(ReflectionUtil.lookupField(RuntimeOptionValues.class, "v"));
     }
 }

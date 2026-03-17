@@ -220,7 +220,7 @@ public class NativeImageOptions {
     }
 
     public static void setCommonPoolParallelism(OptionValues optionValues) {
-        int targetParallelism = Math.max(1, NumberOfThreads.getValueOrDefault(optionValues.getMap()) - 1);
+        int targetParallelism = Math.max(1, NumberOfThreads.getValue(optionValues) - 1);
         if (ForkJoinPool.commonPool().getParallelism() == targetParallelism) {
             /* Nothing to do. */
             return;

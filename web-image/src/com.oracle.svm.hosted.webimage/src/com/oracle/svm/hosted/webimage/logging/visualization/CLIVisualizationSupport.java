@@ -175,7 +175,7 @@ public class CLIVisualizationSupport extends VisualizationSupport {
 
     private static LinkedHashMap<String, String> createInfo() {
         LinkedHashMap<String, String> info = new LinkedHashMap<>();
-        OptionValues options = HostedOptionValues.singleton();
+        OptionValues options = HostedOptionValues.singleton().get();
         info.put("Image name", SubstrateOptions.Name.getValue(options));
         info.put("Target VM", WebImageOptions.getTargetVM());
         info.put("Backend", WebImageOptions.getBackend().name());

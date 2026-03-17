@@ -434,7 +434,7 @@ public final class RuntimeCompilationFeature implements Feature, RuntimeCompilat
         SubstratePlatformConfigurationProvider platformConfig = new SubstratePlatformConfigurationProvider(
                         ImageSingletons.lookup(BarrierSetProvider.class).createBarrierSet(config.getMetaAccess()));
         RuntimeConfiguration runtimeConfig = ImageSingletons.lookup(SubstrateGraalCompilerSetup.class)
-                        .createRuntimeConfigurationBuilder(RuntimeOptionValues.singleton(), config.getHostVM(), config.getUniverse(), config.getMetaAccess(),
+                        .createRuntimeConfigurationBuilder(RuntimeOptionValues.singleton().get(), config.getHostVM(), config.getUniverse(), config.getMetaAccess(),
                                         backendProvider, classInitializationSupport, platformConfig,
                                         config.getBigBang().getSnippetReflectionProvider())
                         .build();
@@ -937,7 +937,7 @@ public final class RuntimeCompilationFeature implements Feature, RuntimeCompilat
      * {@code RUNTIME_COMPILED_METHOD}s.
      */
     private class RuntimeCompilationInlineBeforeAnalysisPolicy extends InlineBeforeAnalysisPolicy {
-        private final int trivialAllowingInliningDepth = InlineDuringParsingMaxDepth.getValue(HostedOptionValues.singleton());
+        private final int trivialAllowingInliningDepth = InlineDuringParsingMaxDepth.getValue(HostedOptionValues.singleton().get());
 
         final SVMHost hostVM;
         final InlineBeforeAnalysisPolicyUtils inliningUtils;

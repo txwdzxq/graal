@@ -356,7 +356,6 @@ public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport imp
          */
         private final Map<Class<?>, SingletonInfo> configObjects;
         private final Map<Object, SingletonTraitMap> singletonToTraitMap;
-
         private final boolean layeredBuild;
         private final AnnotationExtractor extractor;
         /** Callback to be executed before the singleton is published in the registry. */

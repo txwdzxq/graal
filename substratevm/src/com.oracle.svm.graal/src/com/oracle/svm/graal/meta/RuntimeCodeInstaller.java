@@ -113,7 +113,7 @@ public class RuntimeCodeInstaller extends AbstractRuntimeCodeInstaller {
         this.method = method;
         this.compilation = (SubstrateCompilationResult) compilation;
         this.tier = compilation.getName().endsWith(TruffleCompilerImpl.FIRST_TIER_COMPILATION_SUFFIX) ? TruffleCompilerImpl.FIRST_TIER_INDEX : TruffleCompilerImpl.LAST_TIER_INDEX;
-        this.debug = new DebugContext.Builder(RuntimeOptionValues.singleton()).build();
+        this.debug = new DebugContext.Builder(RuntimeOptionValues.singleton().get()).build();
     }
 
     private void prepareCodeMemory() {

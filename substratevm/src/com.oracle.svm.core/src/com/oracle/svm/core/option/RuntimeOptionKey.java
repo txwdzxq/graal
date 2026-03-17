@@ -30,7 +30,6 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 import org.graalvm.collections.EconomicMap;
-import org.graalvm.collections.UnmodifiableEconomicMap;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
@@ -42,12 +41,9 @@ import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.collections.EnumBitmask;
 import com.oracle.svm.shared.option.HostedOptionKey;
 import com.oracle.svm.shared.option.SubstrateOptionKey;
-import com.oracle.svm.shared.util.VMError;
-
 import jdk.graal.compiler.api.replacements.Fold;
 import jdk.graal.compiler.options.Option;
 import jdk.graal.compiler.options.OptionKey;
-import jdk.graal.compiler.options.OptionValues;
 
 /**
  * Defines a runtime {@link Option}, in contrast to a {@link HostedOptionKey hosted option}.
@@ -103,31 +99,16 @@ public class RuntimeOptionKey<T> extends OptionKey<T> implements SubstrateOption
 
     @Override
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-    public final T getValue(OptionValues values) {
-        VMError.guarantee(RuntimeOptionValues.singleton() == values);
-        return getValue();
-    }
-
-    @Override
-    public final T getValueOrDefault(UnmodifiableEconomicMap<OptionKey<?>, Object> values) {
-        throw VMError.shouldNotReachHere("RuntimeOptionKey.getValueOrDefault() is not supported. Please use getValue() instead.");
-    }
-
-    @Override
-    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public final boolean hasBeenSet() {
         return cachedValue != OPTION_NOT_SET;
     }
 
-    @Override
-    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-    public final boolean hasBeenSet(OptionValues values) {
-        VMError.guarantee(RuntimeOptionValues.singleton() == values);
-        return hasBeenSet();
-    }
-
     public void update(T newValue) {
         RuntimeOptionValues.singleton().update(this, newValue);
+    }
+
+    void afterValueUpdateFromRuntimeValues() {
+        afterValueUpdate();
     }
 
     /**

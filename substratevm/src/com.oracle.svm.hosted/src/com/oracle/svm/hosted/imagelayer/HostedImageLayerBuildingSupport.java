@@ -413,18 +413,18 @@ public final class HostedImageLayerBuildingSupport extends ImageLayerBuildingSup
     }
 
     public static HostedImageLayerBuildingSupport initialize(HostedOptionValues values, ImageClassLoader imageClassLoader, Path builderTempDir) {
-        boolean buildingSharedLayer = isLayerCreateOptionEnabled(values);
-        boolean buildingExtensionLayer = isLayerUseOptionEnabled(values);
+        boolean buildingSharedLayer = isLayerCreateOptionEnabled(values.get());
+        boolean buildingExtensionLayer = isLayerUseOptionEnabled(values.get());
 
         if (buildingSharedLayer) {
             Platform platform = imageClassLoader.platform;
             if (!supportedPlatform(platform)) {
-                ValueWithOrigin<String> valueWithOrigin = getLayerCreateValueWithOrigin(values);
+                ValueWithOrigin<String> valueWithOrigin = getLayerCreateValueWithOrigin(values.get());
                 String layerCreateValue = getLayerCreateValue(valueWithOrigin);
                 String layerCreateArg = SubstrateOptionsParser.commandArgument(LayeredImageOptions.LayerCreate, layerCreateValue);
                 String message = String.format("Layer creation option '%s' from %s is not supported when building for platform %s/%s.",
                                 layerCreateArg, valueWithOrigin.origin(), platform.getOS(), platform.getArchitecture());
-                if (LayeredImageOptions.LayeredImageDiagnosticOptions.LayerOptionVerification.getValue(values)) {
+                if (LayeredImageOptions.LayeredImageDiagnosticOptions.LayerOptionVerification.getValue(values.get())) {
                     throw UserError.abort("%s", message);
                 }
                 LogUtils.warning(message);
@@ -441,20 +441,20 @@ public final class HostedImageLayerBuildingSupport extends ImageLayerBuildingSup
 
         WriteLayerArchiveSupport writeLayerArchiveSupport = null;
         ArchiveSupport archiveSupport = new ArchiveSupport(false);
-        String layerName = SubstrateOptions.Name.getValue(values);
+        String layerName = SubstrateOptions.Name.getValue(values.get());
         if (buildingSharedLayer) {
-            boolean enableLogging = LayeredImageOptions.LayeredImageDiagnosticOptions.LogLayeredArchiving.getValue(values);
+            boolean enableLogging = LayeredImageOptions.LayeredImageDiagnosticOptions.LogLayeredArchiving.getValue(values.get());
             writeLayerArchiveSupport = new WriteLayerArchiveSupport(layerName, imageClassLoader.classLoaderSupport, builderTempDir, archiveSupport, enableLogging);
         }
         LoadLayerArchiveSupport loadLayerArchiveSupport = null;
         SharedLayerSnapshot.Reader snapshot = null;
         List<FileChannel> graphs = List.of();
         if (buildingExtensionLayer) {
-            Path layerFileName = getLayerUseValue(values);
-            boolean enableLogging = LayeredImageOptions.LayeredImageDiagnosticOptions.LogLayeredArchiving.getValue(values);
+            Path layerFileName = getLayerUseValue(values.get());
+            boolean enableLogging = LayeredImageOptions.LayeredImageDiagnosticOptions.LogLayeredArchiving.getValue(values.get());
             loadLayerArchiveSupport = new LoadLayerArchiveSupport(layerName, layerFileName, builderTempDir, archiveSupport, imageClassLoader.platform, enableLogging);
-            boolean strict = LayeredImageOptions.LayeredImageDiagnosticOptions.LayerOptionVerification.getValue(values);
-            boolean verbose = LayeredImageOptions.LayeredImageDiagnosticOptions.LayerOptionVerificationVerbose.getValue(values);
+            boolean strict = LayeredImageOptions.LayeredImageDiagnosticOptions.LayerOptionVerification.getValue(values.get());
+            boolean verbose = LayeredImageOptions.LayeredImageDiagnosticOptions.LayerOptionVerificationVerbose.getValue(values.get());
             loadLayerArchiveSupport.verifyCompatibility(imageClassLoader.classLoaderSupport, collectLayerVerifications(imageClassLoader), strict, verbose);
             try {
                 graphs = List.of(FileChannel.open(loadLayerArchiveSupport.getSnapshotGraphsPath()));
@@ -474,7 +474,7 @@ public final class HostedImageLayerBuildingSupport extends ImageLayerBuildingSup
 
         Function<Class<?>, SingletonTrait<?>[]> singletonTraitInjector = null;
         if (buildingImageLayer) {
-            var applicationLayerOnlySingletons = LayeredImageOptions.ApplicationLayerOnlySingletons.getValue(values);
+            var applicationLayerOnlySingletons = LayeredImageOptions.ApplicationLayerOnlySingletons.getValue(values.get());
             LayeredInstallationKindSingletonTrait[] appLayerOnly = new LayeredInstallationKindSingletonTrait[]{APP_LAYER_ONLY_TRAIT};
             singletonTraitInjector = (key) -> {
                 if (applicationLayerOnlySingletons.contains(key.getName())) {

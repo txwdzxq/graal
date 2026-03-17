@@ -549,7 +549,7 @@ public class VectorAPIFeature implements InternalFeature {
 
     @Override
     public void registerInvocationPlugins(Providers providers, GraphBuilderConfiguration.Plugins plugins, ParsingReason reason) {
-        if (VectorAPIIntrinsics.intrinsificationSupported(HostedOptionValues.singleton())) {
+        if (VectorAPIIntrinsics.intrinsificationSupported(HostedOptionValues.singleton().get())) {
             VectorAPIIntrinsics.registerPlugins(plugins.getInvocationPlugins());
         }
     }
