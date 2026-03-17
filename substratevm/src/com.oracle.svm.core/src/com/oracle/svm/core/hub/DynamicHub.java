@@ -41,7 +41,6 @@ import static com.oracle.svm.core.code.RuntimeMetadataDecoderImpl.ALL_RECORD_COM
 import static com.oracle.svm.core.code.RuntimeMetadataDecoderImpl.ALL_SIGNERS_FLAG;
 import static com.oracle.svm.core.code.RuntimeMetadataDecoderImpl.CLASS_ACCESS_FLAGS_MASK;
 import static com.oracle.svm.core.graal.meta.DynamicHubOffsets.writeByte;
-import static com.oracle.svm.core.graal.meta.DynamicHubOffsets.writeChar;
 import static com.oracle.svm.core.graal.meta.DynamicHubOffsets.writeInt;
 import static com.oracle.svm.core.graal.meta.DynamicHubOffsets.writeObject;
 import static com.oracle.svm.core.graal.meta.DynamicHubOffsets.writeShort;
@@ -335,10 +334,10 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
      * table.
      */
     @UnknownPrimitiveField(availability = AfterHostedUniverse.class)//
-    private char monitorOffset;
+    private int monitorOffset;
 
     @UnknownPrimitiveField(availability = AfterHostedUniverse.class)//
-    private char identityHashOffset;
+    private int identityHashOffset;
 
     /**
      * Bit-set for various boolean flags, to reduce size of instances. It is important that this
@@ -610,10 +609,8 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
         writeObject(hub, dynamicHubOffsets.getOpenTypeWorldInterfaceHashTableOffset(), openTypeWorldInterfaceHashTable);
         writeInt(hub, dynamicHubOffsets.getOpenTypeWorldInterfaceHashParamOffset(), openTypeWorldInterfaceHashParam);
 
-        VMError.guarantee(monitorOffset == (char) monitorOffset);
-        VMError.guarantee(identityHashOffset == (char) identityHashOffset);
-        writeChar(hub, dynamicHubOffsets.getMonitorOffsetOffset(), (char) monitorOffset);
-        writeChar(hub, dynamicHubOffsets.getIdentityHashOffsetOffset(), (char) identityHashOffset);
+        writeInt(hub, dynamicHubOffsets.getMonitorOffsetOffset(), monitorOffset);
+        writeInt(hub, dynamicHubOffsets.getIdentityHashOffsetOffset(), identityHashOffset);
 
         writeShort(hub, dynamicHubOffsets.getFlagsOffset(), flags);
 
@@ -710,13 +707,13 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
 
     @Platforms(Platform.HOSTED_ONLY.class)
     public void setSharedData(int layoutEncoding, int monitorOffset, int identityHashOffset, long referenceMapIndex, boolean isInstantiated) {
-        VMError.guarantee(monitorOffset == -1 || monitorOffset == (char) monitorOffset, "Class %s has an invalid monitor field offset. Most likely, its objects are larger than supported.", name);
-        VMError.guarantee(identityHashOffset == -1 || identityHashOffset == (char) identityHashOffset,
+        VMError.guarantee(monitorOffset >= -1, "Class %s has an invalid monitor field offset.", name);
+        VMError.guarantee(identityHashOffset >= -1,
                         "Class %s has an invalid identity hash code field offset. Most likely, its objects are larger than supported.", name);
 
         this.layoutEncoding = layoutEncoding;
-        this.monitorOffset = monitorOffset == -1 ? 0 : (char) monitorOffset;
-        this.identityHashOffset = identityHashOffset == -1 ? 0 : (char) identityHashOffset;
+        this.monitorOffset = monitorOffset == -1 ? 0 : monitorOffset;
+        this.identityHashOffset = identityHashOffset == -1 ? 0 : identityHashOffset;
 
         VMError.guarantee(NumUtil.isInt(referenceMapIndex), "Reference map index not within integer range");
         this.referenceMapIndex = (int) referenceMapIndex;
