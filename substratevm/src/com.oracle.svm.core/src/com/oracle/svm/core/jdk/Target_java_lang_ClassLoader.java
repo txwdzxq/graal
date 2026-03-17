@@ -37,7 +37,6 @@ import java.util.stream.Stream;
 
 import org.graalvm.nativeimage.hosted.FieldValueTransformer;
 
-import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.core.annotate.Alias;
 import com.oracle.svm.core.annotate.Delete;
 import com.oracle.svm.core.annotate.Inject;
@@ -53,8 +52,9 @@ import com.oracle.svm.core.hub.RuntimeClassLoading.ClassDefinitionInfo;
 import com.oracle.svm.core.hub.registry.AbstractClassRegistry;
 import com.oracle.svm.core.hub.registry.ClassRegistries;
 import com.oracle.svm.shared.util.BasedOnJDKFile;
-import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.shared.util.ReflectionUtil;
+import com.oracle.svm.shared.util.SubstrateUtil;
+import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.java.LambdaUtils;
 import jdk.graal.compiler.util.Digest;
@@ -106,7 +106,6 @@ public final class Target_java_lang_ClassLoader {
     @Delete private static ClassLoader scl;
 
     @Inject @RecomputeFieldValue(kind = Kind.Custom, declClass = ClassRegistries.ClassRegistryComputer.class)//
-    @TargetElement(onlyWith = ClassForNameSupport.RespectsClassLoader.class)//
     public volatile AbstractClassRegistry classRegistry;
 
     @Alias
@@ -184,11 +183,6 @@ public final class Target_java_lang_ClassLoader {
         return findClass(name);
     }
 
-    // JDK-8265605
-    @Delete
-    @TargetElement(name = "findBootstrapClassOrNull", onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
-    static native Class<?> findBootstrapClassOrNullDeleted(String name);
-
     @Substitute //
     @SuppressWarnings("unused")
     Class<?> loadClass(Module module, String name) {
@@ -214,11 +208,7 @@ public final class Target_java_lang_ClassLoader {
          * (findLoadedClass) errors out on slash-names and array types so we assume dot-names
          */
         assert !name.contains("/") && !name.startsWith("[");
-        if (ClassForNameSupport.respectClassLoader()) {
-            return ClassRegistries.findLoadedClass(name, SubstrateUtil.cast(this, ClassLoader.class));
-        } else {
-            return ClassForNameSupport.forNameOrNull(name, SubstrateUtil.cast(this, ClassLoader.class));
-        }
+        return ClassRegistries.findLoadedClass(name, SubstrateUtil.cast(this, ClassLoader.class));
     }
 
     /**
@@ -395,13 +385,7 @@ public final class Target_java_lang_ClassLoader {
         return RuntimeClassLoading.defineClass(loader, actualName, b, off, len, info);
     }
 
-    // JDK-8265605
-    @Delete
-    @TargetElement(name = "findBootstrapClass", onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
-    private static native Class<?> findBootstrapClassDeleted(String name);
-
     @Substitute
-    @TargetElement(onlyWith = ClassForNameSupport.RespectsClassLoader.class)
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+16/src/java.base/share/native/libjava/ClassLoader.c#L288-L328")
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+16/src/hotspot/share/prims/jvm.cpp#L780-L800")
     static Class<?> findBootstrapClass(String name) {

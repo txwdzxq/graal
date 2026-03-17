@@ -95,7 +95,6 @@ import org.graalvm.nativeimage.dynamicaccess.AccessCondition;
 import org.graalvm.nativeimage.impl.ClassLoadingSupport;
 import org.graalvm.nativeimage.impl.InternalPlatform.NATIVE_ONLY;
 
-import com.oracle.svm.configure.ClassNameSupport;
 import com.oracle.svm.configure.config.SignatureUtil;
 import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.core.BuildPhaseProvider.AfterHeapLayout;
@@ -110,7 +109,6 @@ import com.oracle.svm.core.annotate.KeepOriginal;
 import com.oracle.svm.core.annotate.RecomputeFieldValue;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
-import com.oracle.svm.core.annotate.TargetElement;
 import com.oracle.svm.core.classinitialization.ClassInitializationInfo;
 import com.oracle.svm.core.classinitialization.EnsureClassInitializedNode;
 import com.oracle.svm.core.code.RuntimeMetadataDecoderImpl;
@@ -164,7 +162,6 @@ import jdk.internal.reflect.CallerSensitive;
 import jdk.internal.reflect.CallerSensitiveAdapter;
 import jdk.internal.reflect.ConstructorAccessor;
 import jdk.internal.reflect.FieldAccessor;
-import jdk.internal.reflect.Reflection;
 import jdk.internal.reflect.ReflectionFactory;
 import jdk.vm.ci.meta.JavaKind;
 import jdk.vm.ci.meta.ResolvedJavaType;
@@ -519,6 +516,7 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
         DynamicHubOffsets dynamicHubOffsets = DynamicHubOffsets.singleton();
         DynamicHubCompanion companion = DynamicHubCompanion.createAtRuntime(module, superHub, sourceFileName, modifiers, classLoader, simpleBinaryName, declaringClass, signature, info);
 
+        companion.dynamicAccess = RuntimeDynamicAccessMetadata.emptySet(false);
         /* Always allow unsafe allocation for classes that were loaded at run-time. */
         companion.canUnsafeAllocate = RuntimeDynamicAccessMetadata.emptySet(false);
         companion.classInitializationInfo = ClassInitializationInfo.forRuntimeLoadedClass(false, hasClassInitializer);
@@ -820,10 +818,11 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
-    public void setReflectionMetadata(int fieldsEncodingIndex, int methodsEncodingIndex, int constructorsEncodingIndex, int recordComponentsEncodingIndex, int unsafeAllocationIndex, int classFlags) {
+    public void setReflectionMetadata(int fieldsEncodingIndex, int methodsEncodingIndex, int constructorsEncodingIndex, int recordComponentsEncodingIndex, int dynamicAccessIndex,
+                    int unsafeAllocationIndex, int classFlags) {
         assert companion.reflectionMetadata == null;
         ImageReflectionMetadata reflectionMetadata = new ImageReflectionMetadata(fieldsEncodingIndex, methodsEncodingIndex, constructorsEncodingIndex, recordComponentsEncodingIndex,
-                        unsafeAllocationIndex, classFlags);
+                        dynamicAccessIndex, unsafeAllocationIndex, classFlags);
         if (ImageLayerBuildingSupport.buildingImageLayer()) {
             LayeredReflectionMetadataSingleton.currentLayer().setReflectionMetadata(this, reflectionMetadata);
         } else {
@@ -837,10 +836,14 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
     }
 
     private void checkClassFlag(int mask, String methodName) {
+        if (isPrimitive() || isArray()) {
+            return;
+        }
         if (MetadataTracer.enabled()) {
             MetadataTracer.singleton().traceReflectionType(toClass(this));
         }
-        if (throwMissingRegistrationErrors() && !(isClassFlagSet(mask) && getDynamicAccessMetadata().satisfied())) {
+        RuntimeDynamicAccessMetadata dynamicAccessMetadata = getDynamicAccessMetadata();
+        if (throwMissingRegistrationErrors() && !(isClassFlagSet(mask) && dynamicAccessMetadata != null && dynamicAccessMetadata.satisfied())) {
             MissingReflectionRegistrationUtils.reportClassQuery(DynamicHub.toClass(this), methodName);
         }
     }
@@ -1091,9 +1094,11 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
         if (companion.canUnsafeAllocate == null) {
             RuntimeDynamicAccessMetadata unsafeAllocationMetadata = null;
             if (ImageLayerBuildingSupport.buildingImageLayer()) {
-                for (var reflectionMetadata : LayeredReflectionMetadataSingleton.singletons()) {
+                var singletons = LayeredReflectionMetadataSingleton.singletons();
+                for (int i = 0; i < singletons.length; ++i) {
+                    var reflectionMetadata = singletons[i];
                     if (reflectionMetadata.getReflectionMetadata(this).unsafeAllocatedIndex != NO_DATA) {
-                        unsafeAllocationMetadata = reflectionMetadata.getReflectionMetadata(this).getUnsafeAllocationMetadata(this, layerId);
+                        unsafeAllocationMetadata = reflectionMetadata.getReflectionMetadata(this).getUnsafeAllocationMetadata(this, i);
                         break;
                     }
                 }
@@ -1481,8 +1486,31 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
         return copyFields(privateGetPublicFields());
     }
 
-    private RuntimeDynamicAccessMetadata getDynamicAccessMetadata() {
-        return ClassForNameSupport.getDynamicAccessMetadataFor(DynamicHub.toClass(this));
+    public RuntimeDynamicAccessMetadata getDynamicAccessMetadata() {
+        if (companion.dynamicAccess == null) {
+            RuntimeDynamicAccessMetadata dynamicAccessMetadata = null;
+            if (ImageLayerBuildingSupport.buildingImageLayer()) {
+                var singletons = LayeredReflectionMetadataSingleton.singletons();
+                for (int i = 0; i < singletons.length; ++i) {
+                    var metadataSingleton = singletons[i];
+                    ImageReflectionMetadata reflectionMetadata = metadataSingleton.getReflectionMetadata(this);
+                    if (reflectionMetadata != null && reflectionMetadata.dynamicAccessIndex != NO_DATA) {
+                        dynamicAccessMetadata = reflectionMetadata.getDynamicAccessMetadata(this, i);
+                        break;
+                    }
+                }
+            } else {
+                ReflectionMetadata reflectionMetadata = reflectionMetadata();
+                dynamicAccessMetadata = reflectionMetadata != null ? reflectionMetadata.getDynamicAccessMetadata(this, layerId) : null;
+            }
+            companion.dynamicAccess = dynamicAccessMetadata;
+        }
+        return companion.dynamicAccess;
+    }
+
+    public boolean isPreserved() {
+        var dynamicAccess = getDynamicAccessMetadata();
+        return dynamicAccess != null && dynamicAccess.isPreserved();
     }
 
     @Substitute
@@ -1852,91 +1880,24 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
     @KeepOriginal
     private native Constructor<?> getEnclosingConstructor();
 
-    @Substitute
-    @CallerSensitive
-    @TargetElement(onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
-    private static Class<?> forName(String className) throws Throwable {
-        return forName(className, Reflection.getCallerClass());
-    }
-
     @KeepOriginal
     @CallerSensitive
-    @TargetElement(name = "forName", onlyWith = ClassForNameSupport.RespectsClassLoader.class)
-    private static native Class<?> forNameOriginal(String className) throws ClassNotFoundException;
-
-    @Substitute
-    @CallerSensitiveAdapter
-    @TargetElement(onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
-    private static Class<?> forName(String className, Class<?> caller) throws Throwable {
-        return forName(className, true, caller == null ? ClassLoader.getSystemClassLoader() : caller.getClassLoader(), caller);
-    }
+    private static native Class<?> forName(String className) throws ClassNotFoundException;
 
     @KeepOriginal
     @CallerSensitiveAdapter
-    @TargetElement(name = "forName", onlyWith = ClassForNameSupport.RespectsClassLoader.class)
-    private static native Class<?> forNameOriginal(String className, Class<?> caller) throws ClassNotFoundException;
-
-    @Substitute
-    @CallerSensitive
-    @TargetElement(onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
-    private static Class<?> forName(Module module, String className) throws Throwable {
-        return forName(module, className, Reflection.getCallerClass());
-    }
+    private static native Class<?> forName(String className, Class<?> caller) throws ClassNotFoundException;
 
     @KeepOriginal
     @CallerSensitive
-    @TargetElement(name = "forName", onlyWith = ClassForNameSupport.RespectsClassLoader.class)
-    private static native Class<?> forNameOriginal(Module module, String className);
-
-    @CallerSensitiveAdapter
-    private static Class<?> forName(@SuppressWarnings("unused") Module module, String className, Class<?> caller) throws Throwable {
-        /*
-         * The module system is not supported for now, therefore the module parameter is ignored and
-         * we use the class loader of the caller class instead of the module's loader.
-         */
-        try {
-            return forName(className, false, caller.getClassLoader(), caller);
-        } catch (ClassNotFoundException e) {
-            return null;
-        }
-    }
-
-    @Substitute
-    @CallerSensitive
-    @TargetElement(onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
-    private static Class<?> forName(String name, boolean initialize, ClassLoader loader) throws Throwable {
-        return forName(name, initialize, loader, Reflection.getCallerClass());
-    }
+    private static native Class<?> forName(Module module, String className);
 
     @KeepOriginal
     @CallerSensitive
-    @TargetElement(name = "forName", onlyWith = ClassForNameSupport.RespectsClassLoader.class)
-    private static native Class<?> forNameOriginal(String name, boolean initialize, ClassLoader loader);
-
-    @CallerSensitiveAdapter
-    private static Class<?> forName(String name, boolean initialize, ClassLoader loader, @SuppressWarnings("unused") Class<?> caller) throws Throwable {
-        if (name == null) {
-            throw new NullPointerException();
-        }
-        Class<?> result;
-        try {
-            result = ClassForNameSupport.forName(name, loader);
-        } catch (ClassNotFoundException e) {
-            if (loader != null && PredefinedClassesSupport.hasBytecodeClasses()) {
-                result = loader.loadClass(name); // may throw
-            } else {
-                throw e;
-            }
-        }
-        if (initialize) {
-            DynamicHub.fromClass(result).ensureInitialized();
-        }
-        return result;
-    }
+    private static native Class<?> forName(String name, boolean initialize, ClassLoader loader);
 
     @Substitute
     @CallerSensitiveAdapter
-    @TargetElement(onlyWith = ClassForNameSupport.RespectsClassLoader.class)
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+16/src/java.base/share/native/libjava/Class.c#L97-L144")
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+16/src/hotspot/share/prims/jvm.cpp#L803-L821")
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+16/src/hotspot/share/prims/jvm.cpp#L3303-L3312")
@@ -2158,16 +2119,17 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
             MetadataTracer.singleton().traceReflectionArrayType(toClass(this));
         }
         DynamicHub arrayHub = getArrayHub();
+        RuntimeDynamicAccessMetadata dynamicAccessMetadata = arrayHub != null ? arrayHub.getDynamicAccessMetadata() : null;
         // this access is validated even if the array hub exists
         if (RuntimeClassLoading.isSupported()) {
             if (throwMissingRegistrationErrors() &&
                             ClassLoadingSupport.singleton().followReflectionConfiguration() &&
-                            !ClassForNameSupport.isRegisteredClass(ClassNameSupport.getArrayReflectionName(getName()))) {
+                            (dynamicAccessMetadata == null || !dynamicAccessMetadata.satisfied())) {
                 MissingReflectionRegistrationUtils.reportClassAccess(getTypeName() + "[]");
             }
         } else {
             if (arrayHub == null || (throwMissingRegistrationErrors() &&
-                            !ClassForNameSupport.isRegisteredClass(ClassNameSupport.getArrayReflectionName(getName())))) {
+                            (dynamicAccessMetadata == null || !dynamicAccessMetadata.satisfied()))) {
                 MissingReflectionRegistrationUtils.reportClassAccess(getTypeName() + "[]");
             }
         }

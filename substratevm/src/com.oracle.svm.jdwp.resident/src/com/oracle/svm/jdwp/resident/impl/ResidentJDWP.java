@@ -39,8 +39,8 @@ import org.graalvm.word.impl.Word;
 import com.oracle.svm.core.code.FrameInfoQueryResult;
 import com.oracle.svm.core.code.FrameSourceInfo;
 import com.oracle.svm.core.deopt.DeoptState;
-import com.oracle.svm.core.hub.ClassForNameSupport;
 import com.oracle.svm.core.hub.DynamicHub;
+import com.oracle.svm.core.hub.registry.ClassRegistries;
 import com.oracle.svm.core.interpreter.InterpreterFrameSourceInfo;
 import com.oracle.svm.core.meta.SubstrateObjectConstant;
 import com.oracle.svm.core.thread.ThreadsLock;
@@ -1511,7 +1511,7 @@ public final class ResidentJDWP implements JDWP {
                 isClassVisible = (loader == bootLoader || loader == platformLoader || loader == appLoader);
             } else {
                 // SVM equivalent to ClassLoader#findLoadedClass.
-                Class<?> forNameClass = ClassForNameSupport.forNameOrNull(type.toClassName(), classLoader);
+                Class<?> forNameClass = ClassRegistries.findLoadedClass(type.toClassName(), classLoader);
                 if (javaClass == forNameClass) {
                     isClassVisible = true;
                 }

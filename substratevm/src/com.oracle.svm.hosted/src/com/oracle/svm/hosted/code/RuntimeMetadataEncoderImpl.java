@@ -93,7 +93,6 @@ import com.oracle.svm.core.meta.SharedField;
 import com.oracle.svm.core.reflect.target.EncodedRuntimeMetadataSupplier;
 import com.oracle.svm.core.reflect.target.Target_jdk_internal_reflect_ConstantPool;
 import com.oracle.svm.core.util.ByteArrayReader;
-import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.hosted.image.NativeImageCodeCache.ReflectionMetadataEncoderFactory;
 import com.oracle.svm.hosted.image.NativeImageCodeCache.RuntimeMetadataEncoder;
 import com.oracle.svm.hosted.imagelayer.SVMImageLayerSingletonLoader;
@@ -117,8 +116,9 @@ import com.oracle.svm.shared.singletons.traits.LayeredCallbacksSingletonTrait;
 import com.oracle.svm.shared.singletons.traits.SingletonLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonLayeredCallbacksSupplier;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
-import com.oracle.svm.util.AnnotationUtil;
 import com.oracle.svm.shared.util.ReflectionUtil;
+import com.oracle.svm.shared.util.VMError;
+import com.oracle.svm.util.AnnotationUtil;
 
 import jdk.graal.compiler.annotation.AnnotationValue;
 import jdk.graal.compiler.annotation.TypeAnnotationValue;
@@ -289,6 +289,7 @@ public class RuntimeMetadataEncoderImpl implements RuntimeMetadataEncoder {
         int enabledQueries = dataBuilder.getEnabledReflectionQueries(javaClass);
         VMError.guarantee((classAccessFlags & enabledQueries) == 0);
         int flags = classAccessFlags | enabledQueries;
+        RuntimeDynamicAccessMetadata dynamicAccess = dataBuilder.getTypeMetadata(javaClass);
         RuntimeDynamicAccessMetadata unsafeAllocation = dataBuilder.getUnsafeAllocationMetadata(javaClass);
 
         /* Register string and class values in annotations */
@@ -309,6 +310,11 @@ public class RuntimeMetadataEncoderImpl implements RuntimeMetadataEncoder {
                 addConstantObject(signerConstants[i]);
             }
         }
+        if (dynamicAccess != null) {
+            for (Class<?> conditionType : dynamicAccess.getTypesForEncoding()) {
+                encoders.classes.addObject(conditionType);
+            }
+        }
         if (unsafeAllocation != null) {
             for (Class<?> conditionType : unsafeAllocation.getTypesForEncoding()) {
                 encoders.classes.addObject(conditionType);
@@ -318,8 +324,8 @@ public class RuntimeMetadataEncoderImpl implements RuntimeMetadataEncoder {
         AnnotationValue[] annotations = registerAnnotationValues(analysisType);
         TypeAnnotationValue[] typeAnnotations = registerTypeAnnotationValues(analysisType);
 
-        registerClass(type, new ClassMetadata(innerTypes, enclosingMethodInfo, recordComponents, permittedSubtypes, nestMemberTypes, signerConstants, flags, unsafeAllocation, annotations,
-                        typeAnnotations));
+        registerClass(type, new ClassMetadata(innerTypes, enclosingMethodInfo, recordComponents, permittedSubtypes, nestMemberTypes, signerConstants, flags, dynamicAccess, unsafeAllocation,
+                        annotations, typeAnnotations));
     }
 
     private void addConstantObject(JavaConstant constant) {
@@ -829,10 +835,11 @@ public class RuntimeMetadataEncoderImpl implements RuntimeMetadataEncoder {
             int methodsIndex = encodeAndAddCollection(buf, getMethods(declaringType), methodLookupErrors.get(declaringType), this::encodeExecutable, false);
             int constructorsIndex = encodeAndAddCollection(buf, getConstructors(declaringType), constructorLookupErrors.get(declaringType), this::encodeExecutable, false);
             int recordComponentsIndex = encodeAndAddCollection(buf, classMetadata.recordComponents, recordComponentLookupErrors.get(declaringType), this::encodeRecordComponent, true);
+            int dynamicAccessIndex = encodeAndAddElement(buf, b -> encodeDynamicAccess(b, classMetadata.dynamicAccess));
             int unsafeAllocationIndex = encodeAndAddElement(buf, b -> encodeDynamicAccess(b, classMetadata.unsafeAllocation));
             int classFlags = classMetadata.flags;
-            if (anySet(fieldsIndex, methodsIndex, constructorsIndex, recordComponentsIndex, unsafeAllocationIndex) || classFlags != hub.getModifiers()) {
-                hub.setReflectionMetadata(fieldsIndex, methodsIndex, constructorsIndex, recordComponentsIndex, unsafeAllocationIndex, classFlags);
+            if (anySet(fieldsIndex, methodsIndex, constructorsIndex, recordComponentsIndex, dynamicAccessIndex, unsafeAllocationIndex) || classFlags != hub.getModifiers()) {
+                hub.setReflectionMetadata(fieldsIndex, methodsIndex, constructorsIndex, recordComponentsIndex, dynamicAccessIndex, unsafeAllocationIndex, classFlags);
             }
         }
 
