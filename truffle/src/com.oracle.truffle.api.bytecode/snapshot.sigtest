@@ -270,7 +270,6 @@ supr java.lang.Enum<com.oracle.truffle.api.bytecode.BytecodeTier>
 CLSS public abstract com.oracle.truffle.api.bytecode.BytecodeTransition
 cons protected init(java.lang.Object)
 meth public abstract boolean isBytecodeUpdate()
-meth public abstract boolean isSourceInformationUpdate()
 meth public abstract boolean isTransferToInterpreter()
 meth public abstract com.oracle.truffle.api.bytecode.BytecodeLocation getNewLocation()
 meth public abstract com.oracle.truffle.api.bytecode.BytecodeLocation getOldLocation()

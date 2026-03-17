@@ -459,9 +459,6 @@ final class PolyglotInstructionTracers {
                 kinds.add(BytecodeTransitionKind.instrumentation);
             }
         }
-        if (transition.isSourceInformationUpdate()) {
-            kinds.add(BytecodeTransitionKind.source);
-        }
         if (transition.isTransferToInterpreter()) {
             kinds.add(BytecodeTransitionKind.transferToInterpreter);
         }
@@ -473,7 +470,6 @@ final class PolyglotInstructionTracers {
                     BytecodeTransitionKind.tier,
                     BytecodeTransitionKind.tag,
                     BytecodeTransitionKind.instrumentation,
-                    BytecodeTransitionKind.source,
                     BytecodeTransitionKind.transferToInterpreter,
     };
 

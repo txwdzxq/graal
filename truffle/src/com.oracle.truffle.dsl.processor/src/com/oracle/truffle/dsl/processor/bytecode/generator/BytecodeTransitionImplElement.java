@@ -72,7 +72,6 @@ final class BytecodeTransitionImplElement extends AbstractElement {
         this.add(createToClassSet());
         this.add(createMapAddedTags());
         this.add(createMapAddedInstrumentations());
-        this.add(createIsSourceInformationUpdate());
         this.add(createIsBytecodeUpdate());
         this.add(createIsTransferToInterpreter());
         this.add(createGetAddedTags());
@@ -168,12 +167,6 @@ final class BytecodeTransitionImplElement extends AbstractElement {
 
         b.statement("Class<?>[] result = classesIndex == classes.length ? classes : Arrays.copyOf(classes, classesIndex)");
         b.statement("return toClassSet(result)");
-        return ex;
-    }
-
-    private CodeExecutableElement createIsSourceInformationUpdate() {
-        CodeExecutableElement ex = GeneratorUtils.override(types.BytecodeTransition, "isSourceInformationUpdate");
-        ex.createBuilder().statement("return ((oldBytecodeNode.configEncoding ^ newBytecodeNode.configEncoding) & 0x1L) != 0");
         return ex;
     }
 

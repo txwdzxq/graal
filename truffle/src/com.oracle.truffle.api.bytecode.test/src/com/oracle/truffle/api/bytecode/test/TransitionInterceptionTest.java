@@ -101,7 +101,6 @@ public class TransitionInterceptionTest {
         assertEquals(1, root.transitions.size());
         BytecodeTransition transition = root.transitions.get(0);
         assertFalse("Expected !isBytecodeUpdate when bytecode array identity is unchanged", transition.isBytecodeUpdate());
-        assertFalse("Expected !isSourceInformationUpdate", transition.isSourceInformationUpdate());
         assertFalse("Expected !isTransferToInterpreter (not compiled)", transition.isTransferToInterpreter());
         assertNotNull(transition.getOldLocation());
         assertNotNull(transition.getNewLocation());
@@ -112,15 +111,15 @@ public class TransitionInterceptionTest {
      * For simple interpreters, {@link BytecodeNode#ensureSourceInformation()} performs a
      * metadata-only update: the source info arrays are updated but the bytecodes array is unchanged
      * ({@code bytecodes_ == null}). Because the old bytecodes are never patched with INVALIDATE
-     * instructions, the execute loop cannot detect the change mid-execution, and no
-     * source-information update transition fires.
+     * instructions, the execute loop cannot detect the change mid-execution, so no additional
+     * transition fires.
      * <p>
      * This test verifies that calling {@link BytecodeNode#ensureSourceInformation()} from within an
      * executing cached bytecode works correctly: only the uncached->cached tier-only transition
      * fires, and the interpreter correctly reports source information afterwards.
      */
     @Test
-    public void testSourceInformationUpdateWithoutBytecodeTransition() {
+    public void testSourceInformationMaterializationDoesNotCreateAdditionalTransition() {
         TransitionTracingInterpreter root = parse(b -> {
             b.beginRoot();
             // Trigger source info materialization during cached execution. For simple interpreters
@@ -138,12 +137,10 @@ public class TransitionInterceptionTest {
 
         assertEquals(42L, root.getCallTarget().call());
 
-        // Only the uncached->cached tier-only transition fires; no source-information update is
-        // observed in this interpreter configuration.
+        // Only the uncached->cached tier-only transition fires in this interpreter configuration.
         assertEquals(1, root.transitions.size());
         BytecodeTransition transition = root.transitions.get(0);
         assertFalse("Expected !isBytecodeUpdate when bytecode array identity is unchanged", transition.isBytecodeUpdate());
-        assertFalse("Expected !isSourceInformationUpdate", transition.isSourceInformationUpdate());
         assertFalse("Expected !isTransferToInterpreter (not compiled)", transition.isTransferToInterpreter());
 
         // The bytecode node should now report source information (metadata was updated).

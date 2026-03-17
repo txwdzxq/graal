@@ -627,11 +627,10 @@ interpreter behavior.
   bytecode is executing.
   * `true` traces all transition kinds.
   * You can also select a comma-separated subset of kinds:
-    `transferToInterpreter,bytecode,source,tier,tag,instrumentation`.
+    `transferToInterpreter,bytecode,tier,tag,instrumentation`.
   * `bytecode` includes all bytecode updates; `tier`, `tag`, and `instrumentation` select
     subsets of bytecode updates.
-  * Updates applied between calls are not reported by this option. For example, `source` is only
-    reported when source information materialization causes an on-stack transition.
+  * Updates applied between calls are not reported by this option.
 
 * `--engine.BytecodeHistogram=...` collects and prints a histogram of executed bytecode opcodes.
   * `true` enables the default histogram.

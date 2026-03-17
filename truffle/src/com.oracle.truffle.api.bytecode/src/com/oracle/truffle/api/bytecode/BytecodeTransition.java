@@ -50,7 +50,7 @@ import com.oracle.truffle.api.frame.Frame;
  * {@link BytecodeRootNode#traceTransition(BytecodeTransition, Frame)}.
  * <p>
  * Transition kinds are not mutually exclusive; for example, a single transition can simultaneously
- * report {@link #isBytecodeUpdate()} and {@link #isSourceInformationUpdate()}.
+ * report {@link #isBytecodeUpdate()} and {@link #isTransferToInterpreter()}.
  *
  * @since 25.1
  */
@@ -64,13 +64,6 @@ public abstract class BytecodeTransition {
     protected BytecodeTransition(Object token) {
         BytecodeRootNodes.checkToken(token);
     }
-
-    /**
-     * Returns {@code true} if source information changed for this transition.
-     *
-     * @since 25.1
-     */
-    public abstract boolean isSourceInformationUpdate();
 
     /**
      * Returns {@code true} if bytecode metadata or instructions changed for this transition, e.g.
@@ -123,7 +116,6 @@ public abstract class BytecodeTransition {
     public String toString() {
         return "BytecodeTransition [old=" + getOldLocation() + ", new=" + getNewLocation() +
                         ", transferToInterpreter=" + isTransferToInterpreter() +
-                        ", sourceInformationUpdate=" + isSourceInformationUpdate() +
                         ", bytecodeUpdate=" + isBytecodeUpdate() +
                         ", addedTags=" + getAddedTags() +
                         ", addedInstrumentations=" + getAddedInstrumentations() +

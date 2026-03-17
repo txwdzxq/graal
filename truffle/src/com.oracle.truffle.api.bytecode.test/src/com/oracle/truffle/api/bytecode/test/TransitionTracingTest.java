@@ -70,7 +70,7 @@ import com.oracle.truffle.tck.tests.TruffleTestAssumptions;
 
 /**
  * Tests the {@code engine.TraceBytecodeTransition} engine option which logs bytecode interpreter
- * transition events (uncached-to-cached, source materialization, deoptimization).
+ * transition events (uncached-to-cached, bytecode updates, deoptimization).
  */
 public class TransitionTracingTest {
 
@@ -124,7 +124,6 @@ public class TransitionTracingTest {
         node.getCallTarget().call(Boolean.FALSE, 42);
 
         assertFalse("Expected no bytecode log line when bytecode array identity is unchanged", hasTransitionLog(messages, "bytecode"));
-        assertFalse("Expected no source log line " + messages.toString(), hasTransitionLog(messages, "source"));
     }
 
     /**
@@ -145,29 +144,6 @@ public class TransitionTracingTest {
         node.getCallTarget().call(Boolean.FALSE, 42);
 
         assertFalse("Expected no tier log line when bytecode array identity is unchanged", hasTransitionLog(messages, "tier"));
-        assertFalse("Expected no source log line", hasTransitionLog(messages, "source"));
-    }
-
-    /**
-     * With {@code engine.TraceBytecodeTransition=source}, only source-information update events are
-     * logged and bytecode events are suppressed.
-     */
-    @Test
-    public void testFilterSourceInformationUpdateWithoutOnStackTransition() {
-        Context.Builder cb = Context.newBuilder(BytecodeDSLTestLanguage.ID).option("engine.TraceBytecodeTransition", "source");
-        List<String> messages = captureLog(cb);
-
-        BytecodeDSLTestLanguage language = setupLanguage(cb);
-        TransitionTracingRootNode node = BYTECODE.create(language, BytecodeConfig.DEFAULT, TransitionTracingTest::emitSimpleInc).getNode(0);
-
-        // Force immediate uncached->cached transition (fires a bytecodeUpdate, which is filtered).
-        node.getBytecodeNode().setUncachedThreshold(0);
-        node.getCallTarget().call(Boolean.FALSE, 42);
-
-        // With source filter, bytecode updates are suppressed.
-        assertFalse("Expected no bytecode log line (filtered out by source filter)", hasTransitionLog(messages, "bytecode"));
-        // No source updates fire in interpreter mode for metadata-only source updates.
-        assertFalse("Expected no source log line", hasTransitionLog(messages, "source"));
     }
 
     /**

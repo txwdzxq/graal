@@ -154,9 +154,9 @@ public interface BytecodeRootNode {
      * Optional hook invoked when executing bytecode transitions from one bytecode node to another.
      * Transitions are emitted only for on-stack changes observed during execution, for example when
      * moving from uncached to cached tier, when reparsing updates the bytecode due to
-     * {@link BytecodeConfig} changes (tags, instrumentations, source information) and execution
-     * continues in the new bytecode node, or when deoptimization transfers execution from Truffle
-     * runtime-compiled code back to the interpreter.
+     * {@link BytecodeConfig} changes and execution continues in the new bytecode node, or when
+     * deoptimization transfers execution from Truffle runtime-compiled code back to the
+     * interpreter.
      * <p>
      * The frame is only valid during the invocation of this method. The transition object may
      * outlive the execution of this method.

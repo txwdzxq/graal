@@ -174,9 +174,9 @@ final class PolyglotEngineOptions {
     public static final OptionKey<Boolean> TraceBytecode = new OptionKey<>(false);
 
     @Option(category = OptionCategory.EXPERT, usageSyntax = "true|false|<kind>[,<kind>...]", stability = OptionStability.STABLE, help = "" + //
-                    "Trace on-stack bytecode interpreter transitions while bytecode is executing (for example uncached-to-cached updates, source information materialization that triggers a transition, and deoptimization transfers). " + //
+                    "Trace on-stack bytecode interpreter transitions while bytecode is executing (for example uncached-to-cached updates, on-stack bytecode updates, and deoptimization transfers). " + //
                     "Set to 'true' to trace all transitions, or to a comma-separated subset of transition kinds. " + //
-                    "Available kinds are transferToInterpreter, bytecode, source, tier, tag, instrumentation. " + //
+                    "Available kinds are transferToInterpreter, bytecode, tier, tag, instrumentation. " + //
                     "The 'bytecode' kind traces all bytecode updates; tier, tag, and instrumentation select subsets of bytecode updates. " + //
                     "Supported only by Bytecode DSL interpreters. " + //
                     "Combine with engine.BytecodeMethodFilter and engine.BytecodeLanguageFilter to limit output.")//
@@ -267,7 +267,6 @@ final class PolyglotEngineOptions {
     enum BytecodeTransitionKind {
         transferToInterpreter,
         bytecode,
-        source,
         tier,
         tag,
         instrumentation,
