@@ -121,7 +121,7 @@ public class RuntimeOptionKey<T> extends OptionKey<T> implements SubstrateOption
     }
 
     void afterValueUpdateFromRuntimeValues() {
-        super.afterValueUpdate();
+        afterValueUpdate();
     }
 
     /**
