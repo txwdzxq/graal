@@ -371,8 +371,6 @@ public final class ClassInitializationInfo {
             }
         }
 
-        ensureLinked(hub);
-
         /*
          * Before acquiring the lock, make the yellow zone available and disable recurring callback
          * execution (otherwise, deadlocks may occur or the same static initializer may be executed
@@ -388,6 +386,7 @@ public final class ClassInitializationInfo {
             RecurringCallbackSupport.suspendCallbackTimer("Prevent deadlocks and other issues.");
         }
         try {
+            ensureLinked0(hub);
             tryInitialize0(hub);
         } finally {
             if (Platform.includedIn(NATIVE_ONLY.class) && !superClassInitialization) {
@@ -433,7 +432,34 @@ public final class ClassInitializationInfo {
             return;
         }
 
-        if (initState.isAtLeast(InitState.Linked)) {
+        if (isLinked()) {
+            return;
+        }
+
+        /*
+         * Before acquiring the lock, make the yellow zone available and disable recurring callback
+         * execution.
+         */
+        if (Platform.includedIn(NATIVE_ONLY.class)) {
+            StackOverflowCheck.singleton().makeYellowZoneAvailable();
+            RecurringCallbackSupport.suspendCallbackTimer("Prevent deadlocks and other issues.");
+        }
+        try {
+            ensureLinked0(hub);
+        } finally {
+            if (Platform.includedIn(NATIVE_ONLY.class)) {
+                RecurringCallbackSupport.resumeCallbackTimer();
+                StackOverflowCheck.singleton().protectYellowZone();
+            }
+        }
+    }
+
+    private void ensureLinked0(DynamicHub hub) {
+        if (!RuntimeClassLoading.isSupported()) {
+            return;
+        }
+
+        if (isLinked()) {
             return;
         }
 
@@ -451,11 +477,11 @@ public final class ClassInitializationInfo {
                 initCondition.awaitUninterruptibly();
             }
 
-            if (isBeingLinked() && isReentrantInitialization()) {
+            if (isLinked()) {
                 return;
             }
 
-            if (initState.isAtLeast(InitState.Linked)) {
+            if (isBeingLinked() && isReentrantInitialization()) {
                 return;
             }
 
@@ -466,24 +492,45 @@ public final class ClassInitializationInfo {
         }
 
         try {
+            // link super class before linking this class
             DynamicHub superHub = hub.getSuperHub();
             if (superHub != null) {
                 ClassInitializationInfo superInfo = superHub.getClassInitializationInfo();
-                superInfo.ensureLinked(superHub);
+                superInfo.ensureLinked0(superHub);
             }
 
+            // link all interfaces implemented by this class before linking this class
             for (DynamicHub interfaceHub : hub.getInterfaces()) {
                 ClassInitializationInfo superInfo = interfaceHub.getClassInitializationInfo();
-                superInfo.ensureLinked(interfaceHub);
+                superInfo.ensureLinked0(interfaceHub);
             }
 
-            CremaSupport.singleton().prepareAndVerify(hub);
+            prepareAndVerify(hub);
+
+            // Successfully linked
+            setInitializationStateAndNotify(InitState.Linked);
         } catch (Throwable ex) {
+            // Roll-back the attempt. Further attempts at linking should retry.
             setInitializationStateAndNotify(InitState.Loaded);
             throw ex;
         }
+    }
 
-        setInitializationStateAndNotify(InitState.Linked);
+    private static void prepareAndVerify(DynamicHub hub) {
+        /*
+         * Verifier can trigger class loading, which calls arbitrary Java code. So, Protect the
+         * yellow zone before executing arbitrary Java code.
+         */
+        if (Platform.includedIn(NATIVE_ONLY.class)) {
+            StackOverflowCheck.singleton().protectYellowZone();
+        }
+        try {
+            CremaSupport.singleton().prepareAndVerify(hub);
+        } finally {
+            if (Platform.includedIn(NATIVE_ONLY.class)) {
+                StackOverflowCheck.singleton().makeYellowZoneAvailable();
+            }
+        }
     }
 
     /**
