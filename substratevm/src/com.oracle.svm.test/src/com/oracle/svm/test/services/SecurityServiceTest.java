@@ -153,6 +153,32 @@ public class SecurityServiceTest {
         }
     }
 
+    @Test
+    public void testGenericMissingBuiltInProviderGetServiceUsesBroadError() {
+        Assume.assumeTrue("needs runtime initialization", FutureDefaultsOptions.securityProvidersInitializedAtRunTime());
+        try {
+            GetInstance.getService("Signature", "SHA256withECDSA");
+            Assert.fail("Generic provider discovery should not find an omitted built-in provider.");
+        } catch (NoSuchAlgorithmException e) {
+            Assert.assertEquals("SHA256withECDSA Signature not available", e.getMessage());
+            Assert.assertFalse("Generic discovery should not use the explicit-provider diagnostic yet.",
+                            e.getMessage().contains("-H:AdditionalSecurityProviders=sun.security.ec.SunEC"));
+        }
+    }
+
+    @Test
+    public void testGenericMissingBuiltInProviderGetInstanceUsesBroadError() {
+        Assume.assumeTrue("needs runtime initialization", FutureDefaultsOptions.securityProvidersInitializedAtRunTime());
+        try {
+            GetInstance.getInstance("Signature", null, "SHA256withECDSA");
+            Assert.fail("Generic provider discovery should not instantiate an omitted built-in provider.");
+        } catch (NoSuchAlgorithmException e) {
+            Assert.assertEquals("SHA256withECDSA Signature not available", e.getMessage());
+            Assert.assertFalse("Generic discovery should not use the explicit-provider diagnostic yet.",
+                            e.getMessage().contains("-H:AdditionalSecurityProviders=sun.security.ec.SunEC"));
+        }
+    }
+
     private static final class NoOpProvider extends Provider {
 
         static final long serialVersionUID = 1234L;
