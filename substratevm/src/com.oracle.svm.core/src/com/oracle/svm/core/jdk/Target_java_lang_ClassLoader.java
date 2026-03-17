@@ -45,7 +45,6 @@ import com.oracle.svm.core.annotate.RecomputeFieldValue.Kind;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
 import com.oracle.svm.core.annotate.TargetElement;
-import com.oracle.svm.core.hub.ClassForNameSupport;
 import com.oracle.svm.core.hub.PredefinedClassesSupport;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.core.hub.RuntimeClassLoading.ClassDefinitionInfo;
@@ -127,7 +126,7 @@ public final class Target_java_lang_ClassLoader {
     public native Enumeration<URL> findResources(String name);
 
     @Substitute
-    @TargetElement(onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
+    @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
     private Enumeration<URL> getResources(String name) {
         /* Every class loader sees every resource, so we still need this substitution (GR-19998). */
         Enumeration<URL> urls = ResourcesHelper.nameToResourceEnumerationURLs(name);
@@ -160,7 +159,7 @@ public final class Target_java_lang_ClassLoader {
     protected native Class<?> findClass(String name);
 
     @Substitute
-    @TargetElement(onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
+    @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
     @SuppressWarnings("unused")
     Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
         Class<?> clazz = findLoadedClass(name);
@@ -286,29 +285,29 @@ public final class Target_java_lang_ClassLoader {
 
     @Substitute
     @SuppressWarnings({"unused", "static-method"})
-    @TargetElement(onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
+    @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
     private Class<?> defineClass(String name, byte[] b, int off, int len, ProtectionDomain protectionDomain) {
         return RuntimeClassLoading.defineClass(SubstrateUtil.cast(this, ClassLoader.class), name, b, off, len, new ClassDefinitionInfo(protectionDomain));
     }
 
     @Substitute
     @SuppressWarnings({"unused", "static-method"})
-    @TargetElement(onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
+    @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
     private Class<?> defineClass(String name, java.nio.ByteBuffer b, ProtectionDomain protectionDomain) {
         return defineClass2(SubstrateUtil.cast(this, ClassLoader.class), name, b, b.position(), b.remaining(), protectionDomain, null);
     }
 
     @Delete
-    @TargetElement(name = "defineClass1", onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
+    @TargetElement(name = "defineClass1", onlyWith = ClassRegistries.IgnoresClassLoader.class)
     @SuppressWarnings("unused")
     private static native Class<?> defineClass1Deleted(ClassLoader loader, String name, byte[] b, int off, int len, ProtectionDomain pd, String source);
 
     @Delete
-    @TargetElement(name = "defineClass2", onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
+    @TargetElement(name = "defineClass2", onlyWith = ClassRegistries.IgnoresClassLoader.class)
     private static native Class<?> defineClass2Deleted(ClassLoader loader, String name, java.nio.ByteBuffer b, int off, int len, ProtectionDomain pd, String source);
 
     @Substitute
-    @TargetElement(onlyWith = ClassForNameSupport.RespectsClassLoader.class)
+    @TargetElement(onlyWith = ClassRegistries.RespectsClassLoader.class)
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+16/src/java.base/share/native/libjava/ClassLoader.c#L71-L151")
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+16/src/hotspot/share/prims/jvm.cpp#L1051-L1054")
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+16/src/hotspot/share/prims/jvm.cpp#L857-L896")
@@ -318,7 +317,7 @@ public final class Target_java_lang_ClassLoader {
     }
 
     @Substitute
-    @TargetElement(onlyWith = ClassForNameSupport.RespectsClassLoader.class)
+    @TargetElement(onlyWith = ClassRegistries.RespectsClassLoader.class)
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+16/src/java.base/share/native/libjava/ClassLoader.c#L153-L213")
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+16/src/hotspot/share/prims/jvm.cpp#L1051-L1054")
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+16/src/hotspot/share/prims/jvm.cpp#L857-L896")

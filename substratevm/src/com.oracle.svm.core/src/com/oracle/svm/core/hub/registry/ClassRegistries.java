@@ -25,10 +25,12 @@
 package com.oracle.svm.core.hub.registry;
 
 import static com.oracle.svm.core.MissingRegistrationUtils.throwMissingRegistrationErrors;
+import static jdk.graal.compiler.options.OptionStability.EXPERIMENTAL;
 
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import org.graalvm.collections.EconomicMap;
@@ -41,7 +43,6 @@ import org.graalvm.nativeimage.impl.ClassLoadingSupport;
 import com.oracle.svm.configure.ClassNameSupport;
 import com.oracle.svm.core.configure.ConditionalRuntimeValue;
 import com.oracle.svm.core.configure.RuntimeDynamicAccessMetadata;
-import com.oracle.svm.core.hub.ClassForNameSupport;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.PredefinedClassesSupport;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
@@ -59,6 +60,8 @@ import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.espresso.classfile.descriptors.Type;
 import com.oracle.svm.espresso.classfile.descriptors.TypeSymbols;
 import com.oracle.svm.espresso.classfile.perf.TimerCollection;
+import com.oracle.svm.shared.option.HostedOptionKey;
+import com.oracle.svm.shared.option.LayerVerifiedOption;
 import com.oracle.svm.shared.singletons.LayeredImageSingletonSupport;
 import com.oracle.svm.shared.singletons.MultiLayeredImageSingleton;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits;
@@ -68,6 +71,8 @@ import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.JVMCIReflectionUtil;
 
+import jdk.graal.compiler.api.replacements.Fold;
+import jdk.graal.compiler.options.Option;
 import jdk.internal.misc.PreviewFeatures;
 
 /**
@@ -90,6 +95,33 @@ import jdk.internal.misc.PreviewFeatures;
  */
 @SingletonTraits(access = BuiltinTraits.AllAccess.class, layeredCallbacks = BuiltinTraits.NoLayeredCallbacks.class, layeredInstallationKind = MultiLayer.class)
 public final class ClassRegistries implements ParsingContext {
+    public static final class Options {
+        @LayerVerifiedOption(kind = LayerVerifiedOption.Kind.Changed, severity = LayerVerifiedOption.Severity.Error)//
+        @Option(help = "Class.forName and similar respect their class loader argument.", stability = EXPERIMENTAL)//
+        public static final HostedOptionKey<Boolean> ClassForNameRespectsClassLoader = new HostedOptionKey<>(false);
+    }
+
+    @Platforms(Platform.HOSTED_ONLY.class)
+    public static final class RespectsClassLoader implements BooleanSupplier {
+        @Override
+        public boolean getAsBoolean() {
+            return respectClassLoader();
+        }
+    }
+
+    @Platforms(Platform.HOSTED_ONLY.class)
+    public static final class IgnoresClassLoader implements BooleanSupplier {
+        @Override
+        public boolean getAsBoolean() {
+            return !respectClassLoader();
+        }
+    }
+
+    @Fold
+    public static boolean respectClassLoader() {
+        return Options.ClassForNameRespectsClassLoader.getValue();
+    }
+
     public final TimerCollection timers = TimerCollection.create(false);
 
     @Platforms(Platform.HOSTED_ONLY.class)//
@@ -418,7 +450,7 @@ public final class ClassRegistries implements ParsingContext {
     }
 
     public AbstractClassRegistry getRegistry(ClassLoader loader) {
-        if (loader == null || !ClassForNameSupport.respectClassLoader()) {
+        if (loader == null || !respectClassLoader()) {
             return bootRegistry;
         }
         Target_java_lang_ClassLoader svmLoader = SubstrateUtil.cast(loader, Target_java_lang_ClassLoader.class);

@@ -32,7 +32,6 @@ import org.graalvm.nativeimage.c.type.CTypeConversion;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.c.function.CEntryPointOptions;
-import com.oracle.svm.core.hub.ClassForNameSupport;
 import com.oracle.svm.core.hub.registry.ClassRegistries;
 import com.oracle.svm.core.hub.registry.SymbolsSupport;
 import com.oracle.svm.core.jni.JNIObjectHandles;
@@ -55,7 +54,7 @@ final class LibJVMEntryPoints {
     @CEntryPoint(name = "JVM_FindClassFromBootLoader", exceptionHandler = ReturnNullHandleHandler.class, publishAs = Publish.SymbolOnly, include = LibJVMMainMethodWrappers.Enabled.class)
     @CEntryPointOptions(prologue = JNIEnvEnterPrologue.class, prologueBailout = ReturnNullHandle.class)
     static JNIObjectHandle findClassFromBootLoader(@SuppressWarnings("unused") JNIEnvironment env, CCharPointer name) {
-        if (!ClassForNameSupport.respectClassLoader()) {
+        if (!ClassRegistries.respectClassLoader()) {
             return Word.nullPointer();
         }
 

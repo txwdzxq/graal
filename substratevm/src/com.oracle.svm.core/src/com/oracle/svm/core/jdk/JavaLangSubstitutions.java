@@ -63,7 +63,6 @@ import com.oracle.svm.core.annotate.TargetElement;
 import com.oracle.svm.core.container.Container;
 import com.oracle.svm.core.container.OperatingSystem;
 import com.oracle.svm.core.fieldvaluetransformer.FieldValueTransformerWithAvailability;
-import com.oracle.svm.core.hub.ClassForNameSupport;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.registry.ClassRegistries;
 import com.oracle.svm.core.jdk.strings.StringInternSupport;
@@ -675,7 +674,7 @@ final class Target_jdk_internal_loader_BootLoader {
     }
 
     @Substitute
-    @TargetElement(onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
+    @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
     public static Stream<Package> packages() {
         Target_jdk_internal_loader_BuiltinClassLoader bootClassLoader = Target_jdk_internal_loader_ClassLoaders.bootLoader();
         Target_java_lang_ClassLoader systemClassLoader = SubstrateUtil.cast(bootClassLoader, Target_java_lang_ClassLoader.class);
@@ -683,11 +682,11 @@ final class Target_jdk_internal_loader_BootLoader {
     }
 
     @Delete("only used by #packages()")
-    @TargetElement(name = "getSystemPackageNames", onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
+    @TargetElement(name = "getSystemPackageNames", onlyWith = ClassRegistries.IgnoresClassLoader.class)
     private static native String[] getSystemPackageNamesDeleted();
 
     @Substitute
-    @TargetElement(onlyWith = ClassForNameSupport.RespectsClassLoader.class)
+    @TargetElement(onlyWith = ClassRegistries.RespectsClassLoader.class)
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+16/src/java.base/share/native/libjava/BootLoader.c#L37-L41")
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+16/src/hotspot/share/prims/jvm.cpp#L3003-L3007")
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+16/src/hotspot/share/classfile/classLoader.cpp#L907-L924")
