@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2024, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -1147,11 +1147,28 @@ public class BytecodeDSLCompilationTest extends TestWithSynchronousCompiling {
      */
     @Test
     public void testGR73707() {
-        setupContext("engine.BackgroundCompilation", "false", //
-                        "engine.CompilationFailureAction", "Silent",  //
-                        "engine.MultiTier", "false",  //
-                        "engine.LastTierCompilationThreshold", "1000000000",  //
-                        "engine.OSR", "false");
+        List<String> transitionLogs = new ArrayList<>();
+        Context.Builder builder = newContextBuilder().option("engine.TraceBytecodeTransition", "transferToInterpreter").option("engine.BackgroundCompilation", "false").option(
+                        "engine.CompilationFailureAction", "Silent").option("engine.MultiTier", "false").option("engine.LastTierCompilationThreshold", "1000000000").option("engine.OSR", "false").
+                        logHandler(new Handler() {
+                            @Override
+                            public void publish(LogRecord record) {
+                                synchronized (transitionLogs) {
+                                    transitionLogs.add(record.getMessage());
+                                }
+                            }
+
+                            @Override
+                            public void close() {
+                            }
+
+                            @Override
+                            public void flush() {
+                            }
+                        });
+
+        context = setupContext(builder);
+        context.initialize(BytecodeDSLTestLanguage.ID);
 
         BasicInterpreter root = createNodes(run, BytecodeDSLTestLanguage.REF.get(null), BytecodeConfig.DEFAULT, b -> {
             b.beginRoot();
@@ -1230,11 +1247,18 @@ public class BytecodeDSLCompilationTest extends TestWithSynchronousCompiling {
 
         assertEquals(expected, target.call(iterations, false));
 
+        synchronized (transitionLogs) {
+            transitionLogs.clear();
+        }
+
         // Compile and repeatedly trigger transfer-to-interpreter transitions without logging spam.
         target.compile(true);
+        assertCompiled(target);
         for (int i = 0; i < 8; i++) {
             assertEquals(expected, target.call(iterations, true));
         }
+
+        assertTrue("Expected transferToInterpreter transition for repeated deopts in compiled code", hasTransitionLog(transitionLogs, "transferToInterpreter"));
     }
 
     @Test

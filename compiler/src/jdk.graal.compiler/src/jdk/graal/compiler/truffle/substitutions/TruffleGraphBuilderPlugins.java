@@ -361,7 +361,6 @@ public class TruffleGraphBuilderPlugins {
                 return true;
             }
         });
-        // TruffleGraphBuilderPlugins are applied for runtime compilation, not host compilation.
         r.register(new RequiredInvocationPlugin("preserveFrameStateHere") {
             @Override
             public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver) {
