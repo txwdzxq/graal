@@ -44,7 +44,6 @@ import com.oracle.svm.shared.option.SubstrateOptionKey;
 import jdk.graal.compiler.api.replacements.Fold;
 import jdk.graal.compiler.options.Option;
 import jdk.graal.compiler.options.OptionKey;
-import jdk.graal.compiler.options.OptionValues;
 
 /**
  * Defines a runtime {@link Option}, in contrast to a {@link HostedOptionKey hosted option}.
@@ -100,20 +99,8 @@ public class RuntimeOptionKey<T> extends OptionKey<T> implements SubstrateOption
 
     @Override
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-    public final T getValue(OptionValues values) {
-        return getValue();
-    }
-
-    @Override
-    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public final boolean hasBeenSet() {
         return cachedValue != OPTION_NOT_SET;
-    }
-
-    @Override
-    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-    public final boolean hasBeenSet(OptionValues values) {
-        return hasBeenSet();
     }
 
     public void update(T newValue) {
