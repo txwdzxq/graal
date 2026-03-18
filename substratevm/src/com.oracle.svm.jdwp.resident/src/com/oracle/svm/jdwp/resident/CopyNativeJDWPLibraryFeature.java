@@ -32,7 +32,7 @@ import java.nio.file.StandardCopyOption;
 
 import com.oracle.svm.core.BuildArtifacts;
 import com.oracle.svm.core.OS;
-import com.oracle.svm.core.feature.AutomaticallyRegisteredFeature;
+import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.shared.option.HostedOptionKey;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
