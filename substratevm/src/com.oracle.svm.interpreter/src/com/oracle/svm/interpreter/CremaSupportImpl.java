@@ -289,8 +289,8 @@ public class CremaSupportImpl implements CremaSupport {
 
         Object interfacesEncoding = getInterfaceEncodings(superInterfaces);
 
-        Class<?>[] transitiveSuperInterfaces = getSortedTransitiveSuperInterfaces(superClass, superInterfaces);
-        AbstractCremaDispatchTable dispatchTable = createDispatchTable(parsed, classLoader, superClass, transitiveSuperInterfaces);
+        Class<?>[] dispatchTransitiveSuperInterfaces = getSortedTransitiveSuperInterfaces(superClass, superInterfaces);
+        AbstractCremaDispatchTable dispatchTable = createDispatchTable(parsed, classLoader, superClass, dispatchTransitiveSuperInterfaces);
 
         /*
          * Compute the type check slots depending on the kind of type
@@ -331,7 +331,8 @@ public class CremaSupportImpl implements CremaSupport {
         }
 
         /* Compute type check data, which might be based on interface hashing. */
-        TypeCheckData typeCheckData = computeTypeCheckData(typeID, isInterface, numClassTypes, typeCheckSuperHub, dispatchTable, transitiveSuperInterfaces, transitiveSuperInterfaces);
+        int[] typeCheckInterfaceIDs = getTypeCheckInterfaceIDs(dispatchTransitiveSuperInterfaces, isInterface ? interfaceID : DynamicHub.NO_INTERFACE_ID);
+        TypeCheckData typeCheckData = computeTypeCheckData(typeID, isInterface, numClassTypes, typeCheckSuperHub, dispatchTable, typeCheckInterfaceIDs, dispatchTransitiveSuperInterfaces);
 
         int[] openTypeWorldTypeCheckSlots = typeCheckData.openTypeWorldTypeCheckSlots();
         int[] openTypeWorldInterfaceHashTable = typeCheckData.openTypeWorldInterfaceHashTable();
@@ -351,7 +352,7 @@ public class CremaSupportImpl implements CremaSupport {
         }
 
         /* Allocate DynamicHub. */
-        int hubNumVTableEntries = dispatchTable.cremaVTableLength(transitiveSuperInterfaces);
+        int hubNumVTableEntries = dispatchTable.cremaVTableLength(dispatchTransitiveSuperInterfaces);
         DynamicHub hub = DynamicHub.allocate(externalName, superHub, interfacesEncoding, null,
                         sourceFile, modifiers, hubFlags, classLoader, simpleBinaryName, module, UNINITIALIZED_DECLARING_CLASS_SENTINEL, classSignature,
                         typeID, interfaceID,
@@ -383,7 +384,7 @@ public class CremaSupportImpl implements CremaSupport {
          * Set vtable and methods. Compute the vtable first, because it will assign vtable indices
          * to methods.
          */
-        InterpreterResolvedJavaMethod[] completeVTable = dispatchTable.cremaVTable(transitiveSuperInterfaces).toArray(InterpreterResolvedJavaMethod.EMPTY_ARRAY);
+        InterpreterResolvedJavaMethod[] completeVTable = dispatchTable.cremaVTable(dispatchTransitiveSuperInterfaces).toArray(InterpreterResolvedJavaMethod.EMPTY_ARRAY);
         assert completeVTable.length == hubNumVTableEntries;
         thisType.setVtable(completeVTable, dispatchTable.vtableLength());
         fillVTable(hub, completeVTable);
@@ -464,7 +465,7 @@ public class CremaSupportImpl implements CremaSupport {
     }
 
     private static TypeCheckData computeTypeCheckData(int typeID, boolean typeIsInterface, short numClassTypes, DynamicHub superHub,
-                    AbstractCremaDispatchTable dispatchTable, Class<?>[] typeCheckTransitiveSuperInterfaces, Class<?>[] dispatchTransitiveSuperInterfaces) {
+                    AbstractCremaDispatchTable dispatchTable, int[] typeCheckInterfaceIDs, Class<?>[] dispatchTransitiveSuperInterfaces) {
         /*
          * The dispatch table will look like:
          * @formatter:off
@@ -485,16 +486,32 @@ public class CremaSupportImpl implements CremaSupport {
             iTableStartingIndices = null;
         }
 
-        return computeTypeCheckData(typeID, typeIsInterface, numClassTypes, superHub, typeCheckTransitiveSuperInterfaces, iTableStartingIndices);
+        return computeTypeCheckData(typeID, typeIsInterface, numClassTypes, superHub, typeCheckInterfaceIDs, iTableStartingIndices);
     }
 
-    private static TypeCheckData computeTypeCheckData(int typeID, boolean typeIsInterface, short numClassTypes, DynamicHub superHub, Class<?>[] typeCheckTransitiveSuperInterfaces,
-                    int[] iTableStartingIndices) {
-        int[] interfaceIDs = new int[typeCheckTransitiveSuperInterfaces.length];
-        for (int i = 0; i < typeCheckTransitiveSuperInterfaces.length; i++) {
-            interfaceIDs[i] = DynamicHub.fromClass(typeCheckTransitiveSuperInterfaces[i]).getInterfaceID();
+    private static int[] getTypeCheckInterfaceIDs(Class<?>[] transitiveSuperInterfaces, int currentInterfaceID) {
+        int[] interfaceIDs = new int[transitiveSuperInterfaces.length + (currentInterfaceID != DynamicHub.NO_INTERFACE_ID ? 1 : 0)];
+        for (int i = 0; i < transitiveSuperInterfaces.length; i++) {
+            interfaceIDs[i] = DynamicHub.fromClass(transitiveSuperInterfaces[i]).getInterfaceID();
         }
+        if (currentInterfaceID != DynamicHub.NO_INTERFACE_ID) {
+            /*
+             * Open-world type check data require interfaces to contain themselves.
+             * `transitiveSuperInterfaces` only contains inherited superinterfaces. Therefore, when
+             * building the type-check metadata for an interface, insert the interface's own ID into
+             * the sorted inherited-superinterface ID list.
+             */
+            int insertionIndex = Arrays.binarySearch(interfaceIDs, 0, transitiveSuperInterfaces.length, currentInterfaceID);
+            VMError.guarantee(insertionIndex < 0, "Current interface must not already be present in transitive superinterfaces");
+            insertionIndex = -insertionIndex - 1;
+            System.arraycopy(interfaceIDs, insertionIndex, interfaceIDs, insertionIndex + 1, transitiveSuperInterfaces.length - insertionIndex);
+            interfaceIDs[insertionIndex] = currentInterfaceID;
+        }
+        return interfaceIDs;
+    }
 
+    private static TypeCheckData computeTypeCheckData(int typeID, boolean typeIsInterface, short numClassTypes, DynamicHub superHub, int[] typeCheckInterfaceIDs,
+                    int[] iTableStartingIndices) {
         int[] typeHierarchy = new int[numClassTypes];
         System.arraycopy(superHub.getOpenTypeWorldTypeCheckSlots(), 0, typeHierarchy, 0, superHub.getNumClassTypes());
 
@@ -506,7 +523,7 @@ public class CremaSupportImpl implements CremaSupport {
         long vTableBaseOffset = KnownOffsets.singleton().getVTableBaseOffset();
         long vTableEntrySize = KnownOffsets.singleton().getVTableEntrySize();
 
-        return DynamicHubUtils.computeOpenTypeWorldTypeCheckData(!typeIsInterface && iTableStartingIndices != null, typeHierarchy, interfaceIDs, iTableStartingIndices, vTableBaseOffset,
+        return DynamicHubUtils.computeOpenTypeWorldTypeCheckData(!typeIsInterface && iTableStartingIndices != null, typeHierarchy, typeCheckInterfaceIDs, iTableStartingIndices, vTableBaseOffset,
                         vTableEntrySize);
     }
 
@@ -603,7 +620,8 @@ public class CremaSupportImpl implements CremaSupport {
         InterpreterResolvedObjectType objectArrayType = (InterpreterResolvedObjectType) objectArrayHub.getInterpreterType();
         DynamicHub[] interfaceEncodings = (DynamicHub[]) objectArrayHub.getInterfacesEncoding();
 
-        TypeCheckData typeCheckData = computeTypeCheckData(typeID, false, numClassTypes, typeCheckSuperHub, transitiveSuperInterfaces, null);
+        int[] typeCheckInterfaceIDs = getTypeCheckInterfaceIDs(transitiveSuperInterfaces, DynamicHub.NO_INTERFACE_ID);
+        TypeCheckData typeCheckData = computeTypeCheckData(typeID, false, numClassTypes, typeCheckSuperHub, typeCheckInterfaceIDs, null);
         int[] openTypeWorldTypeCheckSlots = typeCheckData.openTypeWorldTypeCheckSlots();
         int[] openTypeWorldInterfaceHashTable = typeCheckData.openTypeWorldInterfaceHashTable();
         int openTypeWorldInterfaceHashParam = typeCheckData.openTypeWorldInterfaceHashParam();
