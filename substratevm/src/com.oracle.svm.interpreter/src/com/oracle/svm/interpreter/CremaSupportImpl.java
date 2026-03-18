@@ -312,17 +312,18 @@ public class CremaSupportImpl implements CremaSupport {
          * - Interfaces with interfaceIDs > THRESHOLD are covered by the type check slot array above.
          * @formatter:on
          */
-        DynamicHub superHub = DynamicHub.fromClass(superClass);
+        DynamicHub typeCheckSuperHub = DynamicHub.fromClass(superClass);
+        DynamicHub superHub = isInterface ? null : typeCheckSuperHub;
         int interfaceID = isInterface ? TypeIDs.singleton().nextInterfaceId() : DynamicHub.NO_INTERFACE_ID;
         short numClassTypes;
         short typeIDDepth;
         if (isInterface) {
-            assert superHub.getNumClassTypes() == 1;
+            assert typeCheckSuperHub.getNumClassTypes() == 1;
             typeIDDepth = -1;
             numClassTypes = 1;
         } else {
-            int intDepth = superHub.getTypeIDDepth() + 1;
-            int intNumClassTypes = superHub.getNumClassTypes() + 1;
+            int intDepth = typeCheckSuperHub.getTypeIDDepth() + 1;
+            int intNumClassTypes = typeCheckSuperHub.getNumClassTypes() + 1;
             VMError.guarantee(intDepth == (short) intDepth, "Type depth overflow");
             VMError.guarantee(intNumClassTypes == (short) intNumClassTypes, "Num class types overflow");
             typeIDDepth = (short) intDepth;
@@ -330,7 +331,7 @@ public class CremaSupportImpl implements CremaSupport {
         }
 
         /* Compute type check data, which might be based on interface hashing. */
-        TypeCheckData typeCheckData = computeTypeCheckData(typeID, isInterface, numClassTypes, superHub, dispatchTable, transitiveSuperInterfaces, transitiveSuperInterfaces);
+        TypeCheckData typeCheckData = computeTypeCheckData(typeID, isInterface, numClassTypes, typeCheckSuperHub, dispatchTable, transitiveSuperInterfaces, transitiveSuperInterfaces);
 
         int[] openTypeWorldTypeCheckSlots = typeCheckData.openTypeWorldTypeCheckSlots();
         int[] openTypeWorldInterfaceHashTable = typeCheckData.openTypeWorldInterfaceHashTable();
@@ -339,8 +340,8 @@ public class CremaSupportImpl implements CremaSupport {
         short numIterableInterfaces = typeCheckData.numIterableInterfaces();
 
         // Compute fields layout
-        InterpreterResolvedObjectType superType = (InterpreterResolvedObjectType) superHub.getInterpreterType();
-        FieldLayout fieldLayout = FieldLayout.build(parsed.getFields(), superType.getAfterFieldsOffset());
+        InterpreterResolvedObjectType typeCheckSuperType = (InterpreterResolvedObjectType) typeCheckSuperHub.getInterpreterType();
+        FieldLayout fieldLayout = FieldLayout.build(parsed.getFields(), typeCheckSuperType.getAfterFieldsOffset());
 
         int afterFieldsOffset;
         if (isInterface) {
@@ -359,7 +360,7 @@ public class CremaSupportImpl implements CremaSupport {
                         fieldLayout.getReferenceFieldsOffsets(), afterFieldsOffset, isValueBased, info);
 
         /* Allocate Crema type. */
-        assert superHub == DynamicHub.fromClass(superClass);
+        assert typeCheckSuperHub == DynamicHub.fromClass(superClass);
         InterpreterResolvedObjectType[] interfaces = getInterpreterInterfaces(hub);
 
         InterpreterResolvedJavaType componentType = null;
@@ -370,7 +371,7 @@ public class CremaSupportImpl implements CremaSupport {
         CremaResolvedObjectType thisType = InterpreterResolvedObjectType.createForCrema(
                         parsed,
                         hub.getModifiers(),
-                        componentType, superType, interfaces,
+                        componentType, isInterface ? null : typeCheckSuperType, interfaces,
                         DynamicHub.toClass(hub),
                         fieldLayout.getStaticReferenceFieldCount(), fieldLayout.getStaticPrimitiveFieldSize());
 
