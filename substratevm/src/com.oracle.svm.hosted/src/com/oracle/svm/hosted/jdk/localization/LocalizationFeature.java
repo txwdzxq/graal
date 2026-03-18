@@ -55,7 +55,7 @@ import com.oracle.graal.pointsto.ObjectScanner.ScanReason;
 import com.oracle.svm.core.ClassLoaderSupport;
 import com.oracle.svm.core.FutureDefaultsOptions;
 import com.oracle.svm.core.annotate.Substitute;
-import com.oracle.svm.core.feature.AutomaticallyRegisteredFeature;
+import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.jdk.localization.BundleContentSubstitutedLocalizationSupport;
 import com.oracle.svm.core.jdk.localization.LocalizationSupport;

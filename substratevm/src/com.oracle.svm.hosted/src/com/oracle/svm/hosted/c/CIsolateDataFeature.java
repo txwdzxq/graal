@@ -33,7 +33,7 @@ import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.c.CIsolateData;
 import com.oracle.svm.core.c.CIsolateDataStorage;
-import com.oracle.svm.core.feature.AutomaticallyRegisteredFeature;
+import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.util.UnsignedUtils;
 import com.oracle.svm.shared.collections.ConcurrentIdentityHashMap;

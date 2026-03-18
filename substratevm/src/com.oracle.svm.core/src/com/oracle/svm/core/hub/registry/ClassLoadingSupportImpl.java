@@ -26,7 +26,7 @@ package com.oracle.svm.core.hub.registry;
 
 import org.graalvm.nativeimage.impl.ClassLoadingSupport;
 
-import com.oracle.svm.core.feature.AutomaticallyRegisteredImageSingleton;
+import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.RuntimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.SingleLayer;

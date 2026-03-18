@@ -27,7 +27,7 @@ package com.oracle.svm.core.libgraal;
 import org.graalvm.nativeimage.libgraal.impl.LibGraalRuntimeSupport;
 
 import com.oracle.svm.core.Isolates;
-import com.oracle.svm.core.feature.AutomaticallyRegisteredImageSingleton;
+import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.core.heap.Heap;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.RuntimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.SingleLayer;

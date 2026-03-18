@@ -32,7 +32,7 @@ import java.util.EnumSet;
 import com.oracle.svm.core.ParsingReason;
 import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.cpufeature.RuntimeCPUFeatureCheck;
-import com.oracle.svm.core.feature.AutomaticallyRegisteredFeature;
+import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.graal.aarch64.AArch64CPUFeatureRegionOp;
 import com.oracle.svm.graal.amd64.AMD64CPUFeatureRegionOp;

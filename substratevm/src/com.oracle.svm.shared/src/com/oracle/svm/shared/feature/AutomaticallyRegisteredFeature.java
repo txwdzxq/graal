@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.feature;
+package com.oracle.svm.shared.feature;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -33,11 +33,12 @@ import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
 /**
- * {@link InternalFeature} classes with this annotation are automatically registered using an
- * annotation processor. If both a class and a subclass are annotated with
- * {@link AutomaticallyRegisteredFeature}, only the subclass will be registered as a feature.
+ * {@code com.oracle.svm.core.feature.InternalFeature} classes with this annotation are
+ * automatically registered using an annotation processor. If both a class and a subclass are
+ * annotated with {@link AutomaticallyRegisteredFeature}, only the subclass will be registered as a
+ * feature.
  *
- * Note that this requires the `SVM_PROCESSOR` to be defined as an annotation processor in the
+ * Note that this requires the {@code SVM_PROCESSOR} to be defined as an annotation processor in the
  * suite.py file.
  *
  * Only classes that are part of the image builder can use this annotation. Even parts of GraalVM
@@ -50,5 +51,4 @@ import org.graalvm.nativeimage.Platforms;
 @Target({ElementType.TYPE})
 @Platforms(Platform.HOSTED_ONLY.class)
 public @interface AutomaticallyRegisteredFeature {
-
 }
