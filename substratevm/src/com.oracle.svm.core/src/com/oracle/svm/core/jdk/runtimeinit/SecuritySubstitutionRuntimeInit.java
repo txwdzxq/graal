@@ -196,8 +196,15 @@ final class Target_sun_security_jca_ProviderList {
     @Alias
     private native Provider getProvider(int index);
 
+    @Alias
+    private native int getIndex(String name);
+
     @Substitute
     public Provider getProvider(String name) {
+        int index = getIndex(name);
+        if (index >= 0) {
+            return getProvider(index);
+        }
         for (Target_sun_security_jca_ProviderConfig config : configs) {
             String configuredProviderName = config.provName;
             String providerName = SecurityProvidersSupport.getBuiltInProviderName(configuredProviderName);
@@ -208,12 +215,6 @@ final class Target_sun_security_jca_ProviderList {
                     throw SecurityProvidersSupport.missingBuiltInProvider(configuredProviderName);
                 }
                 return config.getProvider();
-            }
-        }
-        for (int i = 0; i < configs.length; i++) {
-            Provider provider = getProvider(i);
-            if (provider != null && provider.getName().equals(name)) {
-                return provider;
             }
         }
         return null;
