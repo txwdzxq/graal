@@ -175,11 +175,11 @@ final class PolyglotEngineOptions {
 
     @Option(category = OptionCategory.EXPERT, usageSyntax = "true|false|<kind>[,<kind>...]", stability = OptionStability.STABLE, help = "" + //
                     "Trace on-stack bytecode interpreter transitions while bytecode is executing (for example uncached-to-cached updates, on-stack bytecode updates, and deoptimization transfers). " + //
-                    "Set to 'true' to trace all transitions, or to a comma-separated subset of transition kinds. " + //
-                    "Available kinds are transferToInterpreter, bytecode, tier, tag, instrumentation. " + //
-                    "The 'bytecode' kind traces all bytecode updates; tier, tag, and instrumentation select subsets of bytecode updates. " + //
+                    "Set to `true` to trace all transitions, or use a comma-separated subset of transition kinds. " + //
+                    "Available kinds are `transferToInterpreter`, `bytecode`, `tier`, `tag`, `instrumentation`. " + //
+                    "The `bytecode` kind traces all bytecode updates; `tier`, `tag`, and `instrumentation` select subsets of bytecode updates. " + //
                     "Supported only by Bytecode DSL interpreters. " + //
-                    "Combine with engine.BytecodeMethodFilter and engine.BytecodeLanguageFilter to limit output.")//
+                    "Combine with `--engine.BytecodeMethodFilter` and `--engine.BytecodeLanguageFilter` to limit output.")//
     public static final OptionKey<List<BytecodeTransitionKind>> TraceBytecodeTransition = new OptionKey<>(null, createBytecodeTransitionType());
 
     @Option(category = OptionCategory.EXPERT, usageSyntax = "true|false|<group>[,<group>...]", stability = OptionStability.STABLE, help = "" + //
@@ -200,18 +200,18 @@ final class PolyglotEngineOptions {
 
     @Option(category = OptionCategory.EXPERT, stability = OptionStability.STABLE, help = "" + //
                     "Limit tracing and statistics to selected methods. " + //
-                    "Matches against RootNode.getQualifiedName(). " + //
-                    "Provide a comma-separated list of includes, or excludes prefixed with '~'. " + //
-                    "Empty means no restriction. " + //
+                    "Matches against `RootNode.getQualifiedName()`. " + //
+                    "Provide a comma-separated list of includes, or excludes prefixed with `~`. " + //
+                    "An empty value means no restriction. " + //
                     "Whitespace around commas is ignored. " + //
-                    "Applies to engine.TraceBytecode, engine.TraceBytecodeTransition, and engine.BytecodeHistogram.") //
+                    "Applies to `--engine.TraceBytecode`, `--engine.TraceBytecodeTransition`, and `--engine.BytecodeHistogram`.") //
     public static final OptionKey<String> BytecodeMethodFilter = new OptionKey<>("");
 
     @Option(category = OptionCategory.EXPERT, stability = OptionStability.STABLE, help = "" + //
                     "Limit tracing and statistics to specific language IDs. " + //
-                    "Provide a comma-separated list of language IDs, for example: js, python. " + //
-                    "Empty means that all languages are included. " + //
-                    "Applies to engine.TraceBytecode, engine.TraceBytecodeTransition, and engine.BytecodeHistogram.") //
+                    "Provide a comma-separated list of language IDs, for example: `js`, `python`. " + //
+                    "An empty value includes all languages. " + //
+                    "Applies to `--engine.TraceBytecode`, `--engine.TraceBytecodeTransition`, and `--engine.BytecodeHistogram`.") //
     public static final OptionKey<String> BytecodeLanguageFilter = new OptionKey<>("");
 
     enum StaticObjectStorageStrategies {
