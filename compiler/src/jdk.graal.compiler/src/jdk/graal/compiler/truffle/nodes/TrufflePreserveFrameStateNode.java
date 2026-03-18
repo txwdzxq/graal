@@ -29,20 +29,24 @@ import static jdk.graal.compiler.nodeinfo.NodeSize.SIZE_0;
 
 import jdk.graal.compiler.core.common.type.StampFactory;
 import jdk.graal.compiler.graph.IterableNodeType;
+import jdk.graal.compiler.graph.Node;
 import jdk.graal.compiler.graph.NodeClass;
 import jdk.graal.compiler.nodeinfo.NodeInfo;
 import jdk.graal.compiler.nodes.AbstractStateSplit;
+import jdk.graal.compiler.nodes.GraphState;
+import jdk.graal.compiler.nodes.spi.Canonicalizable;
+import jdk.graal.compiler.nodes.spi.CanonicalizerTool;
 import jdk.graal.compiler.nodes.spi.LIRLowerable;
 import jdk.graal.compiler.nodes.spi.NodeLIRBuilderTool;
 
 /**
- * Truffle-specific marker that forces frame-state materialization at its position.
+ * Truffle-specific marker that forces a precise frame state for the current bytecode position.
  *
  * During Truffle runtime compilation this node is introduced by intrinsifying
  * {@code CompilerDirectives.preserveFrameStateHere()}.
  */
 @NodeInfo(cycles = CYCLES_0, size = SIZE_0)
-public final class TrufflePreserveFrameStateNode extends AbstractStateSplit implements IterableNodeType, LIRLowerable {
+public final class TrufflePreserveFrameStateNode extends AbstractStateSplit implements IterableNodeType, LIRLowerable, Canonicalizable {
     public static final NodeClass<TrufflePreserveFrameStateNode> TYPE = NodeClass.create(TrufflePreserveFrameStateNode.class);
 
     public TrufflePreserveFrameStateNode() {
@@ -52,5 +56,13 @@ public final class TrufflePreserveFrameStateNode extends AbstractStateSplit impl
     @Override
     public void generate(NodeLIRBuilderTool generator) {
         // Marker node: emits no machine code.
+    }
+
+    @Override
+    public Node canonical(CanonicalizerTool tool) {
+        if (graph() != null && graph().isAfterStage(GraphState.StageFlag.FSA)) {
+            return null;
+        }
+        return this;
     }
 }

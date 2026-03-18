@@ -32,6 +32,7 @@ import jdk.graal.compiler.nodes.FixedNode;
 import jdk.graal.compiler.nodes.FrameState;
 import jdk.graal.compiler.nodes.ReturnNode;
 import jdk.graal.compiler.nodes.StructuredGraph;
+import jdk.graal.compiler.phases.common.CanonicalizerPhase;
 import jdk.graal.compiler.truffle.nodes.TrufflePreserveFrameStateNode;
 import jdk.graal.compiler.truffle.phases.TrufflePreserveFrameStateCleanupPhase;
 
@@ -75,6 +76,21 @@ public class TrufflePreserveFrameStateCleanupPhaseTest extends TruffleCompilerIm
         applyCleanup(graph);
 
         Assert.assertEquals(1L, countMarkers(graph));
+    }
+
+    @Test
+    public void testMarkersAreRemovedAfterFSA() {
+        StructuredGraph graph = parseGraph("snippetStraightLine", int.class);
+        ReturnNode returnNode = graph.getNodes(ReturnNode.TYPE).first();
+        Assert.assertNotNull(returnNode);
+
+        insertMarkerBefore(graph, returnNode);
+        Assert.assertEquals(1L, countMarkers(graph));
+
+        graph.getGraphState().setAfterFSA();
+        CanonicalizerPhase.create().apply(graph, getDefaultHighTierContext());
+
+        Assert.assertEquals(0L, countMarkers(graph));
     }
 
     private StructuredGraph parseGraph(String methodName, Class<?>... parameterTypes) {

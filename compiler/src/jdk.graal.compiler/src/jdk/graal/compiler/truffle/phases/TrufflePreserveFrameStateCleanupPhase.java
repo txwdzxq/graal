@@ -48,16 +48,15 @@ public final class TrufflePreserveFrameStateCleanupPhase extends BasePhase<Truff
         if (graph.getNodes(TrufflePreserveFrameStateNode.TYPE).count() <= 1) {
             return;
         }
-
         ControlFlowGraph cfg = ControlFlowGraph.newBuilder(graph).connectBlocks(true).computeDominators(true).build();
-        cfg.visitDominatorTreeDefault(new CleanupVisitor(graph));
+        cfg.visitDominatorTreeDefault(new RedundantPreserveNodeCleanupVisitor(graph));
     }
 
-    private static final class CleanupVisitor implements ControlFlowGraph.RecursiveVisitor<Boolean> {
+    private static final class RedundantPreserveNodeCleanupVisitor implements ControlFlowGraph.RecursiveVisitor<Boolean> {
         private final StructuredGraph graph;
         private boolean markerSeenOnCurrentPath;
 
-        private CleanupVisitor(StructuredGraph graph) {
+        private RedundantPreserveNodeCleanupVisitor(StructuredGraph graph) {
             this.graph = graph;
             this.markerSeenOnCurrentPath = false;
         }
@@ -67,12 +66,10 @@ public final class TrufflePreserveFrameStateCleanupPhase extends BasePhase<Truff
             boolean previousMarkerSeenOnPath = markerSeenOnCurrentPath;
             boolean keepFirstMarkerInBlock = !markerSeenOnCurrentPath;
             boolean keptMarkerInBlock = false;
-
             for (TrufflePreserveFrameStateNode marker : collectMarkers(block)) {
                 if (!marker.isAlive()) {
                     continue;
                 }
-
                 if (keepFirstMarkerInBlock && !keptMarkerInBlock) {
                     keptMarkerInBlock = true;
                     markerSeenOnCurrentPath = true;
@@ -80,7 +77,6 @@ public final class TrufflePreserveFrameStateCleanupPhase extends BasePhase<Truff
                     graph.removeFixed(marker);
                 }
             }
-
             return previousMarkerSeenOnPath;
         }
 
