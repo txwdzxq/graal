@@ -1443,10 +1443,11 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
 
     private TypeMirror emitClearLocal(CodeTreeBuilder b) {
         String index = BytecodeRootNodeElement.readImmediate("bc", "bci", instruction.getImmediate(ImmediateKind.FRAME_INDEX)).toString();
+        String localsFrame = parent.parent.localFrame();
         if (model().loadIllegalLocalStrategy == LoadIllegalLocalStrategy.DEFAULT_VALUE) {
-            b.statement(BytecodeRootNodeElement.setFrameObject("frame", index, "DEFAULT_LOCAL_VALUE"));
+            b.statement(BytecodeRootNodeElement.setFrameObject(localsFrame, index, "DEFAULT_LOCAL_VALUE"));
         } else {
-            b.statement(BytecodeRootNodeElement.clearFrame("frame", index));
+            b.statement(BytecodeRootNodeElement.clearFrame(localsFrame, index));
         }
         return null;
     }

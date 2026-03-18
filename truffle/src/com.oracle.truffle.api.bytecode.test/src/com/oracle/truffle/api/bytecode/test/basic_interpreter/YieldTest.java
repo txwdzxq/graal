@@ -52,6 +52,7 @@ import com.oracle.truffle.api.bytecode.BytecodeLocation;
 import com.oracle.truffle.api.bytecode.BytecodeTier;
 import com.oracle.truffle.api.bytecode.ContinuationResult;
 import com.oracle.truffle.api.bytecode.ContinuationRootNode;
+import com.oracle.truffle.api.frame.FrameSlotTypeException;
 import com.oracle.truffle.api.source.Source;
 import com.oracle.truffle.api.source.SourceSection;
 
@@ -302,6 +303,45 @@ public class YieldTest extends AbstractBasicInterpreterTest {
         assertEquals(42L, r1.getResult());
         r1.getFrame().getArguments()[0] = 123L;
         assertEquals(123L, r1.continueWith(null));
+    }
+
+    @Test
+    public void testYieldClearLocalAfterResume() {
+        RootCallTarget root = parse("yieldClearLocalAfterResume", b -> {
+            b.beginRoot();
+            BytecodeLocal local = b.createLocal();
+
+            b.beginStoreLocal(local);
+            b.emitLoadConstant(42L);
+            b.endStoreLocal();
+
+            b.beginYield();
+            b.emitLoadConstant(1L);
+            b.endYield();
+
+            b.emitClearLocal(local);
+
+            b.beginReturn();
+            b.emitLoadLocal(local);
+            b.endReturn();
+
+            b.endRoot();
+        });
+
+        ContinuationResult cont = (ContinuationResult) root.call();
+        assertEquals(1L, cont.getResult());
+
+        Object defaultLocalValue = run.getDefaultLocalValue();
+        if (defaultLocalValue == null) {
+            try {
+                cont.continueWith(null);
+                fail("Expected FrameSlotTypeException");
+            } catch (FrameSlotTypeException expected) {
+                // expected
+            }
+        } else {
+            assertEquals(defaultLocalValue, cont.continueWith(null));
+        }
     }
 
     @Test
