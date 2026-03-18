@@ -35,6 +35,8 @@ import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.hosted.Feature;
 
+import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
+
 /**
  * Convenience annotation to automatically register a singleton instance of the annotated class in
  * {@link ImageSingletons}.
@@ -49,7 +51,7 @@ import org.graalvm.nativeimage.hosted.Feature;
  * (and the subclass is not disabled by {@link #onlyWith}), only the subclass will be registered as
  * an image singleton.
  *
- * The requirements and restrictions of {@code AutomaticallyRegisteredFeature} apply also to this
+ * The requirements and restrictions of {@link AutomaticallyRegisteredFeature} apply also to this
  * annotation.
  */
 @Retention(RetentionPolicy.RUNTIME)
