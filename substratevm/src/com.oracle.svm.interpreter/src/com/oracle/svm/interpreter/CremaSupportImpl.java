@@ -1623,4 +1623,11 @@ public class CremaSupportImpl implements CremaSupport {
     public void setEnterDirectInterpreterStubEntryPoint(CFunctionPointer stubEntryPoint) {
         enterDirectInterpreterStubEntryPoint = stubEntryPoint;
     }
+
+    @Override
+    public jdk.vm.ci.meta.ConstantPool getConstantPool(DynamicHub hub) {
+        InterpreterResolvedObjectType type = (InterpreterResolvedObjectType) hub.getInterpreterType();
+        assert type instanceof CremaResolvedObjectType;
+        return type.getConstantPool();
+    }
 }

@@ -371,4 +371,9 @@ public final class RuntimeInterpreterConstantPool extends InterpreterConstantPoo
         }
         return findClassAt(declaringClassCPI);
     }
+
+    @Override
+    public String lookupUtf8(int cpi) {
+        return utf8At(cpi).toString();
+    }
 }
