@@ -1149,23 +1149,23 @@ public class BytecodeDSLCompilationTest extends TestWithSynchronousCompiling {
     public void testGR73707() {
         List<String> transitionLogs = new ArrayList<>();
         Context.Builder builder = newContextBuilder().option("engine.TraceBytecodeTransition", "transferToInterpreter").option("engine.BackgroundCompilation", "false").option(
-                        "engine.CompilationFailureAction", "Silent").option("engine.MultiTier", "false").option("engine.LastTierCompilationThreshold", "1000000000").option("engine.OSR", "false").
-                        logHandler(new Handler() {
-                            @Override
-                            public void publish(LogRecord record) {
-                                synchronized (transitionLogs) {
-                                    transitionLogs.add(record.getMessage());
-                                }
-                            }
+                        "engine.CompilationFailureAction", "Silent").option("engine.MultiTier", "false").option("engine.LastTierCompilationThreshold", "1000000000").option("engine.OSR",
+                                        "false").logHandler(new Handler() {
+                                            @Override
+                                            public void publish(LogRecord record) {
+                                                synchronized (transitionLogs) {
+                                                    transitionLogs.add(record.getMessage());
+                                                }
+                                            }
 
-                            @Override
-                            public void close() {
-                            }
+                                            @Override
+                                            public void close() {
+                                            }
 
-                            @Override
-                            public void flush() {
-                            }
-                        });
+                                            @Override
+                                            public void flush() {
+                                            }
+                                        });
 
         context = setupContext(builder);
         context.initialize(BytecodeDSLTestLanguage.ID);
