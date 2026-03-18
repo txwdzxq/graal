@@ -158,9 +158,7 @@ public abstract class Stub {
         // The RegisterPressure flag can be ignored by a compilation that runs out of registers, so
         // the stub compilation must ignore the flag so that all allocatable registers are saved.
         // Also, disable the optimization log for stubs.
-        this.options = options.derive(GraalOptions.TraceInlining, GraalOptions.TraceInliningForStubsAndSnippets.getValue(options),
-                        RegisterPressure, null,
-                        OptimizationLog, null);
+        this.options = options.derive(GraalOptions.TraceInlining, GraalOptions.TraceInliningForStubsAndSnippets.getValue(options)).derive(RegisterPressure, null).derive(OptimizationLog, null);
         this.providers = providers;
     }
 

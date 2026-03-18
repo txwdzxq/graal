@@ -225,8 +225,8 @@ public class SubstrateReplacements extends ReplacementsImpl {
             parameterPlugin = new ConstantBindingParameterPlugin(args, providers.getMetaAccess(), providers.getSnippetReflection());
         }
 
-        OptionValues optionValues = options.derive(GraalOptions.TraceInlining, GraalOptions.TraceInliningForStubsAndSnippets.getValue(options),
-                        DebugOptions.OptimizationLog, null);
+        OptionValues optionValues = options.derive(GraalOptions.TraceInlining, GraalOptions.TraceInliningForStubsAndSnippets.getValue(options))
+                        .derive(DebugOptions.OptimizationLog, null);
 
         try (DebugContext debug = openSnippetDebugContext("SVMSnippet_", method, optionValues)) {
             StructuredGraph result = new StructuredGraph.Builder(optionValues, debug)

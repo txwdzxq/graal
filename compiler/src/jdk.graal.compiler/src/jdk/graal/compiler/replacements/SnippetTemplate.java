@@ -952,8 +952,7 @@ public class SnippetTemplate {
                         SnippetTemplates.increment(outer);
                         args.info.creationCounter.increment(outer);
 
-                        OptionValues snippetOptions = options.derive(GraalOptions.TraceInlining, GraalOptions.TraceInliningForStubsAndSnippets.getValue(options),
-                                        OptimizationLog, null);
+                        OptionValues snippetOptions = options.derive(GraalOptions.TraceInlining, GraalOptions.TraceInliningForStubsAndSnippets.getValue(options)).derive(OptimizationLog, null);
 
                         template = new SnippetTemplate(snippetOptions,
                                         debug,
