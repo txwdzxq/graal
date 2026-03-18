@@ -77,7 +77,6 @@ public class TransitionInterceptionTest {
         return nodes.getNode(0);
     }
 
-
     /**
      * When an uncached interpreter transitions to cached, only the tier changes. The bytecode array
      * identity stays the same, so {@code isBytecodeUpdate()} must be {@code false}.
