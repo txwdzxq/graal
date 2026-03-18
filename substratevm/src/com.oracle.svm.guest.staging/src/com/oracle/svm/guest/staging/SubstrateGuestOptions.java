@@ -24,7 +24,15 @@
  */
 package com.oracle.svm.guest.staging;
 
+import com.oracle.svm.shared.option.HostedOptionKey;
+
+import jdk.graal.compiler.options.Option;
+
 public final class SubstrateGuestOptions {
+
+    @Option(help = "Initialize the VM and run startup hooks.")//
+    public static final HostedOptionKey<Boolean> InitializeVM = new HostedOptionKey<>(true);
+
     private SubstrateGuestOptions() {
     }
 }
