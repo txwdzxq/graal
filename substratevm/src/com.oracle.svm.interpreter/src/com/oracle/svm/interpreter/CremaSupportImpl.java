@@ -493,6 +493,7 @@ public class CremaSupportImpl implements CremaSupport {
         int[] interfaceIDs = new int[transitiveSuperInterfaces.length + (currentInterfaceID != DynamicHub.NO_INTERFACE_ID ? 1 : 0)];
         for (int i = 0; i < transitiveSuperInterfaces.length; i++) {
             interfaceIDs[i] = DynamicHub.fromClass(transitiveSuperInterfaces[i]).getInterfaceID();
+            VMError.guarantee(interfaceIDs[i] != DynamicHub.NO_INTERFACE_ID, "Interface-like type must have an interface ID");
         }
         if (currentInterfaceID != DynamicHub.NO_INTERFACE_ID) {
             /*
@@ -608,20 +609,35 @@ public class CremaSupportImpl implements CremaSupport {
         DynamicHub typeCheckSuperHub = getArrayTypeCheckSuperHub(elementalHub, dimensions);
         Class<?>[] transitiveSuperInterfaces = getSortedTransitiveArrayInterfaces(elementalHub, dimensions);
 
-        int intDepth = typeCheckSuperHub.getTypeIDDepth() + 1;
-        int intNumClassTypes = typeCheckSuperHub.getNumClassTypes() + 1;
-        VMError.guarantee(intDepth == (short) intDepth, "Type depth overflow");
-        VMError.guarantee(intNumClassTypes == (short) intNumClassTypes, "Num class types overflow");
-        short typeIDDepth = (short) intDepth;
-        short numClassTypes = (short) intNumClassTypes;
+        int interfaceID;
+        short typeIDDepth;
+        short numClassTypes;
+        boolean isInterfaceLikeArray = elementalHub.isInterface();
+        if (isInterfaceLikeArray) {
+            /*
+             * Arrays whose elemental type is an interface are treated like interfaces for
+             * open-world type checks, so they need their own interface ID.
+             */
+            interfaceID = TypeIDs.singleton().nextInterfaceId();
+            numClassTypes = (short) typeCheckSuperHub.getNumClassTypes();
+            typeIDDepth = -1;
+        } else {
+            interfaceID = DynamicHub.NO_INTERFACE_ID;
+            int intDepth = typeCheckSuperHub.getTypeIDDepth() + 1;
+            int intNumClassTypes = typeCheckSuperHub.getNumClassTypes() + 1;
+            VMError.guarantee(intDepth == (short) intDepth, "Type depth overflow");
+            VMError.guarantee(intNumClassTypes == (short) intNumClassTypes, "Num class types overflow");
+            typeIDDepth = (short) intDepth;
+            numClassTypes = (short) intNumClassTypes;
+        }
 
         // use Object[] as a prototype for interfaceEncodings and vtables
         DynamicHub objectArrayHub = DynamicHub.fromClass(Object[].class);
         InterpreterResolvedObjectType objectArrayType = (InterpreterResolvedObjectType) objectArrayHub.getInterpreterType();
         DynamicHub[] interfaceEncodings = (DynamicHub[]) objectArrayHub.getInterfacesEncoding();
 
-        int[] typeCheckInterfaceIDs = getTypeCheckInterfaceIDs(transitiveSuperInterfaces, DynamicHub.NO_INTERFACE_ID);
-        TypeCheckData typeCheckData = computeTypeCheckData(typeID, false, numClassTypes, typeCheckSuperHub, typeCheckInterfaceIDs, null);
+        int[] typeCheckInterfaceIDs = getTypeCheckInterfaceIDs(transitiveSuperInterfaces, interfaceID);
+        TypeCheckData typeCheckData = computeTypeCheckData(typeID, isInterfaceLikeArray, numClassTypes, typeCheckSuperHub, typeCheckInterfaceIDs, null);
         int[] openTypeWorldTypeCheckSlots = typeCheckData.openTypeWorldTypeCheckSlots();
         int[] openTypeWorldInterfaceHashTable = typeCheckData.openTypeWorldInterfaceHashTable();
         int openTypeWorldInterfaceHashParam = typeCheckData.openTypeWorldInterfaceHashParam();
@@ -633,7 +649,7 @@ public class CremaSupportImpl implements CremaSupport {
         ClassDefinitionInfo info = ClassDefinitionInfo.EMPTY;
 
         DynamicHub arrayHub = DynamicHub.allocate(name, superHub, interfaceEncodings, componentHub, null, modifiers, flags,
-                        loader, null, module, null, null, typeID, DynamicHub.NO_INTERFACE_ID, false, numClassTypes, typeIDDepth,
+                        loader, null, module, null, null, typeID, interfaceID, false, numClassTypes, typeIDDepth,
                         numIterableInterfaces, openTypeWorldTypeCheckSlots, openTypeWorldInterfaceHashTable, openTypeWorldInterfaceHashParam,
                         vTableEntries, EMPTY_INT_ARRAY, -1, false, info);
         InterpreterResolvedJavaType componentType = (InterpreterResolvedJavaType) componentHub.getInterpreterType();
