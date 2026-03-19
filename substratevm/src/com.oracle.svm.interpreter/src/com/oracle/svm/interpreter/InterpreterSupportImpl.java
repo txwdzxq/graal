@@ -30,12 +30,19 @@ import static com.oracle.svm.core.code.FrameSourceInfo.LINENUMBER_NATIVE;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
+import org.graalvm.nativeimage.c.function.CodePointer;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.SignedWord;
+import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
+import com.oracle.svm.core.code.CodeInfoQueryResult;
 import com.oracle.svm.core.code.FrameInfoQueryResult;
 import com.oracle.svm.core.code.FrameSourceInfo;
+import com.oracle.svm.core.deopt.DeoptimizedFrame;
+import com.oracle.svm.core.deopt.DeoptimizedFrame.DeoptTargetTier;
+import com.oracle.svm.core.deopt.Deoptimizer;
+import com.oracle.svm.core.deopt.SubstrateInstalledCode;
 import com.oracle.svm.core.graal.code.PreparedArgumentType;
 import com.oracle.svm.core.graal.code.PreparedSignature;
 import com.oracle.svm.core.graal.code.SubstrateCallingConventionKind;
@@ -50,6 +57,13 @@ import com.oracle.svm.espresso.classfile.descriptors.Name;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaMethod;
 import com.oracle.svm.interpreter.metadata.InterpreterUnresolvedSignature;
+import com.oracle.svm.interpreter.ristretto.RistrettoOptions;
+import com.oracle.svm.interpreter.ristretto.compile.RistrettoDeoptimizationSupport;
+import com.oracle.svm.interpreter.ristretto.compile.RistrettoDeoptimizedInterpreterFrame;
+import com.oracle.svm.interpreter.ristretto.compile.RistrettoInstalledCode;
+import com.oracle.svm.interpreter.ristretto.meta.RistrettoMethod;
+import com.oracle.svm.interpreter.ristretto.profile.RistrettoDiagnostics;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
@@ -117,6 +131,35 @@ public final class InterpreterSupportImpl extends InterpreterSupport {
             argumentTypes[index] = new PreparedArgumentType(argKind, value, isRegister);
         }
         return new PreparedSignature(signature.getReturnKind(), argumentTypes, callingConvention.getStackSize());
+    }
+
+    @Override
+    public DeoptimizedFrame createInterpreterDeoptimizedFrame(SubstrateInstalledCode installedCode, Deoptimizer deoptimizer, CodePointer pc, FrameInfoQueryResult frameInfo,
+                    CodeInfoQueryResult physicalFrame, boolean eager) {
+        if (!(installedCode instanceof RistrettoInstalledCode rCode)) {
+            throw VMError.shouldNotReachHere("Must have RistrettoInstalledCode.");
+        }
+        VMError.guarantee(rCode.getMethod() instanceof RistrettoMethod, "Ristretto installed code must carry a RistrettoMethod");
+        if (((RistrettoMethod) rCode.getMethod()).getDeoptTargetTier() != DeoptTargetTier.Interpreter) {
+            throw VMError.shouldNotReachHere("Must deopt to interpreter.");
+        }
+        /*
+         * Keep the deopt-only path behind a foldable branch so no-deopt images do not parse the
+         * hosted-only Ristretto deoptimization support singleton.
+         */
+        if (RistrettoOptions.useDeoptimization()) {
+            RistrettoDiagnostics.DeoptimizationsTaken.getAndIncrement();
+            return RistrettoDeoptimizationSupport.createDeoptimizedFrame(deoptimizer, pc, frameInfo, physicalFrame, eager);
+        }
+        throw VMError.shouldNotReachHere("Interpreter deoptimization requires deopt support");
+    }
+
+    @Override
+    @Uninterruptible(reason = "Invoked from deoptimization stubs while transitioning to interpreter execution.")
+    public UnsignedWord continueInterpreterDeoptimization(DeoptimizedFrame frame, Pointer originalStackPointer, UnsignedWord gpReturnValue, UnsignedWord fpReturnValue,
+                    boolean hasException) {
+        VMError.guarantee(frame instanceof RistrettoDeoptimizedInterpreterFrame, "Unexpected interpreter deoptimized frame implementation");
+        return ((RistrettoDeoptimizedInterpreterFrame) frame).continueInterpreterDeoptimization(originalStackPointer, gpReturnValue, hasException);
     }
 
     @Override

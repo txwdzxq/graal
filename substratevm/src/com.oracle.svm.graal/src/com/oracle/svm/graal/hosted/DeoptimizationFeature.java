@@ -79,6 +79,14 @@ public final class DeoptimizationFeature implements InternalFeature {
         return List.of(DeoptimizationCanaryFeature.class, CounterFeature.class);
     }
 
+    /**
+     * Registers the runtime deoptimization entry point as a hosted root for a feature that resumes
+     * execution through deoptimization at run time.
+     */
+    public static void registerDeoptimizeRuntimeAsRoot(BeforeAnalysisAccessImpl access, Class<?> registeredIn) {
+        access.registerAsRoot((AnalysisMethod) DeoptimizationRuntime.DEOPTIMIZE.findMethod(access.getMetaAccess()), true, "Deoptimization, registered in " + registeredIn);
+    }
+
     @Override
     public void afterRegistration(AfterRegistrationAccess access) {
         if (ImageLayerBuildingSupport.firstImageBuild()) {
@@ -102,11 +110,7 @@ public final class DeoptimizationFeature implements InternalFeature {
             access.registerAsRoot(lazyDeoptStubObjectReturnMethod, true, "Lazy deoptimization stub for object return values, registered in " + DeoptimizationFeature.class);
         }
 
-        /*
-         * The deoptimize run time call is not used for method in the native image, but only for
-         * runtime compiled methods. Make sure it gets compiled.
-         */
-        access.registerAsRoot((AnalysisMethod) DeoptimizationRuntime.DEOPTIMIZE.findMethod(access.getMetaAccess()), true, "Deoptimization, registered in " + DeoptimizationFeature.class);
+        registerDeoptimizeRuntimeAsRoot(access, DeoptimizationFeature.class);
 
         if (DeoptTester.enabled()) {
             access.getBigBang().addRootMethod((AnalysisMethod) DeoptTester.DEOPTTEST.findMethod(access.getMetaAccess()), true, "Deoptimization test, registered in " + DeoptimizationFeature.class);

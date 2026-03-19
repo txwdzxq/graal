@@ -276,6 +276,11 @@ public final class InterpreterToVM {
         frame.addLock(obj);
     }
 
+    public static void registerHeldMonitor(InterpreterFrame frame, Object obj) {
+        assert obj != null;
+        frame.addLock(obj);
+    }
+
     @SuppressFBWarnings(value = "IMSE_DONT_CATCH_IMSE", justification = "Intentional.")
     public static void monitorExit(InterpreterFrame frame, Object obj) throws SemanticJavaException {
         assert obj != null;

@@ -48,6 +48,7 @@ import com.oracle.svm.core.code.FrameInfoQueryResult;
 import com.oracle.svm.core.code.FrameSourceInfo;
 import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.deopt.DeoptimizedFrame;
+import com.oracle.svm.core.deopt.VirtualFrame;
 import com.oracle.svm.core.heap.Heap;
 import com.oracle.svm.core.heap.ReferenceAccess;
 import com.oracle.svm.core.heap.VMOperationInfos;
@@ -410,7 +411,7 @@ final class BacktraceVisitor extends JavaStackFrameVisitor {
 
     @Override
     protected boolean visitDeoptimizedFrame(Pointer originalSP, CodePointer deoptStubIP, DeoptimizedFrame deoptimizedFrame) {
-        for (DeoptimizedFrame.VirtualFrame frame = deoptimizedFrame.getTopFrame(); frame != null; frame = frame.getCaller()) {
+        for (VirtualFrame frame = deoptimizedFrame.getTopFrame(); frame != null; frame = frame.getCaller()) {
             FrameInfoQueryResult frameInfo = frame.getFrameInfo();
             if (!dispatchPossiblyInterpretedFrame(frameInfo, originalSP)) {
                 return false;

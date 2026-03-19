@@ -912,6 +912,7 @@ class CodeInfoVerifier {
         illegal.type = ValueType.Illegal;
         return illegal;
     }
+
 }
 
 @AutomaticallyRegisteredImageSingleton(onlyWith = BuildingImageLayerPredicate.class)

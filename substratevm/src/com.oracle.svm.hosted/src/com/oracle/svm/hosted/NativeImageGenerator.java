@@ -1811,8 +1811,14 @@ public class NativeImageGenerator {
                 it.add(CanonicalizerPhase.createSingleShot());
             } else {
                 ListIterator<BasePhase<? super MidTierContext>> it = midTier.findPhase(DeoptimizationGroupingPhase.class);
-                it.previous();
-                it.add(new CollectDeoptimizationSourcePositionsPhase());
+                if (it != null) {
+                    it.previous();
+                    it.add(new CollectDeoptimizationSourcePositionsPhase());
+                } else {
+                    // after FSA
+                    it = midTier.findPhase(FrameStateAssignmentPhase.class);
+                    it.add(new CollectDeoptimizationSourcePositionsPhase());
+                }
             }
         }
 
