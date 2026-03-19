@@ -701,7 +701,11 @@ public class FeatureImpl {
          * @see SVMHost#allowStableFieldFoldingBeforeAnalysis
          */
         public void allowStableFieldFoldingBeforeAnalysis(Field field) {
-            getHostVM().allowStableFieldFoldingBeforeAnalysis(getMetaAccess().lookupJavaField(field));
+            allowStableFieldFoldingBeforeAnalysis(getMetaAccess().lookupJavaField(field));
+        }
+
+        public void allowStableFieldFoldingBeforeAnalysis(ResolvedJavaField field) {
+            getHostVM().allowStableFieldFoldingBeforeAnalysis(field instanceof AnalysisField analysisField ? analysisField : getUniverse().lookup(field));
         }
     }
 
