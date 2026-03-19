@@ -56,7 +56,7 @@ import jdk.vm.ci.meta.JavaType;
 import jdk.vm.ci.meta.ResolvedJavaType;
 
 /**
- * The interpreter’s representation for all reference types: normal classes, interfaces, and array
+ * The interpreter's representation for all reference types: normal classes, interfaces, and array
  * classes. Primitive types are represented by {@link InterpreterResolvedPrimitiveType}.
  */
 public class InterpreterResolvedObjectType extends InterpreterResolvedJavaType {

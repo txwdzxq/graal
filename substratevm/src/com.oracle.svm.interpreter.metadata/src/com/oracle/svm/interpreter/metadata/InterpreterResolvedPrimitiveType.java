@@ -44,7 +44,7 @@ import jdk.vm.ci.meta.ResolvedJavaField;
 import jdk.vm.ci.meta.ResolvedJavaType;
 
 /**
- * The interpreter’s representation of primitive types. Reference types are represented by
+ * The interpreter's representation of primitive types. Reference types are represented by
  * {@link InterpreterResolvedObjectType}.
  */
 public final class InterpreterResolvedPrimitiveType extends InterpreterResolvedJavaType {
