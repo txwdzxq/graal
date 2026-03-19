@@ -284,6 +284,7 @@ import com.oracle.svm.interpreter.debug.SteppingControl;
 import com.oracle.svm.interpreter.metadata.BytecodeStream;
 import com.oracle.svm.interpreter.metadata.Bytecodes;
 import com.oracle.svm.interpreter.metadata.InterpreterConstantPool;
+import com.oracle.svm.interpreter.metadata.InterpreterResolvedInvokeGenericJavaMethod;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaField;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaMethod;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaType;
@@ -541,12 +542,14 @@ public final class Interpreter {
                     MethodHandle mh = (MethodHandle) EspressoFrame.getThis(frame);
                     Target_java_lang_invoke_MemberName vmentry = MethodHandleInterpreterUtils.extractVMEntry(mh);
                     InterpreterResolvedJavaMethod target = InterpreterResolvedJavaMethod.fromMemberName(vmentry);
-                    Object[] calleeArgs = frame.getArguments();
+                    InterpreterUnresolvedSignature signature = method.getSignature();
+                    Object[] calleeArgs = rebasic(frame.getArguments(), signature, !method.isStatic());
                     // This should integrate with the debugger GR-70801
                     boolean preferStayInInterpreter = forceStayInInterpreter;
                     traceInvokeBasic(target, indent);
                     try {
-                        yield InterpreterToVM.dispatchInvocation(target, calleeArgs, CallKind.DIRECT, forceStayInInterpreter, preferStayInInterpreter, false);
+                        Object result = InterpreterToVM.dispatchInvocation(target, calleeArgs, CallKind.DIRECT, forceStayInInterpreter, preferStayInInterpreter, false);
+                        yield unbasic(result, signature.getReturnKind());
                     } catch (SemanticJavaException e) {
                         throw uncheckedThrow(e.getCause());
                     }
@@ -591,6 +594,20 @@ public final class Interpreter {
         for (int i = start; i < parameterCount; i++) {
             JavaKind kind = targetSig.getParameterKind(i - start);
             res[i] = unbasic(arguments[i], kind);
+        }
+        return res;
+    }
+
+    static Object[] rebasic(Object[] arguments, InterpreterUnresolvedSignature srcSig, boolean inclReceiver) {
+        int parameterCount = srcSig.getParameterCount(inclReceiver);
+        Object[] res = new Object[parameterCount];
+        int start = 0;
+        if (inclReceiver) {
+            res[start++] = arguments[0];
+        }
+        for (int i = start; i < parameterCount; i++) {
+            JavaKind kind = srcSig.getParameterKind(i - start);
+            res[i] = rebasic(arguments[i], kind);
         }
         return res;
     }
@@ -1511,6 +1528,15 @@ public final class Interpreter {
                 callKind = resolvedCall.getCallKind();
             } catch (Throwable e) {
                 throw SemanticJavaException.raise(e);
+            }
+            if (seedMethod instanceof InterpreterResolvedInvokeGenericJavaMethod invokeGenericJavaMethod) {
+                Object appendix = invokeGenericJavaMethod.getAppendix();
+                if (appendix != null) {
+                    EspressoFrame.putObject(callerFrame, top, appendix);
+                    invokeTop = top + 1;
+                }
+                seedMethod = invokeGenericJavaMethod.getInvoker();
+                callKind = CallKind.DIRECT;
             }
             if (InterpreterTraceSupport.getValue()) {
                 traceInterpreter().string("Linking for call site of ").string(Bytecodes.nameOf(opcode)).string(" with resolved cp entry ").string(symbolicResolution.toString()).string(":")
