@@ -160,7 +160,7 @@ final class BytecodeRootNodesImplElement extends AbstractElement {
             b.startIf().string("newTags != 0").end().startBlock();
             int index = 0;
             for (TypeMirror tag : parent.model.getProvidedTags()) {
-                b.startIf().string("(newTags & 0x").string(Integer.toHexString(1 << index)).string(") != 0").end().startBlock();
+                b.startIf().string(parent.configEncoder.checkTagEnabled("newTags", index)).end().startBlock();
                 b.startStatement().startCall("message", "append").string("sep").end().end();
                 b.startStatement().startCall("message", "append").doubleQuote("Tag[" + ElementUtils.getSimpleName(tag) + "]").end().end();
                 b.startAssign("sep").doubleQuote(", ").end();

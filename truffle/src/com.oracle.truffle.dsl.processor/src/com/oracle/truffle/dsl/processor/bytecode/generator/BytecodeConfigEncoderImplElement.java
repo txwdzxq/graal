@@ -40,6 +40,7 @@
  */
 package com.oracle.truffle.dsl.processor.bytecode.generator;
 
+import static com.oracle.truffle.dsl.processor.bytecode.generator.ElementHelpers.arrayOf;
 import static javax.lang.model.element.Modifier.FINAL;
 import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.STATIC;
@@ -79,6 +80,7 @@ final class BytecodeConfigEncoderImplElement extends AbstractElement {
         this.add(createEncodeInstrumentation());
         this.add(createDecode1());
         this.add(createDecode2());
+        this.add(createEncodeTags());
         this.add(createEncodeTag());
     }
 
@@ -154,6 +156,31 @@ final class BytecodeConfigEncoderImplElement extends AbstractElement {
         return encodeTag;
     }
 
+    private CodeExecutableElement createEncodeTags() {
+        CodeExecutableElement ex = new CodeExecutableElement(Set.of(PRIVATE, STATIC), type(int.class), "encodeTags");
+        ex.addParameter(new CodeVariableElement(arrayOf(type(Class.class)), "tags"));
+        ex.setVarArgs(true);
+        CodeTreeBuilder b = ex.createBuilder();
+        b.startIf().string("tags == null").end().startBlock();
+        b.statement("return 0");
+        b.end();
+
+        if (parent.model.getProvidedTags().isEmpty()) {
+            b.startIf().string("tags.length != 0").end().startBlock();
+            parent.createFailInvalidTag(b, "tags[0]");
+            b.end();
+            b.startReturn().string("0").end();
+        } else {
+            b.statement("int tagMask = 0");
+            b.startFor().string("Class<?> tag : tags").end().startBlock();
+            b.statement("tagMask |= CLASS_TO_TAG_MASK.get(tag)");
+            b.end();
+            b.startReturn().string("tagMask").end();
+        }
+
+        return ex;
+    }
+
     public String checkSourceBit(String encoded) {
         return String.format("(%s & 0x%s) != 0", encoded, Long.toHexString(encoding.sourceMask()));
     }
@@ -173,21 +200,53 @@ final class BytecodeConfigEncoderImplElement extends AbstractElement {
         return String.format("(int) ((%s >> %s) & 0x%s)", encoded, encoding.instrumentationShift(), Long.toHexString(encoding.instrumentationMask()));
     }
 
-    public String checkInstrumentationEnabled(String encoded, OperationModel instrumentation) {
-        return checkInstrumentation(encoded, instrumentation, true);
-    }
-
-    public String checkInstrumentationDisabled(String encoded, OperationModel instrumentation) {
-        return checkInstrumentation(encoded, instrumentation, false);
-    }
-
-    private String checkInstrumentation(String encoded, OperationModel instrumentation, boolean enabled) {
-        int mask = encoding.instrumentationMask(instrumentation);
-        String comparator = enabled ? "!=" : "==";
-        return String.format("(%s & 0x%s) %s 0", encoded, Integer.toHexString(mask), comparator);
-    }
-
     public String decodeTags(String encoded) {
         return String.format("(int) ((%s >> %s) & 0x%s)", encoded, encoding.tagShift(), Long.toHexString(encoding.tagMask()));
+    }
+
+    public String checkInstructionTracingEnabled(String instrumentations) {
+        if (!parent.model.enableInstructionTracing) {
+            throw new AssertionError("Tried to generate code to check instruction tracing bit, but instruction tracing is not enabled.");
+        }
+        return String.format("(%s & 0x%s) != 0", instrumentations, Integer.toHexString(encoding.traceInstructionMask()));
+    }
+
+    public String checkInstrumentationEnabled(String instrumentations, OperationModel instrumentation) {
+        return checkInstrumentation(instrumentations, instrumentation, true);
+    }
+
+    public String checkInstrumentationDisabled(String instrumentations, OperationModel instrumentation) {
+        return checkInstrumentation(instrumentations, instrumentation, false);
+    }
+
+    private String checkInstrumentation(String instrumentations, OperationModel instrumentation, boolean enabled) {
+        int mask = encoding.instrumentationMask(instrumentation);
+        String comparator = enabled ? "!=" : "==";
+        return String.format("(%s & 0x%s) %s 0", instrumentations, Integer.toHexString(mask), comparator);
+    }
+
+    public String checkTagEnabled(String tags, int tagIndex) {
+        return String.format("(%s & 0x%s) != 0", tags, Integer.toHexString(encoding.tagMask(tagIndex)));
+    }
+
+    public String encodeSourceBits(String sourceEnabled, String sourceContentEnabled) {
+        if (parent.model.sourceContentSupplier != null) {
+            return String.format("((%s ? 0x%sL : 0L) | (%s ? 0x%sL : 0L))", sourceEnabled, Long.toHexString(encoding.sourceMask()), sourceContentEnabled,
+                            Long.toHexString(encoding.sourceContentMask()));
+        }
+        return String.format("(%s ? 0x%sL : 0L)", sourceEnabled, Long.toHexString(encoding.sourceMask()));
+    }
+
+    public String encode(String sourceBits, String instrumentations, String tags) {
+        return String.format(
+                        "(%s & 0x%sL) | ((%s & 0x%sL) << %s) | ((%s & 0x%sL) << %s)",
+                        sourceBits,
+                        Long.toHexString(encoding.sourceBitsMask()),
+                        instrumentations,
+                        Long.toHexString(encoding.instrumentationMask()),
+                        encoding.instrumentationShift(),
+                        tags,
+                        Long.toHexString(encoding.tagMask()),
+                        encoding.tagShift());
     }
 }

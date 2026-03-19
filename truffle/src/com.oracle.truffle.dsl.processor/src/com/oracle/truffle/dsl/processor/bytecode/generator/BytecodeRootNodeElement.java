@@ -437,7 +437,6 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         this.addOptional(createPrepareForInstrumentation());
         this.addOptional(createPrepareForCompilation());
 
-        this.add(createEncodeTags());
         if (model.enableTagInstrumentation) {
             this.add(createFindInstrumentableCallNode());
         }
@@ -1124,7 +1123,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         b.startStatement().type(generic(ArrayList.class, tagClass)).string(" tags = ").startNew("ArrayList<>").end().end();
         int index = 0;
         for (TypeMirror tag : model.getProvidedTags()) {
-            b.startIf().string("(tagMask & ").string(1 << index).string(") != 0").end().startBlock();
+            b.startIf().string(configEncoder.checkTagEnabled("tagMask", index)).end().startBlock();
             b.startStatement().startCall("tags", "add").typeLiteral(tag).end().end();
             b.end();
             index++;
@@ -1688,31 +1687,6 @@ public final class BytecodeRootNodeElement extends AbstractElement {
             b.string(" && ").startCall("super.prepareForCompilation").variables(ex.getParameters()).end();
         }
         b.end();
-        return ex;
-    }
-
-    private CodeExecutableElement createEncodeTags() {
-        CodeExecutableElement ex = new CodeExecutableElement(Set.of(PRIVATE, STATIC), type(int.class), "encodeTags");
-        ex.addParameter(new CodeVariableElement(arrayOf(type(Class.class)), "tags"));
-        ex.setVarArgs(true);
-        CodeTreeBuilder b = ex.createBuilder();
-        b.startIf().string("tags == null").end().startBlock();
-        b.statement("return 0");
-        b.end();
-
-        if (model.getProvidedTags().isEmpty()) {
-            b.startIf().string("tags.length != 0").end().startBlock();
-            createFailInvalidTag(b, "tags[0]");
-            b.end();
-            b.startReturn().string("0").end();
-        } else {
-            b.statement("int tagMask = 0");
-            b.startFor().string("Class<?> tag : tags").end().startBlock();
-            b.statement("tagMask |= CLASS_TO_TAG_MASK.get(tag)");
-            b.end();
-            b.startReturn().string("tagMask").end();
-        }
-
         return ex;
     }
 

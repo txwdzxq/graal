@@ -273,7 +273,7 @@ final class AbstractBytecodeNodeElement extends AbstractElement {
         CodeExecutableElement ex = new CodeExecutableElement(Set.of(PRIVATE, FINAL), type(boolean.class), "isInstructionTracingEnabled");
         CodeTreeBuilder b = ex.createBuilder();
         b.startReturn();
-        b.string("(this.configEncoding & 0x").string(Long.toHexString(1L << (BytecodeRootNodeElement.INSTRUMENTATION_OFFSET + parent.model.traceInstructionInstrumentationIndex))).string("L) != 0");
+        b.string(parent.configEncoder.checkInstructionTracingEnabled(parent.configEncoder.decodeInstrumentations("this.configEncoding")));
         b.end();
         return ex;
     }

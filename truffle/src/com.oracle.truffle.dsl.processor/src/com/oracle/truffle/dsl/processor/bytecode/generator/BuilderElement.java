@@ -1419,7 +1419,7 @@ final class BuilderElement extends AbstractElement {
             b.startThrow().startCall("state.failArgument").doubleQuote("The tags parameter for beginTag must not be empty. Please specify at least one tag.").end().end();
             b.end();
 
-            b.declaration(type(int.class), "encodedTags", "encodeTags(newTags)");
+            b.startDeclaration(type(int.class), "encodedTags").startStaticCall(parent.configEncoder.asType(), "encodeTags").string("newTags").end().end();
             b.startIf().string("(encodedTags & this.tags) == 0").end().startBlock();
             b.returnStatement();
             b.end();
@@ -1640,8 +1640,7 @@ final class BuilderElement extends AbstractElement {
         b.end();
 
         if (model.enableInstructionTracing) {
-            int mask = model.bytecodeConfigEncoding.traceInstructionMask();
-            b.startIf().string("(instrumentations & ").string("0x", Long.toHexString(mask)).string(") != 0").end().startBlock();
+            b.startIf().string(parent.configEncoder.checkInstructionTracingEnabled("instrumentations")).end().startBlock();
             b.statement("int constantIndex = state.addConstant(findOrCreateInstructionTracer())");
             b.statement("assert constantIndex == INSTRUCTION_TRACER_CONSTANT_INDEX");
             b.end();
@@ -1995,7 +1994,7 @@ final class BuilderElement extends AbstractElement {
             b.startIf().string("newTags.length == 0").end().startBlock();
             b.startThrow().startCall("state.failArgument").doubleQuote("The tags parameter for beginTag must not be empty. Please specify at least one tag.").end().end();
             b.end();
-            b.declaration(type(int.class), "encodedTags", "encodeTags(newTags)");
+            b.startDeclaration(type(int.class), "encodedTags").startStaticCall(parent.configEncoder.asType(), "encodeTags").string("newTags").end().end();
             b.startIf().string("(encodedTags & this.tags) == 0").end().startBlock();
             b.returnStatement();
             b.end();
@@ -2659,8 +2658,8 @@ final class BuilderElement extends AbstractElement {
         for (VariableElement e : ElementFilter.fieldsIn(parent.abstractBytecodeNode.getEnclosedElements())) {
             b.defaultDeclaration(e.asType(), e.getSimpleName().toString() + "_");
         }
-        b.statement("configEncoding_ = (parseSources ? 0x1L : 0L) | (((long) instrumentations) << " + BytecodeRootNodeElement.INSTRUMENTATION_OFFSET + ") | (((long) tags) << " +
-                        BytecodeRootNodeElement.TAG_OFFSET + ")");
+        String sourceBits = parent.configEncoder.encodeSourceBits("parseSources", "parseSourceContent");
+        b.startAssign("configEncoding_").string(parent.configEncoder.encode(sourceBits, "instrumentations", "tags")).end();
 
         b.statement("doEmitRootSourceInfo(", operationStack.read(model.rootOperation, operationFields.index), ")");
         b.startIf().string("parseSources").end().startBlock();
@@ -2730,9 +2729,8 @@ final class BuilderElement extends AbstractElement {
             if (model.enableInstructionTracing) {
                 b.declaration(type(int.class), "oldConstantOffset", "oldBytecodeNode.isInstructionTracingEnabled() ? 1 : 0");
                 b.startDeclaration(type(int.class), "newConstantOffset");
-                int mask = model.bytecodeConfigEncoding.traceInstructionMask();
-                b.string("(this.instrumentations & ").string("0x", Integer.toHexString(mask)).string(") != 0 ? 1 : 0");
-                b.end(); // delcaration
+                b.string(parent.configEncoder.checkInstructionTracingEnabled("this.instrumentations")).string(" ? 1 : 0");
+                b.end(); // declaration
                 b.statement("assert constants_.length - newConstantOffset == oldBytecodeNode.constants.length - oldConstantOffset");
             } else {
                 b.statement("assert constants_.length == oldBytecodeNode.constants.length");
@@ -5696,8 +5694,7 @@ final class BuilderElement extends AbstractElement {
             b.end();
 
             if (model.enableInstructionTracing) {
-                int mask = model.bytecodeConfigEncoding.traceInstructionMask();
-                b.startIf().string("(this.instrumentations & ").string("0x", Integer.toHexString(mask)).string(") != 0").end().startBlock();
+                b.startIf().string(parent.configEncoder.checkInstructionTracingEnabled("this.instrumentations")).end().startBlock();
                 b.statement("doEmitTraceInstruction()");
                 b.end();
             }
@@ -5845,8 +5842,7 @@ final class BuilderElement extends AbstractElement {
 
             if (!tracing && model.enableInstructionTracing) {
                 // If tracing is enabled, call a separate tracing-specific rewrite method.
-                int mask = model.bytecodeConfigEncoding.traceInstructionMask();
-                b.startIf().string("(this.instrumentations & ").string("0x", Integer.toHexString(mask)).string(") != 0").end().startBlock();
+                b.startIf().string(parent.configEncoder.checkInstructionTracingEnabled("this.instrumentations")).end().startBlock();
                 CodeExecutableElement applyRewriteRuleTracing = applyRewriteRuleMethods.get(new ApplyRewriteRuleKey(rewriteRule, true));
                 b.startReturn().startCall(null, applyRewriteRuleTracing).string("oldInstructionBci").end(2);
                 b.end();
