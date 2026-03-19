@@ -739,6 +739,10 @@ public class ObjectCopier {
          * up via reflection when the value needs to be decoded.
          */
         final Map<Object, Field> externalValues;
+        /**
+         * Map to reuse the same field values for child discovery and record emission.
+         */
+        final EconomicMap<Object, EconomicMap<Field, Object>> fieldSnapshots = EconomicMap.create(Equivalence.IDENTITY);
 
         private final PrintStream debugOutput;
 
@@ -785,12 +789,25 @@ public class ObjectCopier {
         /**
          * Gets the value to encode for a field after applying any field transformer.
          */
-        protected Object getFieldValue(Object obj, Field field) {
+        private Object getFieldValue(Object obj, Field field) {
+            EconomicMap<Field, Object> snapshot = fieldSnapshots.get(obj);
+            if (snapshot == null) {
+                snapshot = EconomicMap.create(Equivalence.IDENTITY);
+                fieldSnapshots.put(obj, snapshot);
+            }
+            if (snapshot.containsKey(field)) {
+                return snapshot.get(field);
+            }
             Object value = readField(field, obj);
             Transformer transformer = getFieldTransformer(field);
             if (transformer != null) {
                 value = transformer.encodeValue(this, obj, value);
             }
+            /*
+             * Only snapshot transformed values to ensure the values stay consistent during each
+             * step of encoding.
+             */
+            snapshot.put(field, value);
             return value;
         }
 
@@ -862,8 +879,8 @@ public class ObjectCopier {
         }
 
         void makeId(Object obj, ObjectPath objectPath) {
-            Field field = externalValues.get(obj);
-            if (field != null) {
+            if (externalValues.containsKey(obj)) {
+                Field field = externalValues.get(obj);
                 if (objects.addObject(field)) {
                     makeStringId(field.getDeclaringClass().getName(), objectPath);
                     makeStringId(field.getName(), objectPath);
@@ -904,13 +921,14 @@ public class ObjectCopier {
 
                 makeStringId(clazz.getName(), objectPath);
                 ClassInfo classInfo = makeClassInfo(clazz, this, objectPath);
-                classInfo.fields().forEach((fieldDesc, f) -> {
-                    String fieldName = f.getDeclaringClass().getSimpleName() + "#" + f.getName();
-                    if (!f.getType().isPrimitive()) {
-                        Object fieldValue = getFieldValue(obj, f);
+                for (var entry : classInfo.fields().entrySet()) {
+                    Field field = entry.getValue();
+                    Object fieldValue = getFieldValue(obj, field);
+                    if (!field.getType().isPrimitive()) {
+                        String fieldName = field.getDeclaringClass().getSimpleName() + "#" + field.getName();
                         makeId(fieldValue, objectPath.add(fieldName));
                     }
-                });
+                }
             }
         }
 
@@ -980,6 +998,7 @@ public class ObjectCopier {
                     writeString(out, field.getName());
                 } else {
                     ClassInfo classInfo = classInfos.get(clazz);
+                    EconomicMap<Field, Object> fieldValues = fieldSnapshots.get(obj);
                     out.internalWriteByte('{');
                     debugf("%d:{", id);
                     writeString(out, clazz.getName());
@@ -988,7 +1007,7 @@ public class ObjectCopier {
                         Field f = e.getValue();
                         debugf("%n ");
                         Class<?> fieldType = f.getType();
-                        Object fValue = getFieldValue(obj, f);
+                        Object fValue = fieldValues.get(f);
                         if (fieldType.isPrimitive()) {
                             out.writeUntypedValue(fValue);
                         } else {
