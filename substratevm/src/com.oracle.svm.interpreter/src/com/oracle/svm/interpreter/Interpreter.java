@@ -381,8 +381,33 @@ public final class Interpreter {
         return execute0(method, frame, forceStayInInterpreter);
     }
 
+    public static Object execute(InterpreterResolvedJavaMethod method, InterpreterFrame frame, int startBCI, int startTOP) {
+        return execute0(method, frame, startBCI, startTOP, false);
+    }
+
+    private static Object execute0(InterpreterResolvedJavaMethod method, InterpreterFrame frame, int startBCI, int startTop, boolean stayInInterpreter) {
+        try {
+            int executeBCI = startBCI;
+            if (startBCI == jdk.vm.ci.code.BytecodeFrame.BEFORE_BCI) {
+                executeBCI = 0;
+                if (method.isSynchronized()) {
+                    Object lockTarget = method.isStatic()
+                                    ? method.getDeclaringClass().getJavaClass()
+                                    : frame.getObjectStatic(0);
+                    assert lockTarget != null;
+                    InterpreterToVM.monitorEnter(frame, nullCheck(lockTarget));
+                }
+            }
+            assert method.getInterpretedCode() != null : "no bytecode stream for " + method;
+            return Root.executeBodyFromBCI(frame, method, executeBCI, startTop, stayInInterpreter);
+        } finally {
+            InterpreterToVM.releaseInterpreterFrameLocks(frame);
+        }
+    }
+
     private static Object execute0(InterpreterResolvedJavaMethod method, InterpreterFrame frame, boolean stayInInterpreter) {
         try {
+            assert method.isStatic() || EspressoFrame.getThis(frame) != null;
             if (method.isSynchronized()) {
                 Object lockTarget = method.isStatic()
                                 ? method.getDeclaringClass().getJavaClass()
@@ -394,6 +419,7 @@ public final class Interpreter {
             if (intrinsic != null) {
                 return IntrinsicRoot.execute(frame, method, intrinsic, stayInInterpreter);
             } else {
+                assert method.getInterpretedCode() != null : "no bytecode stream for " + method;
                 int startTop = startingStackOffset(method.getMaxLocals());
                 return Root.executeBodyFromBCI(frame, method, 0, startTop, stayInInterpreter);
             }
@@ -632,10 +658,6 @@ public final class Interpreter {
             int curBCI = startBCI;
             int top = startTop;
             byte[] code = method.getInterpretedCode();
-
-            assert method.isStatic() || EspressoFrame.getThis(frame) != null;
-
-            InterpreterUtil.guarantee(code != null, "no bytecode stream for %s", method);
 
             int indent = getLogIndent();
             traceInterpreterEnter(method, indent, curBCI, top);
@@ -1214,7 +1236,7 @@ public final class Interpreter {
         // @formatter:on
     }
 
-    private static void clearOperandStack(InterpreterFrame frame, InterpreterResolvedJavaMethod method, int top) {
+    public static void clearOperandStack(InterpreterFrame frame, InterpreterResolvedJavaMethod method, int top) {
         int stackStart = startingStackOffset(method.getMaxLocals());
         for (int slot = top - 1; slot >= stackStart; --slot) {
             clear(frame, slot);
@@ -1309,7 +1331,7 @@ public final class Interpreter {
     }
 
     @SuppressWarnings("unused")
-    private static int beforeJumpChecks(InterpreterFrame frame, int curBCI, int targetBCI, int top) {
+    public static int beforeJumpChecks(InterpreterFrame frame, int curBCI, int targetBCI, int top) {
         if (targetBCI <= curBCI) {
             // GR-55055: Safepoint poll needed?
             // TODO GR-71799 - add ristretto backedge profiles
@@ -1317,7 +1339,7 @@ public final class Interpreter {
         return targetBCI;
     }
 
-    private static ExceptionHandler resolveExceptionHandler(InterpreterResolvedJavaMethod method, int bci, Throwable ex) {
+    public static ExceptionHandler resolveExceptionHandler(InterpreterResolvedJavaMethod method, int bci, Throwable ex) {
         ExceptionHandler[] handlers = method.getExceptionHandlers();
         ExceptionHandler resolved = null;
         for (ExceptionHandler toCheck : handlers) {

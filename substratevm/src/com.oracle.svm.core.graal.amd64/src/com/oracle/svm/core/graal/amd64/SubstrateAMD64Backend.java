@@ -2010,6 +2010,12 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
                 assert InterpreterSupport.isEnabled();
                 yield new AMD64InterpreterStubs.InterpreterLeaveStubContext(method, callingConvention);
             }
+            case InterpreterDeoptEntryPointStub -> {
+                assert InterpreterSupport.isEnabled();
+                assert SubstrateOptions.useRistretto();
+                yield new AMD64InterpreterStubs.InterpreterEntryPointStubFrameContext(method, callingConvention);
+
+            }
             case NoDeoptStub -> new SubstrateAMD64FrameContext(method, callingConvention);
         };
     }

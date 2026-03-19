@@ -160,7 +160,6 @@ public class SubstrateReplacements extends ReplacementsImpl {
 
     @Platforms(Platform.HOSTED_ONLY.class)
     public void registerImmutableObjects(BeforeHeapLayoutAccess access) {
-        access.registerAsImmutable(this);
         access.registerAsImmutable(snippetEncoding);
         access.registerAsImmutable(snippetObjects);
         access.registerAsImmutable(snippetNodeClasses);

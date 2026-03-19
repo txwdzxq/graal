@@ -1417,6 +1417,11 @@ public class SubstrateAArch64Backend extends SubstrateBackendWithAssembler<Subst
                 assert InterpreterSupport.isEnabled();
                 yield new AArch64InterpreterStubs.InterpreterLeaveStubContext(method);
             }
+            case InterpreterDeoptEntryPointStub -> {
+                assert InterpreterSupport.isEnabled();
+                assert SubstrateOptions.useRistretto();
+                yield new AArch64InterpreterStubs.InterpreterDeoptEntryPointStubFrameContext(method, callingConvention);
+            }
             case NoDeoptStub -> new SubstrateAArch64FrameContext(method);
         };
     }

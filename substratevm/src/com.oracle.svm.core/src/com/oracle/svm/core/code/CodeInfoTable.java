@@ -182,7 +182,8 @@ public class CodeInfoTable {
 
     /**
      * Retrieves the {@link InstalledCode} that contains the provided instruction pointer. Returns
-     * {@code null} if the instruction pointer is not within a runtime compile method.
+     * {@code null} if the instruction pointer is not within a runtime compiled method, for example
+     * for AOT/native image code such as deoptimization-testing {@code @DeoptTest} frames.
      */
     @Uninterruptible(reason = "Prevent the GC from freeing the CodeInfo object.")
     public static SubstrateInstalledCode lookupInstalledCode(CodePointer ip) {

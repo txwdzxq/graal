@@ -24,9 +24,11 @@
  */
 package com.oracle.svm.interpreter.ristretto;
 
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.function.BooleanSupplier;
 
+import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.hosted.Feature;
 
 import com.oracle.svm.core.ParsingReason;
@@ -34,15 +36,23 @@ import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.jdk.RuntimeSupport;
+import com.oracle.svm.core.meta.MethodPointer;
+import com.oracle.svm.graal.hosted.DeoptimizationFeature;
 import com.oracle.svm.graal.hosted.runtimecompilation.RuntimeCompilationFeature;
+import com.oracle.svm.hosted.FeatureImpl;
+import com.oracle.svm.hosted.meta.HostedMetaAccess;
 import com.oracle.svm.interpreter.CremaFeature;
 import com.oracle.svm.interpreter.InterpreterFeature;
+import com.oracle.svm.interpreter.ristretto.compile.InterpreterDeoptEntryPoints;
+import com.oracle.svm.interpreter.ristretto.compile.RistrettoDeoptimizationSupport;
+import com.oracle.svm.interpreter.ristretto.compile.RistrettoDeoptimizedInterpreterFrame;
 import com.oracle.svm.interpreter.ristretto.compile.RistrettoGraphBuilderPlugins;
 import com.oracle.svm.interpreter.ristretto.profile.RistrettoCompilationManager;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
+import com.oracle.svm.shared.util.ReflectionUtil;
 
 import jdk.graal.compiler.nodes.graphbuilderconf.GraphBuilderConfiguration;
 import jdk.graal.compiler.phases.util.Providers;
@@ -68,6 +78,17 @@ import jdk.graal.compiler.phases.util.Providers;
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class, other = Disallowed.class)
 public final class RistrettoFeature implements InternalFeature {
 
+    private static final Method interpEntryVoid = ReflectionUtil.lookupMethod(InterpreterDeoptEntryPoints.class, "entryVoid", RistrettoDeoptimizedInterpreterFrame.class);
+    private static final Method interpEntryInt = ReflectionUtil.lookupMethod(InterpreterDeoptEntryPoints.class, "entryInt", RistrettoDeoptimizedInterpreterFrame.class);
+    private static final Method interpEntryLong = ReflectionUtil.lookupMethod(InterpreterDeoptEntryPoints.class, "entryLong", RistrettoDeoptimizedInterpreterFrame.class);
+    private static final Method interpEntryFloat = ReflectionUtil.lookupMethod(InterpreterDeoptEntryPoints.class, "entryFloat", RistrettoDeoptimizedInterpreterFrame.class);
+    private static final Method interpEntryDouble = ReflectionUtil.lookupMethod(InterpreterDeoptEntryPoints.class, "entryDouble", RistrettoDeoptimizedInterpreterFrame.class);
+    private static final Method interpEntryObject = ReflectionUtil.lookupMethod(InterpreterDeoptEntryPoints.class, "entryObject", RistrettoDeoptimizedInterpreterFrame.class);
+    private static final Method interpEntryBoolean = ReflectionUtil.lookupMethod(InterpreterDeoptEntryPoints.class, "entryBoolean", RistrettoDeoptimizedInterpreterFrame.class);
+    private static final Method interpEntryByte = ReflectionUtil.lookupMethod(InterpreterDeoptEntryPoints.class, "entryByte", RistrettoDeoptimizedInterpreterFrame.class);
+    private static final Method interpEntryShort = ReflectionUtil.lookupMethod(InterpreterDeoptEntryPoints.class, "entryShort", RistrettoDeoptimizedInterpreterFrame.class);
+    private static final Method interpEntryChar = ReflectionUtil.lookupMethod(InterpreterDeoptEntryPoints.class, "entryChar", RistrettoDeoptimizedInterpreterFrame.class);
+
     @Override
     public boolean isInConfiguration(IsInConfigurationAccess access) {
         return SubstrateOptions.useRistretto();
@@ -80,18 +101,59 @@ public final class RistrettoFeature implements InternalFeature {
 
     @Override
     public void afterRegistration(AfterRegistrationAccess access) {
-        RuntimeSupport.getRuntimeSupport().addShutdownHook(RistrettoCompilationManager.getProfileSupportShutdownHook());
-        RuntimeSupport.getRuntimeSupport().addStartupHook(RistrettoCompilationManager.getProfileSupportStartupHook());
+        RuntimeSupport.getRuntimeSupport().addTearDownHook(RistrettoCompilationManager.getProfileSupportTearDownHook());
+
+        if (RistrettoOptions.useDeoptimization()) {
+            ImageSingletons.add(RistrettoDeoptimizationSupport.class, new RistrettoDeoptimizationSupport());
+        }
     }
 
     /**
      * Preserves Ristretto directive types required at runtime.
      */
     @Override
-    public void beforeAnalysis(BeforeAnalysisAccess access) {
+    public void beforeAnalysis(BeforeAnalysisAccess a) {
         RistrettoUtils.forcePreserveType(RistrettoDirectives.class);
+        if (RistrettoOptions.useDeoptimization()) {
+            FeatureImpl.BeforeAnalysisAccessImpl access = (FeatureImpl.BeforeAnalysisAccessImpl) a;
+            DeoptimizationFeature.registerDeoptimizeRuntimeAsRoot(access, RistrettoFeature.class);
+
+            access.registerAsRoot(interpEntryVoid, true, "Interpreter Entry Point For Ristretto Deopt " + RistrettoFeature.class);
+            access.registerAsRoot(interpEntryInt, true, "Interpreter Entry Point For Ristretto Deopt " + RistrettoFeature.class);
+            access.registerAsRoot(interpEntryLong, true, "Interpreter Entry Point For Ristretto Deopt " + RistrettoFeature.class);
+            access.registerAsRoot(interpEntryFloat, true, "Interpreter Entry Point For Ristretto Deopt " + RistrettoFeature.class);
+            access.registerAsRoot(interpEntryDouble, true, "Interpreter Entry Point For Ristretto Deopt " + RistrettoFeature.class);
+            access.registerAsRoot(interpEntryObject, true, "Interpreter Entry Point For Ristretto Deopt " + RistrettoFeature.class);
+
+            access.registerAsRoot(interpEntryBoolean, true, "Interpreter Entry Point For Ristretto Deopt " + RistrettoFeature.class);
+            access.registerAsRoot(interpEntryByte, true, "Interpreter Entry Point For Ristretto Deopt " + RistrettoFeature.class);
+            access.registerAsRoot(interpEntryShort, true, "Interpreter Entry Point For Ristretto Deopt " + RistrettoFeature.class);
+            access.registerAsRoot(interpEntryChar, true, "Interpreter Entry Point For Ristretto Deopt " + RistrettoFeature.class);
+        }
     }
 
+    @Override
+    public void beforeCompilation(BeforeCompilationAccess a) {
+        if (RistrettoOptions.useDeoptimization()) {
+            FeatureImpl.CompilationAccessImpl config = (FeatureImpl.CompilationAccessImpl) a;
+            config.registerAsImmutable(ImageSingletons.lookup(RistrettoDeoptimizationSupport.class));
+            HostedMetaAccess metaAccess = config.getMetaAccess();
+
+            RistrettoDeoptimizationSupport.initialize(
+                            new MethodPointer(metaAccess.lookupJavaMethod(interpEntryVoid)),
+                            new MethodPointer(metaAccess.lookupJavaMethod(interpEntryInt)),
+                            new MethodPointer(metaAccess.lookupJavaMethod(interpEntryLong)),
+                            new MethodPointer(metaAccess.lookupJavaMethod(interpEntryFloat)),
+                            new MethodPointer(metaAccess.lookupJavaMethod(interpEntryDouble)),
+                            new MethodPointer(metaAccess.lookupJavaMethod(interpEntryObject)),
+                            new MethodPointer(metaAccess.lookupJavaMethod(interpEntryBoolean)),
+                            new MethodPointer(metaAccess.lookupJavaMethod(interpEntryByte)),
+                            new MethodPointer(metaAccess.lookupJavaMethod(interpEntryShort)),
+                            new MethodPointer(metaAccess.lookupJavaMethod(interpEntryChar)));
+        }
+    }
+
+    // TODO GR-71480 - invocation plugins for Ristretto
     /**
      * Registers Ristretto graph builder plugins that lower Crema interpreter operations and
      * runtime-compilation hooks.
@@ -100,8 +162,6 @@ public final class RistrettoFeature implements InternalFeature {
     public void registerGraphBuilderPlugins(Providers providers, GraphBuilderConfiguration.Plugins plugins, ParsingReason reason) {
         registerRistrettoGraphBuilderPlugins(plugins);
     }
-
-    // TODO GR-71480 - invocation plugins for Ristretto
 
     /**
      * Installs the hosted-safe subset of Ristretto graph builder plugins into the given plugin set.
