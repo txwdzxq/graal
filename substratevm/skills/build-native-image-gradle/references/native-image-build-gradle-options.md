@@ -1,106 +1,115 @@
 # Gradle Native Image Build Options
 
-## DSL structure
+## DSL Structure
 
 ```groovy
 graalvmNative {
     binaries {
-        main { /* options for the application binary */ }
-        test { /* options for the test binary */ }
-        all  { /* options shared by main and test */ }
+        main { /* application binary options */ }
+        test { /* test binary options */ }
+        all  { /* shared options */ }
     }
 }
 ```
 
-## Binary properties
+## Binary Properties
 
-| Property | Type | Default | Purpose |
-|----------|------|---------|---------|
-| `imageName` | String | project name | Name of the output executable |
-| `mainClass` | String | `application.mainClass` | Entry point class |
-| `debug` | boolean | `false` | Generate debug info (or use `--debug-native` CLI flag) |
-| `verbose` | boolean | `false` | Enable verbose build output |
-| `fallback` | boolean | `false` | Allow fallback to JVM if native build fails |
-| `sharedLibrary` | boolean | `false` | Build a shared library instead of executable |
-| `quickBuild` | boolean | `false` | Faster build at cost of runtime performance |
-| `richOutput` | boolean | `false` | Rich console output during build |
-| `jvmArgs` | ListProperty | empty | JVM arguments for the native-image builder process |
-| `buildArgs` | ListProperty | empty | Arguments passed directly to `native-image` |
-| `runtimeArgs` | ListProperty | empty | Arguments passed to the application at runtime |
-| `javaLauncher` | Property | auto-detected | GraalVM toolchain launcher |
+| Property      | Type        | Default         | Description |
+|-------------- |------------ |-----------------|-------------|
+| `imageName`   | String      | project name    | Output executable name |
+| `mainClass`   | String      | `application.mainClass` | Main entry point class |
+| `debug`       | boolean     | `false`         | Enable debug info (or use `--debug-native`) |
+| `verbose`     | boolean     | `false`         | Verbose build output |
+| `fallback`    | boolean     | `false`         | Allow JVM fallback if native build fails |
+| `sharedLibrary` | boolean   | `false`         | Build a shared library |
+| `quickBuild`  | boolean     | `false`         | Faster build, lower runtime performance |
+| `richOutput`  | boolean     | `false`         | Rich console output |
+| `jvmArgs`     | ListProperty| empty           | JVM arguments for native-image builder |
+| `buildArgs`   | ListProperty| empty           | Arguments for native-image |
+| `runtimeArgs` | ListProperty| empty           | Arguments for the application at runtime |
+| `javaLauncher`| Property    | auto-detected   | GraalVM toolchain launcher |
 
-## Binary configuration
 
-**If you want to rename the output binary:**
+## Binary Configuration
+
+debug = true
+
+**Rename the output binary:**
 ```groovy
 imageName = 'myapp'
 ```
 
-**If you need to set the entry point explicitly:**
+**Set the entry point:**
 ```groovy
 mainClass = 'com.example.Main'
 ```
 
-**If you want debug info in the binary:**
+**Enable debug info:**
 ```groovy
 debug = true
-// or pass --debug-native on the CLI
+// or use --debug-native
 ```
 
-**If you need verbose build output:**
+**Verbose build output:**
 ```groovy
 verbose = true
 ```
 
-**If you want faster builds during development:**
+**Faster builds (development):**
 ```groovy
 quickBuild = true
 // or use -Ob buildArg for maximum speed
 buildArgs.add('-Ob')
 ```
 
-**If you need to build a shared library instead of an executable:**
+**Build a shared library instead of an executable:**
 ```groovy
 sharedLibrary = true
 ```
 
-## Build failures and errors
 
-**If the build runs out of memory:**
+## Build Failures and Errors
+
+
+**Increase build memory:**
 ```groovy
 jvmArgs.add('-Xmx8g')
 ```
 
-**If a class fails because it initializes at build time but must not:**
+**Force runtime initialization for a class:**
 ```groovy
 buildArgs.add('--initialize-at-run-time=com.example.LazyClass')
 ```
 
-**If a class must be initialized at build time:**
+**Force build-time initialization for a class:**
 ```groovy
 buildArgs.add('--initialize-at-build-time=com.example.EagerClass')
 ```
 
-**If you need to inspect build diagnostics:**
+**Inspect build diagnostics:**
 ```groovy
 buildArgs.add('--diagnostics-mode')
 ```
 
 ## Resources
 
-**If resource files are missing at runtime:**
+
+**Include resource files at runtime:**
 ```groovy
 buildArgs.add('-H:IncludeResources=.*\\.(properties|xml)$')
 ```
 
-## Runtime arguments
 
-**If you need to pass arguments to the application at startup:**
+## Runtime Arguments
+
+
+**Pass arguments to the application at startup:**
 ```groovy
 runtimeArgs.add('--server.port=8080')
 ```
 
-## Full example
+
+## Full Example
 
 ### Groovy DSL
 

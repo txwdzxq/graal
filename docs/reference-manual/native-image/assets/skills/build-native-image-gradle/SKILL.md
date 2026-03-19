@@ -1,17 +1,17 @@
 ---
 name: build-native-image-gradle
-description: Build GraalVM native images using Gradle Native Build Tools. Use this skill when the user wants to build Java application within the Gradle project using Native Image and Native Build tools, configure native image build.gradle settings, or fix missing reachability metadata.
+description: Build GraalVM native images using Gradle Native Build Tools. Use this skill to build Java applications with Gradle, configure native-image build.gradle settings, or resolve build or runtime issues.
 ---
 
 # Gradle Native Image Build
 
 ## Prerequisites
+- Set `GRAALVM_HOME` to a GraalVM distribution. If not set, ask the user for the path.
+- Apply the `application`, `java-library`, or `java` plugin along with `org.graalvm.buildtools.native`.
 
-- `GRAALVM_HOME` must point to a GraalVM distribution. If not set, ask the user for their GraalVM path.
-- The project must apply `application`, `java-library`, or `java` plugin alongside `org.graalvm.buildtools.native`.
 
-## Plugin setup
-
+### Plugin Setup
+Groovy DSL:
 ```groovy
 plugins {
     id 'application'
@@ -20,7 +20,6 @@ plugins {
 ```
 
 Kotlin DSL:
-
 ```kotlin
 plugins {
     application
@@ -28,28 +27,28 @@ plugins {
 }
 ```
 
-## Build and run
 
+## Build and Run
 ```bash
-./gradlew nativeCompile  # Builds to build/native/nativeCompile/
-./gradlew nativeRun      # Builds and runs the native executable
-./gradlew nativeTest     # Builds and runs JUnit tests as native image
+./gradlew nativeCompile   # Build to build/native/nativeCompile/
+./gradlew nativeRun       # Build and run the native executable
+./gradlew nativeTest      # Build and run JUnit tests as a native image
 ```
 
-## Build or runtime failures
 
+## Build or Runtime Failures
 If the build fails with class initialization, linking errors, memory issues, or the binary behaves incorrectly at runtime, see [references/native-image-build-gradle-options.md](references/native-image-build-gradle-options.md).
 
-## Native testing
 
+## Native Testing
 If `nativeTest` fails or you need to configure native JUnit tests or custom test suites, see [references/testing.md](references/testing.md).
 
-## Missing reachability metadata
 
+## Missing Reachability Metadata
 If a build or runtime error reports missing reflection, resource, serialization, or JNI registrations, see [references/reachability-metadata.md](references/reachability-metadata.md).
 
-## Reference files
 
+## Reference Files
 | Topic | File |
 |-------|------|
 | DSL options and build arguments | [references/native-image-build-gradle-options.md](references/native-image-build-gradle-options.md) |

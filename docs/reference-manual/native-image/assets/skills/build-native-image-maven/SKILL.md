@@ -1,19 +1,17 @@
 ---
 name: build-native-image-maven
-description: Build GraalVM native images using the native-maven-plugin (org.graalvm.buildtools). Use when the user wants to build a Java application within a Maven project using Native Image, configure pom.xml native image settings, run native tests, use the tracing agent for metadata collection, or troubleshoot Maven native image build and runtime failures.
+description: Build GraalVM native images using the native-maven-plugin (org.graalvm.buildtools). Use this skill to build Java applications with Maven, configure pom.xml native image settings, run native tests, collect metadata, or resolve build or runtime issues.
 ---
 
 # Maven Native Image Build
 
 ## Prerequisites
+- Set `JAVA_HOME` to a JDK 17+ installation.
+- Set `GRAALVM_HOME` to a GraalVM distribution. If not set, ask the user for the path.
+- Use Maven 3.6+.
 
-- `JAVA_HOME` must point to a JDK 17+ installation.
-- `GRAALVM_HOME` must point to a GraalVM distribution. If not set, ask the user for their GraalVM path.
-- Maven 3.6+ required.
-
-## Plugin setup
-
-Add to `pom.xml` inside a `native` profile:
+## Plugin Setup
+Add the following to your `pom.xml` inside a `native` profile:
 
 ```xml
 <profiles>
@@ -52,36 +50,36 @@ Add to `pom.xml` inside a `native` profile:
 </profiles>
 ```
 
-## Build and run
 
+## Build and Run
 ```bash
-./mvnw -Pnative package                   # Build native image → target/<imageName>
+./mvnw -Pnative package                    # Build native image → target/<imageName>
 ./target/myapp                             # Run the native executable
-./mvnw -Pnative test                      # Build and run JUnit tests as native image
-./mvnw -Pnative -DskipTests package       # Skip all tests
-./mvnw -Pnative -DskipNativeTests package # Run JVM tests only, skip native
+./mvnw -Pnative test                       # Build and run JUnit tests as a native image
+./mvnw -Pnative -DskipTests package        # Skip all tests
+./mvnw -Pnative -DskipNativeTests package  # Run JVM tests only, skip native
 ```
 
-## Plugin not resolving or activating
 
-- **"Could not resolve artifact"** — ensure `mavenCentral()` is in repositories and the version is correct.
-- **"Could not find goal 'compile-no-fork'"** — verify `<extensions>true</extensions>` is set on the plugin.
-- **Build runs without native compilation** — check you're activating the profile: `./mvnw -Pnative package`.
+## Plugin Not Resolving or Activating
+- **"Could not resolve artifact"** — Ensure `mavenCentral()` is in repositories and the version is correct.
+- **"Could not find goal 'compile-no-fork'"** — Verify `<extensions>true</extensions>` is set on the plugin.
+- **Build runs without native compilation** — Check you are activating the profile: `./mvnw -Pnative package`.
 
-## Build or runtime failures
 
+## Build or Runtime Failures
 For class initialization errors, linking issues, memory problems, or unexpected runtime behavior, see [references/maven-plugin-options.md](references/maven-plugin-options.md).
 
-## Missing reachability metadata
 
+## Missing Reachability Metadata
 When native-image reports missing reflection, resources, serialization, or JNI entries, see [references/reachability-metadata.md](references/reachability-metadata.md).
 
-## Native testing
 
+## Native Testing
 For `nativeTest` failures or setting up native JUnit tests, see [references/testing.md](references/testing.md).
 
-## Reference files
 
+## Reference Files
 | Topic | File |
 |-------|------|
 | Plugin configuration options | [references/maven-plugin-options.md](references/maven-plugin-options.md) |

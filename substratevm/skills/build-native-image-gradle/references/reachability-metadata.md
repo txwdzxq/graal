@@ -1,29 +1,33 @@
-# Missing Reachability Metadata (Gradle)
+# Reachability Metadata for Gradle
 
-Use this guide when native-image fails because reflection, resources, serialization, or JNI entries are missing.
+Use this guide to resolve native-image build failures caused by missing reachability metadata for reflection, resources, serialization, or JNI. Follow the workflow below to detect, collect, and manually add metadata as needed.
 
-## Detect missing metadata
+## Detect Missing Metadata
 
+Add these options to your Gradle configuration to enable metadata checks and warnings:
 ```groovy
 graalvmNative {
-    binaries.all {
-        buildArgs.add('--exact-reachability-metadata')
-        runtimeArgs.add('-XX:MissingRegistrationReportingMode=Warn')
-    }
+  binaries.all {
+    buildArgs.add('--exact-reachability-metadata')
+    runtimeArgs.add('-XX:MissingRegistrationReportingMode=Warn')
+  }
 }
 ```
 
-## Resolution workflow
+## Resolution Workflow
 
-### Run the tracing agent
+### Run the Tracing Agent
 
+Run the tracing agent to collect metadata:
 ```bash
 ./gradlew generateMetadata -Pcoordinates=<library-coordinates> -PagentAllowedPackages=<condition-packages>
 ```
 
-### If agent-collected metadata is still incomplete, add manual config
+### Add Manual Metadata if Needed
 
-Create `META-INF/native-image/<project-groupId>/manual-metadata/` with only the files needed. Native Image automatically picks up metadata from this location.
+If the agent-collected metadata is incomplete, add manual configuration:
+
+Create `META-INF/native-image/<project-groupId>/manual-metadata/` and include only the files you need. Native Image automatically picks up metadata from this location.
 
 For metadata layout and file semantics, see the [Reachability Metadata documentation](https://www.graalvm.org/latest/reference-manual/native-image/metadata/).
 
@@ -46,8 +50,9 @@ Minimal `reflect-config.json` example:
 ]
 ```
 
-## Rebuild and verify
+## Rebuild and Verify
 
+Rebuild and test your project:
 ```bash
 ./gradlew nativeCompile
 ./gradlew nativeTest

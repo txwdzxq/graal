@@ -1,9 +1,10 @@
-# Missing Reachability Metadata (Maven)
+# Reachability Metadata for Maven
 
-Use this guide when native-image fails because reflection, resources, serialization, or JNI entries are missing.
+Use this guide to resolve native-image build failures caused by missing reachability metadata for reflection, resources, serialization, or JNI. Follow the workflow below to detect, collect, and manually add metadata as needed.
 
-## Detect missing metadata
+## Detect Missing Metadata
 
+Add these options to your Maven plugin configuration to enable metadata checks and warnings:
 ```xml
 <configuration>
   <buildArgs>
@@ -15,14 +16,18 @@ Use this guide when native-image fails because reflection, resources, serializat
 </configuration>
 ```
 
-## Resolution workflow
+## Resolution Workflow
 
-### Run the tracing agent
+### Run the Tracing Agent
 
-`metadataCopy` copies metadata collected during the agent test run into your project resources.
+Run the tracing agent to collect metadata:
+```bash
+./mvnw -Pnative -Dagent=true test
+./mvnw -Pnative native:metadata-copy
+./mvnw -Pnative package
+```
 
-Configure metadata copy:
-
+Configure metadata copy in your plugin:
 ```xml
 <agent>
   <enabled>true</enabled>
@@ -36,16 +41,11 @@ Configure metadata copy:
 </agent>
 ```
 
-```bash
-./mvnw -Pnative -Dagent=true test
-./mvnw -Pnative native:metadata-copy
-./mvnw -Pnative package
-```
+### Add Manual Metadata if Needed
 
+If the agent-collected metadata is incomplete, add manual configuration:
 
-### If agent-collected metadata is still incomplete, add manual config
-
-Create `META-INF/native-image/<project-groupId>/manual-metadata/` with only the files you need. Native Image automatically picks up metadata from this location.
+Create `META-INF/native-image/<project-groupId>/manual-metadata/` and include only the files you need. Native Image automatically picks up metadata from this location.
 
 For metadata layout and file semantics, see the [Reachability Metadata documentation](https://www.graalvm.org/latest/reference-manual/native-image/metadata/).
 
@@ -62,11 +62,12 @@ Minimal `reflect-config.json` example:
 ]
 ```
 
-## Rebuild and verify
+## Rebuild and Verify
 
+Rebuild and test your project:
 ```bash
 ./mvnw -Pnative package
 ./mvnw -Pnative test
 ```
 
-If a library still fails after repository + agent + manual entries, capture the exact missing symbol from the error output and add only that entry.
+If a library still fails after repository, agent, and manual entries, capture the exact missing symbol from the error output and add only that entry.

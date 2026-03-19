@@ -1,11 +1,11 @@
-# Native Image Testing
+# Native Image Testing (Gradle)
 
 ## Contents
 - JUnit dependencies
 - Running native tests
 - Custom test suites
 
-## JUnit dependencies
+## JUnit Dependencies
 
 ```groovy
 dependencies {
@@ -19,16 +19,21 @@ test {
 }
 ```
 
-## Running native tests
+
+## Running Native Tests
 
 ```bash
 ./gradlew nativeTest
 ```
 
-Output binary: `build/native/nativeTestCompile/<imageName>`
+
+The output binary is located at:
+`build/native/nativeTestCompile/<imageName>`
 
 
-## Custom test suites
+
+## Custom Test Suites
+
 
 Register additional test binaries for integration tests or other test source sets:
 
