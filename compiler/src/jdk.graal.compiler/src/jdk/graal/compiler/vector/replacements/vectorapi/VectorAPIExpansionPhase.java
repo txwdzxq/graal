@@ -83,6 +83,7 @@ import jdk.graal.compiler.vector.architecture.VectorLoweringProvider;
 import jdk.graal.compiler.vector.nodes.simd.SimdStamp;
 import jdk.graal.compiler.vector.replacements.vectorapi.nodes.VectorAPIMacroNode;
 import jdk.graal.compiler.vector.replacements.vectorapi.nodes.VectorAPISinkNode;
+import jdk.graal.compiler.vector.replacements.vectorapi.nodes.VectorAPIStoreMaskedNode;
 import jdk.vm.ci.meta.DeoptimizationReason;
 import jdk.vm.ci.meta.JavaKind;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
@@ -296,7 +297,7 @@ public class VectorAPIExpansionPhase extends PostRunCanonicalizationPhase<HighTi
          */
         EconomicMap<ConstantNode, ValueNode> simdConstantCache = EconomicMap.create();
 
-        NodeUnionFind unionFind = collectNodes(graph, context, flood);
+        NodeUnionFind unionFind = collectNodes(graph, context, flood, vectorArch);
         Iterable<ConnectedComponent> components = buildConnectedComponents(graph, context, unionFind, flood, simdConstantCache);
         checkComponentExpandability(graph, components, vectorArch);
         expandComponents(graph, context, simdConstantCache, components, vectorArch);
@@ -307,7 +308,7 @@ public class VectorAPIExpansionPhase extends PostRunCanonicalizationPhase<HighTi
      * data structure. Also visit phis and proxies connected to macros and group them accordingly.
      * Exactly the nodes added to the union-find are also marked in {@code flood}.
      */
-    private static NodeUnionFind collectNodes(StructuredGraph graph, CoreProviders providers, NodeFlood flood) {
+    private static NodeUnionFind collectNodes(StructuredGraph graph, CoreProviders providers, NodeFlood flood, VectorArchitecture vectorArch) {
         /*
          * A grouping of nodes in the graph into equivalence classes. Each class will become a
          * connected component.
@@ -316,7 +317,15 @@ public class VectorAPIExpansionPhase extends PostRunCanonicalizationPhase<HighTi
         /* Connect all macro nodes to their inputs. */
         for (VectorAPIMacroNode macro : graph.getNodes(VectorAPIMacroNode.TYPE)) {
             flood.add(macro);
+            boolean disconnectFromInputs = macro instanceof VectorAPIStoreMaskedNode storeMasked && !storeMasked.supportsVectorMaskedMove(vectorArch);
             for (Node input : macro.vectorInputs()) {
+                if (disconnectFromInputs) {
+                    /*
+                     * Keep unsupported masked stores as scalar macro calls. Their vector inputs are
+                     * boxed at the use site so neighboring SIMD components can still expand.
+                     */
+                    continue;
+                }
                 if (input instanceof ValuePhiNode phi && isPhiToBox(phi, providers)) {
                     continue;
                 }
@@ -721,6 +730,12 @@ public class VectorAPIExpansionPhase extends PostRunCanonicalizationPhase<HighTi
              * payload field. Box the value so these payload reads don't block SIMD expansion.
              */
             return loadField.field().getName().equals("payload") && VectorAPIBoxingUtils.asUnboxableVectorType(value, providers) != null;
+        } else if (use instanceof VectorAPIStoreMaskedNode storeMasked) {
+            /*
+             * If masked stores are not directly supported on this target, keep the store as a
+             * fallback call and box the input vector/mask at this use.
+             */
+            return !storeMasked.supportsVectorMaskedMove(VectorAPIUtils.vectorArchitecture(providers)) && VectorAPIBoxingUtils.asUnboxableVectorType(value, providers) != null;
         } else if (use instanceof ValuePhiNode phi && isPhiToBox(phi, providers)) {
             /* A phi that mixes vector and non-vector inputs, box all its input vectors. */
             return true;
