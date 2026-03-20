@@ -282,9 +282,24 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
     @UnknownPrimitiveField(availability = AfterHostedUniverse.class)//
     private short typeIDDepth;
 
+    /// The number of leading entries in [#openTypeWorldTypeCheckSlots] that belong to the
+    /// class hierarchy display for this type.
+    ///
+    /// These entries correspond to the class-only prefix of the open-world type-check data, from
+    /// `java.lang.Object` down to this type for classes, or just `java.lang.Object` for
+    /// interfaces. The value is used both to bound class hierarchy checks using
+    /// [#getTypeIDDepth()] and to locate where the iterable interface entries begin in
+    /// [#openTypeWorldTypeCheckSlots].
     @UnknownPrimitiveField(availability = AfterHostedUniverse.class)//
     private short numClassTypes;
 
+    /// The number of interface entries encoded in the iterable portion of
+    /// [#openTypeWorldTypeCheckSlots].
+    ///
+    /// These entries start after the [#numClassTypes] class-display prefix and are laid out
+    /// as `(interfaceID, itableOffset)` pairs. Only interfaces that are not represented in
+    /// [#openTypeWorldInterfaceHashTable] are counted here, so the value determines how many
+    /// interface pairs must be scanned for iterative interface type checks and itable lookups.
     @UnknownPrimitiveField(availability = AfterHostedUniverse.class)//
     private short numIterableInterfaceTypes;
 
@@ -500,7 +515,13 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
                     ClassDefinitionInfo info) {
         VMError.guarantee(RuntimeClassLoading.isSupported());
 
-        ReferenceType referenceType = ReferenceType.computeReferenceType(DynamicHub.toClass(superHub));
+        boolean isInterface = isFlagSet(flags, IS_INTERFACE_FLAG_BIT);
+        DynamicHub metadataSuperHub = superHub;
+        if (metadataSuperHub == null) {
+            VMError.guarantee(isInterface, "Only interfaces should have a null super hub");
+            metadataSuperHub = DynamicHub.fromClass(Object.class);
+        }
+        ReferenceType referenceType = ReferenceType.computeReferenceType(DynamicHub.toClass(metadataSuperHub));
         byte hubType;
         if (componentHub != null) {
             if (componentHub.isPrimitive()) {
@@ -526,7 +547,6 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
         writeByte(companion, dynamicHubOffsets.getCompanionAdditionalFlagsOffset(), additionalFlags);
 
         assert !isFlagSet(flags, IS_PRIMITIVE_FLAG_BIT);
-        boolean isInterface = isFlagSet(flags, IS_INTERFACE_FLAG_BIT);
         int layoutEncoding;
         int monitorOffset = 0;
         int identityHashOffset = 0;
@@ -588,7 +608,7 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
         DynamicHub hub = Metaspace.singleton().allocateDynamicHub(vTableEntries);
         int[] openTypeWorldTypeCheckSlots = Metaspace.singleton().copyToMetaspace(typeCheckSlotsHeapArray);
         int[] openTypeWorldInterfaceHashTable = Metaspace.singleton().copyToMetaspace(interfaceHashTableHeapArray);
-        int referenceMapCompressedOffset = RuntimeInstanceReferenceMapSupport.singleton().getOrCreateReferenceMap(superHub, monitorOffset, declaredInstanceReferenceFieldOffsets);
+        int referenceMapCompressedOffset = RuntimeInstanceReferenceMapSupport.singleton().getOrCreateReferenceMap(metadataSuperHub, monitorOffset, declaredInstanceReferenceFieldOffsets);
 
         /* Write fields in defining order. */
         writeObject(hub, dynamicHubOffsets.getNameOffset(), name);
@@ -1395,7 +1415,7 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
             if (!RuntimeClassLoading.isSupported()) {
                 throw VMError.shouldNotReachHere("UNINITIALIZED_DECLARING_CLASS_SENTINEL but no runtime class loading");
             }
-            companion.declaringClass = CremaSupport.singleton().computeEnclosingClass(this);
+            companion.declaringClass = CremaSupport.singleton().computeDeclaringClass(this);
             VMError.guarantee(companion.declaringClass != UNINITIALIZED_DECLARING_CLASS_SENTINEL);
             return getDeclaringClass0();
         } else if (declaringClass instanceof LinkageError) {

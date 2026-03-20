@@ -34,16 +34,16 @@ import org.graalvm.nativeimage.Platforms;
 import org.graalvm.word.WordBase;
 
 import com.oracle.svm.core.SubstrateMetadata;
-import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.core.hub.crema.CremaResolvedJavaRecordComponent;
 import com.oracle.svm.core.hub.registry.SymbolsSupport;
-import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.espresso.classfile.descriptors.Name;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.espresso.classfile.descriptors.Type;
 import com.oracle.svm.espresso.classfile.descriptors.TypeSymbols;
+import com.oracle.svm.shared.util.SubstrateUtil;
+import com.oracle.svm.shared.util.VMError;
 
 import jdk.vm.ci.meta.Assumptions;
 import jdk.vm.ci.meta.JavaConstant;
@@ -371,7 +371,7 @@ public abstract class InterpreterResolvedJavaType extends InterpreterAnnotated i
     }
 
     @Override
-    public ResolvedJavaMethod[] getDeclaredConstructors() {
+    public InterpreterResolvedJavaMethod[] getDeclaredConstructors() {
         throw VMError.intentionallyUnimplemented();
     }
 
