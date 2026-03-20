@@ -195,6 +195,16 @@ public class HostInliningPhase extends AbstractInliningPhase {
         return context.types().isTransferToInterpreterMethod(translateMethod(method));
     }
 
+    @SuppressWarnings("unused")
+    protected boolean forceShallowInline(CallTree caller, ResolvedJavaMethod callee, InliningPhaseContext context) {
+        /*
+         * The idea is to support composed bytecode switches from multiple methods. For that we
+         * always need to inline all bytecode switches first.
+         */
+        return context.isBytecodeSwitch && (caller.forceShallowInline || caller.parent == null) &&
+                        isBytecodeInterpreterSwitch(context.env, callee);
+    }
+
     @Override
     @SuppressWarnings("try")
     protected final void runInlining(StructuredGraph graph, HighTierContext highTierContext) {
@@ -236,7 +246,7 @@ public class HostInliningPhase extends AbstractInliningPhase {
              * all together and fail if the graph becomes too big.
              */
             sizeLimit = Options.TruffleHostInliningByteCodeInterpreterBudget.getValue(context.graph.getOptions());
-            exploreLimit = Options.TruffleHostInliningExploreBudget.getValue(context.graph.getOptions());
+            exploreLimit = Math.max(sizeLimit, Options.TruffleHostInliningExploreBudget.getValue(context.graph.getOptions()));
         } else {
             sizeLimit = Options.TruffleHostInliningBaseBudget.getValue(context.graph.getOptions());
             exploreLimit = Options.TruffleHostInliningExploreBudget.getValue(context.graph.getOptions());
@@ -529,11 +539,7 @@ public class HostInliningPhase extends AbstractInliningPhase {
 
                 boolean inInterpreter = guardedByInInterpreter || caller.inInterpreter || isBlockOrDominatorContainedIn(block, inInterpreterBlocks);
 
-                /*
-                 * The idea is to support composed bytecodes witches from multiple methods. For that
-                 * we always need to inline all bytecode switches first.
-                 */
-                boolean forceShallowInline = context.isBytecodeSwitch && (caller.forceShallowInline || caller.parent == null) && isBytecodeInterpreterSwitch(context.env, invoke.getTargetMethod());
+                boolean forceShallowInline = forceShallowInline(caller, newTargetMethod, context);
 
                 double frequency = (!forceShallowInline && context.isFrequencyCutoffEnabled()) ? block.getRelativeFrequency() : 1.0d;
                 CallTree callee = new CallTree(caller, invoke, deoptimized, unwind, inInterpreter, forceShallowInline, frequency);
@@ -1404,17 +1410,17 @@ public class HostInliningPhase extends AbstractInliningPhase {
 
     }
 
-    static final class InliningPhaseContext {
+    protected static final class InliningPhaseContext {
 
-        final HighTierContext highTierContext;
-        final StructuredGraph graph;
-        final OptionValues options;
-        final TruffleHostEnvironment env;
-        final boolean isBytecodeHandler;
-        final boolean isBytecodeSwitch;
-        final int maxSubtreeInvokes;
-        final boolean printExplored;
-        final double minimumFrequency;
+        public final HighTierContext highTierContext;
+        public final StructuredGraph graph;
+        public final OptionValues options;
+        public final TruffleHostEnvironment env;
+        public final boolean isBytecodeHandler;
+        public final boolean isBytecodeSwitch;
+        public final int maxSubtreeInvokes;
+        public final boolean printExplored;
+        public final double minimumFrequency;
 
         /**
          * Caches graphs for a single run of this phase. This is not just a performance optimization
@@ -1464,7 +1470,7 @@ public class HostInliningPhase extends AbstractInliningPhase {
      * invokes are inlined so represent the original call stack. This allows to detect recursions
      * and capture information determined during exploration.
      */
-    static final class CallTree implements Comparable<CallTree> {
+    protected static final class CallTree implements Comparable<CallTree> {
 
         public StructuredGraph subtreeGraph;
 
@@ -1607,7 +1613,7 @@ public class HostInliningPhase extends AbstractInliningPhase {
             return targetMethod;
         }
 
-        boolean isRoot() {
+        public boolean isRoot() {
             return parent == null;
         }
 
