@@ -317,7 +317,6 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
     }
 
     private boolean sameRuntimePackage(InterpreterResolvedJavaType other) {
-        // GR-62339 true package access checks
         return this.getJavaClass().getClassLoader() == other.getJavaClass().getClassLoader() && this.getSymbolicRuntimePackage() == other.getSymbolicRuntimePackage();
     }
 

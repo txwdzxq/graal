@@ -126,6 +126,7 @@ import com.oracle.svm.espresso.shared.vtable.Tables;
 import com.oracle.svm.espresso.shared.vtable.VTable;
 import com.oracle.svm.hosted.substitute.DeletedElementException;
 import com.oracle.svm.interpreter.fieldlayout.FieldLayout;
+import com.oracle.svm.interpreter.metadata.AccessChecks;
 import com.oracle.svm.interpreter.metadata.CremaResolvedJavaFieldImpl;
 import com.oracle.svm.interpreter.metadata.CremaResolvedJavaMethodImpl;
 import com.oracle.svm.interpreter.metadata.CremaResolvedObjectType;
@@ -1743,5 +1744,14 @@ public class CremaSupportImpl implements CremaSupport {
         InterpreterResolvedObjectType type = (InterpreterResolvedObjectType) hub.getInterpreterType();
         assert type instanceof CremaResolvedObjectType;
         return (T) type.getConstantPool();
+    }
+
+    @Override
+    public void verifySuperAccesses(String externalName, ClassLoader loader, ByteSequence pkgName, Module module,
+                    Class<?> superClass, Class<?>[] superInterfaces) {
+        AccessChecks.ensureTypeAccess(externalName, loader, pkgName, module, InterpreterResolvedJavaType.fromClass(superClass));
+        for (Class<?> superInterface : superInterfaces) {
+            AccessChecks.ensureTypeAccess(externalName, loader, pkgName, module, InterpreterResolvedJavaType.fromClass(superInterface));
+        }
     }
 }

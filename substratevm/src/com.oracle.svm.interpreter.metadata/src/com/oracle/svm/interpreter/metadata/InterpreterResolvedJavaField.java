@@ -43,13 +43,13 @@ import com.oracle.svm.core.hub.crema.CremaSupport;
 import com.oracle.svm.core.hub.registry.SymbolsSupport;
 import com.oracle.svm.core.invoke.ResolvedMember;
 import com.oracle.svm.core.meta.SharedField;
-import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.espresso.classfile.Constants;
 import com.oracle.svm.espresso.classfile.descriptors.Name;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.espresso.classfile.descriptors.Type;
 import com.oracle.svm.espresso.classfile.descriptors.TypeSymbols;
 import com.oracle.svm.shared.singletons.MultiLayeredImageSingleton;
+import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.AnnotationUtil;
 
 import jdk.graal.compiler.core.common.NumUtil;
@@ -60,7 +60,7 @@ import jdk.vm.ci.meta.PrimitiveConstant;
 import jdk.vm.ci.meta.ResolvedJavaField;
 import jdk.vm.ci.meta.UnresolvedJavaType;
 
-public class InterpreterResolvedJavaField extends InterpreterAnnotated implements ResolvedJavaField, CremaFieldAccess, ResolvedMember, SubstrateMetadata {
+public class InterpreterResolvedJavaField extends InterpreterAnnotated implements ResolvedJavaField, CremaFieldAccess, CremaResolvedMember, ResolvedMember, SubstrateMetadata {
     public static final InterpreterResolvedJavaField[] EMPTY_ARRAY = new InterpreterResolvedJavaField[0];
 
     // Special offset values
@@ -359,11 +359,6 @@ public class InterpreterResolvedJavaField extends InterpreterAnnotated implement
     @Override
     public final boolean shouldEnforceInitializerCheck() {
         throw VMError.unimplemented("shouldEnforceInitializerCheck");
-    }
-
-    @Override
-    public final boolean accessChecks(InterpreterResolvedJavaType accessingClass, InterpreterResolvedJavaType holderClass) {
-        throw VMError.unimplemented("accessChecks");
     }
 
     @Override
