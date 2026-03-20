@@ -119,10 +119,12 @@ import jdk.graal.compiler.lir.amd64.AMD64ControlFlow.StrategySwitchOp;
 import jdk.graal.compiler.lir.amd64.AMD64ControlFlow.TestBranchOp;
 import jdk.graal.compiler.lir.amd64.AMD64ControlFlow.TestByteBranchOp;
 import jdk.graal.compiler.lir.amd64.AMD64ControlFlow.TestConstBranchOp;
-import jdk.graal.compiler.lir.amd64.AMD64CountPositivesOp;
-import jdk.graal.compiler.lir.amd64.AMD64CounterModeAESCryptOp;
 import jdk.graal.compiler.lir.amd64.AMD64Base64DecodeOp;
 import jdk.graal.compiler.lir.amd64.AMD64Base64EncodeOp;
+import jdk.graal.compiler.lir.amd64.AMD64CountPositivesOp;
+import jdk.graal.compiler.lir.amd64.AMD64CounterModeAESCryptOp;
+import jdk.graal.compiler.lir.amd64.AMD64ElectronicCodeBookAESDecryptOp;
+import jdk.graal.compiler.lir.amd64.AMD64ElectronicCodeBookAESEncryptOp;
 import jdk.graal.compiler.lir.amd64.AMD64EncodeArrayOp;
 import jdk.graal.compiler.lir.amd64.AMD64GHASHProcessBlocksOp;
 import jdk.graal.compiler.lir.amd64.AMD64HaltOp;
@@ -1028,6 +1030,50 @@ public abstract class AMD64LIRGenerator extends LIRGenerator {
                         asAllocatable(len),
                         result,
                         getArrayLengthOffset() - getArrayBaseOffset(JavaKind.Int)));
+        return result;
+    }
+
+    @Override
+    public Variable emitECBAESEncrypt(Value inAddr, Value outAddr, Value kAddr, Value len) {
+        AllocatableValue rResult = rax.asValue(LIRKind.value(AMD64Kind.DWORD));
+        AllocatableValue rIn = rdi.asValue(inAddr.getValueKind());
+        AllocatableValue rOut = rsi.asValue(outAddr.getValueKind());
+        AllocatableValue rKey = rdx.asValue(kAddr.getValueKind());
+        AllocatableValue rLen = rcx.asValue(len.getValueKind());
+        emitMove(rIn, inAddr);
+        emitMove(rOut, outAddr);
+        emitMove(rKey, kAddr);
+        emitMove(rLen, len);
+        append(new AMD64ElectronicCodeBookAESEncryptOp(rIn,
+                        rOut,
+                        rKey,
+                        rLen,
+                        rResult,
+                        getArrayLengthOffset() - getArrayBaseOffset(JavaKind.Int)));
+        Variable result = newVariable(len.getValueKind());
+        emitMove(result, rResult);
+        return result;
+    }
+
+    @Override
+    public Variable emitECBAESDecrypt(Value inAddr, Value outAddr, Value kAddr, Value len) {
+        AllocatableValue rResult = rax.asValue(LIRKind.value(AMD64Kind.DWORD));
+        AllocatableValue rIn = rdi.asValue(inAddr.getValueKind());
+        AllocatableValue rOut = rsi.asValue(outAddr.getValueKind());
+        AllocatableValue rKey = rdx.asValue(kAddr.getValueKind());
+        AllocatableValue rLen = rcx.asValue(len.getValueKind());
+        emitMove(rIn, inAddr);
+        emitMove(rOut, outAddr);
+        emitMove(rKey, kAddr);
+        emitMove(rLen, len);
+        append(new AMD64ElectronicCodeBookAESDecryptOp(rIn,
+                        rOut,
+                        rKey,
+                        rLen,
+                        rResult,
+                        getArrayLengthOffset() - getArrayBaseOffset(JavaKind.Int)));
+        Variable result = newVariable(len.getValueKind());
+        emitMove(result, rResult);
         return result;
     }
 

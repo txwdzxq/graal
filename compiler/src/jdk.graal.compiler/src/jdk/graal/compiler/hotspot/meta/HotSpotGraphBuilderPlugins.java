@@ -34,8 +34,6 @@ import static jdk.graal.compiler.hotspot.HotSpotBackend.DILITHIUM_DECOMPOSE_POLY
 import static jdk.graal.compiler.hotspot.HotSpotBackend.DILITHIUM_MONT_MUL_BY_CONSTANT;
 import static jdk.graal.compiler.hotspot.HotSpotBackend.DILITHIUM_NTT_MULT;
 import static jdk.graal.compiler.hotspot.HotSpotBackend.DOUBLE_KECCAK;
-import static jdk.graal.compiler.hotspot.HotSpotBackend.ELECTRONIC_CODEBOOK_DECRYPT_AESCRYPT;
-import static jdk.graal.compiler.hotspot.HotSpotBackend.ELECTRONIC_CODEBOOK_ENCRYPT_AESCRYPT;
 import static jdk.graal.compiler.hotspot.HotSpotBackend.GALOIS_COUNTER_MODE_CRYPT;
 import static jdk.graal.compiler.hotspot.HotSpotBackend.INTPOLY_ASSIGN;
 import static jdk.graal.compiler.hotspot.HotSpotBackend.INTPOLY_MONTGOMERYMULT_P256;
@@ -979,28 +977,15 @@ public class HotSpotGraphBuilderPlugins {
         }
     }
 
-    public abstract static class ElectronicCodeBookCryptPlugin extends AESCryptDelegatePlugin {
+    public static class HotSpotElectronicCodeBookCryptPlugin extends StandardGraphBuilderPlugins.ElectronicCodeBookCryptPlugin {
 
-        ElectronicCodeBookCryptPlugin(CryptMode mode) {
-            super(mode, mode.isEncrypt() ? "implECBEncrypt" : "implECBDecrypt",
-                            Receiver.class, byte[].class, int.class, int.class, byte[].class, int.class);
+        HotSpotElectronicCodeBookCryptPlugin(CryptMode mode) {
+            super(mode);
         }
 
         @Override
-        public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode in, ValueNode inOffset, ValueNode len, ValueNode out, ValueNode outOffset) {
-            try (InvocationPluginHelper helper = new InvocationPluginHelper(b, targetMethod)) {
-                ResolvedJavaType receiverType = targetMethod.getDeclaringClass();
-                ResolvedJavaType typeAESCrypt = getTypeAESCrypt(b.getMetaAccess(), receiverType);
-
-                ValueNode nonNullReceiver = receiver.get(true);
-                ValueNode inAddr = helper.arrayElementPointer(in, JavaKind.Byte, inOffset);
-                ValueNode outAddr = helper.arrayElementPointer(out, JavaKind.Byte, outOffset);
-                ValueNode kAddr = readEmbeddedAESCryptKArrayStart(b, helper, receiverType, typeAESCrypt, nonNullReceiver);
-                ForeignCallNode call = new ForeignCallNode(mode.isEncrypt() ? ELECTRONIC_CODEBOOK_ENCRYPT_AESCRYPT : ELECTRONIC_CODEBOOK_DECRYPT_AESCRYPT,
-                                inAddr, outAddr, kAddr, len);
-                helper.emitFinalReturn(JavaKind.Int, call);
-                return true;
-            }
+        protected boolean canApply(GraphBuilderContext b) {
+            return true;
         }
 
         @Override
@@ -1070,18 +1055,8 @@ public class HotSpotGraphBuilderPlugins {
         r.register(new HotSpotCipherBlockChainingCryptPlugin(CryptMode.DECRYPT));
 
         r = new Registration(plugins, "com.sun.crypto.provider.ElectronicCodeBook");
-        r.register(new ElectronicCodeBookCryptPlugin(CryptMode.ENCRYPT) {
-            @Override
-            public boolean isApplicable(Architecture arch) {
-                return config.electronicCodeBookEncrypt != 0L;
-            }
-        });
-        r.register(new ElectronicCodeBookCryptPlugin(CryptMode.DECRYPT) {
-            @Override
-            public boolean isApplicable(Architecture arch) {
-                return config.electronicCodeBookDecrypt != 0L;
-            }
-        });
+        r.register(new HotSpotElectronicCodeBookCryptPlugin(CryptMode.ENCRYPT));
+        r.register(new HotSpotElectronicCodeBookCryptPlugin(CryptMode.DECRYPT));
 
         r = new Registration(plugins, "com.sun.crypto.provider.GaloisCounterMode");
         r.register(new GaloisCounterModeCryptPlugin() {

@@ -650,6 +650,16 @@ public interface LIRGeneratorTool extends CoreProviders, DiagnosticLIRGeneratorT
     }
 
     @SuppressWarnings("unused")
+    default Variable emitECBAESEncrypt(Value inAddr, Value outAddr, Value kAddr, Value len) {
+        throw GraalError.unimplemented("No specialized implementation available"); // ExcludeFromJacocoGeneratedReport
+    }
+
+    @SuppressWarnings("unused")
+    default Variable emitECBAESDecrypt(Value inAddr, Value outAddr, Value kAddr, Value len) {
+        throw GraalError.unimplemented("No specialized implementation available"); // ExcludeFromJacocoGeneratedReport
+    }
+
+    @SuppressWarnings("unused")
     default void emitGHASHProcessBlocks(EnumSet<?> runtimeCheckedCPUFeatures, Value state, Value hashSubkey, Value data, Value blocks) {
         throw GraalError.unimplemented("No specialized implementation available"); // ExcludeFromJacocoGeneratedReport
     }

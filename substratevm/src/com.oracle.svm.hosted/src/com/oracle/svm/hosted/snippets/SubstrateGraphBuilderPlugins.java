@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -1303,6 +1303,24 @@ public class SubstrateGraphBuilderPlugins {
         }
     }
 
+    public static class SubstrateElectronicCodeBookCryptPlugin extends StandardGraphBuilderPlugins.ElectronicCodeBookCryptPlugin {
+
+        public SubstrateElectronicCodeBookCryptPlugin(AESNode.CryptMode mode) {
+            super(mode);
+        }
+
+        @Override
+        protected boolean canApply(GraphBuilderContext b) {
+            return b instanceof BytecodeParser;
+        }
+
+        @Override
+        protected ResolvedJavaType getTypeAESCrypt(MetaAccessProvider metaAccess, ResolvedJavaType context) throws ClassNotFoundException {
+            Class<?> classAESCrypt = ReflectionUtil.lookupClass("com.sun.crypto.provider.AESCrypt");
+            return metaAccess.lookupJavaType(classAESCrypt);
+        }
+    }
+
     private static void registerAESPlugins(InvocationPlugins plugins) {
         // These plugins may generate fallback invocations and thus cannot be used in runtime
         // compilation
@@ -1338,6 +1356,20 @@ public class SubstrateGraphBuilderPlugins {
             }
         });
         r.register(new SubstrateCipherBlockChainingCryptPlugin(AESNode.CryptMode.DECRYPT) {
+            @Override
+            public boolean isRuntimeChecked(Architecture arch) {
+                return false;
+            }
+        });
+
+        r = new Registration(plugins, "com.sun.crypto.provider.ElectronicCodeBook");
+        r.register(new SubstrateElectronicCodeBookCryptPlugin(AESNode.CryptMode.ENCRYPT) {
+            @Override
+            public boolean isRuntimeChecked(Architecture arch) {
+                return false;
+            }
+        });
+        r.register(new SubstrateElectronicCodeBookCryptPlugin(AESNode.CryptMode.DECRYPT) {
             @Override
             public boolean isRuntimeChecked(Architecture arch) {
                 return false;
