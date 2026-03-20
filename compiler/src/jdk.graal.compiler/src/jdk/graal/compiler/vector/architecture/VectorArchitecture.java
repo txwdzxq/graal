@@ -250,6 +250,20 @@ public abstract class VectorArchitecture {
     public abstract int getSupportedVectorShiftWithScalarCount(Stamp stamp, int maxLength, ArithmeticOpTable.Op op);
 
     /**
+     * Get a natively supported vector length for a rotate operation.
+     *
+     * Platforms without dedicated rotate support can return {@code 1} and rely on shift/or
+     * expansion in higher-level vector API code.
+     *
+     * @param stamp the stamp of the individual vector elements
+     * @param maxLength the maximum length that should be returned
+     * @return a supported vector size, but at most {@code maxLength}
+     */
+    public int getSupportedVectorRotateLength(Stamp stamp, int maxLength) {
+        return 1;
+    }
+
+    /**
      * Returns whether the given vectorized operation may be rewritten to a narrower one.
      *
      * @param operation the existing vectorized arithmetic operation

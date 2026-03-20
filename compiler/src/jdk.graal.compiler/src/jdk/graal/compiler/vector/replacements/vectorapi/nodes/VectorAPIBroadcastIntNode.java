@@ -41,9 +41,11 @@ import jdk.graal.compiler.graph.Node;
 import jdk.graal.compiler.graph.NodeClass;
 import jdk.graal.compiler.graph.NodeMap;
 import jdk.graal.compiler.nodeinfo.NodeInfo;
+import jdk.graal.compiler.nodes.ConstantNode;
 import jdk.graal.compiler.nodes.FrameState;
 import jdk.graal.compiler.nodes.NodeView;
 import jdk.graal.compiler.nodes.ValueNode;
+import jdk.graal.compiler.nodes.calc.BinaryArithmeticNode;
 import jdk.graal.compiler.nodes.calc.NarrowNode;
 import jdk.graal.compiler.nodes.calc.ShiftNode;
 import jdk.graal.compiler.nodes.calc.SignExtendNode;
@@ -185,7 +187,8 @@ public class VectorAPIBroadcastIntNode extends VectorAPIMacroNode implements Can
         if (isRepresentableSimdConstant(this, vectorArch)) {
             return true;
         }
-        if (!((ObjectStamp) stamp).isExactType() || vectorStamp == null || op == null) {
+        RotateDirection rotateDirection = computeRotateDirection(toArgumentArray(), OPRID_ARG_INDEX, vectorStamp);
+        if (!((ObjectStamp) stamp).isExactType() || vectorStamp == null || (op == null && rotateDirection == null)) {
             return false;
         }
         if (!getArgument(MASK_ARG_INDEX).isNullConstant()) {
@@ -194,6 +197,9 @@ public class VectorAPIBroadcastIntNode extends VectorAPIMacroNode implements Can
 
         Stamp elementStamp = vectorStamp.getComponent(0);
         int vectorLength = vectorStamp().getVectorLength();
+        if (rotateDirection != null) {
+            return canExpandRotateWithScalarCount(vectorArch, elementStamp, vectorLength);
+        }
         boolean supportedDirectly = vectorArch.getSupportedVectorShiftWithScalarCount(elementStamp, vectorLength, op) == vectorLength;
         if (supportedDirectly) {
             return true;
@@ -221,6 +227,10 @@ public class VectorAPIBroadcastIntNode extends VectorAPIMacroNode implements Can
         }
         ValueNode value = expanded.get(getVector());
         ValueNode shiftAmount = getArgument(SHIFT_ARG_INDEX);
+        RotateDirection rotateDirection = computeRotateDirection(toArgumentArray(), OPRID_ARG_INDEX, vectorStamp);
+        if (rotateDirection != null) {
+            return expandRotateWithScalarCount(vectorStamp, value, shiftAmount, rotateDirection);
+        }
         Stamp elementStamp = vectorStamp.getComponent(0);
         int vectorLength = vectorStamp().getVectorLength();
         boolean supportedDirectly = vectorArch.getSupportedVectorShiftWithScalarCount(elementStamp, vectorLength, op) == vectorLength;
@@ -274,5 +284,30 @@ public class VectorAPIBroadcastIntNode extends VectorAPIMacroNode implements Can
         ValueNode lowShifted = emitByteShiftViaWidening(lowBytes, shiftAmount, byteStamp);
         ValueNode highShifted = emitByteShiftViaWidening(highBytes, shiftAmount, byteStamp);
         return new SimdConcatNode(lowShifted, highShifted);
+    }
+
+    private static boolean canExpandRotateWithScalarCount(VectorArchitecture vectorArch, Stamp elementStamp, int vectorLength) {
+        if (!(elementStamp instanceof IntegerStamp) || PrimitiveStamp.getBits(elementStamp) == Byte.SIZE) {
+            return false;
+        }
+        boolean supportsViaShiftOr = vectorArch.getSupportedVectorShiftWithScalarCount(elementStamp, vectorLength, IntegerStamp.OPS.getShl()) == vectorLength &&
+                        vectorArch.getSupportedVectorShiftWithScalarCount(elementStamp, vectorLength, IntegerStamp.OPS.getUShr()) == vectorLength &&
+                        vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, IntegerStamp.OPS.getOr()) == vectorLength;
+        return supportsViaShiftOr || vectorArch.getSupportedVectorRotateLength(elementStamp, vectorLength) == vectorLength;
+    }
+
+    private static ValueNode expandRotateWithScalarCount(SimdStamp inputStamp, ValueNode inputVector, ValueNode scalarCount, RotateDirection rotateDirection) {
+        int elementBits = PrimitiveStamp.getBits(inputStamp.getComponent(0));
+        ValueNode inverseShift = BinaryArithmeticNode.sub(ConstantNode.forInt(elementBits), scalarCount, NodeView.DEFAULT);
+
+        /*
+         * Build rotates in the IR as shifts plus or; backends can still match this form and select
+         * native rotate instructions when available.
+         */
+        ValueNode leftShiftAmount = rotateDirection == RotateDirection.LEFT ? scalarCount : inverseShift;
+        ValueNode rightShiftAmount = rotateDirection == RotateDirection.LEFT ? inverseShift : scalarCount;
+        ValueNode leftShift = ShiftNode.shiftOp(inputVector, leftShiftAmount, NodeView.DEFAULT, IntegerStamp.OPS.getShl());
+        ValueNode rightShift = ShiftNode.shiftOp(inputVector, rightShiftAmount, NodeView.DEFAULT, IntegerStamp.OPS.getUShr());
+        return BinaryArithmeticNode.or(leftShift, rightShift);
     }
 }
