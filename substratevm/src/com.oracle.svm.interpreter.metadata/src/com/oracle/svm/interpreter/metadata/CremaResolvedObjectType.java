@@ -42,16 +42,22 @@ import com.oracle.svm.espresso.classfile.attributes.InnerClassesAttribute;
 import com.oracle.svm.espresso.classfile.attributes.NestHostAttribute;
 import com.oracle.svm.espresso.classfile.attributes.NestMembersAttribute;
 import com.oracle.svm.espresso.classfile.attributes.PermittedSubclassesAttribute;
+import com.oracle.svm.espresso.classfile.attributes.RecordAttribute;
+import com.oracle.svm.espresso.classfile.attributes.RecordAttribute.RecordComponentInfo;
+import com.oracle.svm.espresso.classfile.attributes.SignatureAttribute;
 import com.oracle.svm.espresso.classfile.descriptors.Descriptor;
 import com.oracle.svm.espresso.classfile.descriptors.Name;
 import com.oracle.svm.espresso.classfile.descriptors.ParserSymbols;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
+import com.oracle.svm.espresso.classfile.descriptors.Type;
 import com.oracle.svm.shared.singletons.MultiLayeredImageSingleton;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.vm.ci.meta.JavaType;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
+import jdk.vm.ci.meta.annotation.AbstractAnnotated;
+import jdk.vm.ci.meta.annotation.AnnotationsInfo;
 
 /**
  * A runtime-loaded, classfile-backed specialization of {@link InterpreterResolvedObjectType}.
@@ -126,8 +132,19 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
 
     @Override
     public List<? extends CremaResolvedJavaRecordComponent> getRecordComponents() {
-        // (GR-69095)
-        throw VMError.unimplemented("getRecordComponents");
+        RecordAttribute recordAttribute = getAttribute(RecordAttribute.NAME, RecordAttribute.class);
+        if (recordAttribute == null) {
+            return List.of();
+        }
+        RecordComponentInfo[] components = recordAttribute.getComponents();
+        if (components.length == 0) {
+            return List.of();
+        }
+        CremaResolvedJavaRecordComponent[] result = new CremaResolvedJavaRecordComponent[components.length];
+        for (int i = 0; i < components.length; i++) {
+            result[i] = new CremaRecordComponent(this, components[i], i);
+        }
+        return List.of(result);
     }
 
     @Override
@@ -218,7 +235,7 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
         for (int classIndex : permittedSubclasses.getClasses()) {
             try {
                 JavaType permittedSubclass = pool.resolvedTypeAt(this, classIndex);
-                if (permittedSubclass instanceof InterpreterResolvedObjectType && !permittedSubclass.isArray()) {
+                if (permittedSubclass != null && !permittedSubclass.isArray()) {
                     result.add(permittedSubclass);
                 }
             } catch (VirtualMachineError e) {
@@ -344,6 +361,103 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
     @Override
     public Attribute[] getAttributes() {
         return attributes;
+    }
+
+    static final class CremaRecordComponent extends AbstractAnnotated implements CremaResolvedJavaRecordComponent, AttributedElement {
+        private final CremaResolvedObjectType declaringRecord;
+        private final String name;
+        private final JavaType type;
+        private final String signature;
+        private final Attribute[] attributes;
+        private final int index;
+
+        @SuppressWarnings("unchecked")
+        CremaRecordComponent(CremaResolvedObjectType declaringRecord, RecordComponentInfo component, int index) {
+            this.declaringRecord = declaringRecord;
+            this.attributes = component.getAttributes();
+            this.index = index;
+
+            InterpreterConstantPool constantPool = declaringRecord.getConstantPool();
+            this.name = constantPool.utf8At(component.getNameIndex(), "record component name").toString();
+            this.type = CremaMethodAccess.toJavaType((Symbol<Type>) constantPool.utf8At(component.getDescriptorIndex(), "record component descriptor"));
+            this.signature = extractSignature(constantPool, component);
+        }
+
+        private static String extractSignature(InterpreterConstantPool constantPool, RecordComponentInfo component) {
+            SignatureAttribute signatureAttribute = component.getAttribute(SignatureAttribute.NAME, SignatureAttribute.class);
+            if (signatureAttribute == null) {
+                return null;
+            }
+            return constantPool.utf8At(signatureAttribute.getSignatureIndex(), "signature").toString();
+        }
+
+        @Override
+        public CremaResolvedObjectType getDeclaringRecord() {
+            return declaringRecord;
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public JavaType getType() {
+            return type;
+        }
+
+        @Override
+        public String getSignature() {
+            return signature;
+        }
+
+        @Override
+        public byte[] getRawAnnotations() {
+            Attribute attribute = getAttribute(ParserSymbols.ParserNames.RuntimeVisibleAnnotations);
+            return attribute != null ? attribute.getData() : null;
+        }
+
+        @Override
+        public byte[] getRawTypeAnnotations() {
+            Attribute attribute = getAttribute(ParserSymbols.ParserNames.RuntimeVisibleTypeAnnotations);
+            return attribute != null ? attribute.getData() : null;
+        }
+
+        @Override
+        public Attribute[] getAttributes() {
+            return attributes;
+        }
+
+        @Override
+        public AnnotationsInfo getRawDeclaredAnnotationInfo() {
+            return AnnotationsInfo.make(getRawAnnotations(), declaringRecord.getConstantPool(), declaringRecord);
+        }
+
+        @Override
+        public AnnotationsInfo getTypeAnnotationInfo() {
+            return AnnotationsInfo.make(getRawTypeAnnotations(), declaringRecord.getConstantPool(), declaringRecord);
+        }
+
+        @Override
+        public int hashCode() {
+            return declaringRecord.hashCode() + 31 * index;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (!(obj instanceof CremaRecordComponent other)) {
+                return false;
+            }
+            return declaringRecord.equals(other.declaringRecord) && index == other.index;
+        }
+
+        @Override
+        public String toString() {
+            return "CremaResolvedJavaRecordComponent<" + declaringRecord.toClassName() + "." + name + " " + type.toClassName() + ">";
+        }
     }
 
     /**
