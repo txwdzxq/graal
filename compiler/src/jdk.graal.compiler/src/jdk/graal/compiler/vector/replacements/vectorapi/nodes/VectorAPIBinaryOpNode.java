@@ -46,6 +46,7 @@ import jdk.graal.compiler.nodes.FrameState;
 import jdk.graal.compiler.nodes.NodeView;
 import jdk.graal.compiler.nodes.ValueNode;
 import jdk.graal.compiler.nodes.calc.BinaryArithmeticNode;
+import jdk.graal.compiler.nodes.calc.ReinterpretNode;
 import jdk.graal.compiler.nodes.calc.ShiftNode;
 import jdk.graal.compiler.nodes.spi.Canonicalizable;
 import jdk.graal.compiler.nodes.spi.CanonicalizerTool;
@@ -193,6 +194,9 @@ public class VectorAPIBinaryOpNode extends VectorAPIMacroNode implements Canonic
         if (canExpandSignedLongMinMaxWithCompareBlend(vectorArch, elementStamp, vectorLength)) {
             return true;
         }
+        if (canExpandByteMulViaShortOps(vectorArch, elementStamp, vectorLength)) {
+            return true;
+        }
         return vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, op) == vectorLength;
     }
 
@@ -212,6 +216,8 @@ public class VectorAPIBinaryOpNode extends VectorAPIMacroNode implements Canonic
             operation = expandRotateWithVectorCount(vectorStamp, x, y, rotateDirection);
         } else if (!hasDirectArithmeticSupport && canExpandSignedLongMinMaxWithCompareBlend(vectorArch, elementStamp, vectorLength)) {
             operation = expandSignedLongMinMaxWithCompareBlend(x, y, vectorArch);
+        } else if (!hasDirectArithmeticSupport && canExpandByteMulViaShortOps(vectorArch, elementStamp, vectorLength)) {
+            operation = expandByteMulViaShortOps(x, y);
         } else if (SimdStamp.isOpmask(x.stamp(NodeView.DEFAULT))) {
             if (SimdStamp.OPMASK_OPS.getAnd().equals(op)) {
                 operation = BinaryArithmeticNode.and(x, y);
@@ -256,6 +262,52 @@ public class VectorAPIBinaryOpNode extends VectorAPIMacroNode implements Canonic
                         ? SimdPrimitiveCompareNode.simdCompare(CanonicalCondition.LT, y, x, false, vectorArch)
                         : SimdPrimitiveCompareNode.simdCompare(CanonicalCondition.LT, x, y, false, vectorArch);
         return VectorAPIBlendNode.expandBlendHelper(compare, y, x);
+    }
+
+    private boolean canExpandByteMulViaShortOps(VectorArchitecture vectorArch, Stamp elementStamp, int vectorLength) {
+        if (!isByteMulOp(elementStamp)) {
+            return false;
+        }
+        int shortVectorLength = vectorLength / (Short.SIZE / Byte.SIZE);
+        IntegerStamp shortStamp = IntegerStamp.create(Short.SIZE);
+        return vectorArch.getSupportedVectorArithmeticLength(shortStamp, shortVectorLength, IntegerStamp.OPS.getAnd()) == shortVectorLength &&
+                        vectorArch.getSupportedVectorArithmeticLength(shortStamp, shortVectorLength, IntegerStamp.OPS.getOr()) == shortVectorLength &&
+                        vectorArch.getSupportedVectorArithmeticLength(shortStamp, shortVectorLength, IntegerStamp.OPS.getMul()) == shortVectorLength &&
+                        vectorArch.getSupportedVectorShiftWithScalarCount(shortStamp, shortVectorLength, IntegerStamp.OPS.getUShr()) == shortVectorLength &&
+                        vectorArch.getSupportedVectorShiftWithScalarCount(shortStamp, shortVectorLength, IntegerStamp.OPS.getShl()) == shortVectorLength;
+    }
+
+    private boolean isByteMulOp(Stamp elementStamp) {
+        return elementStamp instanceof IntegerStamp && PrimitiveStamp.getBits(elementStamp) == Byte.SIZE && IntegerStamp.OPS.getMul().equals(op);
+    }
+
+    private ValueNode expandByteMulViaShortOps(ValueNode x, ValueNode y) {
+        int shortVectorLength = vectorStamp.getVectorLength() / (Short.SIZE / Byte.SIZE);
+        SimdStamp shortVectorStamp = SimdStamp.broadcast(IntegerStamp.create(Short.SIZE), shortVectorLength);
+        ValueNode xShort = ReinterpretNode.create(shortVectorStamp, x, NodeView.DEFAULT);
+        ValueNode yShort = ReinterpretNode.create(shortVectorStamp, y, NodeView.DEFAULT);
+        ValueNode lowByteMask = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forIntegerBits(Short.SIZE, 0x00FF), shortVectorLength));
+        ValueNode shiftAmount = ConstantNode.forInt(Byte.SIZE);
+
+        /*
+         * AMD64 has no native packed byte multiply. Split each 16-bit lane into low and high bytes,
+         * multiply those byte parts as shorts, and pack the low 8 bits of each product back into a
+         * byte vector.
+         */
+        ValueNode lowProduct = BinaryArithmeticNode.binaryIntegerOp(
+                        BinaryArithmeticNode.and(xShort, lowByteMask),
+                        BinaryArithmeticNode.and(yShort, lowByteMask),
+                        NodeView.DEFAULT,
+                        IntegerStamp.OPS.getMul());
+        ValueNode highProduct = BinaryArithmeticNode.binaryIntegerOp(
+                        ShiftNode.shiftOp(xShort, shiftAmount, NodeView.DEFAULT, IntegerStamp.OPS.getUShr()),
+                        ShiftNode.shiftOp(yShort, shiftAmount, NodeView.DEFAULT, IntegerStamp.OPS.getUShr()),
+                        NodeView.DEFAULT,
+                        IntegerStamp.OPS.getMul());
+        ValueNode packedShortResult = BinaryArithmeticNode.or(
+                        BinaryArithmeticNode.and(lowProduct, lowByteMask),
+                        ShiftNode.shiftOp(highProduct, shiftAmount, NodeView.DEFAULT, IntegerStamp.OPS.getShl()));
+        return ReinterpretNode.create(vectorStamp, packedShortResult, NodeView.DEFAULT);
     }
 
     private static boolean canExpandRotateWithVectorCount(VectorArchitecture vectorArch, Stamp elementStamp, int vectorLength) {
