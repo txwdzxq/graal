@@ -30,6 +30,7 @@ import java.util.List;
 
 import org.graalvm.collections.EconomicMap;
 
+import jdk.graal.compiler.core.common.calc.CanonicalCondition;
 import jdk.graal.compiler.core.common.type.ArithmeticOpTable;
 import jdk.graal.compiler.core.common.type.IntegerStamp;
 import jdk.graal.compiler.core.common.type.ObjectStamp;
@@ -52,6 +53,7 @@ import jdk.graal.compiler.nodes.spi.CoreProviders;
 import jdk.graal.compiler.vector.architecture.VectorArchitecture;
 import jdk.graal.compiler.vector.nodes.simd.SimdBroadcastNode;
 import jdk.graal.compiler.vector.nodes.simd.SimdConstant;
+import jdk.graal.compiler.vector.nodes.simd.SimdPrimitiveCompareNode;
 import jdk.graal.compiler.vector.nodes.simd.SimdStamp;
 
 /**
@@ -188,6 +190,9 @@ public class VectorAPIBinaryOpNode extends VectorAPIMacroNode implements Canonic
         if (rotateDirection != null) {
             return canExpandRotateWithVectorCount(vectorArch, elementStamp, vectorLength);
         }
+        if (canExpandSignedLongMinMaxWithCompareBlend(vectorArch, elementStamp, vectorLength)) {
+            return true;
+        }
         return vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, op) == vectorLength;
     }
 
@@ -198,10 +203,15 @@ public class VectorAPIBinaryOpNode extends VectorAPIMacroNode implements Canonic
         }
         ValueNode x = expanded.get(vectorX());
         ValueNode y = expanded.get(vectorY());
+        Stamp elementStamp = vectorStamp.getComponent(0);
+        int vectorLength = vectorStamp.getVectorLength();
         RotateDirection rotateDirection = computeRotateDirection(toArgumentArray(), OPRID_ARG_INDEX, vectorStamp);
+        boolean hasDirectArithmeticSupport = rotateDirection == null && vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, op) == vectorLength;
         ValueNode operation;
         if (rotateDirection != null) {
             operation = expandRotateWithVectorCount(vectorStamp, x, y, rotateDirection);
+        } else if (!hasDirectArithmeticSupport && canExpandSignedLongMinMaxWithCompareBlend(vectorArch, elementStamp, vectorLength)) {
+            operation = expandSignedLongMinMaxWithCompareBlend(x, y, vectorArch);
         } else if (SimdStamp.isOpmask(x.stamp(NodeView.DEFAULT))) {
             if (SimdStamp.OPMASK_OPS.getAnd().equals(op)) {
                 operation = BinaryArithmeticNode.and(x, y);
@@ -222,6 +232,30 @@ public class VectorAPIBinaryOpNode extends VectorAPIMacroNode implements Canonic
             operation = VectorAPIBlendNode.expandBlendHelper(mask, x, operation);
         }
         return operation;
+    }
+
+    private boolean canExpandSignedLongMinMaxWithCompareBlend(VectorArchitecture vectorArch, Stamp elementStamp, int vectorLength) {
+        if (!isSignedLongMinMaxOp(elementStamp)) {
+            return false;
+        }
+        return vectorArch.getSupportedVectorComparisonLength(elementStamp, CanonicalCondition.LT, vectorLength) == vectorLength &&
+                        vectorArch.getSupportedVectorBlendLength(elementStamp, vectorLength) == vectorLength;
+    }
+
+    private boolean isSignedLongMinMaxOp(Stamp elementStamp) {
+        return elementStamp instanceof IntegerStamp && PrimitiveStamp.getBits(elementStamp) == Long.SIZE &&
+                        (IntegerStamp.OPS.getMax().equals(op) || IntegerStamp.OPS.getMin().equals(op));
+    }
+
+    private ValueNode expandSignedLongMinMaxWithCompareBlend(ValueNode x, ValueNode y, VectorArchitecture vectorArch) {
+        /*
+         * On ISAs without native vector long max/min instructions, lower these operations through a
+         * compare-plus-blend sequence.
+         */
+        ValueNode compare = IntegerStamp.OPS.getMax().equals(op)
+                        ? SimdPrimitiveCompareNode.simdCompare(CanonicalCondition.LT, y, x, false, vectorArch)
+                        : SimdPrimitiveCompareNode.simdCompare(CanonicalCondition.LT, x, y, false, vectorArch);
+        return VectorAPIBlendNode.expandBlendHelper(compare, y, x);
     }
 
     private static boolean canExpandRotateWithVectorCount(VectorArchitecture vectorArch, Stamp elementStamp, int vectorLength) {
