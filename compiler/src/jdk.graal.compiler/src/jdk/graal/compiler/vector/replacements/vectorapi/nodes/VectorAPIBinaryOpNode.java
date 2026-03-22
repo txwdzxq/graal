@@ -197,6 +197,12 @@ public class VectorAPIBinaryOpNode extends VectorAPIMacroNode implements Canonic
         if (canExpandByteMulViaShortOps(vectorArch, elementStamp, vectorLength)) {
             return true;
         }
+        if (canExpandShortShiftWithVectorCount(vectorArch, elementStamp, vectorLength)) {
+            return true;
+        }
+        if (canExpandLongArithmeticShiftWithVectorCount(vectorArch, elementStamp, vectorLength)) {
+            return true;
+        }
         return vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, op) == vectorLength;
     }
 
@@ -218,6 +224,10 @@ public class VectorAPIBinaryOpNode extends VectorAPIMacroNode implements Canonic
             operation = expandSignedLongMinMaxWithCompareBlend(x, y, vectorArch);
         } else if (!hasDirectArithmeticSupport && canExpandByteMulViaShortOps(vectorArch, elementStamp, vectorLength)) {
             operation = expandByteMulViaShortOps(x, y);
+        } else if (!hasDirectArithmeticSupport && canExpandShortShiftWithVectorCount(vectorArch, elementStamp, vectorLength)) {
+            operation = expandShortShiftWithVectorCount(x, y);
+        } else if (!hasDirectArithmeticSupport && canExpandLongArithmeticShiftWithVectorCount(vectorArch, elementStamp, vectorLength)) {
+            operation = expandLongArithmeticShiftWithVectorCount(x, y);
         } else if (SimdStamp.isOpmask(x.stamp(NodeView.DEFAULT))) {
             if (SimdStamp.OPMASK_OPS.getAnd().equals(op)) {
                 operation = BinaryArithmeticNode.and(x, y);
@@ -279,6 +289,139 @@ public class VectorAPIBinaryOpNode extends VectorAPIMacroNode implements Canonic
 
     private boolean isByteMulOp(Stamp elementStamp) {
         return elementStamp instanceof IntegerStamp && PrimitiveStamp.getBits(elementStamp) == Byte.SIZE && IntegerStamp.OPS.getMul().equals(op);
+    }
+
+    private boolean canExpandShortShiftWithVectorCount(VectorArchitecture vectorArch, Stamp elementStamp, int vectorLength) {
+        if (!isShortShiftOp(elementStamp)) {
+            return false;
+        }
+        int intVectorLength = vectorLength / (Integer.SIZE / Short.SIZE);
+        if (intVectorLength <= 1) {
+            return false;
+        }
+
+        IntegerStamp intStamp = IntegerStamp.create(Integer.SIZE);
+        GraalError.guarantee(op instanceof ArithmeticOpTable.ShiftOp<?>, "unexpected short shift op: %s", op);
+        ArithmeticOpTable.ShiftOp<?> shiftOp = (ArithmeticOpTable.ShiftOp<?>) op;
+        GraalError.guarantee(IntegerStamp.OPS.getShl().equals(shiftOp) || IntegerStamp.OPS.getUShr().equals(shiftOp) || IntegerStamp.OPS.getShr().equals(shiftOp),
+                        "unexpected short shift op: %s", shiftOp);
+        int andLength = vectorArch.getSupportedVectorArithmeticLength(intStamp, intVectorLength, IntegerStamp.OPS.getAnd());
+        int orLength = vectorArch.getSupportedVectorArithmeticLength(intStamp, intVectorLength, IntegerStamp.OPS.getOr());
+        int ushrScalarLength = vectorArch.getSupportedVectorShiftWithScalarCount(intStamp, intVectorLength, IntegerStamp.OPS.getUShr());
+        int shlScalarLength = vectorArch.getSupportedVectorShiftWithScalarCount(intStamp, intVectorLength, IntegerStamp.OPS.getShl());
+        int shiftLength = vectorArch.getSupportedVectorArithmeticLength(intStamp, intVectorLength, shiftOp);
+        int shrScalarLength = IntegerStamp.OPS.getShr().equals(shiftOp)
+                        ? vectorArch.getSupportedVectorShiftWithScalarCount(intStamp, intVectorLength, IntegerStamp.OPS.getShr())
+                        : intVectorLength;
+        return andLength == intVectorLength &&
+                        orLength == intVectorLength &&
+                        shiftLength == intVectorLength &&
+                        ushrScalarLength == intVectorLength &&
+                        shlScalarLength == intVectorLength &&
+                        shrScalarLength == intVectorLength;
+    }
+
+    private boolean isShortShiftOp(Stamp elementStamp) {
+        return elementStamp instanceof IntegerStamp && PrimitiveStamp.getBits(elementStamp) == Short.SIZE &&
+                        (IntegerStamp.OPS.getShl().equals(op) || IntegerStamp.OPS.getShr().equals(op) || IntegerStamp.OPS.getUShr().equals(op));
+    }
+
+    /**
+     * Expands short vector-count shifts through int operations.
+     *
+     * Short elements are packed two-per-int lane, so the expansion:
+     * <ul>
+     * <li>reinterprets values and counts as int vectors,</li>
+     * <li>extracts low/high short halves and their per-half counts,</li>
+     * <li>applies the requested shift kind (shl/ushr/shr) to each half, and</li>
+     * <li>packs the two shifted short halves back and reinterprets to the original stamp.</li>
+     * </ul>
+     */
+    private ValueNode expandShortShiftWithVectorCount(ValueNode valueVector, ValueNode vectorCounts) {
+        int intVectorLength = vectorStamp.getVectorLength() / (Integer.SIZE / Short.SIZE);
+        SimdStamp intVectorStamp = SimdStamp.broadcast(IntegerStamp.create(Integer.SIZE), intVectorLength);
+        GraalError.guarantee(op instanceof ArithmeticOpTable.ShiftOp<?>, "unexpected short shift op: %s", op);
+        ArithmeticOpTable.ShiftOp<?> shiftOp = (ArithmeticOpTable.ShiftOp<?>) op;
+        GraalError.guarantee(IntegerStamp.OPS.getShl().equals(shiftOp) || IntegerStamp.OPS.getUShr().equals(shiftOp) || IntegerStamp.OPS.getShr().equals(shiftOp),
+                        "unexpected short shift op: %s", shiftOp);
+
+        ValueNode packedValues = ReinterpretNode.create(intVectorStamp, valueVector, NodeView.DEFAULT);
+        ValueNode packedCounts = ReinterpretNode.create(intVectorStamp, vectorCounts, NodeView.DEFAULT);
+
+        ValueNode lowHalfMask = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forInt(0x0000FFFF), intVectorLength));
+        ValueNode countMask = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forInt(Short.SIZE - 1), intVectorLength));
+        ValueNode halfShift = ConstantNode.forInt(Short.SIZE);
+
+        ValueNode lowCounts = BinaryArithmeticNode.and(packedCounts, countMask);
+        ValueNode highCounts = BinaryArithmeticNode.and(ShiftNode.shiftOp(packedCounts, halfShift, NodeView.DEFAULT, IntegerStamp.OPS.getUShr()), countMask);
+
+        ValueNode lowValues;
+        ValueNode highValues;
+        if (IntegerStamp.OPS.getShr().equals(op)) {
+            ValueNode lowValuesShiftedUp = ShiftNode.shiftOp(packedValues, halfShift, NodeView.DEFAULT, IntegerStamp.OPS.getShl());
+            lowValues = ShiftNode.shiftOp(lowValuesShiftedUp, halfShift, NodeView.DEFAULT, IntegerStamp.OPS.getShr());
+            highValues = ShiftNode.shiftOp(packedValues, halfShift, NodeView.DEFAULT, IntegerStamp.OPS.getShr());
+        } else {
+            lowValues = BinaryArithmeticNode.and(packedValues, lowHalfMask);
+            highValues = ShiftNode.shiftOp(packedValues, halfShift, NodeView.DEFAULT, IntegerStamp.OPS.getUShr());
+        }
+
+        ValueNode lowShifted = ShiftNode.shiftOp(lowValues, lowCounts, NodeView.DEFAULT, shiftOp);
+        ValueNode highShifted = ShiftNode.shiftOp(highValues, highCounts, NodeView.DEFAULT, shiftOp);
+        ValueNode packedResult = BinaryArithmeticNode.or(
+                        BinaryArithmeticNode.and(lowShifted, lowHalfMask),
+                        ShiftNode.shiftOp(BinaryArithmeticNode.and(highShifted, lowHalfMask), halfShift, NodeView.DEFAULT, IntegerStamp.OPS.getShl()));
+        return ReinterpretNode.create(vectorStamp, packedResult, NodeView.DEFAULT);
+    }
+
+    private boolean canExpandLongArithmeticShiftWithVectorCount(VectorArchitecture vectorArch, Stamp elementStamp, int vectorLength) {
+        if (!isLongArithmeticShiftOp(elementStamp)) {
+            return false;
+        }
+        return vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, IntegerStamp.OPS.getAnd()) == vectorLength &&
+                        vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, IntegerStamp.OPS.getShl()) == vectorLength &&
+                        vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, IntegerStamp.OPS.getUShr()) == vectorLength &&
+                        vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, IntegerStamp.OPS.getSub()) == vectorLength &&
+                        vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, IntegerStamp.OPS.getOr()) == vectorLength &&
+                        vectorArch.getSupportedVectorShiftWithScalarCount(elementStamp, vectorLength, IntegerStamp.OPS.getUShr()) == vectorLength;
+    }
+
+    private boolean isLongArithmeticShiftOp(Stamp elementStamp) {
+        return elementStamp instanceof IntegerStamp && PrimitiveStamp.getBits(elementStamp) == Long.SIZE && IntegerStamp.OPS.getShr().equals(op);
+    }
+
+    /**
+     * Expands long vector-count arithmetic right shift via logical shift plus synthesized sign
+     * fill.
+     *
+     * For each lane:
+     * <ul>
+     * <li>count is masked with {@code 63},</li>
+     * <li>the base value is shifted logically right,</li>
+     * <li>sign-fill bits are built from the lane sign and {@code (64 - count) & 63}, and</li>
+     * <li>a non-zero-count mask suppresses sign-fill when effective count is zero.</li>
+     * </ul>
+     */
+    private ValueNode expandLongArithmeticShiftWithVectorCount(ValueNode valueVector, ValueNode vectorCounts) {
+        int vectorLength = vectorStamp.getVectorLength();
+        ValueNode shiftMask = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forLong(Long.SIZE - 1), vectorLength));
+        ValueNode laneBits = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forLong(Long.SIZE), vectorLength));
+        ValueNode zero = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forLong(0), vectorLength));
+        ValueNode signBitShift = ConstantNode.forInt(Long.SIZE - 1);
+
+        ValueNode maskedCounts = BinaryArithmeticNode.and(vectorCounts, shiftMask);
+        ValueNode logicalShift = ShiftNode.shiftOp(valueVector, maskedCounts, NodeView.DEFAULT, IntegerStamp.OPS.getUShr());
+        ValueNode signBits = ShiftNode.shiftOp(valueVector, signBitShift, NodeView.DEFAULT, IntegerStamp.OPS.getUShr());
+        ValueNode signMask = BinaryArithmeticNode.sub(zero, signBits, NodeView.DEFAULT);
+        ValueNode inverseCounts = BinaryArithmeticNode.and(BinaryArithmeticNode.sub(laneBits, maskedCounts, NodeView.DEFAULT), shiftMask);
+        ValueNode nonZeroBits = ShiftNode.shiftOp(
+                        BinaryArithmeticNode.or(maskedCounts, BinaryArithmeticNode.sub(zero, maskedCounts, NodeView.DEFAULT)),
+                        signBitShift,
+                        NodeView.DEFAULT,
+                        IntegerStamp.OPS.getUShr());
+        ValueNode nonZeroMask = BinaryArithmeticNode.sub(zero, nonZeroBits, NodeView.DEFAULT);
+        ValueNode highFill = BinaryArithmeticNode.and(ShiftNode.shiftOp(signMask, inverseCounts, NodeView.DEFAULT, IntegerStamp.OPS.getShl()), nonZeroMask);
+        return BinaryArithmeticNode.or(logicalShift, highFill);
     }
 
     private ValueNode expandByteMulViaShortOps(ValueNode x, ValueNode y) {
