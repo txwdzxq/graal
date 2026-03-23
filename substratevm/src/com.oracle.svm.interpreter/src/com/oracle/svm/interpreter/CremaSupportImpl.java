@@ -385,7 +385,6 @@ public class CremaSupportImpl implements CremaSupport {
         }
         CremaResolvedObjectType thisType = InterpreterResolvedObjectType.createForCrema(
                         parsed,
-                        hub.getModifiers(),
                         componentType, isInterface ? null : typeCheckSuperType, interfaces,
                         DynamicHub.toClass(hub),
                         fieldLayout.getStaticReferenceFieldCount(), fieldLayout.getStaticPrimitiveFieldSize());
@@ -606,7 +605,8 @@ public class CremaSupportImpl implements CremaSupport {
             name = '[' + DynamicHub.toClass(componentHub).descriptorString();
         }
         DynamicHub superHub = DynamicHub.fromClass(Object.class);
-        int modifiers = (componentHub.getModifiers() & (ACC_PUBLIC | ACC_PRIVATE | ACC_PROTECTED)) | ACC_FINAL | ACC_ABSTRACT;
+        int javaModifiers = (componentHub.getModifiers() & (ACC_PUBLIC | ACC_PRIVATE | ACC_PROTECTED)) | ACC_FINAL | ACC_ABSTRACT;
+        int jvmModifiers = (componentHub.getInterpreterType().getModifiers() & (ACC_PUBLIC | ACC_PRIVATE | ACC_PROTECTED)) | ACC_FINAL | ACC_ABSTRACT;
         short flags = DynamicHub.makeFlags(false, false, false, false, false, false, false, false, false, false, true, false);
         ClassLoader loader = componentHub.getClassLoader();
         Module module = componentHub.getModule();
@@ -660,7 +660,7 @@ public class CremaSupportImpl implements CremaSupport {
         int vTableEntries = cremaVTable.length;
         ClassDefinitionInfo info = ClassDefinitionInfo.EMPTY;
 
-        DynamicHub arrayHub = DynamicHub.allocate(name, superHub, interfaceEncodings, componentHub, null, modifiers, flags,
+        DynamicHub arrayHub = DynamicHub.allocate(name, superHub, interfaceEncodings, componentHub, null, javaModifiers, flags,
                         loader, null, module, null, null, typeID, interfaceID, false, numClassTypes, typeIDDepth,
                         numIterableInterfaces, openTypeWorldTypeCheckSlots, openTypeWorldInterfaceHashTable, openTypeWorldInterfaceHashParam,
                         vTableEntries, EMPTY_INT_ARRAY, -1, false, info);
@@ -670,7 +670,7 @@ public class CremaSupportImpl implements CremaSupport {
 
         InterpreterResolvedObjectType thisType = InterpreterResolvedObjectType.createForInterpreter(
                         '[' + componentType.getName(),
-                        arrayHub.getModifiers(),
+                        jvmModifiers,
                         componentType, superType, interfaces, null,
                         DynamicHub.toClass(arrayHub), false);
 

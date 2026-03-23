@@ -34,6 +34,7 @@ import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.core.hub.crema.CremaResolvedJavaMethod;
 import com.oracle.svm.core.hub.crema.CremaResolvedJavaRecordComponent;
 import com.oracle.svm.core.hub.crema.CremaResolvedJavaType;
+import com.oracle.svm.espresso.classfile.Constants;
 import com.oracle.svm.espresso.classfile.ParserKlass;
 import com.oracle.svm.espresso.classfile.attributes.Attribute;
 import com.oracle.svm.espresso.classfile.attributes.AttributedElement;
@@ -73,11 +74,11 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
     // GR-70720: Allow AOT types as nest host.
     private CremaResolvedObjectType host;
 
-    public CremaResolvedObjectType(ParserKlass parserKlass, int modifiers, InterpreterResolvedJavaType componentType, InterpreterResolvedObjectType superclass,
+    public CremaResolvedObjectType(ParserKlass parserKlass, InterpreterResolvedJavaType componentType, InterpreterResolvedObjectType superclass,
                     InterpreterResolvedObjectType[] interfaces,
                     InterpreterConstantPool constantPool, Class<?> javaClass, boolean isWordType,
                     int staticReferenceFields, int staticPrimitiveFieldsSize) {
-        super(parserKlass.getType(), modifiers, componentType, superclass, interfaces, constantPool, javaClass, isWordType);
+        super(parserKlass.getType(), parserKlass.getFlags() & Constants.JVM_RECOGNIZED_CLASS_MODIFIERS, componentType, superclass, interfaces, constantPool, javaClass, isWordType);
         this.primitiveStatics = new byte[staticPrimitiveFieldsSize];
         this.referenceStatics = new Object[staticReferenceFields];
         this.attributes = parserKlass.getAttributes();
