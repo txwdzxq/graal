@@ -27,27 +27,29 @@ Run the tracing agent to collect metadata:
 
 If the agent-collected metadata is incomplete, add manual configuration:
 
-Create `META-INF/native-image/<project-groupId>/manual-metadata/` and include only the files you need. Native Image automatically picks up metadata from this location.
+Create `META-INF/native-image/<project-groupId>/manual-metadata/` and add a `reachability-metadata.json` file containing only the sections you need. Native Image automatically picks up metadata from this location.
 
 For metadata layout and file semantics, see the [Reachability Metadata documentation](https://www.graalvm.org/latest/reference-manual/native-image/metadata/).
 
-Minimal `reflect-config.json` example:
+Minimal `reachability-metadata.json` reflection example:
 
 ```json
-[
-  {
-    "condition": {
-      "typeReachable": "com.example.Condition"
-    },
-    "name": "com.example.Type",
-    "methods": [
-      {
-        "name": "<init>",
-        "parameterTypes": []
-      }
-    ]
-  }
-]
+{
+  "reflection": [
+    {
+      "condition": {
+        "typeReached": "com.example.Condition"
+      },
+      "type": "com.example.Type",
+      "methods": [
+        {
+          "name": "<init>",
+          "parameterTypes": []
+        }
+      ]
+    }
+  ]
+}
 ```
 
 ## Rebuild and Verify

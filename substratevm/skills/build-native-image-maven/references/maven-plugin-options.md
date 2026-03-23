@@ -72,19 +72,9 @@ Pass any `native-image` flag via `<buildArgs>`:
 <buildArg>--diagnostics-mode</buildArg>
 ```
 
-**If you want maximum performance (requires PGO, Oracle GraalVM only):**
-```xml
-<buildArg>-O3</buildArg>
-```
-
 **If you want fastest build time (dev iteration):**
 ```xml
 <buildArg>-Ob</buildArg>
-```
-
-**If you want a build report (Oracle GraalVM):**
-```xml
-<buildArg>--emit build-report</buildArg>
 ```
 
 ## Parent POM inheritance

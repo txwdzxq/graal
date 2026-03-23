@@ -20,7 +20,6 @@ graalvmNative {
 | `mainClass`   | String      | `application.mainClass` | Main entry point class |
 | `debug`       | boolean     | `false`         | Enable debug info (or use `--debug-native`) |
 | `verbose`     | boolean     | `false`         | Verbose build output |
-| `fallback`    | boolean     | `false`         | Allow JVM fallback if native build fails |
 | `sharedLibrary` | boolean   | `false`         | Build a shared library |
 | `quickBuild`  | boolean     | `false`         | Faster build, lower runtime performance |
 | `richOutput`  | boolean     | `false`         | Rich console output |

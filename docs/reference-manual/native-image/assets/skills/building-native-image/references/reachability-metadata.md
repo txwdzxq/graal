@@ -287,7 +287,7 @@ With a specific module:
 Bundles are included for all locales embedded in the image. To control locales:
 ```shell
 native-image -Duser.country=US -Duser.language=en -H:IncludeLocales=fr,de
-# or include everything:
+# or include everything (significantly increases image size):
 native-image -H:+IncludeAllLocales
 ```
 

@@ -33,7 +33,7 @@ If you encounter runtime errors related to reflection, JNI, resources, serializa
 ​
 
 ## Native Image Options
-To configure classpath, optimization level, output name, platform target, PGO, monitoring, or other CLI flags, see [`references/native-image-options.md`](references/native-image-options.md).
+To configure classpath, optimization level, output name, platform target, monitoring, or other CLI flags, see [`references/native-image-options.md`](references/native-image-options.md).
 
 
 ## Reference Files

@@ -87,7 +87,7 @@ native-image -Ob <class>
 
 **If you want best runtime performance:**
 ```bash
-native-image -O3 <class>   # or combine with --pgo
+native-image -O3 <class>
 ```
 
 **If you want to optimize for binary size:**
@@ -95,16 +95,8 @@ native-image -O3 <class>   # or combine with --pgo
 native-image -Os <class>
 ```
 
-**If you want to collect PGO profile data:**
-```bash
-native-image --pgo-instrument <class>
-./myapp                          # run to collect profile
-native-image --pgo=default.iprof <class>
-```
-
 **If you want to change the garbage collector:**
 ```bash
-native-image --gc=G1 <class>       # G1 (GraalVM EE only)
 native-image --gc=epsilon <class>  # no GC (throughput)
 native-image --gc=serial <class>   # default
 ```
@@ -176,11 +168,6 @@ native-image --enable-monitoring=heapdump,jfr,threaddump <class>
 **If you need all security services (e.g. TLS/SSL):**
 ```bash
 native-image --enable-all-security-services <class>
-```
-
-**If you need a Software Bill of Materials (SBOM):**
-```bash
-native-image --enable-sbom=embed,export <class>
 ```
 
 ## Cross-compilation and platform
