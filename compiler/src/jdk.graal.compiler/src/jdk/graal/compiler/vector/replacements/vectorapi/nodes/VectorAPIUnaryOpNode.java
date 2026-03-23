@@ -262,6 +262,9 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
         if (leadingZeros) {
             return canExpandLeadingZerosCount(vectorArch, elementStamp, vectorLength);
         }
+        if (isLongAbsOp(elementStamp) && canExpandLongAbsViaLogicalMask(vectorArch, elementStamp, vectorLength)) {
+            return true;
+        }
         return vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, op) == vectorLength;
     }
 
@@ -287,6 +290,10 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
             result = expandTrailingZerosCount(vectorArch, value, elementStamp, vectorLength);
         } else if (isLeadingZerosCount(opcode)) {
             result = expandLeadingZerosCount(vectorArch, value, elementStamp, vectorLength);
+        } else if (isLongAbsOp(elementStamp) &&
+                        vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, op) != vectorLength &&
+                        canExpandLongAbsViaLogicalMask(vectorArch, elementStamp, vectorLength)) {
+            result = expandLongAbsViaLogicalMask(value);
         } else if (value.stamp(NodeView.DEFAULT).isIntegerStamp()) {
             result = UnaryArithmeticNode.unaryIntegerOp(value, NodeView.DEFAULT, op);
         } else {
@@ -297,6 +304,33 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
             result = VectorAPIBlendNode.expandBlendHelper(mask, value, result);
         }
         return result;
+    }
+
+    private boolean isLongAbsOp(Stamp elementStamp) {
+        return elementStamp instanceof IntegerStamp && PrimitiveStamp.getBits(elementStamp) == Long.SIZE && IntegerStamp.OPS.getAbs().equals(op);
+    }
+
+    private static boolean canExpandLongAbsViaLogicalMask(VectorArchitecture vectorArch, Stamp elementStamp, int vectorLength) {
+        return vectorArch.getSupportedVectorShiftWithScalarCount(elementStamp, vectorLength, IntegerStamp.OPS.getUShr()) == vectorLength &&
+                        vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, IntegerStamp.OPS.getSub()) == vectorLength &&
+                        vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, IntegerStamp.OPS.getXor()) == vectorLength;
+    }
+
+    /**
+     * Expands long-lane absolute value with logical shifts and arithmetic:
+     * <ul>
+     * <li>extract lane sign bits via {@code x >>> 63},</li>
+     * <li>build a lane mask of {@code 0} or {@code -1},</li>
+     * <li>compute {@code (x ^ mask) - mask}, which equals {@code abs(x)} for each lane.</li>
+     * </ul>
+     */
+    private ValueNode expandLongAbsViaLogicalMask(ValueNode inputVector) {
+        int vectorLength = vectorStamp.getVectorLength();
+        ValueNode zero = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forLong(0), vectorLength));
+        ValueNode signBits = ShiftNode.shiftOp(inputVector, ConstantNode.forInt(Long.SIZE - 1), NodeView.DEFAULT, IntegerStamp.OPS.getUShr());
+        ValueNode signMask = BinaryArithmeticNode.sub(zero, signBits, NodeView.DEFAULT);
+        ValueNode xorSign = BinaryArithmeticNode.xor(inputVector, signMask);
+        return BinaryArithmeticNode.sub(xorSign, signMask, NodeView.DEFAULT);
     }
 
     private static boolean canExpandReverseBytes(VectorArchitecture vectorArch, Stamp elementStamp, int vectorLength) {
