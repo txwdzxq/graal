@@ -625,7 +625,7 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
         writeShort(hub, dynamicHubOffsets.getNumIterableInterfaceTypesOffset(), numIterableInterfaceTypes);
         writeObject(hub, dynamicHubOffsets.getOpenTypeWorldTypeCheckSlotsOffset(), openTypeWorldTypeCheckSlots);
 
-        writeObject(hub, dynamicHubOffsets.getInterfaceIDOffset(), interfaceID);
+        writeInt(hub, dynamicHubOffsets.getInterfaceIDOffset(), interfaceID);
         writeObject(hub, dynamicHubOffsets.getOpenTypeWorldInterfaceHashTableOffset(), openTypeWorldInterfaceHashTable);
         writeInt(hub, dynamicHubOffsets.getOpenTypeWorldInterfaceHashParamOffset(), openTypeWorldInterfaceHashParam);
 

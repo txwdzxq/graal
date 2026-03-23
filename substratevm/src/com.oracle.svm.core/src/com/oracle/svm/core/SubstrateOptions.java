@@ -1269,13 +1269,26 @@ public class SubstrateOptions {
 
         /** Use {@link SubstrateOptions#useRistretto()} instead. */
         @Option(help = "Prepare native image to compile bytecodes at runtime.")//
-        public static final HostedOptionKey<Boolean> GraalJITCompileAtRuntime = new HostedOptionKey<>(false, actualValue -> {
+        public static final HostedOptionKey<Boolean> GraalJITCompileAtRuntime = new HostedOptionKey<>(false, ConcealedOptions::validateGraalJITCompileAtRuntime) {
+            @Override
+            protected void onValueUpdate(EconomicMap<OptionKey<?>, Object> values, Boolean oldValue, Boolean newValue) {
+                super.onValueUpdate(values, oldValue, newValue);
+                if (newValue) {
+                    SupportCompileInIsolates.update(values, false);
+                }
+            }
+        };
+
+        private static void validateGraalJITCompileAtRuntime(HostedOptionKey<Boolean> actualValue) {
             if (actualValue.getValue()) {
                 if (!RuntimeClassLoading.Options.RuntimeClassLoading.getValue()) {
                     throw UserError.abort("Cannot enable Ristretto compilation if RuntimeClassLoading is not enabled.");
                 }
+                if (SupportCompileInIsolates.getValue()) {
+                    throw UserError.abort("Cannot enable Ristretto compilation if SupportCompileInIsolates is enabled.");
+                }
             }
-        });
+        }
     }
 
     @Option(help = "Overwrites the available number of processors provided by the OS. Any value <= 0 means using the processor count from the OS.")//
