@@ -84,7 +84,7 @@ public final class RuntimeReflectionMetadata implements ReflectionMetadata {
         return ReflectionObjectFactory.newField(
                         RuntimeDynamicAccessMetadata.unmodifiableEmptyMetadata(),
                         DynamicHub.toClass(declaringClass),
-                        resolvedField.getName(),
+                        resolvedField.getName().intern(),
                         toClassOrThrow(resolvedField.getType(), resolvedField.getDeclaringClass()),
                         resolvedField.getModifiers(),
                         resolvedField.isTrustedFinal(),
@@ -117,7 +117,7 @@ public final class RuntimeReflectionMetadata implements ReflectionMetadata {
         return ReflectionObjectFactory.newMethod(
                         RuntimeDynamicAccessMetadata.unmodifiableEmptyMetadata(),
                         receiverType,
-                        resolvedJavaMethod.getName(),
+                        resolvedJavaMethod.getName().intern(),
                         parameterTypes,
                         toClassOrThrow(resolvedJavaMethod.getSignature().getReturnType(type), type),
                         /* (GR-69097) resolvedJavaMethod.getDeclaredExceptions() */
