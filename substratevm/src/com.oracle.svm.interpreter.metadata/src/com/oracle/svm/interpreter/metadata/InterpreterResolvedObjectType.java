@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -45,14 +45,15 @@ import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.espresso.classfile.descriptors.Type;
 import com.oracle.svm.espresso.classfile.descriptors.TypeSymbols;
 import com.oracle.svm.espresso.shared.meta.TypeAccess;
-import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.interpreter.metadata.serialization.VisibleForSerialization;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.MultiLayeredImageSingleton;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.JavaKind;
 import jdk.vm.ci.meta.JavaType;
+import jdk.vm.ci.meta.ResolvedJavaRecordComponent;
 import jdk.vm.ci.meta.ResolvedJavaType;
 
 /**
@@ -218,6 +219,19 @@ public class InterpreterResolvedObjectType extends InterpreterResolvedJavaType {
     @Override
     public List<JavaType> getPermittedSubclasses() {
         throw VMError.unimplemented("getPermittedSubclasses");
+    }
+
+    @Override
+    public List<? extends ResolvedJavaRecordComponent> getRecordComponents() {
+        if (isArray()) {
+            return null;
+        }
+        // Crema only ever creates InterpreterResolvedObjectTypes for arrays (see
+        // createForInterpreter). At build time, InterpreterResolvedObjectTypes are
+        // created for AOT classes when RuntimeClassLoading is enabled. However,
+        // for these classes, Class.getRecordComponents routes to
+        // ImageReflectionMetadata.getRecordComponents which does not end up here.
+        throw VMError.shouldNotReachHere("getRecordComponents: class file attributes for " + toClassName() + " not available at runtime");
     }
 
     @Override

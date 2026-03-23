@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -28,6 +28,7 @@ import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.List;
 
+import com.oracle.svm.core.hub.crema.CremaResolvedJavaRecordComponent;
 import com.oracle.svm.core.hub.registry.SymbolsSupport;
 import com.oracle.svm.espresso.classfile.ConstantPool;
 import com.oracle.svm.espresso.classfile.descriptors.ByteSequence;
@@ -107,6 +108,11 @@ public final class InterpreterResolvedPrimitiveType extends InterpreterResolvedJ
 
     @Override
     public List<JavaType> getPermittedSubclasses() {
+        return null;
+    }
+
+    @Override
+    public List<? extends CremaResolvedJavaRecordComponent> getRecordComponents() {
         return null;
     }
 

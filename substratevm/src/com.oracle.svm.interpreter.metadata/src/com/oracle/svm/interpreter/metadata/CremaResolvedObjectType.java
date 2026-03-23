@@ -134,7 +134,7 @@ public final class CremaResolvedObjectType extends InterpreterResolvedObjectType
     public List<? extends CremaResolvedJavaRecordComponent> getRecordComponents() {
         RecordAttribute recordAttribute = getAttribute(RecordAttribute.NAME, RecordAttribute.class);
         if (recordAttribute == null) {
-            return List.of();
+            return null;
         }
         RecordComponentInfo[] components = recordAttribute.getComponents();
         if (components.length == 0) {
