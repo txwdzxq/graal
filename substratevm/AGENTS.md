@@ -11,13 +11,17 @@ This guide applies to the `substratevm` directory.
 - Treat `mxbuild/`, `svmbuild/`, and `sources/` as generated output.
 
 ## Build and Development Commands
+
 Run commands from this directory.
 
 - `mx build`: compile the suite; run this before tests or image builds so changed sources are rebuilt.
-- `mx native-unittest`: preferred local unit-test entry point for this suite.
-- `mx helloworld`: quick smoke test for the Native Image toolchain using a basic Java hello-world application.
 - `mx checkstyle`: validate style and formatting expectations before sending a change.
-- `mx native-image`: use this as the native-image build-tool when building an image is requested as part of substratevm development workflows.
+- `mx native-unittest [options]`: runs tests for this suite.
+- `mx helloworld [options]`: quick smoke test with a basic hello-world application.
+- `mx native-image [options] -cp <classpath> <mainClass>`: use this as the `native-image` build-tool when building an image is requested as part of substratevm development workflows.
+
+If a failure looks inconsistent with the checked-out sources, run `mx clean` and then `mx build` before deeper debugging.
+Do not run `mx` commands concurrently; parallel runs can produce misleading failures.
 
 ## Change Hygiene
 
