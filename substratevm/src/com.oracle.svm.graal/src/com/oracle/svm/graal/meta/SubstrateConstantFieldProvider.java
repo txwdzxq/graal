@@ -24,6 +24,8 @@
  */
 package com.oracle.svm.graal.meta;
 
+import com.oracle.svm.core.hub.RuntimeClassLoading;
+
 import jdk.graal.compiler.core.common.spi.JavaConstantFieldProvider;
 import jdk.vm.ci.meta.MetaAccessProvider;
 import jdk.vm.ci.meta.ResolvedJavaField;
@@ -59,5 +61,18 @@ public class SubstrateConstantFieldProvider extends JavaConstantFieldProvider {
          */
         assert !field.getName().equals("$VALUES") && !field.getName().equals("ENUM$VALUES") && !field.getName().startsWith("$SwitchMap$") && !field.getName().startsWith("$SWITCH_TABLE$");
         return false;
+    }
+
+    @Override
+    protected boolean isFinalField(ResolvedJavaField field, ConstantFieldTool<?> tool) {
+        if (RuntimeClassLoading.isSupported() && field.getName().equals("target") && field.getDeclaringClass().getName().equals("Ljava/lang/invoke/CallSite;")) {
+            /*
+             * GR-74244: since the compiler doesn't currently emit CallSiteTargetValue assumptions,
+             * it shouldn't fold reads of CallSite.target. See also
+             * Target_java_lang_invoke_MethodHandleNatives.setCallSiteTargetNormal.
+             */
+            return false;
+        }
+        return super.isFinalField(field, tool);
     }
 }
