@@ -818,7 +818,7 @@ public final class InterpreterToVM {
                 return InterpreterStubSection.leaveInterpreter(target.getNativeEntryPoint(), target, calleeArgs);
             } else {
                 // Note: this call may still end up in compiled code if JIT code is available.
-                return InterpreterStubSection.call(target, calleeArgs);
+                return InterpreterStubSection.call(target, calleeArgs, false);
             }
         } catch (Throwable t) {
             throw SemanticJavaException.raise(t);
