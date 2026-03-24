@@ -91,6 +91,7 @@ import jdk.vm.ci.hotspot.HotSpotSignature;
 import jdk.vm.ci.hotspot.HotSpotSpeculationLog;
 import jdk.vm.ci.hotspot.HotSpotVMConfigAccess;
 import jdk.vm.ci.meta.ConstantPool;
+import jdk.vm.ci.meta.DefaultProfilingInfo;
 import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.JavaKind;
 import jdk.vm.ci.meta.JavaType;
@@ -102,6 +103,7 @@ import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
 import jdk.vm.ci.meta.Signature;
 import jdk.vm.ci.meta.SpeculationLog;
+import jdk.vm.ci.meta.TriState;
 
 /**
  * Defines how the VM's interface to the compiler should be recorded and replayed.
@@ -736,6 +738,7 @@ public final class CompilerInterfaceDeclarations {
                 .ensureRecorded(HotSpotResolvedJavaMethodProxy.isConstructorMethod, HotSpotResolvedJavaMethodProxy.isConstructorInvokable)
                 .ensureRecorded(HotSpotResolvedJavaMethodProxy.canBeStaticallyBoundMethod, HotSpotResolvedJavaMethodProxy.canBeStaticallyBoundInvokable)
                 .ensureRecorded(HotSpotResolvedJavaMethodProxy.getCodeMethod, HotSpotResolvedJavaMethodProxy.getCodeInvokable)
+                .setDefaultValue(HotSpotResolvedJavaMethodProxy.getProfilingInfoMethod, DefaultProfilingInfo.get(TriState.UNKNOWN))
                 .setDefaultValue(HotSpotResolvedJavaMethodProxy.vtableEntryOffsetMethod, 0) // For LoadMethodNode lowering after divergence
                 .setStrategy(HotSpotResolvedJavaMethodProxy.formatToMethod, MethodStrategy.DefaultValue)
                 .setDefaultValueSupplier(HotSpotResolvedJavaMethodProxy.formatToMethod, (proxy, method, args, metaAccess) -> {
