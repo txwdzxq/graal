@@ -33,6 +33,7 @@ import textwrap
 from glob import glob
 from contextlib import contextmanager
 from itertools import islice
+import importlib
 from os.path import join, exists, dirname
 import shlex
 from argparse import ArgumentParser
@@ -50,6 +51,7 @@ import mx_sdk_vm_impl
 import mx_javamodules
 import mx_subst
 import mx_util
+import mx_substratevm_docs
 from mx import is_linux
 from mx_compiler import GraalArchiveParticipant
 from mx_gate import Task
@@ -60,8 +62,8 @@ import sys
 
 # re-export custom mx project classes, so they can be used from suite.py
 
-import mx_substratevm_benchmark  # pylint: disable=unused-import
-import mx_substratevm_namespace  # pylint: disable=unused-import
+importlib.import_module('mx_substratevm_benchmark')
+importlib.import_module('mx_substratevm_namespace')
 from mx_sdk_shaded import ShadedLibraryProject # pylint: disable=unused-import
 suite = mx.suite('substratevm')
 svmSuites = [suite]
@@ -508,6 +510,10 @@ def svm_gate_body(args, tasks):
                 mx.abort('mx native-image --help does not seem to output the proper message. This can happen if you add extra arguments the mx native-image call without checking if an argument was --help or --help-extra.')
 
             mx.log('mx native-image --help output check detected no errors.')
+
+    with Task('Check BuildOptions.md table is up-to-date', tasks, tags=[GraalTags.nativeimagehelp]) as t:
+        if t:
+            mx_substratevm_docs.verify_build_options_table()
 
     with Task('Check ContainerLibrary annotations', tasks, tags=[GraalTags.check_libcontainer_annotations]) as t:
         if t:
@@ -3022,3 +3028,23 @@ class StandalonePointstoUnittestsConfig(mx_unittest.MxUnittestConfig):
 
 
 mx_unittest.register_unittest_config(StandalonePointstoUnittestsConfig())
+
+
+@mx.command(suite, 'update-build-options-table', usage_msg='[--check] - Update or verify the BuildOptions.md table')
+def update_build_options_table_command(args):
+    """
+    Update the BuildOptions.md table with the latest options from @Option annotations.
+    If --check is provided, only verify that the table is up to date.
+    """
+    check_only = '--check' in args
+
+    if check_only:
+        if mx_substratevm_docs.verify_build_options_table():
+            mx.log('BuildOptions.md table is up to date')
+        else:
+            mx.abort('BuildOptions.md table is out of sync. Run "mx update-build-options-table" to fix it.')
+    else:
+        if mx_substratevm_docs.update_build_options_table():
+            mx.log('Successfully updated BuildOptions.md table')
+        else:
+            mx.log('BuildOptions.md table was already up to date')
