@@ -78,6 +78,7 @@ import com.oracle.svm.core.monitor.MonitorSupport;
 import com.oracle.svm.core.snippets.ImplicitExceptions;
 import com.oracle.svm.core.stack.JavaFrameAnchors;
 import com.oracle.svm.core.thread.PlatformThreads;
+import com.oracle.svm.guest.staging.SubstrateGuestOptions;
 import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.util.Utf8;
 
@@ -389,7 +390,7 @@ public final class JNIInvocationInterface {
             if (hasSpecialVmOptions) {
                 javaVmIdPointer = parseVMOptions(vmArgs);
             }
-            if (SubstrateOptions.InitializeVM.getValue()) {
+            if (SubstrateGuestOptions.InitializeVM.getValue()) {
                 /*
                  * `JNI_CreateJavaVM` reaches this point only after all JNI VM options have been
                  * applied, so startup hooks can safely observe the final launcher configuration

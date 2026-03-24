@@ -24,11 +24,15 @@
  */
 package com.oracle.svm.guest.staging;
 
-/**
- * Marker type that keeps the transitional guest-staging root package non-empty, otherwise mx would
- * complain.
- */
-final class GuestStaging {
-    private GuestStaging() {
+import com.oracle.svm.shared.option.HostedOptionKey;
+
+import jdk.graal.compiler.options.Option;
+
+public final class SubstrateGuestOptions {
+
+    @Option(help = "Initialize the VM and run startup hooks.")//
+    public static final HostedOptionKey<Boolean> InitializeVM = new HostedOptionKey<>(true);
+
+    private SubstrateGuestOptions() {
     }
 }
