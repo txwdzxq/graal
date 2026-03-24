@@ -446,7 +446,7 @@ def truffle_unittest_task(extra_build_args=None):
         ]
         test_build_args = (extra_build_args +
                            svm_experimental_options(['-H:-SupportCompileInIsolates']) +
-                           ['-Dpolyglot.image-build-time.ConstantOptionKeyPartialEvaluationLanguage.ConstantOption1=true'])
+                           ['-Dpolyglot.ConstantOptionKeyPartialEvaluationLanguage.ConstantOption1=true'])
         native_unittest(tests + truffle_args(test_build_args))
 
     with tempfile.NamedTemporaryFile(mode='w', delete=False) as logfile:

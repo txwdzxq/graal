@@ -2460,6 +2460,11 @@ final class EngineAccessor extends Accessor {
         public void collectDefaultEngineOptions() {
             PolyglotImpl.findInstance().getAPIAccess().collectDefaultEngineOptions();
         }
+
+        @Override
+        public void collectNativeImagePresetOptions() {
+            PolyglotImpl.findInstance().getAPIAccess().collectNativeImagePresetOptions();
+        }
     }
 
     private static class GuardedExecutableNode extends ExecutableNode {

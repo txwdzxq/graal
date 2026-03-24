@@ -545,7 +545,7 @@ public class OptionProcessor extends AbstractProcessor {
                     builder.startAssign("optionValue");
                 }
                 builder.startStaticCall(context.getType(System.class), "getProperty");
-                builder.doubleQuote("polyglot.image-build-time." + optionInfo.name);
+                builder.doubleQuote("polyglot." + optionInfo.name);
                 builder.end();
                 builder.end();
 

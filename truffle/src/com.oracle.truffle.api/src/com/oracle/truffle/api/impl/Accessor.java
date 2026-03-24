@@ -879,6 +879,8 @@ public abstract class Accessor {
         public abstract boolean isUntrustedCodeMitigationPolicySoftware(Enum<?> policy);
 
         public abstract void collectDefaultEngineOptions();
+
+        public abstract void collectNativeImagePresetOptions();
     }
 
     public abstract static class LanguageSupport extends Support {

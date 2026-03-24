@@ -409,7 +409,7 @@ public abstract class AbstractPolyglotImpl {
 
         public abstract Object callContextAsValue(Object current, Object classOverrides);
 
-        public abstract void collectDefaultEngineOptions();
+        public abstract void collectNativeImagePresetOptions();
 
     }
 

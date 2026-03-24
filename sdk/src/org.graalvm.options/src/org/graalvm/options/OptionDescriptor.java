@@ -181,9 +181,9 @@ public final class OptionDescriptor {
     }
 
     /**
-     * Returns {@code true} if this option is constant. Constant options value is fixed before the
-     * polyglot runtime is initialized and cannot be changed at runtime. The value is read from the
-     * system property {@code -Dpolyglot.image-build-time.<option-name>=<value>} during class
+     * Returns {@code true} if this option is constant. Constant options value is static and final
+     * before the polyglot runtime is initialized and cannot be changed at runtime. The value is
+     * read from the system property {@code -Dpolyglot.<option-name>=<value>} during class
      * initialization. If absent, the {@link org.graalvm.options.OptionKey#getDefaultValue() default
      * value} is used. Once set, calls to
      * {@link org.graalvm.options.ConstantOptionKey#getConstantValue()} on a {@code static final}
@@ -374,8 +374,8 @@ public final class OptionDescriptor {
         /**
          * Marks this option as constant. Constant options use {@link ConstantOptionKey} as their
          * key type and must be configured using the system property
-         * {@code -Dpolyglot.image-build-time.<option-name>=<value>} before the polyglot runtime is
-         * initialized. Setting a constant option at runtime via
+         * {@code -Dpolyglot.<option-name>=<value>} before the polyglot runtime is initialized.
+         * Setting a constant option at runtime via
          * {@link org.graalvm.polyglot.Engine.Builder#option(String, String)} throws an
          * {@link IllegalArgumentException}. The default value is {@code false}.
          *

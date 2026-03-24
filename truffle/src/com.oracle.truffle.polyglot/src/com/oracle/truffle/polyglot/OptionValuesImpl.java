@@ -171,15 +171,6 @@ final class OptionValuesImpl implements OptionValues {
                                 String.format("do not set the %s option by removing Builder.option(\"%s\", \"%s\")", descriptor.getName(), descriptor.getName(), value)));
             }
         }
-        if (descriptor.isConstant()) {
-            throw PolyglotEngineException.illegalArgument(String.format("Option '%s' is constant and cannot be set at runtime. " +
-                            "Constant options must be configured using the system property -Dpolyglot.image-build-time.%s=%s " +
-                            "before the polyglot runtime is initialized. " +
-                            "On HotSpot, pass it on the JVM command line; in a native image, pass it to the native-image tool at image build time.",
-                            descriptor.getName(),
-                            descriptor.getName(),
-                            value));
-        }
         OptionKey<?> optionKey = descriptor.getKey();
         Object previousValue;
         if (values.containsKey(optionKey)) {
@@ -201,6 +192,20 @@ final class OptionValuesImpl implements OptionValues {
             convertedValue = optionKey.getType().convert(previousValue, suffix, value);
         } catch (IllegalArgumentException e) {
             throw PolyglotEngineException.illegalArgument(e);
+        }
+        if (descriptor.isConstant()) {
+            if (optionKey instanceof ConstantOptionKey<?> constantOptionKey) {
+                if (!Objects.equals(convertedValue, constantOptionKey.getConstantValue())) {
+                    throw PolyglotEngineException.illegalArgument(String.format(
+                                    "Option '%s' is constant and cannot be overridden using Builder.option(). " +
+                                                    "Constant options must be configured using the system property -Dpolyglot.%s=%s " +
+                                                    "before the polyglot runtime is initialized. " +
+                                                    "On HotSpot, pass it on the JVM command line; in a native image, pass it to the native-image tool at image build time.",
+                                    descriptor.getName(), descriptor.getName(), value));
+                }
+            } else {
+                throw PolyglotEngineException.illegalArgument(String.format("Constant option '%s' must use ConstantOptionKey.", descriptor.getName()));
+            }
         }
         if (trackDeprecatedOptions && descriptor.isDeprecated()) {
             if (usedDeprecatedDescriptors == null) {
@@ -267,9 +272,6 @@ final class OptionValuesImpl implements OptionValues {
     @Override
     public <T> T get(OptionKey<T> optionKey) {
         assert contains(optionKey);
-        if (optionKey instanceof ConstantOptionKey<T> constant) {
-            return constant.getConstantValue();
-        }
         Object value = values.get(optionKey);
         if (value == null) {
             return optionKey.getDefaultValue();

@@ -46,16 +46,16 @@ public class ConstantOptionKeyPartialEvaluationTest extends PartialEvaluationTes
     public static void checkSystemProperty() {
         if (ImageInfo.inImageRuntimeCode()) {
             assertTrue(
-                            "Test requires -Dpolyglot.image-build-time.ConstantOptionKeyPartialEvaluationLanguage.ConstantOption1=true is set during native-image build", //
+                            "Test requires -Dpolyglot.ConstantOptionKeyPartialEvaluationLanguage.ConstantOption1=true is set during native-image build", //
                             ConstantOptionKeyPartialEvaluationLanguage.ConstantOption1.getConstantValue());
-            assertFalse("Test requires that -Dpolyglot.image-build-time.ConstantOptionKeyPartialEvaluationLanguage.ConstantOption2 is NOT set during native-image build", //
+            assertFalse("Test requires that -Dpolyglot.ConstantOptionKeyPartialEvaluationLanguage.ConstantOption2 is NOT set during native-image build", //
                             ConstantOptionKeyPartialEvaluationLanguage.ConstantOption2.getConstantValue());
         } else {
             assertTrue(
-                            "Test requires -Dpolyglot.image-build-time.ConstantOptionKeyPartialEvaluationLanguage.ConstantOption1=true", //
-                            Boolean.getBoolean("polyglot.image-build-time.ConstantOptionKeyPartialEvaluationLanguage.ConstantOption1"));
-            assertNull("Test requires that -Dpolyglot.image-build-time.ConstantOptionKeyPartialEvaluationLanguage.ConstantOption2 is NOT set", //
-                            System.getProperty("polyglot.image-build-time.ConstantOptionKeyPartialEvaluationLanguage.ConstantOption2"));
+                            "Test requires -Dpolyglot.ConstantOptionKeyPartialEvaluationLanguage.ConstantOption1=true", //
+                            Boolean.getBoolean("polyglot.ConstantOptionKeyPartialEvaluationLanguage.ConstantOption1"));
+            assertNull("Test requires that -Dpolyglot.ConstantOptionKeyPartialEvaluationLanguage.ConstantOption2 is NOT set", //
+                            System.getProperty("polyglot.ConstantOptionKeyPartialEvaluationLanguage.ConstantOption2"));
         }
     }
 

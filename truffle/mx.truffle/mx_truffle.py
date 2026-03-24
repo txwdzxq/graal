@@ -366,6 +366,17 @@ class TruffleUnittestConfig(mx_unittest.MxUnittestConfig):
 
 mx_unittest.register_unittest_config(TruffleUnittestConfig())
 
+def append_unittest_image_build_time_options(vmArgs):
+    # Command line arguments for com.oracle.truffle.api.test.option.ConstantOptionTest
+    # and jdk.graal.compiler.truffle.test.ConstantOptionKeyPartialEvaluationTest tests
+    vmArgs.extend([
+        '-Dpolyglot.ConstantOptionsLanguage.ConstantOption1=configuredValue',
+    ])
+    if mx.distribution('compiler:GRAAL_TEST', fatalIfMissing=False):
+        vmArgs.extend([
+            '-Dpolyglot.ConstantOptionKeyPartialEvaluationLanguage.ConstantOption1=true',
+        ])
+    return vmArgs
 
 class _DisableOptimizedRuntimeAction(Action):
     def __init__(self, **kwargs):

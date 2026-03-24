@@ -613,7 +613,11 @@ public final class Engine implements AutoCloseable {
          */
         private static final AtomicReference<Boolean> allowExperimentalOptionSystemPropertyValue = new AtomicReference<>();
 
-        static volatile Map<String, String> defaultOptions = Map.of();
+        /**
+         * Used only by native-image. Populated during native-image generation to preconfigure
+         * polyglot option defaults captured at image build time.
+         */
+        static volatile Map<String, String> presetOptions = Map.of();
 
         private OutputStream out = System.out;
         private OutputStream err = System.err;
@@ -933,13 +937,13 @@ public final class Engine implements AutoCloseable {
             }
             Object logHandler = customLogHandler != null ? polyglot.newLogHandler(customLogHandler) : null;
             Map<String, String> useOptions = useSystemProperties ? readOptionsFromSystemProperties(options) : options;
-            if (!defaultOptions.isEmpty()) {
+            if (!presetOptions.isEmpty()) {
                 if (useOptions == options) {
                     useOptions = new HashMap<>(useOptions);
                 }
-                for (String key : defaultOptions.keySet()) {
+                for (String key : presetOptions.keySet()) {
                     if (!useOptions.containsKey(key)) {
-                        useOptions.put(key, defaultOptions.get(key));
+                        useOptions.put(key, presetOptions.get(key));
                     }
                 }
             }
@@ -1782,10 +1786,10 @@ public final class Engine implements AutoCloseable {
         }
 
         @Override
-        public void collectDefaultEngineOptions() {
+        public void collectNativeImagePresetOptions() {
             Map<String, String> newDefaults = Builder.readOptionsFromSystemProperties(Map.of());
             if (!newDefaults.isEmpty()) {
-                Builder.defaultOptions = Collections.unmodifiableMap(newDefaults);
+                Builder.presetOptions = Collections.unmodifiableMap(newDefaults);
             }
         }
     }

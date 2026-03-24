@@ -71,21 +71,21 @@ public class ConstantOptionTest {
     public static void checkSystemProperty() {
         if (ImageInfo.inImageRuntimeCode()) {
             assertEquals(
-                            "Test requires -Dpolyglot.image-build-time.ConstantOptionsLanguage.ConstantOption1=configuredValue is set during native-image build", //
+                            "Test requires -Dpolyglot.ConstantOptionsLanguage.ConstantOption1=configuredValue is set during native-image build", //
                             "configuredValue", ConstantOptionsLanguage.ConstantOption1.getConstantValue());
             assertEquals(
-                            "Test requires that -Dpolyglot.image-build-time.ConstantOptionsLanguage.ConstantOption2 is NOT set during native-image build", //
+                            "Test requires that -Dpolyglot.ConstantOptionsLanguage.ConstantOption2 is NOT set during native-image build", //
                             ConstantOptionsLanguage.ConstantOption2.getDefaultValue(), ConstantOptionsLanguage.ConstantOption2.getConstantValue());
             assertNull(
                             "Test requires that -Dpolyglot.ConstantOptionsLanguage.PreSetOption is NOT set", //
                             System.getProperty("polyglot.ConstantOptionsLanguage.PreSetOption"));
         } else {
             assertEquals(
-                            "Test requires -Dpolyglot.image-build-time.ConstantOptionsLanguage.ConstantOption1=configuredValue", //
-                            "configuredValue", System.getProperty("polyglot.image-build-time.ConstantOptionsLanguage.ConstantOption1"));
+                            "Test requires -Dpolyglot.ConstantOptionsLanguage.ConstantOption1=configuredValue", //
+                            "configuredValue", System.getProperty("polyglot.ConstantOptionsLanguage.ConstantOption1"));
             assertNull(
-                            "Test requires that -Dpolyglot.image-build-time.ConstantOptionsLanguage.ConstantOption2 is NOT set", //
-                            System.getProperty("polyglot.image-build-time.ConstantOptionsLanguage.ConstantOption2"));
+                            "Test requires that -Dpolyglot.ConstantOptionsLanguage.ConstantOption2 is NOT set", //
+                            System.getProperty("polyglot.ConstantOptionsLanguage.ConstantOption2"));
         }
     }
 
@@ -129,12 +129,12 @@ public class ConstantOptionTest {
         Engine.Builder engineBuilder = Engine.newBuilder().//
                         allowExperimentalOptions(true).option(optionName, "test");
         AbstractPolyglotTest.assertFails(engineBuilder::build, IllegalArgumentException.class, (e) -> {
-            assertTrue(e.getMessage().contains("is constant and cannot be set at runtime"));
+            assertTrue(e.getMessage().contains("is constant and cannot be set using Builder.option()"));
         });
         Context.Builder builder = Context.newBuilder().//
                         allowExperimentalOptions(true).option(optionName, "test");
         AbstractPolyglotTest.assertFails(builder::build, IllegalArgumentException.class, (e) -> {
-            assertTrue(e.getMessage().contains("is constant and cannot be set at runtime"));
+            assertTrue(e.getMessage().contains("is constant and cannot be set using Builder.option()"));
         });
     }
 

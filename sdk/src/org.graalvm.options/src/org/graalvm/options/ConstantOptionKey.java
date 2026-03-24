@@ -50,11 +50,11 @@ import org.graalvm.nativeimage.ImageInfo;
  * <p>
  *
  * The option value is initialized from the system property
- * {@code -Dpolyglot.image-build-time.<option-name>=<value>}, which must be set before the polyglot
- * runtime is initialized (i.e. before the containing class is loaded). If the system property is
- * absent, the {@link #getDefaultValue() default value} is used. On HotSpot, this means the property
- * must be present on the JVM command line. In a GraalVM native image, the property is read during
- * image building, so the value is baked into the image.
+ * {@code -Dpolyglot.<option-name>=<value>}, which must be set before the polyglot runtime is
+ * initialized (i.e. before the containing class is loaded). If the system property is absent, the
+ * {@link #getDefaultValue() default value} is used. On HotSpot, this means the property must be
+ * present on the JVM command line. In a GraalVM native image, the property is read during image
+ * building, so the value is baked into the image.
  * <p>
  * Once the value has been set, {@link #getConstantValue()} returns the same value for the lifetime
  * of the runtime. The GraalVM compiler constant-folds calls to this method when the receiver is a
@@ -70,10 +70,10 @@ public final class ConstantOptionKey<T> extends OptionKey<T> {
 
     /**
      * Constructs a new constant option key with the given default value. The default value is used
-     * when no value is specified via the system property
-     * {@code -Dpolyglot.image-build-time.<option-name>}. Throws {@link IllegalArgumentException} if
-     * no default {@link OptionType} could be {@link OptionType#defaultType(Object) resolved} for
-     * the given type. The default value must not be {@code null}.
+     * when no value is specified via the system property {@code -Dpolyglot.<option-name>}. Throws
+     * {@link IllegalArgumentException} if no default {@link OptionType} could be
+     * {@link OptionType#defaultType(Object) resolved} for the given type. The default value must
+     * not be {@code null}.
      *
      * @since 25.1
      */
@@ -84,7 +84,7 @@ public final class ConstantOptionKey<T> extends OptionKey<T> {
     /**
      * Constructs a new constant option key with an explicit option type and default value. The
      * default value is used when no value is specified via the system property
-     * {@code -Dpolyglot.image-build-time.<option-name>}.
+     * {@code -Dpolyglot.<option-name>}.
      *
      * @since 25.1
      */
