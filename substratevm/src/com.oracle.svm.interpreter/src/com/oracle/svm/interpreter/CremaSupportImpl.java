@@ -92,7 +92,6 @@ import com.oracle.svm.core.hub.registry.SymbolsSupport;
 import com.oracle.svm.core.hub.registry.TypeIDs;
 import com.oracle.svm.core.invoke.Target_java_lang_invoke_MemberName;
 import com.oracle.svm.core.log.Log;
-import com.oracle.svm.core.meta.MethodPointer;
 import com.oracle.svm.core.snippets.KnownIntrinsics;
 import com.oracle.svm.espresso.classfile.ConstantPool;
 import com.oracle.svm.espresso.classfile.Constants;
@@ -218,7 +217,7 @@ public class CremaSupportImpl implements CremaSupport {
         }
         InterpreterResolvedJavaMethod method = btiUniverse.getOrCreateMethod(analysisMethod, shouldRetainMethodCode(analysisMethod));
         if (!method.isAbstract()) {
-            method.setNativeEntryPoint(new MethodPointer(analysisMethod));
+            method.setNativeEntryPoint(InterpreterResolvedJavaMethod.createMethodRef(analysisMethod));
         }
         methods.add(method);
     }

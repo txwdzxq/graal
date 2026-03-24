@@ -114,18 +114,19 @@ import com.oracle.graal.reachability.ReachabilityAnalysisFactory;
 import com.oracle.graal.reachability.ReachabilityMethodProcessingHandler;
 import com.oracle.graal.reachability.ReachabilityObjectScanner;
 import com.oracle.graal.reachability.SimpleInMemoryMethodSummaryProvider;
+import com.oracle.svm.common.meta.MethodVariant;
 import com.oracle.svm.core.BuildArtifacts;
 import com.oracle.svm.core.BuildPhaseProvider;
 import com.oracle.svm.core.ClassLoaderSupport;
 import com.oracle.svm.core.FutureDefaultsOptions;
 import com.oracle.svm.core.JavaMainWrapper.JavaMainSupport;
 import com.oracle.svm.core.LinkerInvocation;
+import com.oracle.svm.core.MethodRefHolder;
 import com.oracle.svm.core.MissingRegistrationSupport;
 import com.oracle.svm.core.OS;
 import com.oracle.svm.core.ParsingReason;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.SubstrateTargetDescription;
-import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.core.c.libc.LibCBase;
 import com.oracle.svm.core.c.libc.NoLibC;
 import com.oracle.svm.core.c.libc.TemporaryBuildDirectoryProvider;
@@ -265,7 +266,6 @@ import com.oracle.svm.hosted.substitute.SubstitutionInvocationPlugins;
 import com.oracle.svm.hosted.util.CPUTypeAArch64;
 import com.oracle.svm.hosted.util.CPUTypeAMD64;
 import com.oracle.svm.hosted.util.CPUTypeRISCV64;
-import com.oracle.svm.common.meta.MethodVariant;
 import com.oracle.svm.shared.option.HostedOptionValues;
 import com.oracle.svm.shared.option.OptionClassFilter;
 import com.oracle.svm.shared.option.SubstrateOptionsParser;
@@ -276,6 +276,7 @@ import com.oracle.svm.shared.util.ClassUtil;
 import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.ReflectionUtil.ReflectionUtilError;
 import com.oracle.svm.shared.util.StringUtil;
+import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.AnnotationUtil;
 import com.oracle.svm.util.GuestAccess;
@@ -1421,11 +1422,11 @@ public class NativeImageGenerator {
         if (SubstrateOptions.useRelativeCodePointers()) {
             bb.addRootClass(MethodOffset.class, false, true);
         }
+        bb.addRootClass(MethodRefHolder.class, false, false).registerAsInstantiated(rootClassReason);
 
         bb.addRootMethod(ReflectionUtil.lookupMethod(SubstrateArraycopySnippets.class, "doArraycopy",
                         Object.class, int.class, Object.class, int.class, int.class), true, rootMethodReason);
         bb.addRootMethod(ReflectionUtil.lookupMethod(Object.class, "getClass"), true, rootMethodReason);
-
         for (JavaKind kind : JavaKind.values()) {
             if (kind.isPrimitive() && kind != JavaKind.Void) {
                 bb.addRootClass(kind.toJavaClass(), false, true);
