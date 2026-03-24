@@ -42,8 +42,8 @@ local benchmark_suites = ['dacapo', 'renaissance', 'scala-dacapo'];
     // Needs at least Xcode 14 (~= Ventura) to avoid incompabilities around selector stubs, see GR-71205
     capabilities+: ['!darwin_bigsur', '!darwin_monterey'],
     environment+: {
-      // for compatibility with macOS Big Sur
-      MACOSX_DEPLOYMENT_TARGET: '11.0',
+      // for compatibility with macOS Sonoma
+      MACOSX_DEPLOYMENT_TARGET: '14.0',
     },
   },
 
