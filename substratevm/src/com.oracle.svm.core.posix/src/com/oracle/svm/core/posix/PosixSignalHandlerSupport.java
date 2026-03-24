@@ -72,6 +72,7 @@ import com.oracle.svm.core.posix.headers.Signal.SignalEnum;
 import com.oracle.svm.core.posix.headers.Signal.sigset_tPointer;
 import com.oracle.svm.core.thread.NativeSpinLockUtils;
 import com.oracle.svm.core.thread.PlatformThreads;
+import com.oracle.svm.guest.staging.SubstrateGuestOptions;
 import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
@@ -496,7 +497,7 @@ class PosixSignalHandlerFeature implements InternalFeature {
 
     @Override
     public void beforeAnalysis(BeforeAnalysisAccess access) {
-        if (!SubstrateOptions.installSignalHandlersEarly()) {
+        if (!SubstrateGuestOptions.installSignalHandlersEarly()) {
             RuntimeSupport.getRuntimeSupport().addStartupHook(new IgnoreSignalsStartupHook());
         }
     }
@@ -540,7 +541,7 @@ class PosixSignalHandlerFeature implements InternalFeature {
     }
 }
 
-/** Only used if {@link SubstrateOptions#installSignalHandlersEarly()} is disabled. */
+/** Only used if {@link SubstrateGuestOptions#installSignalHandlersEarly()} is disabled. */
 final class IgnoreSignalsStartupHook implements RuntimeSupport.Hook {
     /**
      * HotSpot ignores the SIGPIPE and SIGXFSZ signals (see <a

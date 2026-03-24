@@ -109,6 +109,7 @@ import com.oracle.svm.core.thread.VMThreads;
 import com.oracle.svm.core.thread.VMThreads.SafepointBehavior;
 import com.oracle.svm.core.threadlocal.VMThreadLocalSupport;
 import com.oracle.svm.core.util.UnsignedUtils;
+import com.oracle.svm.guest.staging.SubstrateGuestOptions;
 import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.MultiLayeredImageSingleton;
 import com.oracle.svm.shared.util.VMError;
@@ -348,7 +349,7 @@ public final class CEntryPointSnippets extends SubstrateTemplates implements Sni
         IsolateListenerSupport.singleton().afterCreateIsolate(isolate);
 
         /* Try to install important signal handlers as early as possible. */
-        if (SubstrateOptions.installSignalHandlersEarly()) {
+        if (SubstrateGuestOptions.installSignalHandlersEarly()) {
             SubstrateSegfaultHandler.singleton().tryInstall();
             SignalHandlerSupport.singleton().tryInstallHandlersForIgnoredSignals();
         }

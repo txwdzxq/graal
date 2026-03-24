@@ -63,6 +63,7 @@ import com.oracle.svm.core.pltgot.PLTGOTConfiguration;
 import com.oracle.svm.core.thread.VMOperationControl;
 import com.oracle.svm.core.util.TimeUtils;
 import com.oracle.svm.core.util.UserError;
+import com.oracle.svm.guest.staging.SubstrateGuestOptions;
 import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.option.APIOption;
 import com.oracle.svm.shared.option.APIOptionGroup;
@@ -1268,7 +1269,7 @@ public class SubstrateOptions {
         public static final RuntimeOptionKey<Boolean> EnableSignalHandling = new RuntimeOptionKey<>(null, RegisterForIsolateArgumentParser) {
             @Override
             protected void onValueUpdate(EconomicMap<OptionKey<?>, Object> values, Boolean oldValue, Boolean newValue) {
-                if (!SubstrateUtil.HOSTED && !SubstrateOptions.installSignalHandlersEarly()) {
+                if (!SubstrateUtil.HOSTED && !SubstrateGuestOptions.installSignalHandlersEarly()) {
                     /*
                      * If signal handlers are not installed during early VM startup, then it is fine
                      * if this option value changes after early startup. We need to copy the new
@@ -1587,15 +1588,6 @@ public class SubstrateOptions {
             return isExecutableHelper();
         }
         return IsolateArgumentParser.singleton().getBooleanOptionValue(optionIndex);
-    }
-
-    /**
-     * Determines if the installation of important signal handlers should be tried during early
-     * isolate startup.
-     */
-    @Fold
-    public static boolean installSignalHandlersEarly() {
-        return InitializeVM.getValue();
     }
 
     /**

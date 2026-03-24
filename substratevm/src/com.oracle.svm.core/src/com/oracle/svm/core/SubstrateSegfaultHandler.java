@@ -66,6 +66,7 @@ import com.oracle.svm.core.stack.StackOverflowCheck;
 import com.oracle.svm.core.thread.VMThreads;
 import com.oracle.svm.core.thread.VMThreads.SafepointBehavior;
 import com.oracle.svm.core.threadlocal.VMThreadLocalSupport;
+import com.oracle.svm.guest.staging.SubstrateGuestOptions;
 import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.shared.singletons.MultiLayeredImageSingleton;
@@ -108,7 +109,7 @@ class SubstrateSegfaultHandlerFeature implements InternalFeature {
         ImageSingletons.add(SingleIsolateSegfaultSetup.class, singleIsolateSegfaultSetup);
         IsolateListenerSupport.singleton().register(singleIsolateSegfaultSetup);
 
-        if (!SubstrateOptions.installSignalHandlersEarly()) {
+        if (!SubstrateGuestOptions.installSignalHandlersEarly()) {
             RuntimeSupport.getRuntimeSupport().addStartupHook(new SubstrateSegfaultHandlerStartupHook());
         }
     }
@@ -127,7 +128,7 @@ class SubstrateSegfaultHandlerFeature implements InternalFeature {
     }
 }
 
-/** Only used if {@link SubstrateOptions#installSignalHandlersEarly()} is disabled. */
+/** Only used if {@link SubstrateGuestOptions#installSignalHandlersEarly()} is disabled. */
 final class SubstrateSegfaultHandlerStartupHook implements RuntimeSupport.Hook {
     @Override
     public void execute(boolean isFirstIsolate) {
@@ -143,7 +144,7 @@ public abstract class SubstrateSegfaultHandler {
         public static final RuntimeOptionKey<Boolean> InstallSegfaultHandler = new RuntimeOptionKey<>(null, RegisterForIsolateArgumentParser) {
             @Override
             protected void onValueUpdate(EconomicMap<OptionKey<?>, Object> values, Boolean oldValue, Boolean newValue) {
-                if (!SubstrateUtil.HOSTED && !SubstrateOptions.installSignalHandlersEarly()) {
+                if (!SubstrateUtil.HOSTED && !SubstrateGuestOptions.installSignalHandlersEarly()) {
                     /*
                      * If the segfault handler is not installed during early VM startup, then it is
                      * fine if this option value changes after early startup. We need to copy the
