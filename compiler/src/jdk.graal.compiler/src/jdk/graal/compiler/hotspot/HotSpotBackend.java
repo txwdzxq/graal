@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2012, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -196,18 +196,6 @@ public abstract class HotSpotBackend extends Backend implements FrameMap.Referen
 
     @NodeIntrinsic(ForeignCallNode.class)
     private static native void unsafeArraycopyStub(@ConstantNodeParameter ForeignCallSignature descriptor, Word srcAddr, Word dstAddr, Word size);
-
-    /**
-     * Descriptor for {@code StubRoutines::_base64_encodeBlock}.
-     */
-    public static final HotSpotForeignCallDescriptor BASE64_ENCODE_BLOCK = new HotSpotForeignCallDescriptor(LEAF, HAS_SIDE_EFFECT, any(), "base64EncodeBlock", void.class, Word.class,
-                    int.class, int.class, Word.class, int.class, boolean.class);
-
-    /**
-     * Descriptor for {@code StubRoutines::_base64_decodeBlock}.
-     */
-    public static final HotSpotForeignCallDescriptor BASE64_DECODE_BLOCK = new HotSpotForeignCallDescriptor(LEAF, HAS_SIDE_EFFECT, any(), "base64DecodeBlock", int.class, Word.class,
-                    int.class, int.class, Word.class, int.class, boolean.class, boolean.class);
 
     public static final LocationIdentity CRC_TABLE_LOCATION = NamedLocationIdentity.immutable("crc32_table");
 

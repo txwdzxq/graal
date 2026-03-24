@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2015, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -192,6 +192,8 @@ import jdk.graal.compiler.options.LibGraalSupport;
 import jdk.graal.compiler.replacements.nodes.AESNode;
 import jdk.graal.compiler.replacements.nodes.AESNode.CryptMode;
 import jdk.graal.compiler.replacements.nodes.ArrayEqualsNode;
+import jdk.graal.compiler.replacements.nodes.Base64DecodeBlockNode;
+import jdk.graal.compiler.replacements.nodes.Base64EncodeBlockNode;
 import jdk.graal.compiler.replacements.nodes.BigIntegerMulAddNode;
 import jdk.graal.compiler.replacements.nodes.BigIntegerMultiplyToLenNode;
 import jdk.graal.compiler.replacements.nodes.BigIntegerSquareToLenNode;
@@ -289,6 +291,7 @@ public class StandardGraphBuilderPlugins {
             }
             registerGHASHPlugin(plugins);
             registerBigIntegerPlugins(plugins);
+            registerBase64Plugins(plugins);
             registerMessageDigestPlugins(plugins);
             registerStringCodingPlugins(plugins);
         }
@@ -2700,6 +2703,58 @@ public class StandardGraphBuilderPlugins {
                     b.addPush(JavaKind.Int, new EncodeArrayNode(src, dst, len, ISO_8859_1, JavaKind.Char));
                     return true;
                 }
+            }
+        });
+    }
+
+    private static void registerBase64Plugins(InvocationPlugins plugins) {
+        Registration r = new Registration(plugins, "java.util.Base64$Encoder");
+        r.register(new ConditionalInvocationPlugin("encodeBlock", Receiver.class, byte[].class, int.class, int.class, byte[].class, int.class, boolean.class) {
+            @Override
+            public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode src,
+                            ValueNode sp, ValueNode sl, ValueNode dst, ValueNode dp, ValueNode isURL) {
+                try (InvocationPluginHelper helper = new InvocationPluginHelper(b, targetMethod)) {
+                    receiver.get(true);
+                    ValueNode srcStart = helper.arrayStart(src, JavaKind.Byte);
+                    ValueNode dstStart = helper.arrayStart(dst, JavaKind.Byte);
+                    b.add(new Base64EncodeBlockNode(srcStart, sp, sl, dstStart, dp, isURL));
+                    return true;
+                }
+            }
+
+            @Override
+            public boolean isApplicable(Architecture arch) {
+                return Base64EncodeBlockNode.isSupported(arch);
+            }
+
+            @Override
+            public boolean inlineOnly() {
+                return true;
+            }
+        });
+
+        r = new Registration(plugins, "java.util.Base64$Decoder");
+        r.register(new ConditionalInvocationPlugin("decodeBlock", Receiver.class, byte[].class, int.class, int.class, byte[].class, int.class, boolean.class, boolean.class) {
+            @Override
+            public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode src,
+                            ValueNode sp, ValueNode sl, ValueNode dst, ValueNode dp, ValueNode isURL, ValueNode isMime) {
+                try (InvocationPluginHelper helper = new InvocationPluginHelper(b, targetMethod)) {
+                    receiver.get(true);
+                    ValueNode srcStart = helper.arrayStart(src, JavaKind.Byte);
+                    ValueNode dstStart = helper.arrayStart(dst, JavaKind.Byte);
+                    b.addPush(JavaKind.Int, new Base64DecodeBlockNode(srcStart, sp, sl, dstStart, dp, isURL, isMime));
+                    return true;
+                }
+            }
+
+            @Override
+            public boolean isApplicable(Architecture arch) {
+                return Base64DecodeBlockNode.isSupported(arch);
+            }
+
+            @Override
+            public boolean inlineOnly() {
+                return true;
             }
         });
     }

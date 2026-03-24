@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -45,6 +45,8 @@ import jdk.graal.compiler.replacements.nodes.AESNode;
 import jdk.graal.compiler.replacements.nodes.BigIntegerMulAddNode;
 import jdk.graal.compiler.replacements.nodes.BigIntegerMultiplyToLenNode;
 import jdk.graal.compiler.replacements.nodes.BigIntegerSquareToLenNode;
+import jdk.graal.compiler.replacements.nodes.Base64DecodeBlockNode;
+import jdk.graal.compiler.replacements.nodes.Base64EncodeBlockNode;
 import jdk.graal.compiler.replacements.nodes.CipherBlockChainingAESNode;
 import jdk.graal.compiler.replacements.nodes.CounterModeAESNode;
 import jdk.graal.compiler.replacements.nodes.GHASHProcessBlocksNode;
@@ -91,6 +93,12 @@ public final class Stubs {
             }
             if (GHASHProcessBlocksNode.class.equals(klass)) {
                 return GHASH_CPU_FEATURES_AMD64;
+            }
+            if (Base64EncodeBlockNode.class.equals(klass)) {
+                return Base64EncodeBlockNode.minFeaturesAMD64();
+            }
+            if (Base64DecodeBlockNode.class.equals(klass)) {
+                return Base64DecodeBlockNode.minFeaturesAMD64();
             }
             if (BigIntegerMultiplyToLenNode.class.equals(klass)) {
                 return BIGINTEGER_MULTIPLY_TO_LEN_CPU_FEATURES_AMD64;

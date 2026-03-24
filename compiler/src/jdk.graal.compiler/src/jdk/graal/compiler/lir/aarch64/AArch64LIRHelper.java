@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2026, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,41 +22,19 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package jdk.graal.compiler.lir.amd64;
+package jdk.graal.compiler.lir.aarch64;
 
-import jdk.graal.compiler.asm.amd64.AMD64Address;
-import jdk.graal.compiler.core.common.LIRKind;
-import jdk.graal.compiler.debug.GraalError;
+import jdk.graal.compiler.asm.aarch64.AArch64Address;
 import jdk.graal.compiler.lir.asm.ArrayDataPointerConstant;
 import jdk.graal.compiler.lir.asm.CompilationResultBuilder;
 
-import jdk.vm.ci.amd64.AMD64;
-import jdk.vm.ci.amd64.AMD64Kind;
-import jdk.vm.ci.code.Register;
-import jdk.vm.ci.meta.Value;
+public final class AArch64LIRHelper {
 
-public final class AMD64LIRHelper {
-
-    private AMD64LIRHelper() {
+    private AArch64LIRHelper() {
     }
 
-    protected static Value[] registersToValues(Register[] registers) {
-        Value[] temps = new Value[registers.length];
-        for (int i = 0; i < registers.length; i++) {
-            Register register = registers[i];
-            if (AMD64.CPU.equals(register.getRegisterCategory())) {
-                temps[i] = register.asValue(LIRKind.value(AMD64Kind.QWORD));
-            } else if (AMD64.XMM.equals(register.getRegisterCategory())) {
-                temps[i] = register.asValue(LIRKind.value(AMD64Kind.DOUBLE));
-            } else {
-                throw GraalError.shouldNotReachHere("Unsupported register type in math stubs."); // ExcludeFromJacocoGeneratedReport
-            }
-        }
-        return temps;
-    }
-
-    protected static AMD64Address recordExternalAddress(CompilationResultBuilder crb, ArrayDataPointerConstant ptr) {
-        return (AMD64Address) crb.recordDataReferenceInCode(ptr);
+    protected static AArch64Address recordExternalAddress(CompilationResultBuilder crb, ArrayDataPointerConstant ptr) {
+        return (AArch64Address) crb.recordDataReferenceInCode(ptr);
     }
 
     protected static ArrayDataPointerConstant pointerConstant(int alignment, byte[] bytes) {
