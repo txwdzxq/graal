@@ -24,6 +24,7 @@
  */
 package com.oracle.svm.interpreter;
 
+import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 
 import org.graalvm.nativeimage.impl.ClassLoading;
@@ -32,6 +33,7 @@ import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.crema.CremaSupport;
 import com.oracle.svm.core.hub.registry.SymbolsSupport;
 import com.oracle.svm.core.methodhandles.Target_java_lang_invoke_MethodHandleNatives;
+import com.oracle.svm.espresso.classfile.JavaKind;
 import com.oracle.svm.espresso.classfile.ParserKlass;
 import com.oracle.svm.espresso.classfile.attributes.BootstrapMethodsAttribute;
 import com.oracle.svm.espresso.classfile.descriptors.Name;
@@ -81,8 +83,59 @@ public final class RuntimeInterpreterConstantPool extends InterpreterConstantPoo
             case METHODTYPE -> resolveMethodType(cpi, accessingClass);
             case METHODHANDLE -> resolveMethodHandle(cpi, accessingClass);
             case INVOKEDYNAMIC -> resolveInvokeDynamic(cpi, accessingClass);
+            case DYNAMIC -> resolveDynamicConstant(cpi, accessingClass);
             default -> throw VMError.unimplemented("Unimplemented CP resolution for " + tag);
         };
+    }
+
+    private Object resolveDynamicConstant(int cpi, InterpreterResolvedObjectType accessingType) {
+        CremaResolvedObjectType cremaAccessingType = (CremaResolvedObjectType) accessingType;
+        BootstrapMethodsAttribute bms = cremaAccessingType.getBootstrapMethodsAttribute();
+        try {
+            try {
+                int bootstrapMethodIndex = dynamicBootstrapMethodAttrIndex(cpi);
+                BootstrapMethodsAttribute.Entry boostrapEntry = bms.at(bootstrapMethodIndex);
+                MethodHandle bootstrapmethodMethodHandle = resolvedMethodHandleAt(boostrapEntry.getBootstrapMethodRef(), cremaAccessingType);
+                Object[] staticArguments = getStaticArguments(boostrapEntry, cremaAccessingType);
+                Symbol<Name> nameSymbol = dynamicName(cpi);
+                Symbol<Type> typeSymbol = dynamicType(cpi);
+                Class<?> type = resolveSymbolAndAccessCheck(cremaAccessingType, typeSymbol);
+                Object result = Target_java_lang_invoke_MethodHandleNatives.linkDynamicConstant(
+                                cremaAccessingType.getJavaClass(),
+                                bootstrapmethodMethodHandle,
+                                nameSymbol.toString(),
+                                type,
+                                staticArguments);
+                JavaKind kind = TypeSymbols.getJavaKind(typeSymbol);
+                if (kind.isObject()) {
+                    if (result == null) {
+                        return NULL_DYNAMIC_CONSTANT_SENTINEL;
+                    }
+                    return result;
+                }
+                if (kind.isPrimitive()) {
+                    if (result == null) {
+                        throw new InternalError("Null result instead of box");
+                    }
+                    if (!kind.toBoxedJavaClass().isInstance(result)) {
+                        throw new InternalError("Primitive is not properly boxed");
+                    }
+                    return result;
+                }
+                throw new InternalError("Can only handle references and primitives");
+            } catch (Error e) {
+                throw e;
+            } catch (Throwable e) {
+                throw new BootstrapMethodError(e);
+            }
+        } catch (LinkageError e) {
+            /*
+             * Only save LinkageErrors in the constant pool. This is in line with HotSpot behaviour.
+             * Needs clarification to section 5.4.3 of the VM spec (see JDK-6308271).
+             */
+            this.cachedEntries[cpi] = new DynamicConstantError(e);
+            throw e;
+        }
     }
 
     private Object resolveInvokeDynamic(int cpi, InterpreterResolvedObjectType accessingClass) {
@@ -312,6 +365,7 @@ public final class RuntimeInterpreterConstantPool extends InterpreterConstantPoo
             args[i] = switch (tagAt(entry.argAt(i))) {
                 case METHODHANDLE -> this.resolvedMethodHandleAt(entry.argAt(i), accessingClass);
                 case METHODTYPE -> this.resolvedMethodTypeAt(entry.argAt(i), accessingClass);
+                case DYNAMIC -> this.resolvedDynamicConstantAt(entry.argAt(i), accessingClass);
                 case CLASS -> this.resolvedTypeAt(accessingClass, entry.argAt(i)).getJavaClass();
                 case STRING -> this.resolveStringAt(entry.argAt(i));
                 case INTEGER -> this.intAt(entry.argAt(i));

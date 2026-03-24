@@ -264,6 +264,7 @@ import static com.oracle.svm.interpreter.metadata.Bytecodes.SIPUSH;
 import static com.oracle.svm.interpreter.metadata.Bytecodes.SWAP;
 import static com.oracle.svm.interpreter.metadata.Bytecodes.TABLESWITCH;
 import static com.oracle.svm.interpreter.metadata.Bytecodes.WIDE;
+import static com.oracle.svm.interpreter.metadata.CremaTypeAccess.symbolToJvmciKind;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
@@ -1433,6 +1434,21 @@ public final class Interpreter {
             case METHODHANDLE -> {
                 putObject(frame, top, resolveMethodHandle(pool, method, opcode, cpi));
             }
+            case DYNAMIC -> {
+                Object constant = resolveDynamicConstant(pool, method, opcode, cpi);
+                switch (symbolToJvmciKind(pool.dynamicType(cpi))) {
+                    case Boolean -> putInt(frame, top, (Boolean) constant ? 1 : 0);
+                    case Byte -> putInt(frame, top, (Byte) constant);
+                    case Short -> putInt(frame, top, (Short) constant);
+                    case Char -> putInt(frame, top, (Character) constant);
+                    case Int -> putInt(frame, top, (Integer) constant);
+                    case Float -> putFloat(frame, top, (Float) constant);
+                    case Long -> putLong(frame, top, (Long) constant);
+                    case Double -> putDouble(frame, top, (Double) constant);
+                    case Object -> putObject(frame, top, constant);
+                    default -> throw VMError.shouldNotReachHere("Unexpected dynamic constant type " + pool.dynamicType(cpi));
+                }
+            }
             case INVOKEDYNAMIC -> {
                 // TODO(peterssen): GR-68576 Storing the pre-resolved appendix in the CP is a
                 // workaround for the JDWP debugger until proper INVOKEDYNAMIC resolution is
@@ -1602,6 +1618,15 @@ public final class Interpreter {
         assert opcode == LDC || opcode == LDC_W;
         try {
             return pool.resolvedMethodHandleAt(cpi, method.getDeclaringClass());
+        } catch (Throwable t) {
+            throw SemanticJavaException.raise(t);
+        }
+    }
+
+    private static Object resolveDynamicConstant(InterpreterConstantPool pool, InterpreterResolvedJavaMethod method, int opcode, char cpi) {
+        assert opcode == LDC || opcode == LDC_W;
+        try {
+            return pool.resolvedDynamicConstantAt(cpi, method.getDeclaringClass());
         } catch (Throwable t) {
             throw SemanticJavaException.raise(t);
         }
