@@ -86,7 +86,6 @@ import com.oracle.svm.core.code.RuntimeMetadataEncoding;
 import com.oracle.svm.core.configure.ConditionalRuntimeValue;
 import com.oracle.svm.core.configure.RuntimeDynamicAccessMetadata;
 import com.oracle.svm.core.encoder.SymbolEncoder;
-import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.imagelayer.ImageLayerBuildingSupport;
 import com.oracle.svm.core.meta.SharedField;
@@ -106,6 +105,7 @@ import com.oracle.svm.hosted.reflect.ReflectionHostedSupport;
 import com.oracle.svm.hosted.substitute.DeletedElementException;
 import com.oracle.svm.hosted.substitute.SubstitutionReflectivityFilter;
 import com.oracle.svm.shaded.org.capnproto.PrimitiveList;
+import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.shared.singletons.ImageSingletonLoader;
 import com.oracle.svm.shared.singletons.ImageSingletonWriter;
 import com.oracle.svm.shared.singletons.LayeredPersistFlags;
@@ -834,10 +834,11 @@ public class RuntimeMetadataEncoderImpl implements RuntimeMetadataEncoder {
             int fieldsIndex = encodeAndAddCollection(buf, getFields(declaringType), fieldLookupErrors.get(declaringType), this::encodeField, false);
             int methodsIndex = encodeAndAddCollection(buf, getMethods(declaringType), methodLookupErrors.get(declaringType), this::encodeExecutable, false);
             int constructorsIndex = encodeAndAddCollection(buf, getConstructors(declaringType), constructorLookupErrors.get(declaringType), this::encodeExecutable, false);
-            int recordComponentsIndex = encodeAndAddCollection(buf, classMetadata.recordComponents, recordComponentLookupErrors.get(declaringType), this::encodeRecordComponent, true);
-            int dynamicAccessIndex = encodeAndAddElement(buf, b -> encodeDynamicAccess(b, classMetadata.dynamicAccess));
-            int unsafeAllocationIndex = encodeAndAddElement(buf, b -> encodeDynamicAccess(b, classMetadata.unsafeAllocation));
-            int classFlags = classMetadata.flags;
+            int recordComponentsIndex = encodeAndAddCollection(buf, classMetadata != null ? classMetadata.recordComponents : null, recordComponentLookupErrors.get(declaringType),
+                            this::encodeRecordComponent, true);
+            int dynamicAccessIndex = encodeAndAddElement(buf, b -> encodeDynamicAccess(b, classMetadata != null ? classMetadata.dynamicAccess : null));
+            int unsafeAllocationIndex = encodeAndAddElement(buf, b -> encodeDynamicAccess(b, classMetadata != null ? classMetadata.unsafeAllocation : null));
+            int classFlags = classMetadata != null ? classMetadata.flags : hub.getModifiers();
             if (anySet(fieldsIndex, methodsIndex, constructorsIndex, recordComponentsIndex, dynamicAccessIndex, unsafeAllocationIndex) || classFlags != hub.getModifiers()) {
                 hub.setReflectionMetadata(fieldsIndex, methodsIndex, constructorsIndex, recordComponentsIndex, dynamicAccessIndex, unsafeAllocationIndex, classFlags);
             }

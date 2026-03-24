@@ -1221,8 +1221,15 @@ public class CremaSupportImpl implements CremaSupport {
             return kind.toJavaClass();
         }
         assert kind == JavaKind.Object;
-        AbstractClassRegistry registry = ClassRegistries.singleton().getRegistry(accessingClass.getJavaClass().getClassLoader());
-        return registry.loadClass(type);
+        ClassLoader loader = accessingClass.getJavaClass().getClassLoader();
+        for (var singleton : ClassRegistries.layeredSingletons()) {
+            AbstractClassRegistry registry = singleton.getRegistry(loader);
+            Class<?> result = registry.findLoadedClass(type);
+            if (result != null) {
+                return result;
+            }
+        }
+        return ClassRegistries.runtimeLastLayer().getRegistry(loader).loadClass(type);
     }
 
     @Override
@@ -1243,8 +1250,15 @@ public class CremaSupportImpl implements CremaSupport {
         if (kind.isPrimitive()) {
             result = kind.toJavaClass();
         } else {
-            AbstractClassRegistry registry = ClassRegistries.singleton().getRegistry(((InterpreterResolvedJavaType) accessingClass).getJavaClass().getClassLoader());
-            result = registry.findLoadedClass(elementalType);
+            result = null;
+            for (var singleton : ClassRegistries.layeredSingletons()) {
+                AbstractClassRegistry registry = singleton.getRegistry(((InterpreterResolvedJavaType) accessingClass).getJavaClass().getClassLoader());
+                Class<?> newResult = registry.findLoadedClass(elementalType);
+                if (newResult != null) {
+                    result = newResult;
+                    break;
+                }
+            }
             if (result == null) {
                 return null;
             }
