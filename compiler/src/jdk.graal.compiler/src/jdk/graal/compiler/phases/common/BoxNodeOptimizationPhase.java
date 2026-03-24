@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -26,6 +26,7 @@ package jdk.graal.compiler.phases.common;
 
 import jdk.graal.compiler.graph.Graph;
 import jdk.graal.compiler.graph.Node;
+import jdk.graal.compiler.graph.NodeBitMap;
 import jdk.graal.compiler.nodes.FixedNode;
 import jdk.graal.compiler.nodes.StructuredGraph;
 import jdk.graal.compiler.nodes.ValueNode;
@@ -64,20 +65,22 @@ public class BoxNodeOptimizationPhase extends PostRunCanonicalizationPhase<CoreP
     protected void run(StructuredGraph graph, CoreProviders context) {
         ControlFlowGraph cfg = null;
         Graph.Mark before = graph.getMark();
+        NodeBitMap boxesToKill = null;
         boxLoop: for (BoxNode box : graph.getNodes(BoxNode.TYPE)) {
-            if (box.isAlive() && !box.hasIdentity()) {
+            if (box.isAlive() && !isUnlinked(box) && !box.hasIdentity()) {
                 final ValueNode primitiveVal = box.getValue();
                 assert primitiveVal != null : "Box " + box + " has no value";
                 // try to optimize with dominating box of the same value
-                boxedValUsageLoop: for (Node usage : primitiveVal.usages().snapshot()) {
+                // Note: deferred box deletion keeps primitiveVal usages stable during this scan.
+                boxedValUsageLoop: for (Node usage : primitiveVal.usages()) {
                     if (usage == box) {
                         continue;
                     }
-                    if (usage instanceof BoxNode) {
-                        final BoxNode boxUsageOnBoxedVal = (BoxNode) usage;
-                        if (boxUsageOnBoxedVal.getBoxingKind() == box.getBoxingKind()) {
+                    if (usage instanceof BoxNode boxUsageOnBoxedVal) {
+                        if (boxUsageOnBoxedVal.isAlive() && !isUnlinked(boxUsageOnBoxedVal) &&
+                                        boxUsageOnBoxedVal.getBoxingKind() == box.getBoxingKind()) {
                             if (cfg == null) {
-                                cfg = ControlFlowGraph.newBuilder(graph).connectBlocks(true).computeLoops(true).computeDominators(true).computeFrequency(true).build();
+                                cfg = ControlFlowGraph.newBuilder(graph).connectBlocks(true).computeLoops(true).computeDominators(true).build();
                             }
                             if (graph.isNew(before, boxUsageOnBoxedVal) || graph.isNew(before, box)) {
                                 continue boxedValUsageLoop;
@@ -109,14 +112,26 @@ public class BoxNodeOptimizationPhase extends PostRunCanonicalizationPhase<CoreP
                                 }
                                 box.replaceAtUsages(boxUsageOnBoxedVal);
                                 graph.getOptimizationLog().report(getClass(), "BoxUsageReplacement", box);
-                                GraphUtil.removeFixedWithUnusedInputs(box);
+                                GraphUtil.unlinkFixedNode(box);
+                                if (boxesToKill == null) {
+                                    boxesToKill = graph.createNodeBitMap();
+                                }
+                                boxesToKill.mark(box);
                                 continue boxLoop;
                             }
                         }
                     }
                 }
             }
+
+        }
+
+        if (boxesToKill != null) {
+            GraphUtil.killAllWithUnusedFloatingInputs(boxesToKill, false);
         }
     }
 
+    private static boolean isUnlinked(BoxNode box) {
+        return box.predecessor() == null;
+    }
 }
