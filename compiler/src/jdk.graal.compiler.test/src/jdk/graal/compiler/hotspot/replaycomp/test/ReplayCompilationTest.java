@@ -112,7 +112,7 @@ public class ReplayCompilationTest extends GraalCompilerTest {
         runTest((temp) -> {
             String methodName = "lengthsSquared";
             ResolvedJavaMethod method = getResolvedJavaMethod(methodName);
-            OptionValues crashOptions = new OptionValues(getInitialOptions(), GraalCompilerOptions.CrashAt, methodName);
+            OptionValues crashOptions = new OptionValues(getInitialOptions(), GraalCompilerOptions.SystemicCompilationFailureRate, 0, GraalCompilerOptions.CrashAt, methodName);
             String diagnoseOptionValue = DebugOptions.RecordForReplay.getName() + "=" + methodName;
             OptionValues crashAndDiagnoseOptions = new OptionValues(crashOptions, DebugOptions.DumpPath, temp.toString(),
                             GraalCompilerOptions.CompilationFailureAction, CompilationWrapper.ExceptionAction.Diagnose,
