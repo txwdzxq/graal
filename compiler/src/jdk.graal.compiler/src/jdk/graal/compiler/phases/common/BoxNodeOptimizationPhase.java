@@ -24,6 +24,9 @@
  */
 package jdk.graal.compiler.phases.common;
 
+import org.graalvm.collections.EconomicMap;
+import org.graalvm.collections.Equivalence;
+
 import jdk.graal.compiler.graph.Graph;
 import jdk.graal.compiler.graph.Node;
 import jdk.graal.compiler.graph.NodeBitMap;
@@ -66,6 +69,7 @@ public class BoxNodeOptimizationPhase extends PostRunCanonicalizationPhase<CoreP
         ControlFlowGraph cfg = null;
         Graph.Mark before = graph.getMark();
         NodeBitMap boxesToKill = null;
+        EconomicMap<HIRBlock, EconomicMap<BoxNode, Integer>> boxOrderByBlock = null;
         boxLoop: for (BoxNode box : graph.getNodes(BoxNode.TYPE)) {
             if (box.isAlive() && !isUnlinked(box) && !box.hasIdentity()) {
                 final ValueNode primitiveVal = box.getValue();
@@ -96,18 +100,17 @@ public class BoxNodeOptimizationPhase extends PostRunCanonicalizationPhase<CoreP
                             if (boxUsageOnBoxedValBlock.dominates(originalBoxBlock)) {
                                 if (boxUsageOnBoxedValBlock == originalBoxBlock) {
                                     // check dominance within one block
-                                    for (FixedNode f : boxUsageOnBoxedValBlock.getNodes()) {
-                                        if (f == boxUsageOnBoxedVal) {
-                                            // we found the usage first, it dominates "box"
-                                            break;
-                                        } else if (f == box) {
-                                            // they are within the same block but the
-                                            // usage block does not dominate the box
-                                            // block, that scenario will still be
-                                            // optimizable but for the usage block node
-                                            // later in the outer box loop
-                                            continue boxedValUsageLoop;
-                                        }
+                                    if (boxOrderByBlock == null) {
+                                        boxOrderByBlock = EconomicMap.create(Equivalence.IDENTITY);
+                                    }
+                                    if (!dominatesWithinBlock(boxUsageOnBoxedValBlock, boxUsageOnBoxedVal, box, boxOrderByBlock)) {
+                                        /*
+                                         * they are within the same block but the usage block does
+                                         * not dominate the box block, that scenario will still be
+                                         * optimizable but for the usage block node later in the
+                                         * outer box loop
+                                         */
+                                        continue boxedValUsageLoop;
                                     }
                                 }
                                 box.replaceAtUsages(boxUsageOnBoxedVal);
@@ -133,5 +136,30 @@ public class BoxNodeOptimizationPhase extends PostRunCanonicalizationPhase<CoreP
 
     private static boolean isUnlinked(BoxNode box) {
         return box.predecessor() == null;
+    }
+
+    private static boolean dominatesWithinBlock(HIRBlock block, BoxNode dominatorCandidate, BoxNode box,
+                    EconomicMap<HIRBlock, EconomicMap<BoxNode, Integer>> boxOrderByBlock) {
+        EconomicMap<BoxNode, Integer> boxOrder = boxOrderByBlock.get(block);
+        if (boxOrder == null) {
+            boxOrder = computeBoxOrder(block);
+            boxOrderByBlock.put(block, boxOrder);
+        }
+        Integer dominatorCandidateOrder = boxOrder.get(dominatorCandidate);
+        Integer boxOrderNumber = boxOrder.get(box);
+        assert dominatorCandidateOrder != null : dominatorCandidate;
+        assert boxOrderNumber != null : box;
+        return dominatorCandidateOrder < boxOrderNumber;
+    }
+
+    private static EconomicMap<BoxNode, Integer> computeBoxOrder(HIRBlock block) {
+        EconomicMap<BoxNode, Integer> boxOrder = EconomicMap.create(Equivalence.IDENTITY);
+        int order = 0;
+        for (FixedNode fixed : block.getNodes()) {
+            if (fixed instanceof BoxNode blockBox) {
+                boxOrder.put(blockBox, order++);
+            }
+        }
+        return boxOrder;
     }
 }
