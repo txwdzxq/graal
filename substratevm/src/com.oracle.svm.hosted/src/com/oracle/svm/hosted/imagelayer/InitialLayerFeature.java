@@ -86,6 +86,7 @@ public class InitialLayerFeature implements InternalFeature {
         metaAccess.lookupJavaType(UnmanagedMemory.class).registerAsReachable("Core type");
         metaAccess.lookupJavaType(VMThreads.OSThreadHandle.class).registerAsReachable("Core type");
         metaAccess.lookupJavaType(ReflectionUtil.lookupClass("com.oracle.svm.core.hub.DynamicHub$ClassRedefinedCountAccessors")).registerAsReachable("Core type");
+        metaAccess.lookupJavaType(ReflectionUtil.lookupClass("com.oracle.svm.core.hub.DynamicHub$EnumConstantsSupplier")).registerAsReachable("Core type");
         var pthread = ReflectionUtil.lookupClass(true, "com.oracle.svm.core.posix.headers.Pthread$pthread_t");
         if (pthread != null) {
             metaAccess.lookupJavaType(pthread).registerAsReachable("Core type");
