@@ -814,6 +814,11 @@ public class BinaryParser extends BinaryStreamParser {
                          * stack, we prematurely exit the loop and let the following code size check
                          * (in readCodeSection) throw an exception.
                          */
+                        if (offsetToLineIndexMap != null) {
+                            // Make sure we exit the current statement before leaving the function
+                            bytecode.addNotify(-1, -1);
+                        }
+                        bytecode.addOp(Bytecode.RETURN);
                         break end;
                     }
                     break;
