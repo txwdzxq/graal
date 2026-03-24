@@ -912,17 +912,40 @@ public final class NativeImageClassLoaderSupport {
                 }, 5, 1, TimeUnit.MINUTES);
 
                 var requiresInit = EconomicSet.create(List.of(
+                                /*
+                                 * The -H:Preserve=package=... suboption can request core java.base
+                                 * packages; for example, -H:Preserve=package=sun.invoke.util would
+                                 * not work without initializing this module here.
+                                 */
                                 "java.base",
-                                "jdk.internal.vm.ci",
+                                /*
+                                 * Ensure generated @NodeIntrinsic plugins from jdk.graal.compiler
+                                 * are eagerly registered before analysis starts parsing code that
+                                 * uses them, e.g. BranchProbabilityNode.probability(...) and
+                                 * UnreachableNode.unreachable().
+                                 */
                                 "jdk.graal.compiler",
+                                /*
+                                 * Ensure enterprise nodes, snippets, and lowering code are eagerly
+                                 * available before image compilation reaches them, e.g. EE
+                                 * CopyOfSnippets / CopyOfNode lowering.
+                                 */
                                 "com.oracle.graal.graal_enterprise",
+                                /*
+                                 * Word and C interface types such as WordPointer and CCharPointer
+                                 * must be available during analysis for native-image hosted
+                                 * intrinsics.
+                                 */
                                 "org.graalvm.nativeimage",
-                                "org.graalvm.truffle",
-                                "org.graalvm.truffle.runtime",
-                                "org.graalvm.truffle.compiler",
-                                "com.oracle.truffle.enterprise",
-                                "org.graalvm.jniutils",
-                                "org.graalvm.nativebridge"));
+                                /*
+                                 * libjvmcicompiler analysis reaches JNIUtil and needs the
+                                 * org.graalvm.jniutils word-based JNI interfaces eagerly available.
+                                 * A cleaner fix would package jniutils only for image builds that
+                                 * need it, but that is blocked by the currently built-in
+                                 * org.graalvm.truffle.runtime module depending on
+                                 * org.graalvm.jniutils. Defer that packaging cleanup to GR-74275.
+                                 */
+                                "org.graalvm.jniutils"));
 
                 Set<String> additionalSystemModules = upgradeAndSystemModuleFinder.findAll().stream()
                                 .map(v -> v.descriptor().name())
