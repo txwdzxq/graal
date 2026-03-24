@@ -52,7 +52,9 @@ import jdk.graal.compiler.nodes.spi.Canonicalizable;
 import jdk.graal.compiler.nodes.spi.CanonicalizerTool;
 import jdk.graal.compiler.nodes.spi.CoreProviders;
 import jdk.graal.compiler.vector.architecture.VectorArchitecture;
+import jdk.graal.compiler.vector.nodes.simd.SimdConcatNode;
 import jdk.graal.compiler.vector.nodes.simd.SimdConstant;
+import jdk.graal.compiler.vector.nodes.simd.SimdCutNode;
 import jdk.graal.compiler.vector.nodes.simd.SimdStamp;
 import jdk.graal.compiler.vector.replacements.vectorapi.VectorAPIOperations;
 import jdk.vm.ci.meta.JavaConstant;
@@ -195,22 +197,21 @@ public class VectorAPIBroadcastIntNode extends VectorAPIMacroNode implements Can
         boolean supportedDirectly = vectorArch.getSupportedVectorShiftWithScalarCount(elementStamp, vectorLength, op) == vectorLength;
         if (supportedDirectly) {
             return true;
-        } else {
-            /*
-             * Special case for byte shifts on AMD64: See if we can extend to shorts, shift, and
-             * narrow back to bytes. Not relevant for AArch64, which has native byte shifts and
-             * takes the "supportedDirectly" path above.
-             */
-            if (PrimitiveStamp.getBits(elementStamp) == Byte.SIZE) {
-                IntegerStamp byteStamp = (IntegerStamp) elementStamp;
-                IntegerStamp shortStamp = StampFactory.forInteger(Short.SIZE);
-                ArithmeticOpTable.IntegerConvertOp<?> extend = (op.equals(byteStamp.getOps().getUShr()) ? byteStamp.getOps().getZeroExtend() : byteStamp.getOps().getSignExtend());
-                return vectorArch.getSupportedVectorConvertLength(shortStamp, byteStamp, vectorLength, extend) == vectorLength &&
-                                vectorArch.getSupportedVectorShiftWithScalarCount(shortStamp, vectorLength, op) == vectorLength &&
-                                vectorArch.getSupportedVectorConvertLength(byteStamp, shortStamp, vectorLength, shortStamp.getOps().getNarrow()) == vectorLength;
-            }
+        }
+        /*
+         * Special case for byte shifts on backends without direct full-width byte shift support:
+         * first try widen->shift->narrow for the full vector, then fall back to doing the same
+         * transform on two half vectors and concatenating the result. AArch64 typically takes the
+         * direct path above because it has native byte shifts.
+         */
+        if (PrimitiveStamp.getBits(elementStamp) != Byte.SIZE) {
             return false;
         }
+        IntegerStamp byteStamp = (IntegerStamp) elementStamp;
+        if (canExpandByteShiftViaWidening(vectorArch, byteStamp, vectorLength)) {
+            return true;
+        }
+        return canExpandByteShiftViaLaneSplit(vectorArch, byteStamp, vectorLength);
     }
 
     @Override
@@ -225,15 +226,53 @@ public class VectorAPIBroadcastIntNode extends VectorAPIMacroNode implements Can
         boolean supportedDirectly = vectorArch.getSupportedVectorShiftWithScalarCount(elementStamp, vectorLength, op) == vectorLength;
         if (supportedDirectly) {
             return ShiftNode.shiftOp(value, shiftAmount, NodeView.DEFAULT, op);
-        } else {
-            GraalError.guarantee(PrimitiveStamp.getBits(elementStamp) == Byte.SIZE, "unexpected stamp: %s", elementStamp);
-            IntegerStamp byteStamp = (IntegerStamp) elementStamp;
-            ValueNode extendedVector = (op.equals(byteStamp.getOps().getUShr())
-                            ? ZeroExtendNode.create(value, Byte.SIZE, Short.SIZE, NodeView.DEFAULT)
-                            : SignExtendNode.create(value, Byte.SIZE, Short.SIZE, NodeView.DEFAULT));
-            ValueNode shiftedVector = ShiftNode.shiftOp(extendedVector, shiftAmount, NodeView.DEFAULT, op);
-            ValueNode narrowedVector = NarrowNode.create(shiftedVector, Short.SIZE, Byte.SIZE, NodeView.DEFAULT);
-            return narrowedVector;
         }
+        GraalError.guarantee(PrimitiveStamp.getBits(elementStamp) == Byte.SIZE, "unexpected stamp: %s", elementStamp);
+        IntegerStamp byteStamp = (IntegerStamp) elementStamp;
+        if (canExpandByteShiftViaWidening(vectorArch, byteStamp, vectorLength)) {
+            return emitByteShiftViaWidening(value, shiftAmount, byteStamp);
+        }
+        if (canExpandByteShiftViaLaneSplit(vectorArch, byteStamp, vectorLength)) {
+            return emitByteShiftViaLaneSplit(value, shiftAmount, byteStamp, vectorLength);
+        }
+        throw GraalError.shouldNotReachHere("byte vector shift cannot be expanded");
+    }
+
+    private boolean canExpandByteShiftViaWidening(VectorArchitecture vectorArch, IntegerStamp byteStamp, int vectorLength) {
+        IntegerStamp shortStamp = StampFactory.forInteger(Short.SIZE);
+        ArithmeticOpTable.IntegerConvertOp<?> extend = (op.equals(byteStamp.getOps().getUShr()) ? byteStamp.getOps().getZeroExtend() : byteStamp.getOps().getSignExtend());
+        return vectorArch.getSupportedVectorConvertLength(shortStamp, byteStamp, vectorLength, extend) == vectorLength &&
+                        vectorArch.getSupportedVectorShiftWithScalarCount(shortStamp, vectorLength, op) == vectorLength &&
+                        vectorArch.getSupportedVectorConvertLength(byteStamp, shortStamp, vectorLength, shortStamp.getOps().getNarrow()) == vectorLength;
+    }
+
+    private ValueNode emitByteShiftViaWidening(ValueNode value, ValueNode shiftAmount, IntegerStamp byteStamp) {
+        ValueNode extendedVector = (op.equals(byteStamp.getOps().getUShr())
+                        ? ZeroExtendNode.create(value, Byte.SIZE, Short.SIZE, NodeView.DEFAULT)
+                        : SignExtendNode.create(value, Byte.SIZE, Short.SIZE, NodeView.DEFAULT));
+        ValueNode shiftedVector = ShiftNode.shiftOp(extendedVector, shiftAmount, NodeView.DEFAULT, op);
+        return NarrowNode.create(shiftedVector, Short.SIZE, Byte.SIZE, NodeView.DEFAULT);
+    }
+
+    private boolean canExpandByteShiftViaLaneSplit(VectorArchitecture vectorArch, IntegerStamp byteStamp, int vectorLength) {
+        if (vectorLength <= 1 || (vectorLength & 1) != 0) {
+            return false;
+        }
+        int halfLength = vectorLength / 2;
+        IntegerStamp shortStamp = StampFactory.forInteger(Short.SIZE);
+        ArithmeticOpTable.IntegerConvertOp<?> extend = (op.equals(byteStamp.getOps().getUShr()) ? byteStamp.getOps().getZeroExtend() : byteStamp.getOps().getSignExtend());
+        return vectorArch.supportsVectorConcat(halfLength * Byte.BYTES) &&
+                        vectorArch.getSupportedVectorConvertLength(shortStamp, byteStamp, halfLength, extend) == halfLength &&
+                        vectorArch.getSupportedVectorShiftWithScalarCount(shortStamp, halfLength, op) == halfLength &&
+                        vectorArch.getSupportedVectorConvertLength(byteStamp, shortStamp, halfLength, shortStamp.getOps().getNarrow()) == halfLength;
+    }
+
+    private ValueNode emitByteShiftViaLaneSplit(ValueNode value, ValueNode shiftAmount, IntegerStamp byteStamp, int vectorLength) {
+        int halfLength = vectorLength / 2;
+        ValueNode lowBytes = new SimdCutNode(value, 0, halfLength);
+        ValueNode highBytes = new SimdCutNode(value, halfLength, halfLength);
+        ValueNode lowShifted = emitByteShiftViaWidening(lowBytes, shiftAmount, byteStamp);
+        ValueNode highShifted = emitByteShiftViaWidening(highBytes, shiftAmount, byteStamp);
+        return new SimdConcatNode(lowShifted, highShifted);
     }
 }
