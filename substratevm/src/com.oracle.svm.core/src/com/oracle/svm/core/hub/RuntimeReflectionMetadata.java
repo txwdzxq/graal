@@ -184,6 +184,12 @@ public final class RuntimeReflectionMetadata implements ReflectionMetadata {
     }
 
     @Override
+    public RuntimeDynamicAccessMetadata getDynamicAccessMetadata(DynamicHub dynamicHub, int layerNum) {
+        /* Class queries are always allowed for runtime created classes */
+        throw VMError.intentionallyUnimplemented();
+    }
+
+    @Override
     public RuntimeDynamicAccessMetadata getUnsafeAllocationMetadata(DynamicHub dynamicHub, int layerNum) {
         /* Unsafe allocation is always allowed for runtime created classes */
         throw VMError.intentionallyUnimplemented();

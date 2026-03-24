@@ -53,5 +53,7 @@ interface ReflectionMetadata {
 
     RecordComponent[] getRecordComponents(DynamicHub dynamicHub, int layerNum);
 
+    RuntimeDynamicAccessMetadata getDynamicAccessMetadata(DynamicHub dynamicHub, int layerNum);
+
     RuntimeDynamicAccessMetadata getUnsafeAllocationMetadata(DynamicHub dynamicHub, int layerNum);
 }

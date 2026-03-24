@@ -71,11 +71,9 @@ import com.oracle.svm.core.BuildArtifacts.ArtifactType;
 import com.oracle.svm.core.RuntimeAssertionsSupport;
 import com.oracle.svm.core.SubstrateGCOptions;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.core.VM;
 import com.oracle.svm.core.configure.ConditionalRuntimeValue;
 import com.oracle.svm.core.heap.Heap;
-import com.oracle.svm.core.hub.ClassForNameSupport;
 import com.oracle.svm.core.jdk.Resources;
 import com.oracle.svm.core.jdk.resources.ResourceStorageEntryBase;
 import com.oracle.svm.core.option.RuntimeOptionKey;
@@ -107,6 +105,7 @@ import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.util.LogUtils;
+import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.ImageBuildStatistics;
 import com.sun.management.OperatingSystemMXBean;
@@ -504,8 +503,8 @@ public class ProgressReporter {
         recordJsonMetric(AnalysisResults.METHOD_REACHABLE, reachableMethods);
         l().a(typesFieldsMethodFormat, reachableTypes, reachableFields, reachableMethods)
                         .doclink("found reachable", "#glossary-reachability").println();
-        int reflectClassesCount = ClassForNameSupport.currentLayer().count();
         ReflectionHostedSupport rs = ImageSingletons.lookup(ReflectionHostedSupport.class);
+        int reflectClassesCount = rs.getReflectionClassesCount();
         int reflectFieldsCount = rs.getReflectionFieldsCount();
         int reflectMethodsCount = rs.getReflectionMethodsCount();
         recordJsonMetric(AnalysisResults.METHOD_REFLECT, reflectMethodsCount);

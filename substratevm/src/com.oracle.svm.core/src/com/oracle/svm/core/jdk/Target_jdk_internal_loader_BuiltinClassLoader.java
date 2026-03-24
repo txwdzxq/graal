@@ -36,15 +36,15 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.graalvm.nativeimage.hosted.FieldValueTransformer;
 
-import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.core.annotate.Alias;
 import com.oracle.svm.core.annotate.RecomputeFieldValue;
 import com.oracle.svm.core.annotate.RecomputeFieldValue.Kind;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
 import com.oracle.svm.core.annotate.TargetElement;
-import com.oracle.svm.core.hub.ClassForNameSupport;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
+import com.oracle.svm.core.hub.registry.ClassRegistries;
+import com.oracle.svm.shared.util.SubstrateUtil;
 
 @TargetClass(value = jdk.internal.loader.BuiltinClassLoader.class)
 @SuppressWarnings({"unused", "static-method"})
@@ -54,13 +54,13 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
     private Map<ModuleReference, ModuleReader> moduleToReader;
 
     @Substitute
-    @TargetElement(onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
+    @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
     protected Class<?> findClass(String name) throws ClassNotFoundException {
         throw new ClassNotFoundException(name);
     }
 
     @Substitute
-    @TargetElement(onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
+    @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
     protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
         Target_java_lang_ClassLoader self = SubstrateUtil.cast(this, Target_java_lang_ClassLoader.class);
         Class<?> clazz = self.findLoadedClass(name);
@@ -71,7 +71,7 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
     }
 
     @Substitute
-    @TargetElement(onlyWith = ClassForNameSupport.IgnoresClassLoader.class)
+    @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
     protected Class<?> defineClass(String cn, Target_jdk_internal_loader_BuiltinClassLoader_LoadedModule loadedModule) {
         /*
          * Avoid dragging in logging & formatting code through
@@ -93,7 +93,7 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
 
     @Substitute
     public URL findResource(String name) {
-        if (ClassForNameSupport.respectClassLoader() && this != Target_jdk_internal_loader_ClassLoaders.bootLoader()) {
+        if (ClassRegistries.respectClassLoader() && this != Target_jdk_internal_loader_ClassLoaders.bootLoader()) {
             /* Workaround for GR-73221 */
             return null;
         }
@@ -102,7 +102,7 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
 
     @Substitute
     public Enumeration<URL> findResources(String name) {
-        if (ClassForNameSupport.respectClassLoader() && this != Target_jdk_internal_loader_ClassLoaders.bootLoader()) {
+        if (ClassRegistries.respectClassLoader() && this != Target_jdk_internal_loader_ClassLoaders.bootLoader()) {
             /* Workaround for GR-73221 */
             return null;
         }
@@ -122,7 +122,7 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
 
     @Substitute
     private URL findResourceOnClassPath(String name) {
-        if (ClassForNameSupport.respectClassLoader() && this != Target_jdk_internal_loader_ClassLoaders.bootLoader()) {
+        if (ClassRegistries.respectClassLoader() && this != Target_jdk_internal_loader_ClassLoaders.bootLoader()) {
             /* Workaround for GR-73221 */
             return null;
         }
@@ -131,7 +131,7 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
 
     @Substitute
     private Enumeration<URL> findResourcesOnClassPath(String name) {
-        if (ClassForNameSupport.respectClassLoader() && this != Target_jdk_internal_loader_ClassLoaders.bootLoader()) {
+        if (ClassRegistries.respectClassLoader() && this != Target_jdk_internal_loader_ClassLoaders.bootLoader()) {
             /* Workaround for GR-73221 */
             return null;
         }

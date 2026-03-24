@@ -31,7 +31,6 @@ import org.graalvm.nativeimage.hosted.Feature;
 
 import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
-import com.oracle.svm.core.hub.ClassForNameSupport;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.core.hub.registry.ClassRegistries;
 import com.oracle.svm.hosted.ClassLoaderFeature;
@@ -44,10 +43,6 @@ import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 @AutomaticallyRegisteredFeature
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
 public class ClassRegistryFeature implements InternalFeature {
-    @Override
-    public boolean isInConfiguration(IsInConfigurationAccess access) {
-        return ClassForNameSupport.respectClassLoader();
-    }
 
     @Override
     public List<Class<? extends Feature>> getRequiredFeatures() {
@@ -71,7 +66,7 @@ public class ClassRegistryFeature implements InternalFeature {
         if (cls.isArray() || cls.isHidden()) {
             return;
         }
-        if (RuntimeClassLoading.isSupported() || ClassForNameSupport.isCurrentLayerRegisteredClass(cls.getName())) {
+        if (RuntimeClassLoading.isSupported()) {
             ClassRegistries.addAOTClass(ClassLoaderFeature.getRuntimeClassLoader(cls.getClassLoader()), cls);
         }
     }

@@ -45,7 +45,6 @@ import com.oracle.svm.core.classinitialization.EnsureClassInitializedNode;
 import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.graal.meta.KnownOffsets;
 import com.oracle.svm.core.graal.snippets.OpenTypeWorldDispatchTableSnippets;
-import com.oracle.svm.core.hub.ClassForNameSupport;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.DynamicHubUtils;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
@@ -881,7 +880,7 @@ public final class InterpreterToVM {
                 }
             } else {
                 source = "AOT";
-                if (!ClassForNameSupport.isPreserved(target.getDeclaringClass().getJavaClass())) {
+                if (!DynamicHub.fromClass(target.getDeclaringClass().getJavaClass()).isPreserved()) {
                     String dotPkg = target.getDeclaringClass().getSymbolicRuntimePackage().toString().replace('/', '.');
                     reason = MetadataUtil.fmt("Class was not preserved during image build. Consider using '-H:Preserve=package=%s'.", dotPkg);
                 }

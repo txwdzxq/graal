@@ -285,7 +285,7 @@ public final class PredefinedClassesSupport {
         throw error;
     }
 
-    static Class<?> getLoadedForNameOrNull(String name, ClassLoader classLoader) {
+    public static Class<?> getLoadedForNameOrNull(String name, ClassLoader classLoader) {
         Class<?> clazz = singleton().getLoaded(name);
         if (clazz == null || !ClassUtil.isSameOrParentLoader(clazz.getClassLoader(), classLoader)) {
             return null;

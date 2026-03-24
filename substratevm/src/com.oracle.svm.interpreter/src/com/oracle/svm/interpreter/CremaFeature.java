@@ -43,9 +43,9 @@ import com.oracle.graal.pointsto.meta.AnalysisType;
 import com.oracle.graal.pointsto.meta.AnalysisUniverse;
 import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
-import com.oracle.svm.core.hub.ClassForNameSupport;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.core.hub.crema.CremaSupport;
+import com.oracle.svm.core.hub.registry.ClassRegistries;
 import com.oracle.svm.core.meta.MethodPointer;
 import com.oracle.svm.hosted.FeatureImpl;
 import com.oracle.svm.hosted.meta.HostedField;
@@ -61,9 +61,9 @@ import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
+import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.JVMCIReflectionUtil;
-import com.oracle.svm.shared.util.ReflectionUtil;
 
 /**
  * In this mode the interpreter is used to execute previously (= image build-time) unknown methods,
@@ -90,7 +90,7 @@ public class CremaFeature implements InternalFeature {
     @Override
     public void afterRegistration(AfterRegistrationAccess access) {
         ImageSingletons.add(CremaSupport.class, new CremaSupportImpl());
-        VMError.guarantee(!RuntimeClassLoading.isSupported() || ClassForNameSupport.respectClassLoader());
+        VMError.guarantee(!RuntimeClassLoading.isSupported() || ClassRegistries.respectClassLoader());
     }
 
     @Override
