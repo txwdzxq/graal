@@ -77,7 +77,16 @@ from mx_jardistribution import JARDistribution
 
 _polybench_language_registry: Dict[str, "PolybenchLanguageEntry"] = {}
 _polybench_benchmark_suite_registry: Dict[str, "PolybenchBenchmarkSuiteEntry"] = {}
-_validation_complete = False
+
+
+@dataclasses.dataclass
+class _PolybenchRegistrationState:
+    """Mutable module state used to guard against late polybench registrations."""
+
+    validation_complete: bool = False
+
+
+_registration_state = _PolybenchRegistrationState()
 
 
 def validate_polybench_registrations():
@@ -110,13 +119,11 @@ def validate_polybench_registrations():
                 )
             _polybench_benchmark_suite_registry.pop(suite_name)
 
-    global _validation_complete
-    _validation_complete = True
+    _registration_state.validation_complete = True
 
 
 def check_late_registration(component: str):
-    global _validation_complete
-    if _validation_complete:
+    if _registration_state.validation_complete:
         mx.abort(
             f"{component} was registered late. "
             "Registration must occur when the mx suite is loaded so that Polybench can perform necessary validations. "
@@ -282,7 +289,7 @@ class SuiteStableRunConfig:
     """Interface for a PolyBench Stable-Run Configuration file."""
 
     def __init__(self, file_path: Path):
-        with open(file_path) as f:
+        with open(file_path, encoding="utf-8") as f:
             self._dict: dict = json.load(f)
 
     def get_benchmark(self, bench_name: str) -> "BenchmarkStableRunConfig":
@@ -447,7 +454,7 @@ class StabilizingPolybenchBenchmarkDispatcher(mx_benchmark.DefaultBenchmarkDispa
         self._verify_no_conflicting_args_are_set()
         benchmarks = self._parse_benchmark_list()
         if len(benchmarks) == 0:
-            raise ValueError(f"No benchmarks selected!")
+            raise ValueError("No benchmarks selected!")
         self._verify_stable_run_config(benchmarks)
         # Dry-run of the sub-generator to get the number of dispatches (yields) and present the schedule to stdout
         mx.log(f"{self.__class__.__name__} will dispatch the following schedule:")
@@ -475,7 +482,7 @@ class StabilizingPolybenchBenchmarkDispatcher(mx_benchmark.DefaultBenchmarkDispa
         * Second, it iterates over each benchmark which requires to be run in the current benchmark batch.
         """
         dispatch_counter = 0
-        number_of_batches = max([self._stable_run_config.get_benchmark(bench).forks for bench in benchmarks])
+        number_of_batches = max(self._stable_run_config.get_benchmark(bench).forks for bench in benchmarks)
         for batch_index in range(number_of_batches):
             if dry_run:
                 mx.log(f" * Bench batch #{batch_index + 1}")
@@ -509,7 +516,7 @@ class StabilizingPolybenchBenchmarkDispatcher(mx_benchmark.DefaultBenchmarkDispa
             raise ValueError(msg)
 
     def _parse_benchmark_list(self) -> List[str]:
-        if any([sublist is None for sublist in self.state.bench_names_list]):
+        if any(sublist is None for sublist in self.state.bench_names_list):
             raise ValueError(f"The {self.__class__.__name__} dispatcher cannot dispatch without specified benchmarks!")
         benchmarks = [bench for sublist in self.state.bench_names_list for bench in sublist]
         seen = set()
@@ -546,7 +553,7 @@ class StabilizingPolybenchBenchmarkDispatcher(mx_benchmark.DefaultBenchmarkDispa
         return ["run-forks"]
 
     def _init_fork_number_dict(self, benchmarks) -> Dict[str, int]:
-        return {benchmark: 0 for benchmark in benchmarks}
+        return dict.fromkeys(benchmarks, 0)
 
 
 class StabilizingPolybenchNativeImageBenchmarkDispatcher(StabilizingPolybenchBenchmarkDispatcher):
@@ -678,7 +685,7 @@ class StabilizingPolybenchNativeImageBenchmarkDispatcher(StabilizingPolybenchBen
         * Third, it iterates over each benchmark which requires to be run in the current benchmark batch.
           This loop is implemented in the `dispatch_batch` method.
         """
-        build_count = max([self._stable_run_config.get_benchmark(bench).builds for bench in benchmarks])
+        build_count = max(self._stable_run_config.get_benchmark(bench).builds for bench in benchmarks)
         self._dispatch_counter = 0
         with ConstantContextValueManager(PolybenchBenchmarkSuite.PGO_PROFILES, []):
             for build_index in range(build_count):
@@ -928,8 +935,12 @@ class NonNativeImageBenchmarkSummaryPostProcessor(FinalDispatchFinalStageAverage
     """
 
     def __init__(self, suite: "PolybenchBenchmarkSuite"):
-        selector_fn = lambda dp: dp["metric.name"] == "avg-time" and dp["metric.object"] == "fork"
-        key_fn = lambda dp: dp["benchmark"]
+        def selector_fn(dp):
+            return dp["metric.name"] == "avg-time" and dp["metric.object"] == "fork"
+
+        def key_fn(dp):
+            return dp["benchmark"]
+
         field = "metric.value"
 
         def update_fn(dp):
@@ -956,8 +967,12 @@ class NativeModeBuildSummaryPostProcessor(FinalDispatchFinalStageAverageWithOutl
     """
 
     def __init__(self, suite: "PolybenchBenchmarkSuite"):
-        selector_fn = lambda dp: dp["metric.name"] == "avg-time" and dp["metric.object"] == "fork"
-        key_fn = lambda dp: (dp["benchmark"], dp["native-image.stage"], dp["native-image.rebuild-number"])
+        def selector_fn(dp):
+            return dp["metric.name"] == "avg-time" and dp["metric.object"] == "fork"
+
+        def key_fn(dp):
+            return (dp["benchmark"], dp["native-image.stage"], dp["native-image.rebuild-number"])
+
         field = "metric.value"
 
         def update_fn(dp):
@@ -984,8 +999,12 @@ class NativeModeBenchmarkSummaryPostProcessor(FinalDispatchFinalStageAverageWith
     """
 
     def __init__(self, suite: "PolybenchBenchmarkSuite"):
-        selector_fn = lambda dp: dp["metric.name"] == "avg-time" and dp["metric.object"] == "build"
-        key_fn = lambda dp: (dp["benchmark"], dp["native-image.stage"])
+        def selector_fn(dp):
+            return dp["metric.name"] == "avg-time" and dp["metric.object"] == "build"
+
+        def key_fn(dp):
+            return (dp["benchmark"], dp["native-image.stage"])
+
         field = "metric.value"
 
         def update_fn(dp):
@@ -1077,7 +1096,7 @@ class ContextResetPostProcessor(DataPointsPostProcessor):
             not bm_exec_context().get(PolybenchBenchmarkSuite.CONSUMED)
             and not self._suite.polybench_bench_suite_args(bm_exec_context().get("bm_suite_args")).dry_stable_run
         ):
-            msg = f"Failed to produce the aggregate benchmark datapoints! This should have happened in the final fork!"
+            msg = "Failed to produce the aggregate benchmark datapoints! This should have happened in the final fork!"
             raise ValueError(msg)
         bm_exec_context().update(PolybenchBenchmarkSuite.CONSUMED, False)
         bm_exec_context().update(PolybenchBenchmarkSuite.DATAPOINTS, [])
@@ -1099,10 +1118,10 @@ class CurrentImageManager(ConstantContextValueManager):
     def __enter__(self):
         try:
             super().__enter__()
-        except ValueError:
+        except ValueError as exc:
             existing_entry = bm_exec_context().get(self._name).executable_name()
             msg = f"Tried to set current image to {self._value.executable_name()}, but there is already a current image ({existing_entry})."
-            raise ValueError(msg)
+            raise ValueError(msg) from exc
 
 
 class PolybenchImageCacheEntry(NamedTuple):
@@ -1681,12 +1700,12 @@ class ExcludeWarmupRule(mx_benchmark.StdOutRule):
 
     def __init__(self, *args, **kwargs):
         self.startPattern = re.compile(kwargs.pop("startPattern"))
-        super(ExcludeWarmupRule, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
 
     def parse(self, text) -> Iterable[DataPoint]:
         m = self.startPattern.search(text)
         if m:
-            return super(ExcludeWarmupRule, self).parse(text[m.end() + 1 :])
+            return super().parse(text[m.end() + 1 :])
         else:
             return []
 
