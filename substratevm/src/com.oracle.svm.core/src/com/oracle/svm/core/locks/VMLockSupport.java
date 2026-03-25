@@ -43,6 +43,7 @@ import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
+import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.api.replacements.Fold;
 
@@ -125,27 +126,21 @@ public abstract class VMLockSupport {
 
     /**
      * Destroys all {@link VMMutex}, {@link VMCondition}, and {@link VMSemaphore} objects.
-     *
-     * @return {@code true} if the destruction was successful, {@code false} if an error occurred.
      */
     @Uninterruptible(reason = "The isolate teardown is in progress.")
-    public final boolean destroy() {
+    public final void destroy() {
         for (int i = 0; i < semaphores.size(); i++) {
-            if (semaphores.get(i).destroy() != 0) {
-                return false;
-            }
+            int code = semaphores.get(i).destroy();
+            VMError.guarantee(code == 0, "VMSemaphore.destroy() failed.");
         }
         for (int i = 0; i < conditions.size(); i++) {
-            if (conditions.get(i).destroy() != 0) {
-                return false;
-            }
+            int code = conditions.get(i).destroy();
+            VMError.guarantee(code == 0, "VMCondition.destroy() failed.");
         }
         for (int i = 0; i < mutexes.size(); i++) {
-            if (mutexes.get(i).destroy() != 0) {
-                return false;
-            }
+            int code = mutexes.get(i).destroy();
+            VMError.guarantee(code == 0, "VMMutex.destroy() failed.");
         }
-        return true;
     }
 
     public static class DumpVMMutexes extends DiagnosticThunk {

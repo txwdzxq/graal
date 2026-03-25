@@ -22,27 +22,25 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.guest.staging;
+package com.oracle.svm.core.jfr;
 
-import com.oracle.svm.shared.meta.GuestFold;
+import org.graalvm.nativeimage.Platform;
+import org.graalvm.nativeimage.Platform.DARWIN;
+import org.graalvm.nativeimage.Platform.LINUX;
+
+import com.oracle.svm.core.util.UserError;
 import com.oracle.svm.shared.option.HostedOptionKey;
 
 import jdk.graal.compiler.options.Option;
 
-public final class SubstrateGuestOptions {
+public class JfrOptions {
+    @Option(help = "Determines if a signal handler is used for execution sampling.")//
+    public static final HostedOptionKey<Boolean> SignalHandlerBasedExecutionSampler = new HostedOptionKey<>(false, JfrOptions::validateSamplerOption);
 
-    @Option(help = "Initialize the VM and run startup hooks.")//
-    public static final HostedOptionKey<Boolean> InitializeVM = new HostedOptionKey<>(true);
-
-    /**
-     * Determines if the installation of important signal handlers should be tried during early
-     * isolate startup.
-     */
-    @GuestFold
-    public static boolean installSignalHandlersEarly() {
-        return InitializeVM.getValue();
-    }
-
-    private SubstrateGuestOptions() {
+    private static void validateSamplerOption(HostedOptionKey<Boolean> option) {
+        boolean isPlatformSupported = Platform.includedIn(LINUX.class) || Platform.includedIn(DARWIN.class);
+        if (option.getValue() && !isPlatformSupported) {
+            UserError.invalidOptionValue(option, option.getValue(), "The signal handler-based sampler is not supported on this platform.");
+        }
     }
 }

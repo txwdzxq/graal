@@ -59,7 +59,8 @@ class WindowsSubstrateSegfaultHandler extends SubstrateSegfaultHandler {
     private static final int EX_EXECUTE = 8;
 
     @Override
-    public void install() {
+    @Uninterruptible(reason = "Signal handlers can be installed during early isolate startup before thread state is set up.")
+    protected void install0() {
         /*
          * Normally we would use SEH (Structured Exception Handling) for this. However, in order for
          * SEH to work, the OS must be able to perform stack walking. On x64, this requires the

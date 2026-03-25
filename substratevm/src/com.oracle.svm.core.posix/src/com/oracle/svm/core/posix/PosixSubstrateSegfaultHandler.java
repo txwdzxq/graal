@@ -94,7 +94,8 @@ class PosixSubstrateSegfaultHandler extends SubstrateSegfaultHandler {
     }
 
     @Override
-    public void install() {
+    @Uninterruptible(reason = "Signal handlers can be installed during early isolate startup before thread state is set up.")
+    protected void install0() {
         boolean isSignalHandlingAllowed = SubstrateOptions.isSignalHandlingAllowed();
         PosixSignalHandlerSupport.installNativeSignalHandler(Signal.SignalEnum.SIGSEGV, SIGNAL_HANDLER.getFunctionPointer(), Signal.SA_NODEFER(), isSignalHandlingAllowed);
         PosixSignalHandlerSupport.installNativeSignalHandler(Signal.SignalEnum.SIGBUS, SIGNAL_HANDLER.getFunctionPointer(), Signal.SA_NODEFER(), isSignalHandlingAllowed);

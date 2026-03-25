@@ -380,7 +380,7 @@ class LanguageLibraryProject(NativeImageLibraryProject):
         build_args += [
             '-R:+EnableSignalHandling',
             '-R:+InstallSegfaultHandler',
-        ] + mx_sdk_vm_impl.svm_experimental_options(['-H:+InstallExitHandlers'])
+        ] + mx_sdk_vm_impl.svm_experimental_options(['-H:-InitializeVM', '-H:+InstallExitHandlers'])
 
         # Monitoring flags
         if get_bootstrap_graalvm_version() >= mx.VersionSpec("24.0"):
