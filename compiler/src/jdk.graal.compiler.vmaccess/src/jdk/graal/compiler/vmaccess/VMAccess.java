@@ -33,6 +33,7 @@ import java.util.stream.Stream;
 import jdk.graal.compiler.phases.util.Providers;
 import jdk.vm.ci.meta.Constant;
 import jdk.vm.ci.meta.JavaConstant;
+import jdk.vm.ci.meta.JavaKind;
 import jdk.vm.ci.meta.ResolvedJavaField;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
@@ -146,6 +147,17 @@ public interface VMAccess {
      *             {@code componentType}
      */
     JavaConstant asArrayConstant(ResolvedJavaType componentType, JavaConstant... elements);
+
+    /**
+     * Creates a new primitive array of {@code kind} and {@code length}.
+     *
+     * @param kind primitive element kind for the array
+     * @param length array length
+     * @return the created primitive array as a {@link JavaConstant}
+     * @throws IllegalArgumentException if {@code kind} is not a non-void primitive kind
+     * @throws NegativeArraySizeException if {@code length} is negative
+     */
+    JavaConstant createPrimitiveArray(JavaKind kind, int length);
 
     /**
      * Writes {@code element} into {@code array} at {@code index}.
@@ -277,6 +289,22 @@ public interface VMAccess {
      *             offsets are invalid
      */
     void copyMemory(JavaConstant src, int srcFrom, int srcTo, byte[] dst, int dstFrom);
+
+    /**
+     * Reads an unaligned primitive value from {@code array}.
+     * <p>
+     * The read starts at {@code offset} bytes from the start of the first array element (that is,
+     * not from the start of the array object) and decodes the result as {@code kind} using native
+     * endianness.
+     *
+     * @param array a {@link JavaConstant} representing a primitive array
+     * @param kind primitive kind to decode from the read bytes
+     * @param offset byte offset from the start of the first array element
+     * @return a {@link JavaConstant} of kind {@code kind}
+     * @throws IllegalArgumentException if {@code array} does not represent a primitive array, if
+     *             {@code kind} is not a primitive kind, or if {@code offset} is invalid
+     */
+    JavaConstant readPrimitiveArrayUnaligned(JavaConstant array, JavaKind kind, int offset);
 
     /**
      * Returns a value that implements the {@code guestType} interface by calling back to

@@ -28,6 +28,7 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.ByteOrder;
 import java.security.CodeSource;
 import java.security.ProtectionDomain;
 import java.util.Objects;
@@ -551,6 +552,18 @@ final class EspressoExternalVMAccess implements VMAccess {
     }
 
     @Override
+    public JavaConstant createPrimitiveArray(JavaKind kind, int length) {
+        if (kind == null || !kind.isPrimitive() || kind == JavaKind.Void) {
+            throw new IllegalArgumentException("Expected a non-void primitive kind, got " + kind);
+        }
+        if (length < 0) {
+            throw new NegativeArraySizeException("Negative array size: " + length);
+        }
+        Value array = invokeJVMCIHelper("newPrimitiveArray", (int) kind.getTypeChar(), 1, length);
+        return new EspressoExternalObjectConstant(this, array);
+    }
+
+    @Override
     public void writeArrayElement(JavaConstant array, int index, JavaConstant element) {
         if (!(array instanceof EspressoExternalObjectConstant espressoArray)) {
             throw new IllegalArgumentException("Expected an EspressoExternalObjectConstant, got " + safeGetClass(array));
@@ -911,6 +924,41 @@ final class EspressoExternalVMAccess implements VMAccess {
         } catch (IndexOutOfBoundsException e) {
             throw new IllegalArgumentException("Failed to copy into " + src, e);
         }
+    }
+
+    /**
+     * The value is decoded directly from Espresso interop buffer access using native endianness to
+     * match hosted unaligned read semantics.
+     */
+    @Override
+    public JavaConstant readPrimitiveArrayUnaligned(JavaConstant array, JavaKind kind, int offset) {
+        if (kind == null || !kind.isPrimitive() || kind == JavaKind.Void) {
+            throw new IllegalArgumentException("Expected a non-void primitive kind, got " + kind);
+        }
+        if (!(array instanceof EspressoExternalObjectConstant objectConstant)) {
+            throw new IllegalArgumentException("Expected an EspressoExternalObjectConstant, got " + safeGetClass(array));
+        }
+        EspressoResolvedObjectType arrayType = objectConstant.getType();
+        if (!(arrayType.isArray() && arrayType.getComponentType().isPrimitive())) {
+            throw new IllegalArgumentException("Source should be a primitive array, got " + arrayType);
+        }
+        Value value = objectConstant.getValue();
+        long byteLength = value.getBufferSize();
+        int bytesToRead = kind.getByteCount();
+        if (offset < 0 || (long) offset + bytesToRead > byteLength) {
+            throw new IllegalArgumentException("Invalid input range: " + offset + ".." + (offset + bytesToRead) + " for buffer size " + byteLength);
+        }
+        return switch (kind) {
+            case Boolean -> JavaConstant.forBoolean(value.readBufferByte(offset) != 0);
+            case Byte -> JavaConstant.forByte(value.readBufferByte(offset));
+            case Short -> JavaConstant.forShort(value.readBufferShort(ByteOrder.nativeOrder(), offset));
+            case Char -> JavaConstant.forChar((char) value.readBufferShort(ByteOrder.nativeOrder(), offset));
+            case Int -> JavaConstant.forInt(value.readBufferInt(ByteOrder.nativeOrder(), offset));
+            case Long -> JavaConstant.forLong(value.readBufferLong(ByteOrder.nativeOrder(), offset));
+            case Float -> JavaConstant.forFloat(value.readBufferFloat(ByteOrder.nativeOrder(), offset));
+            case Double -> JavaConstant.forDouble(value.readBufferDouble(ByteOrder.nativeOrder(), offset));
+            default -> throw new IllegalArgumentException("Unsupported kind: " + kind);
+        };
     }
 
     @Override

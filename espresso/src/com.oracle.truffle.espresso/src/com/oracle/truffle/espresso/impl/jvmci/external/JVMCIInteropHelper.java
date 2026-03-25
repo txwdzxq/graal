@@ -22,6 +22,7 @@
  */
 package com.oracle.truffle.espresso.impl.jvmci.external;
 
+import java.lang.reflect.Array;
 import java.util.List;
 import java.util.Set;
 
@@ -72,7 +73,14 @@ import com.oracle.truffle.espresso.runtime.EspressoException;
 import com.oracle.truffle.espresso.runtime.staticobject.StaticObject;
 import com.oracle.truffle.espresso.substitutions.continuations.Target_org_graalvm_continuations_IdentityHashCodes;
 import com.oracle.truffle.espresso.vm.InterpreterToVM;
+import com.oracle.truffle.espresso.vm.UnsafeAccess;
 
+import sun.misc.Unsafe;
+
+/**
+ * Interop entrypoint that exposes selected JVMCI operations to the external Espresso VMAccess
+ * bridge.
+ */
 @ExportLibrary(InteropLibrary.class)
 public final class JVMCIInteropHelper implements ContextAccess, TruffleObject {
     private static final KeysArray<String> ALL_MEMBERS;
@@ -104,6 +112,7 @@ public final class JVMCIInteropHelper implements ContextAccess, TruffleObject {
                         InvokeMember.GET_SOURCE_FILENAME,
                         InvokeMember.ESPRESSO_SINGLE_IMPLEMENTOR,
                         InvokeMember.TO_GUEST_STRING,
+                        InvokeMember.TO_GUEST_PRIMITIVE_ARRAY,
                         InvokeMember.MAKE_IDENTITY_HASH_CODE,
                         InvokeMember.NEW_OBJECT_ARRAY,
                         InvokeMember.NEW_PRIMITIVE_ARRAY,
@@ -170,6 +179,7 @@ public final class JVMCIInteropHelper implements ContextAccess, TruffleObject {
         static final String GET_SOURCE_FILENAME = "getSourceFileName";
         static final String ESPRESSO_SINGLE_IMPLEMENTOR = "espressoSingleImplementor";
         static final String TO_GUEST_STRING = "toGuestString";
+        static final String TO_GUEST_PRIMITIVE_ARRAY = "toGuestPrimitiveArray";
         static final String MAKE_IDENTITY_HASH_CODE = "makeIdentityHashCode";
         static final String NEW_OBJECT_ARRAY = "newObjectArray";
         static final String NEW_PRIMITIVE_ARRAY = "newPrimitiveArray";
@@ -677,6 +687,120 @@ public final class JVMCIInteropHelper implements ContextAccess, TruffleObject {
             }
         }
 
+        /**
+         * Converts a host primitive array (or foreign array-like object) to a guest Espresso
+         * primitive array of the requested {@link JavaKind}.
+         * <p>
+         * The specialization first tries a host-object fast path and falls back to element-wise
+         * interop copying when host-object access is unavailable (for example after
+         * {@link HeapIsolationException}).
+         */
+        @Specialization(guards = "TO_GUEST_PRIMITIVE_ARRAY.equals(member)")
+        static Object toGuestPrimitiveArray(JVMCIInteropHelper receiver, @SuppressWarnings("unused") String member, Object[] arguments,
+                        @Bind Node node,
+                        @CachedLibrary(limit = "1") @Shared InteropLibrary intInterop,
+                        @CachedLibrary(limit = "1") @Exclusive InteropLibrary hostInterop,
+                        @Cached @Shared InlinedBranchProfile typeError,
+                        @Cached @Shared InlinedBranchProfile arityError,
+                        @Cached @Shared InlinedConditionProfile hostObjectProfile) throws ArityException, UnsupportedTypeException {
+            assert receiver != null;
+            assert EspressoLanguage.get(node).isExternalJVMCIEnabled();
+            if (arguments.length != 2) {
+                arityError.enter(node);
+                throw ArityException.create(2, 2, arguments.length);
+            }
+            int typeChar;
+            try {
+                typeChar = intInterop.asInt(arguments[0]);
+            } catch (UnsupportedMessageException e) {
+                typeError.enter(node);
+                throw UnsupportedTypeException.create(arguments, "Expected a primitive JavaKind type char as an int as first argument (not an int)");
+            }
+            JavaKind elementKind = JavaKind.fromPrimitiveOrVoidTypeCharOrNull((char) typeChar);
+            if (elementKind == null || !elementKind.isPrimitive() || elementKind == JavaKind.Void) {
+                typeError.enter(node);
+                throw UnsupportedTypeException.create(arguments, "Expected a primitive JavaKind type char as an int as first argument (not a valid type char or kind)");
+            }
+            Object argument = arguments[1];
+            EspressoLanguage language = EspressoLanguage.get(node);
+            Object hostArray = null;
+            if (hostObjectProfile.profile(node, hostInterop.isHostObject(argument))) {
+                try {
+                    Object hostObject = hostInterop.asHostObject(argument);
+                    /* Fast path: we can directly reuse host primitive array storage semantics. */
+                    if (hostObject != null && hostObject.getClass().isArray() && hostObject.getClass().getComponentType().isPrimitive()) {
+                        hostArray = hostObject;
+                    }
+                } catch (UnsupportedMessageException e) {
+                    throw CompilerDirectives.shouldNotReachHere(e);
+                } catch (HeapIsolationException e) {
+                    /*
+                     * Heap isolation intentionally blocks direct host-object access; continue with
+                     * interop element reads below.
+                     */
+                }
+            }
+
+            if (hostArray != null) {
+                JavaKind actualKind = JavaKind.fromPrimitiveOrVoidTypeCharOrNull(hostArray.getClass().getName().charAt(1));
+                if (actualKind != elementKind) {
+                    typeError.enter(node);
+                    throw UnsupportedTypeException.create(arguments, "Expected a host primitive array argument with matching element kind.");
+                }
+                Meta meta = EspressoContext.get(node).getMeta();
+                if (hostArray instanceof boolean[]) {
+                    /*
+                     * Espresso represents boolean[] payload as bytes; copy raw bytes into the guest
+                     * boolean backing store while preserving boolean array type.
+                     */
+                    int length = Array.getLength(hostArray);
+                    StaticObject guestArray = meta._boolean.allocatePrimitiveArray(length);
+                    Object unwrappedArray = guestArray.unwrap(language);
+                    Unsafe unsafe = UnsafeAccess.get();
+                    long sourceBaseOffset = unsafe.arrayBaseOffset(hostArray.getClass());
+                    long targetBaseOffset = unsafe.arrayBaseOffset(unwrappedArray.getClass());
+                    long bytes = (long) length * unsafe.arrayIndexScale(hostArray.getClass());
+                    unsafe.copyMemory(hostArray, sourceBaseOffset, unwrappedArray, targetBaseOffset, bytes);
+                    return guestArray;
+                }
+                PrimitiveKlass componentClass = getPrimitiveKlassForKind(elementKind, meta);
+                return StaticObject.createArray(componentClass.getArrayKlass(), hostArray, EspressoContext.get(node));
+            }
+
+            if (!hostInterop.hasArrayElements(argument)) {
+                typeError.enter(node);
+                throw UnsupportedTypeException.create(arguments, "Expected a host primitive array argument as second argument.");
+            }
+            int length;
+            try {
+                length = Math.toIntExact(hostInterop.getArraySize(argument));
+            } catch (UnsupportedMessageException e) {
+                throw CompilerDirectives.shouldNotReachHere(e);
+            }
+            Meta meta = EspressoContext.get(node).getMeta();
+            StaticObject guestArray = getPrimitiveKlassForKind(elementKind, meta).allocatePrimitiveArray(length);
+            Object unwrappedArray = guestArray.unwrap(language);
+            for (int i = 0; i < length; i++) {
+                try {
+                    Object element = hostInterop.readArrayElement(argument, i);
+                    if (elementKind == JavaKind.Boolean) {
+                        /*
+                         * Normalize boolean values to Espresso's byte-backed representation before
+                         * the generic array write.
+                         */
+                        element = (byte) ((boolean) element ? 1 : 0);
+                    }
+                    Array.set(unwrappedArray, i, element);
+                } catch (IllegalArgumentException | ClassCastException e) {
+                    typeError.enter(node);
+                    throw UnsupportedTypeException.create(arguments, "Expected a host primitive array argument with matching element kind.");
+                } catch (UnsupportedMessageException | InvalidArrayIndexException e) {
+                    throw UnsupportedTypeException.create(arguments, "Expected a foreign primitive array");
+                }
+            }
+            return guestArray;
+        }
+
         @Specialization(guards = "MAKE_IDENTITY_HASH_CODE.equals(member)")
         static Object makeIdentityHashCode(JVMCIInteropHelper receiver, @SuppressWarnings("unused") String member, Object[] arguments,
                         @Bind Node node,
@@ -777,20 +901,7 @@ public final class JVMCIInteropHelper implements ContextAccess, TruffleObject {
                 throw UnsupportedTypeException.create(arguments, "Expected an int as third argument");
             }
             Meta meta = EspressoContext.get(node).getMeta();
-            PrimitiveKlass elementType = switch (javaKind) {
-                case Boolean -> meta._boolean;
-                case Byte -> meta._byte;
-                case Char -> meta._char;
-                case Short -> meta._short;
-                case Int -> meta._int;
-                case Long -> meta._long;
-                case Double -> meta._double;
-                case Float -> meta._float;
-                default -> {
-                    CompilerDirectives.transferToInterpreterAndInvalidate();
-                    throw EspressoError.shouldNotReachHere(javaKind.toString());
-                }
-            };
+            PrimitiveKlass elementType = getPrimitiveKlassForKind(javaKind, meta);
             assert dimensions > 0;
             if (dimensions > 1) {
                 return elementType.getArrayKlass(dimensions).getComponentType().allocateReferenceArray(length);
@@ -1255,6 +1366,26 @@ public final class JVMCIInteropHelper implements ContextAccess, TruffleObject {
             }
             return receiverObj;
         }
+    }
+
+    /**
+     * Maps a primitive {@link JavaKind} to its Espresso primitive klass descriptor.
+     */
+    private static PrimitiveKlass getPrimitiveKlassForKind(JavaKind javaKind, Meta meta) {
+        return switch (javaKind) {
+            case Boolean -> meta._boolean;
+            case Byte -> meta._byte;
+            case Char -> meta._char;
+            case Short -> meta._short;
+            case Int -> meta._int;
+            case Long -> meta._long;
+            case Double -> meta._double;
+            case Float -> meta._float;
+            default -> {
+                CompilerDirectives.transferToInterpreterAndInvalidate();
+                throw EspressoError.shouldNotReachHere(javaKind.toString());
+            }
+        };
     }
 
     @ExportMessage
