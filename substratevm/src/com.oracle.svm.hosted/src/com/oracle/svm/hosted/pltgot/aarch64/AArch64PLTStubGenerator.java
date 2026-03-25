@@ -30,6 +30,8 @@ import static jdk.graal.compiler.asm.aarch64.AArch64Address.createImmediateAddre
 import static jdk.graal.compiler.asm.aarch64.AArch64Address.AddressingMode.IMMEDIATE_SIGNED_UNSCALED;
 import static jdk.vm.ci.aarch64.AArch64.sp;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import com.oracle.svm.core.ReservedRegisters;
@@ -45,7 +47,6 @@ import com.oracle.svm.hosted.image.RelocatableBuffer;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.hosted.pltgot.HostedPLTGOTConfiguration;
 import com.oracle.svm.hosted.pltgot.PLTStubGenerator;
-import com.oracle.svm.hosted.pltgot.PLTSupport;
 import com.oracle.svm.hosted.pltgot.amd64.AMD64PLTStubGenerator;
 
 import jdk.graal.compiler.asm.Assembler;
@@ -108,25 +109,27 @@ public class AArch64PLTStubGenerator implements PLTStubGenerator {
     }
 
     @Override
-    public RelocatableBuffer generatePLT(SharedMethod[] got, SubstrateBackend substrateBackend) {
+    public GeneratedPLT generatePLT(SharedMethod[] got, SubstrateBackend substrateBackend) {
         AArch64MacroAssembler masm = new SubstrateAArch64MacroAssembler(ConfigurationValues.getTarget());
         Label pltStart = new Label();
         masm.bind(pltStart);
 
         ResolverPatchState patchState = new ResolverPatchState();
+        Map<SharedMethod, Integer> stubStartOffsets = new HashMap<>();
+        Map<SharedMethod, Integer> resolverEntryDisplacements = new HashMap<>();
+
         try (AArch64MacroAssembler.ScratchRegister scratchRegister1 = masm.getScratchRegister(); AArch64MacroAssembler.ScratchRegister scratchRegister2 = masm.getScratchRegister()) {
             Register resolverJmpRegister = scratchRegister1.getRegister();
             Register gotEntryPassingRegister = scratchRegister2.getRegister();
 
             generateResolverCallStub(masm, gotEntryPassingRegister, resolverJmpRegister, a -> recordResolverCallForPatching(a, patchState));
 
-            PLTSupport support = HostedPLTGOTConfiguration.singleton().getPLTSupport();
             for (int gotEntryNo = 0; gotEntryNo < got.length; ++gotEntryNo) {
                 HostedMethod method = (HostedMethod) got[gotEntryNo];
                 int pltStubStart = masm.position();
 
                 /* Start of PLT stub for this GOT entry. */
-                support.recordMethodPLTStubStart(method, pltStubStart);
+                stubStartOffsets.put(method, pltStubStart);
 
                 int gotEntryOffset = GOTAccess.getGotEntryOffsetFromHeapRegister(gotEntryNo);
                 Register heapReg = ReservedRegisters.singleton().getHeapBaseRegister();
@@ -140,7 +143,7 @@ public class AArch64PLTStubGenerator implements PLTStubGenerator {
                  * This is used as initial entry in the GOT, so that on first access this entry is
                  * going to be resolved.
                  */
-                support.recordMethodPLTStubResolverOffset(method, masm.position() - pltStubStart);
+                resolverEntryDisplacements.put(method, masm.position() - pltStubStart);
                 masm.maybeEmitIndirectTargetMarker();
                 masm.mov(gotEntryPassingRegister, gotEntryNo);
                 masm.jmp(pltStart);
@@ -157,7 +160,7 @@ public class AArch64PLTStubGenerator implements PLTStubGenerator {
         buffer.addRelocationWithoutAddend(patchState.addressLoadOffset, AARCH64_R_AARCH64_ADR_PREL_PG_HI21, resolver);
         buffer.addRelocationWithoutAddend(patchState.addressLoadOffset + 4, AARCH64_R_AARCH64_ADD_ABS_LO12_NC, resolver);
 
-        return buffer;
+        return new GeneratedPLT(buffer, stubStartOffsets, resolverEntryDisplacements);
     }
 
     private static void generateResolverCallStub(AArch64MacroAssembler masm, Register gotEntryPassingRegister, Register jmpTarget, Consumer<Assembler.CodeAnnotation> patchConsumer) {

@@ -25,7 +25,6 @@
 package com.oracle.svm.hosted.pltgot;
 
 import java.nio.ByteBuffer;
-import java.util.HashMap;
 import java.util.Map;
 
 import com.oracle.objectfile.ObjectFile;
@@ -51,12 +50,9 @@ public class PLTSupport {
         return "svm_plt_stub_" + NativeImage.localSymbolNameForMethod(method);
     }
 
-    private final Map<SharedMethod, Integer> methodPLTStubStart = new HashMap<>();
-    private final Map<SharedMethod, Integer> methodPLTStubResolverOffset = new HashMap<>();
-
     private final PLTStubGenerator stubGenerator;
 
-    private RelocatableBuffer pltBuffer;
+    private PLTStubGenerator.GeneratedPLT generatedPLT;
     private int pltTextOffset = -1;
 
     public PLTSupport(PLTStubGenerator stubGenerator) {
@@ -64,12 +60,12 @@ public class PLTSupport {
     }
 
     void generatePLT(SharedMethod[] got, SubstrateBackend substrateBackend) {
-        assert pltBuffer == null && pltTextOffset == -1 && methodPLTStubStart.isEmpty() && methodPLTStubResolverOffset.isEmpty();
-        pltBuffer = stubGenerator.generatePLT(got, substrateBackend);
+        assert generatedPLT == null && pltTextOffset == -1;
+        generatedPLT = stubGenerator.generatePLT(got, substrateBackend);
     }
 
     private int getPLTCodeSize() {
-        return pltBuffer.getBackingArray().length;
+        return generatedPLT.buffer().getBackingArray().length;
     }
 
     public int reserveTextSectionSpace(int textSectionSize) {
@@ -86,6 +82,7 @@ public class PLTSupport {
         if (getPLTCodeSize() == 0) {
             return;
         }
+        RelocatableBuffer pltBuffer = generatedPLT.buffer();
         byte[] pltCode = pltBuffer.getBackingArray();
         ByteBuffer buffer = textBuffer.getByteBuffer();
         assert pltTextOffset >= 0;
@@ -94,7 +91,7 @@ public class PLTSupport {
 
         objectFile.createDefinedSymbol(SVM_PLT_SYMBOL_NAME, textSection, pltTextOffset, 0, true, false);
 
-        methodPLTStubStart.forEach((method, offset) -> {
+        generatedPLT.forEachStubStartOffset((method, offset) -> {
             int position = pltTextOffset + offset;
             objectFile.createDefinedSymbol(pltSymbolNameForMethod(method), textSection, position, ConfigurationValues.getWordSize(), true,
                             SubstrateOptions.InternalSymbolsAreGlobal.getValue());
@@ -111,20 +108,6 @@ public class PLTSupport {
     }
 
     void addMethodPLTStubResolverRelocation(RelocatableBuffer buffer, int offset, RelocationKind relocationKind, SharedMethod target) {
-        buffer.addRelocationWithAddend(offset, relocationKind, getMethodPLTStubResolverOffset(target), new MethodPointer(target));
-    }
-
-    private int getMethodPLTStubResolverOffset(SharedMethod method) {
-        Integer offset = methodPLTStubResolverOffset.get(method);
-        assert offset != null : "Target doesn't have a PLT stub: " + method;
-        return offset;
-    }
-
-    public void recordMethodPLTStubStart(SharedMethod method, int offset) {
-        methodPLTStubStart.put(method, offset);
-    }
-
-    public void recordMethodPLTStubResolverOffset(SharedMethod method, int resolverOffset) {
-        methodPLTStubResolverOffset.put(method, resolverOffset);
+        buffer.addRelocationWithAddend(offset, relocationKind, generatedPLT.getResolverEntryDisplacement(target), new MethodPointer(target));
     }
 }

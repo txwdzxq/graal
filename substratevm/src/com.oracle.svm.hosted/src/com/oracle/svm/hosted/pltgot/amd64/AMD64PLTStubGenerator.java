@@ -25,7 +25,9 @@
 package com.oracle.svm.hosted.pltgot.amd64;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.ReservedRegisters;
@@ -41,7 +43,6 @@ import com.oracle.svm.hosted.image.RelocatableBuffer;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.hosted.pltgot.HostedPLTGOTConfiguration;
 import com.oracle.svm.hosted.pltgot.PLTStubGenerator;
-import com.oracle.svm.hosted.pltgot.PLTSupport;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.asm.Assembler;
@@ -106,7 +107,7 @@ public class AMD64PLTStubGenerator implements PLTStubGenerator {
     }
 
     @Override
-    public RelocatableBuffer generatePLT(SharedMethod[] got, SubstrateBackend substrateBackend) {
+    public GeneratedPLT generatePLT(SharedMethod[] got, SubstrateBackend substrateBackend) {
         HostedPLTGOTConfiguration configuration = HostedPLTGOTConfiguration.singleton();
         VMError.guarantee(configuration.getArchSpecificResolverAsHostedMethod().getCallingConventionKind().equals(SubstrateCallingConventionKind.ForwardReturnValue),
                         "AMD64PLTStubGenerator assumes that %s is using %s ",
@@ -118,7 +119,8 @@ public class AMD64PLTStubGenerator implements PLTStubGenerator {
 
         AMD64MacroAssembler asm = amd64Backend.createAssemblerNoOptions();
         ResolverPatchState patchState = new ResolverPatchState();
-        PLTSupport support = HostedPLTGOTConfiguration.singleton().getPLTSupport();
+        Map<SharedMethod, Integer> stubStartOffsets = new HashMap<>();
+        Map<SharedMethod, Integer> resolverEntryDisplacements = new HashMap<>();
 
         asm.setCodePatchingAnnotationConsumer(a -> recordResolverCallForPatching(a, patchState));
         for (int gotEntryNo = 0; gotEntryNo < got.length; ++gotEntryNo) {
@@ -129,7 +131,7 @@ public class AMD64PLTStubGenerator implements PLTStubGenerator {
              * actual address.
              */
             int pltStubStart = asm.position();
-            support.recordMethodPLTStubStart(method, pltStubStart);
+            stubStartOffsets.put(method, pltStubStart);
 
             int gotEntryOffset = GOTAccess.getGotEntryOffsetFromHeapRegister(gotEntryNo);
             asm.maybeEmitIndirectTargetMarker();
@@ -140,7 +142,7 @@ public class AMD64PLTStubGenerator implements PLTStubGenerator {
              * This is the initial target of the jmp directly above. Calls the resolver stub with
              * the key for this method.
              */
-            support.recordMethodPLTStubResolverOffset(method, asm.position() - pltStubStart);
+            resolverEntryDisplacements.put(method, asm.position() - pltStubStart);
             asm.maybeEmitIndirectTargetMarker();
             asm.movl(register, gotEntryNo);
             /*
@@ -159,7 +161,7 @@ public class AMD64PLTStubGenerator implements PLTStubGenerator {
             buffer.addRelocationWithAddend(resolverPatchOffset, patchState.relocationKind, patchState.relocationAddend, resolver);
         }
 
-        return buffer;
+        return new GeneratedPLT(buffer, stubStartOffsets, resolverEntryDisplacements);
     }
 
     private static void recordResolverCallForPatching(Assembler.CodeAnnotation a, ResolverPatchState state) {
