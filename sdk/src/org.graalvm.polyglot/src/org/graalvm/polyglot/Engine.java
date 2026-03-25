@@ -613,12 +613,6 @@ public final class Engine implements AutoCloseable {
          */
         private static final AtomicReference<Boolean> allowExperimentalOptionSystemPropertyValue = new AtomicReference<>();
 
-        /**
-         * Used only by native-image. Populated during native-image generation to preconfigure
-         * polyglot option defaults captured at image build time.
-         */
-        static volatile Map<String, String> presetOptions = Map.of();
-
         private OutputStream out = System.out;
         private OutputStream err = System.err;
         private InputStream in = null;
@@ -936,24 +930,14 @@ public final class Engine implements AutoCloseable {
                 };
             }
             Object logHandler = customLogHandler != null ? polyglot.newLogHandler(customLogHandler) : null;
-            Map<String, String> useOptions = useSystemProperties ? readOptionsFromSystemProperties(options) : options;
-            if (!presetOptions.isEmpty()) {
-                if (useOptions == options) {
-                    useOptions = new HashMap<>(useOptions);
-                }
-                for (String key : presetOptions.keySet()) {
-                    if (!useOptions.containsKey(key)) {
-                        useOptions.put(key, presetOptions.get(key));
-                    }
-                }
-            }
+            Map<String, String> systemPropertiesOptions = readOptionsFromSystemProperties();
             boolean useAllowExperimentalOptions = allowExperimentalOptions || readAllowExperimentalOptionsFromSystemProperties();
-            Engine engine = polyglot.buildEngine(permittedLanguages, sandboxPolicy, out, err, useIn, useOptions, useAllowExperimentalOptions,
+            Engine engine = polyglot.buildEngine(permittedLanguages, sandboxPolicy, out, err, useIn, options, systemPropertiesOptions, useSystemProperties, useAllowExperimentalOptions,
                             boundEngine, messageTransport, logHandler, polyglot.createHostLanguage(polyglot.createHostAccess()), false, true, null, exceptionHandler);
             return engine;
         }
 
-        static Map<String, String> readOptionsFromSystemProperties(Map<String, String> options) {
+        static Map<String, String> readOptionsFromSystemProperties() {
             Properties properties = System.getProperties();
             Map<String, String> newOptions = null;
             String systemPropertyPrefix = "polyglot.";
@@ -969,18 +953,16 @@ public final class Engine implements AutoCloseable {
                         // Image build time options are not set in runtime options
                         if (!optionKey.startsWith("image-build-time")) {
                             // system properties cannot override existing options
-                            if (!options.containsKey(optionKey)) {
-                                if (newOptions == null) {
-                                    newOptions = new HashMap<>(options);
-                                }
-                                newOptions.put(optionKey, System.getProperty(key));
+                            if (newOptions == null) {
+                                newOptions = new HashMap<>();
                             }
+                            newOptions.put(optionKey, System.getProperty(key));
                         }
                     }
                 }
             }
             if (newOptions == null) {
-                return options;
+                return Map.of();
             } else {
                 return newOptions;
             }
@@ -1397,7 +1379,7 @@ public final class Engine implements AutoCloseable {
 
         @Override
         public Map<String, String> readOptionsFromSystemProperties() {
-            return Builder.readOptionsFromSystemProperties(Collections.emptyMap());
+            return Builder.readOptionsFromSystemProperties();
         }
 
         @Override
@@ -1784,14 +1766,6 @@ public final class Engine implements AutoCloseable {
         public Object callContextGetCurrent() {
             return Context.getCurrent();
         }
-
-        @Override
-        public void collectNativeImagePresetOptions() {
-            Map<String, String> newDefaults = Builder.readOptionsFromSystemProperties(Map.of());
-            if (!newDefaults.isEmpty()) {
-                Builder.presetOptions = Collections.unmodifiableMap(newDefaults);
-            }
-        }
     }
 
     private static AbstractPolyglotImpl validateAndInitializePolyglot(AbstractPolyglotImpl polyglot) {
@@ -1921,7 +1895,8 @@ public final class Engine implements AutoCloseable {
         }
 
         @Override
-        public Engine buildEngine(String[] permittedLanguages, SandboxPolicy sandboxPolicy, OutputStream out, OutputStream err, InputStream in, Map<String, String> arguments,
+        public Engine buildEngine(String[] permittedLanguages, SandboxPolicy sandboxPolicy, OutputStream out, OutputStream err, InputStream in,
+                        Map<String, String> options, Map<String, String> systemPropertiesOptions, boolean useSystemProperties,
                         boolean allowExperimentalOptions, boolean boundEngine, MessageTransport messageInterceptor, Object logHandler, Object hostLanguage,
                         boolean hostLanguageOnly, boolean registerInActiveEngines, Object polyglotHostService, Consumer<PolyglotException> exceptionHandler) {
             throw noPolyglotImplementationFound();

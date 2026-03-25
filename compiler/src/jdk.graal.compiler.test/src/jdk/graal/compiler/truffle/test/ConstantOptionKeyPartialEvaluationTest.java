@@ -34,6 +34,7 @@ import org.graalvm.nativeimage.ImageInfo;
 import org.graalvm.options.ConstantOptionKey;
 import org.graalvm.options.OptionCategory;
 import org.graalvm.options.OptionDescriptors;
+import org.graalvm.options.OptionStability;
 import org.graalvm.polyglot.Context;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -90,10 +91,10 @@ public class ConstantOptionKeyPartialEvaluationTest extends PartialEvaluationTes
 
         static final String ID = "ConstantOptionKeyPartialEvaluationLanguage";
 
-        @Option(category = OptionCategory.EXPERT, help = "Constant test option", constant = true)//
+        @Option(category = OptionCategory.EXPERT, stability = OptionStability.STABLE, help = "Constant test option", constant = true)//
         static final ConstantOptionKey<Boolean> ConstantOption1 = new ConstantOptionKey<>(false);
 
-        @Option(category = OptionCategory.EXPERT, help = "Constant test option", constant = true)//
+        @Option(category = OptionCategory.EXPERT, stability = OptionStability.STABLE, help = "Constant test option", constant = true)//
         static final ConstantOptionKey<Boolean> ConstantOption2 = new ConstantOptionKey<>(false);
 
         @Override

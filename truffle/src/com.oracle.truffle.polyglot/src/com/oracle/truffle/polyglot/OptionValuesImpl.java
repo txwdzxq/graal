@@ -70,17 +70,15 @@ final class OptionValuesImpl implements OptionValues {
     private final SandboxPolicy sandboxPolicy;
     private final Map<OptionKey<?>, Object> values;
     private List<OptionDescriptor> usedDeprecatedDescriptors;
-    private final Map<OptionKey<?>, String> unparsedValues;
     private volatile Set<OptionKey<?>> validAssertKeys;
     private final boolean trackDeprecatedOptions;
 
-    OptionValuesImpl(OptionDescriptors descriptors, SandboxPolicy sandboxPolicy, boolean preserveUnparsedValues, boolean trackDeprecatedOptions) {
+    OptionValuesImpl(OptionDescriptors descriptors, SandboxPolicy sandboxPolicy, boolean trackDeprecatedOptions) {
         Objects.requireNonNull(descriptors);
         Objects.requireNonNull(sandboxPolicy);
         this.descriptors = descriptors;
         this.sandboxPolicy = sandboxPolicy;
         this.values = new HashMap<>();
-        this.unparsedValues = preserveUnparsedValues ? new HashMap<>() : null;
         this.trackDeprecatedOptions = trackDeprecatedOptions;
     }
 
@@ -88,7 +86,6 @@ final class OptionValuesImpl implements OptionValues {
         this.values = new HashMap<>(copy.values);
         this.descriptors = copy.descriptors;
         this.sandboxPolicy = copy.sandboxPolicy;
-        this.unparsedValues = copy.unparsedValues;
         this.usedDeprecatedDescriptors = copy.usedDeprecatedDescriptors;
         this.trackDeprecatedOptions = copy.trackDeprecatedOptions;
     }
@@ -204,7 +201,7 @@ final class OptionValuesImpl implements OptionValues {
                                     descriptor.getName(), descriptor.getName(), value));
                 }
             } else {
-                throw PolyglotEngineException.illegalArgument(String.format("Constant option '%s' must use ConstantOptionKey.", descriptor.getName()));
+                throw PolyglotEngineException.illegalArgument(String.format("Option '%s' marked constant must use ConstantOptionKey.", descriptor.getName()));
             }
         }
         if (trackDeprecatedOptions && descriptor.isDeprecated()) {
@@ -214,10 +211,6 @@ final class OptionValuesImpl implements OptionValues {
             usedDeprecatedDescriptors.add(descriptor);
         }
         values.put(descriptor.getKey(), convertedValue);
-
-        if (unparsedValues != null) {
-            unparsedValues.put(descriptor.getKey(), value);
-        }
         return descriptor;
     }
 
@@ -288,13 +281,6 @@ final class OptionValuesImpl implements OptionValues {
     @Override
     public boolean hasSetOptions() {
         return !values.isEmpty();
-    }
-
-    String getUnparsedOptionValue(OptionKey<?> key) {
-        if (unparsedValues == null) {
-            throw new IllegalStateException("Unparsed values are not supported");
-        }
-        return unparsedValues.get(key);
     }
 
     private OptionDescriptor findDescriptor(String key, boolean allowExperimentalOptions, Supplier<OptionDescriptors> allOptionsSupplier) {
@@ -380,13 +366,6 @@ final class OptionValuesImpl implements OptionValues {
 
     @Override
     public String toString() {
-        Map<OptionKey<?>, ? extends Object> options;
-        if (unparsedValues != null) {
-            options = this.unparsedValues;
-        } else {
-            options = this.values;
-        }
-
         StringBuilder b = new StringBuilder("{");
         String sep = "";
         for (OptionDescriptor descriptor : getDescriptors()) {
@@ -395,7 +374,7 @@ final class OptionValuesImpl implements OptionValues {
                 b.append(sep);
                 b.append(descriptor.getName());
                 b.append("=");
-                b.append(options.get(key));
+                b.append(values.get(key));
                 sep = ", ";
             }
         }

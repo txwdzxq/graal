@@ -390,9 +390,21 @@ public final class OptionDescriptor {
         /**
          * Builds and returns a new option descriptor.
          *
+         * @throws IllegalArgumentException if this descriptor is marked with {@code constant(true)}
+         *             but the key is not a {@link ConstantOptionKey}, or if the key is a
+         *             {@link ConstantOptionKey} but the descriptor is not marked with
+         *             {@code constant(true)}.
          * @since 19.0
          */
         public OptionDescriptor build() {
+            if (constant && !(key instanceof ConstantOptionKey<?>)) {
+                throw new IllegalArgumentException("Option marked with constant(true) must use ConstantOptionKey, but found OptionKey. " +
+                                "Either change the key type to ConstantOptionKey, or remove the constant(true) attribute.");
+            }
+            if (!constant && key instanceof ConstantOptionKey<?>) {
+                throw new IllegalArgumentException("Option using ConstantOptionKey must be marked with constant(true), but found constant(false). " +
+                                "Either set constant(true), or change the key type to OptionKey.");
+            }
             return new OptionDescriptor(key, name, help, category, stability, deprecated, deprecationMessage, usageSyntax, constant);
         }
     }

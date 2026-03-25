@@ -107,8 +107,14 @@ public final class TruffleAPIFeature implements Feature {
          *
          * TODO GR-74134: Move to beforeAnalysis.
          */
-        DefaultRuntimeAccessor.ENGINE.collectNativeImagePresetOptions();
+        if (!polyglotOptionPresetCalled) {
+            polyglotOptionPresetCalled = true;
+            DefaultRuntimeAccessor.ENGINE.collectNativeImagePresetOptions();
+            access.requireAnalysisIteration();
+        }
     }
+
+    private boolean polyglotOptionPresetCalled;
 
     private static String doVersionCheck() {
         if (TruffleVersions.isVersionCheckEnabled()) {

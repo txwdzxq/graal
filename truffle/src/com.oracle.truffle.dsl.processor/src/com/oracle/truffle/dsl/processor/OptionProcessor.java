@@ -51,6 +51,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import javax.annotation.processing.AbstractProcessor;
@@ -77,12 +78,17 @@ import javax.tools.Diagnostic.Kind;
 import com.oracle.truffle.dsl.processor.generator.GeneratorUtils;
 import com.oracle.truffle.dsl.processor.java.ElementUtils;
 import com.oracle.truffle.dsl.processor.java.model.CodeExecutableElement;
+import com.oracle.truffle.dsl.processor.java.model.CodeNames;
 import com.oracle.truffle.dsl.processor.java.model.CodeTree;
 import com.oracle.truffle.dsl.processor.java.model.CodeTreeBuilder;
 import com.oracle.truffle.dsl.processor.java.model.CodeTypeElement;
+import com.oracle.truffle.dsl.processor.java.model.CodeTypeMirror.DeclaredCodeTypeMirror;
+import com.oracle.truffle.dsl.processor.java.model.CodeTypeParameterElement;
+import com.oracle.truffle.dsl.processor.java.model.CodeVariableElement;
 import com.oracle.truffle.dsl.processor.java.transform.FixWarningsVisitor;
 import com.oracle.truffle.dsl.processor.java.transform.GenerateOverrideVisitor;
 
+import static javax.lang.model.element.Modifier.PRIVATE;
 import static javax.lang.model.element.Modifier.STATIC;
 
 /**
@@ -534,43 +540,104 @@ public class OptionProcessor extends AbstractProcessor {
 
         List<OptionInfo> constantOptions = model.options.stream().filter((o) -> o.constant).toList();
         if (!constantOptions.isEmpty()) {
-            CodeExecutableElement staticInitializer = new CodeExecutableElement(Set.of(STATIC), null, "<cinit>");
-            boolean first = true;
+            Map<VariableElement, List<OptionInfo>> optionsBySimpleName = new LinkedHashMap<>();
             for (OptionInfo optionInfo : constantOptions) {
-                if (first) {
-                    builder = staticInitializer.createBuilder();
-                    builder.startDeclaration(context.getType(String.class), "optionValue");
-                    first = false;
-                } else {
-                    builder.startAssign("optionValue");
+                optionsBySimpleName.computeIfAbsent(optionInfo.field, k -> new ArrayList<>()).add(optionInfo);
+            }
+
+            CodeExecutableElement staticInitializer = new CodeExecutableElement(Set.of(STATIC), null, "<cinit>");
+            builder = staticInitializer.createBuilder();
+            for (var entry : optionsBySimpleName.entrySet()) {
+                builder.startStatement();
+                builder.startCall("initConstantOption");
+                builder.tree(builder.create().staticReference(entry.getKey()).build());
+                for (OptionInfo optionInfo : entry.getValue()) {
+                    builder.doubleQuote(optionInfo.name);
                 }
-                builder.startStaticCall(context.getType(System.class), "getProperty");
-                builder.doubleQuote("polyglot." + optionInfo.name);
-                builder.end();
-                builder.end();
-
-                builder.startIf();
-                builder.string("optionValue != null").end();
-
-                builder.startBlock();
-                builder.startStatement();
-                builder.startCall(builder.create().staticReference(optionInfo.field).build(), "setConstantValue");
-                builder.startCall(builder.create().startCall(builder.create().staticReference(optionInfo.field).build(), "getType").end().build(), "convert");
-                builder.string("optionValue");
-                builder.end();
-                builder.end();
-                builder.end();
-                builder.end();
-                builder.startElseBlock();
-                builder.startStatement();
-                builder.startCall(builder.create().staticReference(optionInfo.field).build(), "setConstantValue");
-                builder.startCall(builder.create().staticReference(optionInfo.field).build(), "getDefaultValue").end();
-                builder.end();
                 builder.end();
                 builder.end();
             }
             builder.end();
             descriptors.add(staticInitializer);
+
+            Types typeUtils = context.getEnvironment().getTypeUtils();
+            TypeMirror voidType = typeUtils.getNoType(TypeKind.VOID);
+            CodeTypeParameterElement tpT = new CodeTypeParameterElement(CodeNames.of("T"), context.getType(Object.class));
+            DeclaredCodeTypeMirror constantOptionKeyT = new DeclaredCodeTypeMirror((TypeElement) types.ConstantOptionKey.asElement(), List.of(tpT.asType()));
+            TypeMirror string = context.getType(String.class);
+            CodeExecutableElement initConstantOption = new CodeExecutableElement(Set.of(PRIVATE, STATIC), voidType, "initConstantOption");
+            initConstantOption.addParameter(new CodeVariableElement(constantOptionKeyT, "key"));
+            initConstantOption.addParameter(new CodeVariableElement(typeUtils.getArrayType(string), "propertyKeys"));
+            initConstantOption.setVarArgs(true);
+            initConstantOption.getTypeParameters().add(tpT);
+            builder = initConstantOption.createBuilder();
+            builder.startDeclaration(tpT.asType(), "resolvedValue");
+            builder.nullLiteral();
+            builder.end();
+            builder.startDeclaration(string, "resolvedProperty");
+            builder.nullLiteral();
+            builder.end();
+            builder.startDeclaration(string, "resolvedRaw");
+            builder.nullLiteral();
+            builder.end();
+            builder.startFor();
+            builder.type(string).string(" propertyKey : propertyKeys").end();
+            builder.startBlock();
+            builder.startDeclaration(context.getType(String.class), "raw");
+            builder.startStaticCall(context.getType(System.class), "getProperty").startGroup().doubleQuote("polyglot.").string(" + propertyKey").end().end();
+            builder.end();
+            builder.startIf().string("raw == null").end();
+            builder.startBlock();
+            builder.statement("continue");
+            builder.end();
+            builder.startDeclaration(tpT.asType(), "converted");
+            builder.startCall(builder.create().startCall("key", "getType").end().build(), "convert");
+            builder.string("raw");
+            builder.end();
+            builder.end();
+            builder.startIf().string("resolvedRaw == null").end();
+            builder.startBlock();
+            builder.startAssign("resolvedValue").string("converted").end();
+            builder.startAssign("resolvedProperty").string("propertyKey").end();
+            builder.startAssign("resolvedRaw").string("raw").end();
+            builder.end();
+            builder.startElseIf();
+            builder.string("!");
+            builder.startStaticCall(context.getType(Objects.class), "equals");
+            builder.string("resolvedValue");
+            builder.string("converted");
+            builder.end();
+            builder.end();
+            builder.startBlock();
+            builder.startThrow().startNew(context.getType(IllegalArgumentException.class));
+            builder.startStaticCall(context.getType(String.class), "format");
+            builder.doubleQuote("Conflicting values for aliased constant option. Properties '%s'='%s' and '%s'='%s' refer to the same option but specify different values.");
+            builder.string("resolvedProperty");
+            builder.string("resolvedRaw");
+            builder.string("propertyKey");
+            builder.string("raw");
+            builder.end();
+            builder.end();
+            builder.end();
+            builder.end();
+            builder.end();
+            builder.startIf().string("resolvedRaw != null").end();
+            builder.startBlock();
+            builder.startStatement();
+            builder.startCall("key", "setConstantValue");
+            builder.string("resolvedValue");
+            builder.end();
+            builder.end();
+            builder.end();
+            builder.startElseBlock();
+            builder.startStatement();
+            builder.startCall("key", "setConstantValue");
+            builder.startCall("key", "getDefaultValue").end();
+            builder.end();
+            builder.end();
+            builder.end();
+            builder.end();
+            descriptors.add(initConstantOption);
         }
 
         return descriptors;

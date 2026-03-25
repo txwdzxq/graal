@@ -620,8 +620,6 @@ public abstract class Accessor {
 
         public abstract ZoneId getTimeZone(Object polyglotLanguageContext);
 
-        public abstract String getUnparsedOptionValue(OptionValues optionValues, OptionKey<?> optionKey);
-
         public abstract String getRelativePathInResourceRoot(TruffleFile truffleFile);
 
         public abstract void onSourceCreated(Source source);
@@ -1075,6 +1073,8 @@ public abstract class Accessor {
         public abstract OptionDescriptors describeContextOptions(Object instrumentationHandler, Object key, String requiredGroup);
 
         public abstract OptionDescriptors describeSourceOptions(Object instrumentationHandler, Object key, String requiredGroup);
+
+        public abstract OptionDescriptors describeOptions(Object truffleInstrument, String requiredGroup);
 
         public abstract Object getEngineInstrumenter(Object instrumentationHandler);
 

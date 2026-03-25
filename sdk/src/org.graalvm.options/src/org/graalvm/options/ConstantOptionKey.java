@@ -121,7 +121,7 @@ public final class ConstantOptionKey<T> extends OptionKey<T> {
      */
     public void setConstantValue(T value) {
         if (constantValue != UNSET) {
-            throw new IllegalStateException("Constant value already set.");
+            throw new IllegalStateException("Constant value is already set.");
         }
         if (ImageInfo.inImageRuntimeCode()) {
             throw new IllegalStateException("ConstantOptionKey must be set at image build time, not at runtime.");

@@ -58,6 +58,8 @@ import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
@@ -67,6 +69,8 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 
+import org.graalvm.nativeimage.ImageInfo;
+import org.graalvm.options.OptionDescriptor;
 import org.graalvm.options.OptionDescriptors;
 import org.graalvm.options.OptionKey;
 import org.graalvm.polyglot.Context;
@@ -122,6 +126,12 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
      * Accessed reflectively by TruffleBaseFeature.
      */
     static final String TRUFFLE_VERSION = TruffleVersions.TRUFFLE_API_VERSION == null ? null : TruffleVersions.TRUFFLE_API_VERSION.toString();
+
+    /*
+     * Populated during native-image generation to preconfigure polyglot option defaults captured at
+     * image build time.
+     */
+    volatile Map<String, String> presetOptions = Map.of();
 
     private final PolyglotSourceDispatch sourceDispatch = new PolyglotSourceDispatch(this);
     private final PolyglotSourceSectionDispatch sourceSectionDispatch = new PolyglotSourceSectionDispatch(this);
@@ -247,9 +257,17 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
      * Internal method do not use.
      */
     @Override
-    public Engine buildEngine(String[] permittedLanguages, SandboxPolicy sandboxPolicy, OutputStream out, OutputStream err, InputStream in, Map<String, String> options,
+    public Engine buildEngine(String[] permittedLanguages, SandboxPolicy sandboxPolicy, OutputStream out, OutputStream err, InputStream in,
+                    Map<String, String> options, Map<String, String> systemPropertiesOptions, boolean useSystemProperties,
                     boolean allowExperimentalOptions, boolean boundEngine, MessageTransport messageInterceptor, Object logHandler, Object hostLanguage, boolean hostLanguageOnly,
                     boolean registerInActiveEngines, Object polyglotHostService, Consumer<PolyglotException> exceptionHandler) {
+
+        Map<String, String> useOptions = applyPresetOptions(options, systemPropertiesOptions, hostLanguageOnly);
+        if (useOptions != options) {
+            useOptions = new HashMap<>(useOptions);
+        }
+        List<Map<String, String>> allOptions = useSystemProperties ? List.of(useOptions, systemPropertiesOptions) : List.of(useOptions);
+
         if (EngineAccessor.ISOLATE.isIsolateHost()) {
             Map<String, String> useOptions = validateSandboxOptions(sandboxPolicy, options);
             String[] spawnIsolate = resolveIsolatedLanguages(useOptions);
@@ -291,7 +309,7 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
             OptionValuesImpl engineOptions = null;
             LogHandler useHandler = null;
             try {
-                engineOptions = createEngineOptions(this, options, logConfig, sandboxPolicy, allowExperimentalOptions);
+                engineOptions = createEngineOptions(this, useOptions, systemPropertiesOptions, useSystemProperties, logConfig, sandboxPolicy, allowExperimentalOptions);
                 useHandler = logHandler != null ? (LogHandler) logHandler : PolyglotEngineImpl.createLogHandler(logConfig, dispatchErr, sandboxPolicy);
                 loggerProvider = new PolyglotLoggers.EngineLoggerProvider(useHandler, logConfig.logLevels);
             } finally {
@@ -305,7 +323,7 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
                  * Print warning even if there are errors in the options. It is common that certain
                  * options are missing if the runtime is not matching.
                  */
-                logTruffleRuntimeWarning(options, engineOptions, loggerProvider);
+                logTruffleRuntimeWarning(allOptions, engineOptions, loggerProvider);
             }
 
             AbstractPolyglotHostService usePolyglotHostService;
@@ -328,7 +346,9 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
                                 engineOptions,
                                 logConfig,
                                 loggerProvider,
-                                options,
+                                useOptions,
+                                systemPropertiesOptions,
+                                useSystemProperties,
                                 allowExperimentalOptions,
                                 boundEngine,
                                 useHandler,
@@ -348,7 +368,9 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
                                 engineOptions,
                                 logConfig.logLevels,
                                 loggerProvider,
-                                options,
+                                useOptions,
+                                systemPropertiesOptions,
+                                useSystemProperties,
                                 allowExperimentalOptions,
                                 boundEngine, false,
                                 messageInterceptor,
@@ -525,10 +547,16 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
         return spawnIsolate;
     }
 
-    private static void logTruffleRuntimeWarning(Map<String, String> options, OptionValuesImpl engineOptions, EngineLoggerProvider loggerProvider) {
+    private static void logTruffleRuntimeWarning(List<Map<String, String>> options, OptionValuesImpl engineOptions, EngineLoggerProvider loggerProvider) {
         boolean warnInterpreterOnly;
         if (engineOptions == null) {
-            warnInterpreterOnly = !"false".equals(options.get("engine.WarnInterpreterOnly"));
+            warnInterpreterOnly = true;
+            for (var optionMap : options) {
+                if (optionMap.containsKey("engine.WarnInterpreterOnly")) {
+                    warnInterpreterOnly = !"false".equals(optionMap.get("engine.WarnInterpreterOnly"));
+                    break;
+                }
+            }
         } else {
             warnInterpreterOnly = engineOptions.get(PolyglotEngineOptions.WarnInterpreterOnly);
         }
@@ -554,13 +582,65 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
         return PolyglotEngineImpl.createEngineOptionDescriptors();
     }
 
-    static OptionValuesImpl createEngineOptions(PolyglotImpl polyglot, Map<String, String> options, LogConfig logOptions, SandboxPolicy sandboxPolicy, boolean allowExperimentalOptions) {
-        OptionDescriptors engineOptionDescriptors = polyglot.createEngineOptionDescriptors();
+    static OptionValuesImpl createEngineOptions(PolyglotImpl polyglot, Map<String, String> options, Map<String, String> systemPropertiesOptions, boolean useSystemProperties,
+                    LogConfig logOptions, SandboxPolicy sandboxPolicy, boolean allowExperimentalOptions) {
+        OptionDescriptors engineOptionDescriptors = polyglot.createAllEngineOptionDescriptors();
         Map<String, String> engineOptions = new HashMap<>();
+        if (useSystemProperties) {
+            PolyglotEngineImpl.parseEngineOptions(systemPropertiesOptions, engineOptions, logOptions);
+        } else if (ImageInfo.inImageRuntimeCode()) {
+            /*
+             * In native-image, constant options do not need to be looked up because both constant
+             * and preset options are set during the native-image build.
+             */
+        } else {
+            /*
+             * On HotSpot, when system properties are disabled, we still need to apply constant
+             * options to keep values consistent between ConstantOptionKey and OptionValuesImpl.
+             *
+             * Since system properties are not read in this mode, we must tolerate and ignore
+             * unknown option names.
+             */
+            Map<String, String> constantOptionCandidates = new HashMap<>();
+            PolyglotEngineImpl.parseEngineOptions(systemPropertiesOptions, constantOptionCandidates, new LogConfig());
+            for (var entry : constantOptionCandidates.entrySet()) {
+                OptionDescriptor descriptor = engineOptionDescriptors.get(entry.getKey());
+                if (descriptor != null && descriptor.isConstant()) {
+                    engineOptions.putIfAbsent(entry.getKey(), entry.getValue());
+                }
+            }
+        }
         PolyglotEngineImpl.parseEngineOptions(options, engineOptions, logOptions);
-        OptionValuesImpl values = new OptionValuesImpl(engineOptionDescriptors, sandboxPolicy, true, true);
+        OptionValuesImpl values = new OptionValuesImpl(engineOptionDescriptors, sandboxPolicy, true);
         values.putAll(engineOptions, allowExperimentalOptions, null);
         return values;
+    }
+
+    private Map<String, String> applyPresetOptions(Map<String, String> options, Map<String, String> systemPropertiesOptions, boolean hostLanguageOnly) {
+        Map<String, String> defaults = presetOptions;
+        if (defaults.isEmpty()) {
+            return options;
+        }
+        if (hostLanguageOnly) {
+            OptionDescriptors localOptions = createAllEngineOptionDescriptors();
+            defaults = options.entrySet().stream().//
+                            filter((entry) -> {
+                                String optionKey = entry.getKey();
+                                if (optionKey.startsWith("engine.")) {
+                                    return localOptions.get(optionKey) != null;
+                                } else {
+                                    return optionKey.startsWith("log.");
+                                }
+                            }).//
+                            collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        }
+        Map<String, String> newOptions = new HashMap<>(options);
+        for (String key : defaults.keySet()) {
+            if (!options.containsKey(key) && !systemPropertiesOptions.containsKey(key)) {
+                newOptions.put(key, defaults.get(key));
+            }
+        }
+        return newOptions;
     }
 
     /**
@@ -590,16 +670,17 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
      * Used for preinitialized contexts and fallback engine.
      */
     PolyglotEngineImpl createDefaultEngine(TruffleLanguage<Object> hostLanguage) {
-        Map<String, String> options = getAPIAccess().readOptionsFromSystemProperties();
+        Map<String, String> systemPropertiesOptions = getAPIAccess().readOptionsFromSystemProperties();
+        Map<String, String> options = applyPresetOptions(Map.of(), systemPropertiesOptions, false);
         LogConfig logConfig = new LogConfig();
         SandboxPolicy sandboxPolicy = SandboxPolicy.TRUSTED;
-        OptionValuesImpl engineOptions = PolyglotImpl.createEngineOptions(this, options, logConfig, sandboxPolicy, true);
+        OptionValuesImpl engineOptions = PolyglotImpl.createEngineOptions(this, options, systemPropertiesOptions, true, logConfig, sandboxPolicy, true);
         DispatchOutputStream out = INSTRUMENT.createDispatchOutput(System.out);
         DispatchOutputStream err = INSTRUMENT.createDispatchOutput(System.err);
         LogHandler logHandler = PolyglotEngineImpl.createLogHandler(logConfig, err, sandboxPolicy);
         EngineLoggerProvider loggerProvider = new PolyglotLoggers.EngineLoggerProvider(logHandler, logConfig.logLevels);
-        final PolyglotEngineImpl engine = new PolyglotEngineImpl(this, sandboxPolicy, new String[0], out, err, System.in, engineOptions, logConfig.logLevels, loggerProvider, options, true,
-                        true, true, null, logHandler, hostLanguage, false, new DefaultPolyglotHostService(this), null);
+        final PolyglotEngineImpl engine = new PolyglotEngineImpl(this, sandboxPolicy, new String[0], out, err, System.in, engineOptions, logConfig.logLevels, loggerProvider, options,
+                        systemPropertiesOptions, true, true, true, true, null, logHandler, hostLanguage, false, new DefaultPolyglotHostService(this), null);
         getAPIAccess().newEngine(engineDispatch, engine, false);
         return engine;
     }

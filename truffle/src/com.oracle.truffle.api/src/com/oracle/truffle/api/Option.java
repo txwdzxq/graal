@@ -195,7 +195,9 @@ public @interface Option {
     SandboxPolicy sandbox() default SandboxPolicy.TRUSTED;
 
     /**
-     * Specifies whether this option is constant. Constant options must use
+     * Declares this option as immutable after polyglot runtime initialization, enabling constant
+     * propagation and dead-code elimination when read through
+     * {@link org.graalvm.options.ConstantOptionKey#getConstantValue()}. Constant options must use
      * {@link org.graalvm.options.ConstantOptionKey} as their field type. Their value is fixed
      * before the polyglot runtime is initialized and cannot be changed at runtime. The value is
      * read from the system property {@code -Dpolyglot.<option-name>=<value>} during class

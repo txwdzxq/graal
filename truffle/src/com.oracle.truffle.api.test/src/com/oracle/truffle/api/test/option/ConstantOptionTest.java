@@ -60,11 +60,17 @@ import org.graalvm.polyglot.SandboxPolicy;
 import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+
+import java.util.Collection;
+import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(Parameterized.class)
 public class ConstantOptionTest {
 
     @BeforeClass
@@ -87,6 +93,20 @@ public class ConstantOptionTest {
                             "Test requires that -Dpolyglot.ConstantOptionsLanguage.ConstantOption2 is NOT set", //
                             System.getProperty("polyglot.ConstantOptionsLanguage.ConstantOption2"));
         }
+    }
+
+    public record Configuration(boolean useSystemProperties) {
+    }
+
+    @Parameterized.Parameters(name = "{0}")
+    public static Collection<Configuration> createParameters() {
+        return List.of(new Configuration(true), new Configuration(false));
+    }
+
+    private final Configuration configuration;
+
+    public ConstantOptionTest(Configuration configuration) {
+        this.configuration = configuration;
     }
 
     @Option.Group("constant-error")
@@ -124,27 +144,83 @@ public class ConstantOptionTest {
     }
 
     @Test
-    public void testConstantValueCannotBeSetOnEngine() {
+    public void testConstantOptionCannotBeOverridden() {
         String optionName = TestUtils.getDefaultLanguageId(ConstantOptionsLanguage.class) + ".ConstantOption1";
         Engine.Builder engineBuilder = Engine.newBuilder().//
-                        allowExperimentalOptions(true).option(optionName, "test");
+                        useSystemProperties(configuration.useSystemProperties()).//
+                        option("engine.WarnInterpreterOnly", "false").//
+                        option(optionName, "test");
         AbstractPolyglotTest.assertFails(engineBuilder::build, IllegalArgumentException.class, (e) -> {
-            assertTrue(e.getMessage().contains("is constant and cannot be set using Builder.option()"));
+            assertTrue(e.getMessage().contains("is constant and cannot be overridden using Builder.option()"));
         });
+
         Context.Builder builder = Context.newBuilder().//
-                        allowExperimentalOptions(true).option(optionName, "test");
+                        option(optionName, "test");
         AbstractPolyglotTest.assertFails(builder::build, IllegalArgumentException.class, (e) -> {
-            assertTrue(e.getMessage().contains("is constant and cannot be set using Builder.option()"));
+            assertTrue(e.getMessage().contains("is constant and cannot be overridden using Builder.option()"));
         });
     }
 
     @Test
-    public void testConstantValue() {
-        try (Context context = Context.newBuilder().allowExperimentalOptions(true).build()) {
+    public void testConstantOptionCanBeSetToConstantValue() {
+        Engine.Builder engineBuilder = Engine.newBuilder().//
+                        useSystemProperties(configuration.useSystemProperties()).//
+                        option("engine.WarnInterpreterOnly", "false");
+
+        String optionName = TestUtils.getDefaultLanguageId(ConstantOptionsLanguage.class) + ".ConstantOption1";
+        try (Engine engine = engineBuilder.build()) {
+            try (Context context = Context.newBuilder().engine(engine).option(optionName, "configuredValue").build()) {
+                // ConstantOption1 is set to configuredValue by mx_truffle.TruffleUnittestConfig
+                AbstractExecutableTestLanguage.evalTestLanguage(context, ConstantOptionsLanguage.class, "", "ConstantOption1", "configuredValue");
+            }
+        }
+
+        optionName = TestUtils.getDefaultLanguageId(ConstantOptionsLanguage.class) + ".ConstantOption2";
+        try (Engine engine = engineBuilder.build()) {
+            try (Context context = Context.newBuilder().engine(engine).option(optionName, "defaultValue").build()) {
+                // ConstantOption2 is unset
+                AbstractExecutableTestLanguage.evalTestLanguage(context, ConstantOptionsLanguage.class, "", "ConstantOption2", "defaultValue");
+            }
+        }
+
+        optionName = TestUtils.getDefaultLanguageId(ConstantOptionsLanguage.class) + ".ConstantOption1";
+        try (Context context = Context.newBuilder().option(optionName, "configuredValue").build()) {
             // ConstantOption1 is set to configuredValue by mx_truffle.TruffleUnittestConfig
             AbstractExecutableTestLanguage.evalTestLanguage(context, ConstantOptionsLanguage.class, "", "ConstantOption1", "configuredValue");
         }
-        try (Context context = Context.newBuilder().allowExperimentalOptions(true).build()) {
+
+        optionName = TestUtils.getDefaultLanguageId(ConstantOptionsLanguage.class) + ".ConstantOption2";
+        try (Context context = Context.newBuilder().option(optionName, "defaultValue").build()) {
+            // ConstantOption2 is unset
+            AbstractExecutableTestLanguage.evalTestLanguage(context, ConstantOptionsLanguage.class, "", "ConstantOption2", "defaultValue");
+        }
+    }
+
+    @Test
+    public void testConstantValue() {
+        Engine.Builder engineBuilder = Engine.newBuilder().//
+                        useSystemProperties(configuration.useSystemProperties()).//
+                        option("engine.WarnInterpreterOnly", "false");
+        try (Engine engine = engineBuilder.build()) {
+            try (Context context = Context.newBuilder().engine(engine).build()) {
+                // ConstantOption1 is set to configuredValue by mx_truffle.TruffleUnittestConfig
+                AbstractExecutableTestLanguage.evalTestLanguage(context, ConstantOptionsLanguage.class, "", "ConstantOption1", "configuredValue");
+            }
+        }
+
+        try (Engine engine = engineBuilder.build()) {
+            try (Context context = Context.newBuilder().engine(engine).build()) {
+                // ConstantOption2 is unset
+                AbstractExecutableTestLanguage.evalTestLanguage(context, ConstantOptionsLanguage.class, "", "ConstantOption2", "defaultValue");
+            }
+        }
+
+        try (Context context = Context.newBuilder().build()) {
+            // ConstantOption1 is set to configuredValue by mx_truffle.TruffleUnittestConfig
+            AbstractExecutableTestLanguage.evalTestLanguage(context, ConstantOptionsLanguage.class, "", "ConstantOption1", "configuredValue");
+        }
+
+        try (Context context = Context.newBuilder().build()) {
             // ConstantOption2 is unset
             AbstractExecutableTestLanguage.evalTestLanguage(context, ConstantOptionsLanguage.class, "", "ConstantOption2", "defaultValue");
         }
@@ -153,7 +229,17 @@ public class ConstantOptionTest {
     @Test
     public void testPreSetOption() {
         Assume.assumeTrue("Pre-set polyglot options are supported only in native-image", ImageInfo.inImageRuntimeCode());
-        try (Context context = Context.newBuilder().allowExperimentalOptions(true).build()) {
+
+        Engine.Builder engineBuilder = Engine.newBuilder().//
+                        useSystemProperties(configuration.useSystemProperties()).//
+                        option("engine.WarnInterpreterOnly", "false");
+        try (Engine engine = engineBuilder.build()) {
+            try (Context context = Context.newBuilder().engine(engine).build()) {
+                AbstractExecutableTestLanguage.evalTestLanguage(context, ConstantOptionsLanguage.class, "", "PreSetOption", "configuredValue");
+            }
+        }
+
+        try (Context context = Context.newBuilder().build()) {
             AbstractExecutableTestLanguage.evalTestLanguage(context, ConstantOptionsLanguage.class, "", "PreSetOption", "configuredValue");
         }
     }
@@ -163,13 +249,13 @@ public class ConstantOptionTest {
 
         public static final String ID = "ConstantOptionsLanguage";
 
-        @Option(category = OptionCategory.EXPERT, help = "Constant test option", constant = true)//
+        @Option(category = OptionCategory.EXPERT, stability = OptionStability.STABLE, help = "Constant test option", constant = true, sandbox = SandboxPolicy.UNTRUSTED)//
         static final ConstantOptionKey<String> ConstantOption1 = new ConstantOptionKey<>("defaultValue");
 
-        @Option(category = OptionCategory.EXPERT, help = "Constant test option", constant = true)//
+        @Option(category = OptionCategory.EXPERT, stability = OptionStability.STABLE, help = "Constant test option", constant = true, sandbox = SandboxPolicy.UNTRUSTED)//
         static final ConstantOptionKey<String> ConstantOption2 = new ConstantOptionKey<>("defaultValue");
 
-        @Option(category = OptionCategory.EXPERT, help = "Pre-set test option", stability = OptionStability.STABLE, sandbox = SandboxPolicy.UNTRUSTED)//
+        @Option(category = OptionCategory.EXPERT, stability = OptionStability.STABLE, help = "Pre-set test option", sandbox = SandboxPolicy.UNTRUSTED)//
         static final OptionKey<String> PreSetOption = new OptionKey<>("defaultValue");
 
         @Override
@@ -177,13 +263,24 @@ public class ConstantOptionTest {
         protected Object execute(RootNode node, Env env, Object[] contextArguments, Object[] frameArguments) throws Exception {
             String optionName = (String) contextArguments[0];
             String expectedOptionValue = (String) contextArguments[1];
+            OptionKey<String> optionKey;
             String value = switch (optionName) {
-                case "ConstantOption1" -> ConstantOption1.getConstantValue();
-                case "ConstantOption2" -> ConstantOption2.getConstantValue();
-                case "PreSetOption" -> PreSetOption.getValue(env.getOptions());
+                case "ConstantOption1" -> {
+                    optionKey = ConstantOption1;
+                    yield ConstantOption1.getConstantValue();
+                }
+                case "ConstantOption2" -> {
+                    optionKey = ConstantOption2;
+                    yield ConstantOption2.getConstantValue();
+                }
+                case "PreSetOption" -> {
+                    optionKey = PreSetOption;
+                    yield PreSetOption.getValue(env.getOptions());
+                }
                 default -> throw new IllegalArgumentException("Unknown option name: " + optionName);
             };
             assertEquals(expectedOptionValue, value);
+            assertEquals(expectedOptionValue, env.getOptions().get(optionKey));
             return null;
         }
 
