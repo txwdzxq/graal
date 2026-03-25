@@ -1262,7 +1262,7 @@ public final class Interpreter {
     }
 
     private static boolean takeBranchRef1(Object operand, int opcode) {
-        assert IFNULL <= opcode && opcode <= IFNONNULL;
+        assert IFNULL <= opcode && opcode <= IFNONNULL : Bytecodes.nameOf(opcode);
         return switch (opcode) {
             case IFNULL -> operand == null;
             case IFNONNULL -> operand != null;
@@ -1271,7 +1271,7 @@ public final class Interpreter {
     }
 
     private static boolean takeBranchPrimitive1(int operand, int opcode) {
-        assert IFEQ <= opcode && opcode <= IFLE;
+        assert IFEQ <= opcode && opcode <= IFLE : Bytecodes.nameOf(opcode);
         return switch (opcode) {
             case IFEQ -> operand == 0;
             case IFNE -> operand != 0;
@@ -1284,7 +1284,7 @@ public final class Interpreter {
     }
 
     private static boolean takeBranchPrimitive2(int operand1, int operand2, int opcode) {
-        assert IF_ICMPEQ <= opcode && opcode <= IF_ICMPLE;
+        assert IF_ICMPEQ <= opcode && opcode <= IF_ICMPLE : Bytecodes.nameOf(opcode);
         return switch (opcode) {
             case IF_ICMPEQ -> operand1 == operand2;
             case IF_ICMPNE -> operand1 != operand2;
@@ -1297,7 +1297,7 @@ public final class Interpreter {
     }
 
     private static boolean takeBranchRef2(Object operand1, Object operand2, int opcode) {
-        assert IF_ACMPEQ <= opcode && opcode <= IF_ACMPNE;
+        assert IF_ACMPEQ <= opcode && opcode <= IF_ACMPNE : Bytecodes.nameOf(opcode);
         return switch (opcode) {
             case IF_ACMPEQ -> operand1 == operand2;
             case IF_ACMPNE -> operand1 != operand2;
@@ -1306,7 +1306,7 @@ public final class Interpreter {
     }
 
     private static void arrayLoad(InterpreterFrame frame, MethodProfile methodProfile, int bci, int top, int loadOpcode) {
-        assert IALOAD <= loadOpcode && loadOpcode <= SALOAD;
+        assert IALOAD <= loadOpcode && loadOpcode <= SALOAD : Bytecodes.nameOf(loadOpcode);
         int index = popInt(frame, top - 1);
         Object array = nullCheck(popObject(frame, top - 2));
         switch (loadOpcode) {
@@ -1327,7 +1327,7 @@ public final class Interpreter {
     }
 
     private static void arrayStore(InterpreterFrame frame, MethodProfile methodProfile, int bci, int top, int storeOpcode) {
-        assert IASTORE <= storeOpcode && storeOpcode <= SASTORE;
+        assert IASTORE <= storeOpcode && storeOpcode <= SASTORE : Bytecodes.nameOf(storeOpcode);
         int offset = (storeOpcode == LASTORE || storeOpcode == DASTORE) ? 2 : 1;
         int index = popInt(frame, top - 1 - offset);
         Object array = nullCheck(popObject(frame, top - 2 - offset));
@@ -1606,7 +1606,7 @@ public final class Interpreter {
     }
 
     private static MethodType resolveMethodType(InterpreterConstantPool pool, InterpreterResolvedJavaMethod method, int opcode, char cpi) {
-        assert opcode == LDC || opcode == LDC_W;
+        assert opcode == LDC || opcode == LDC_W : Bytecodes.nameOf(opcode);
         try {
             return pool.resolvedMethodTypeAt(cpi, method.getDeclaringClass());
         } catch (Throwable t) {
@@ -1615,7 +1615,7 @@ public final class Interpreter {
     }
 
     private static MethodHandle resolveMethodHandle(InterpreterConstantPool pool, InterpreterResolvedJavaMethod method, int opcode, char cpi) {
-        assert opcode == LDC || opcode == LDC_W;
+        assert opcode == LDC || opcode == LDC_W : Bytecodes.nameOf(opcode);
         try {
             return pool.resolvedMethodHandleAt(cpi, method.getDeclaringClass());
         } catch (Throwable t) {
@@ -1624,7 +1624,7 @@ public final class Interpreter {
     }
 
     private static Object resolveDynamicConstant(InterpreterConstantPool pool, InterpreterResolvedJavaMethod method, int opcode, char cpi) {
-        assert opcode == LDC || opcode == LDC_W;
+        assert opcode == LDC || opcode == LDC_W : Bytecodes.nameOf(opcode);
         try {
             return pool.resolvedDynamicConstantAt(cpi, method.getDeclaringClass());
         } catch (Throwable t) {
@@ -1635,7 +1635,7 @@ public final class Interpreter {
     // region Class/Method/Field resolution
 
     private static InterpreterResolvedJavaType resolveType(InterpreterResolvedJavaMethod method, int opcode, char cpi) {
-        assert opcode == INSTANCEOF || opcode == CHECKCAST || opcode == NEW || opcode == ANEWARRAY || opcode == MULTIANEWARRAY || opcode == LDC || opcode == LDC_W;
+        assert opcode == INSTANCEOF || opcode == CHECKCAST || opcode == NEW || opcode == ANEWARRAY || opcode == MULTIANEWARRAY || opcode == LDC || opcode == LDC_W : Bytecodes.nameOf(opcode);
         if (GraalDirectives.injectBranchProbability(GraalDirectives.SLOWPATH_PROBABILITY, cpi == 0)) {
             throw noClassDefFoundError(opcode, null);
         }
@@ -1654,7 +1654,7 @@ public final class Interpreter {
     }
 
     private static InterpreterResolvedJavaType resolveTypeOrNullIfUnresolvable(InterpreterResolvedJavaMethod method, int opcode, char cpi) {
-        assert opcode == INSTANCEOF || opcode == CHECKCAST || opcode == NEW || opcode == ANEWARRAY || opcode == MULTIANEWARRAY || opcode == LDC || opcode == LDC_W;
+        assert opcode == INSTANCEOF || opcode == CHECKCAST || opcode == NEW || opcode == ANEWARRAY || opcode == MULTIANEWARRAY || opcode == LDC || opcode == LDC_W : Bytecodes.nameOf(opcode);
         if (GraalDirectives.injectBranchProbability(GraalDirectives.SLOWPATH_PROBABILITY, cpi == 0)) {
             return null; // CPI 0 is a marker for unresolvable AND unknown entry
         }
@@ -1698,7 +1698,7 @@ public final class Interpreter {
     }
 
     public static InterpreterResolvedJavaMethod resolveMethod(InterpreterResolvedJavaMethod method, int opcode, char cpi) {
-        assert Bytecodes.isInvoke(opcode);
+        assert Bytecodes.isInvoke(opcode) : Bytecodes.nameOf(opcode);
         if (GraalDirectives.injectBranchProbability(GraalDirectives.SLOWPATH_PROBABILITY, cpi == 0)) {
             throw noSuchMethodError(opcode, null);
         }
@@ -1717,7 +1717,7 @@ public final class Interpreter {
     }
 
     private static InterpreterResolvedJavaField resolveField(InterpreterResolvedJavaMethod method, int opcode, char cpi) {
-        assert opcode == GETFIELD || opcode == GETSTATIC || opcode == PUTFIELD || opcode == PUTSTATIC;
+        assert opcode == GETFIELD || opcode == GETSTATIC || opcode == PUTFIELD || opcode == PUTSTATIC : Bytecodes.nameOf(opcode);
         if (GraalDirectives.injectBranchProbability(GraalDirectives.SLOWPATH_PROBABILITY, cpi == 0)) {
             throw noSuchFieldError(opcode, null);
         }
@@ -1869,7 +1869,7 @@ public final class Interpreter {
      * </pre>
      */
     private static int putField(InterpreterFrame frame, int top, InterpreterResolvedJavaField field, int opcode) {
-        assert opcode == PUTFIELD || opcode == PUTSTATIC;
+        assert opcode == PUTFIELD || opcode == PUTSTATIC : Bytecodes.nameOf(opcode);
         assert field.isStatic() == (opcode == PUTSTATIC);
         assert !field.isUnmaterializedConstant();
         JavaKind kind = field.getJavaKind();
@@ -1914,7 +1914,7 @@ public final class Interpreter {
      * </pre>
      */
     private static int getField(InterpreterFrame frame, int top, InterpreterResolvedJavaField field, int opcode) {
-        assert opcode == GETFIELD || opcode == GETSTATIC;
+        assert opcode == GETFIELD || opcode == GETSTATIC : Bytecodes.nameOf(opcode);
         assert field.isStatic() == (opcode == GETSTATIC);
         JavaKind kind = field.getJavaKind();
         assert kind != JavaKind.Illegal;
