@@ -129,8 +129,8 @@ public class WebImageWasmLMCodeGen extends WebImageWasmCodeGen {
     }
 
     /**
-     * Replaces all relocations in the image heap ({@link RelocatableBuffer#getSortedRelocations()})
-     * and the AST ({@link Relocation}) with a concrete value.
+     * Replaces all relocations in the image heap ({@link RelocatableBuffer#forEachRelocation}) and
+     * the AST ({@link Relocation}) with a concrete value.
      * <p>
      * <ul>
      * <li>Object references are replaced with their address in the image heap.</li>
@@ -142,9 +142,7 @@ public class WebImageWasmLMCodeGen extends WebImageWasmCodeGen {
      * @param heapStart The address of the first byte in the image heap.
      */
     private void processRelocations(RelocatableBuffer buffer, long heapStart, UnmodifiableEconomicMap<CGlobalData<?>, UnsignedWord> globalData) {
-        for (var entry : buffer.getSortedRelocations()) {
-            int offset = entry.getKey();
-            RelocatableBuffer.Info info = entry.getValue();
+        buffer.forEachRelocation((info, offset) -> {
             ObjectFile.RelocationKind relocationKind = info.getRelocationKind();
             Object targetObject = info.getTargetObject();
 
@@ -167,7 +165,7 @@ public class WebImageWasmLMCodeGen extends WebImageWasmCodeGen {
             long relocationAddend = relocatedValue + info.getAddend();
 
             buffer.getByteBuffer().putLong(offset, relocationAddend);
-        }
+        });
 
         // Resolve all relocations in the AST
         new WasmRelocationVisitor() {

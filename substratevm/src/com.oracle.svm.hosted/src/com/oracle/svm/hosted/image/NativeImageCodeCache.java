@@ -138,7 +138,7 @@ public abstract class NativeImageCodeCache {
         public static final HostedOptionKey<Boolean> VerifyDeoptimizationEntryPoints = new HostedOptionKey<>(false);
     }
 
-    private int codeAreaSize;
+    private int codeAreaSize = -1;
 
     protected final NativeImageHeap imageHeap;
 
@@ -193,8 +193,10 @@ public abstract class NativeImageCodeCache {
         return codeAreaSize;
     }
 
-    public void setCodeAreaSize(int codeAreaSize) {
-        this.codeAreaSize = codeAreaSize;
+    public void setCodeAreaSize(int size) {
+        assert size >= 0;
+        assert codeAreaSize == -1;
+        codeAreaSize = size;
     }
 
     public Pair<HostedMethod, CompilationResult> getFirstCompilation() {

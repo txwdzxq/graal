@@ -564,10 +564,7 @@ public abstract class NativeImage extends AbstractImage {
     }
 
     public void markRelocationSitesFromBuffer(RelocatableBuffer buffer, ProgbitsSectionImpl sectionImpl) {
-        for (Map.Entry<Integer, RelocatableBuffer.Info> entry : buffer.getSortedRelocations()) {
-            final int offset = entry.getKey();
-            final RelocatableBuffer.Info info = entry.getValue();
-
+        buffer.forEachRelocation((info, offset) -> {
             assert ConfigurationValues.getTarget().arch instanceof AArch64 || checkEmbeddedOffset(sectionImpl, offset, info);
 
             Object target = info.getTargetObject();
@@ -585,7 +582,7 @@ public abstract class NativeImage extends AbstractImage {
                     markHeapReferenceRelocationSite(sectionImpl, offset, info, targetObjectInfo);
                 }
             }
-        }
+        });
     }
 
     private static boolean checkEmbeddedOffset(ProgbitsSectionImpl sectionImpl, final int offset, final RelocatableBuffer.Info info) {

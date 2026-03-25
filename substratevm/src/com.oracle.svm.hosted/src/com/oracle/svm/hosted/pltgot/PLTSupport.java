@@ -25,7 +25,6 @@
 package com.oracle.svm.hosted.pltgot;
 
 import java.nio.ByteBuffer;
-import java.util.Map;
 
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.objectfile.ObjectFile.ProgbitsSectionImpl;
@@ -97,10 +96,7 @@ public class PLTSupport {
                             SubstrateOptions.InternalSymbolsAreGlobal.getValue());
         });
 
-        for (Map.Entry<Integer, RelocatableBuffer.Info> entry : pltBuffer.getSortedRelocations()) {
-            RelocatableBuffer.Info info = entry.getValue();
-            textBuffer.addRelocationWithAddend(pltTextOffset + entry.getKey(), info.getRelocationKind(), info.getAddend(), info.getTargetObject());
-        }
+        pltBuffer.forEachRelocation((info, offset) -> textBuffer.addRelocationWithAddend(pltTextOffset + offset, info.getRelocationKind(), info.getAddend(), info.getTargetObject()));
     }
 
     void markRelocationToPLTStub(ProgbitsSectionImpl section, int offset, RelocationKind relocationKind, SharedMethod target, long addend) {
