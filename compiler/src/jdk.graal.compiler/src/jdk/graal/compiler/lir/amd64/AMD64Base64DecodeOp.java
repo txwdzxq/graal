@@ -338,6 +338,7 @@ public final class AMD64Base64DecodeOp extends AMD64LIRInstruction {
             this.temps = AMD64LIRHelper.registersToValues(new Register[]{
                             rcx,
                             rdx,
+                            rbx,
                             rsi,
                             rdi,
                             r8,
@@ -369,6 +370,7 @@ public final class AMD64Base64DecodeOp extends AMD64LIRInstruction {
             this.temps = AMD64LIRHelper.registersToValues(new Register[]{
                             rcx,
                             rdx,
+                            rbx,
                             rsi,
                             rdi,
                             r8,
@@ -394,6 +396,7 @@ public final class AMD64Base64DecodeOp extends AMD64LIRInstruction {
             this.temps = AMD64LIRHelper.registersToValues(new Register[]{
                             rcx,
                             rdx,
+                            rbx,
                             rsi,
                             rdi,
                             r8,
@@ -410,7 +413,6 @@ public final class AMD64Base64DecodeOp extends AMD64LIRInstruction {
         masm.push(r13);
         masm.push(r14);
         masm.push(r15);
-        masm.push(rbx);
 
         Register source = asRegister(srcValue);
         Register startOffset = asRegister(spValue);
@@ -893,10 +895,14 @@ public final class AMD64Base64DecodeOp extends AMD64LIRInstruction {
         masm.subq(dest, rax); // Number of bytes converted
         masm.movq(rax, dest);
 
-        masm.pop(rbx);
         masm.pop(r15);
         masm.pop(r14);
         masm.pop(r13);
         masm.pop(r12);
+    }
+
+    @Override
+    public boolean modifiesStackPointer() {
+        return true;
     }
 }
