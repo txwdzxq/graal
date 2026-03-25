@@ -564,6 +564,19 @@ final class EspressoExternalVMAccess implements VMAccess {
     }
 
     @Override
+    public JavaConstant clonePrimitiveArray(JavaConstant primitiveArray) {
+        if (!(primitiveArray instanceof EspressoExternalObjectConstant objectConstant)) {
+            throw new IllegalArgumentException("Expected an EspressoExternalObjectConstant, got " + safeGetClass(primitiveArray));
+        }
+        EspressoResolvedObjectType arrayType = objectConstant.getType();
+        if (!(arrayType.isArray() && arrayType.getComponentType().isPrimitive())) {
+            throw new IllegalArgumentException("Expected a primitive array constant, got " + arrayType);
+        }
+        Value copy = invokeJVMCIHelper("clonePrimitiveArray", objectConstant.getValue());
+        return new EspressoExternalObjectConstant(this, copy);
+    }
+
+    @Override
     public void writeArrayElement(JavaConstant array, int index, JavaConstant element) {
         if (!(array instanceof EspressoExternalObjectConstant espressoArray)) {
             throw new IllegalArgumentException("Expected an EspressoExternalObjectConstant, got " + safeGetClass(array));

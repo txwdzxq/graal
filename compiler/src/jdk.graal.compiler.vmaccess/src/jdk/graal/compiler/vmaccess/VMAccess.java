@@ -160,6 +160,16 @@ public interface VMAccess {
     JavaConstant createPrimitiveArray(JavaKind kind, int length);
 
     /**
+     * Clones a primitive array.
+     *
+     * @param primitiveArray a {@link JavaConstant} representing a primitive array
+     * @return a cloned primitive array as a {@link JavaConstant}
+     * @throws IllegalArgumentException if {@code primitiveArray} does not represent a primitive
+     *             array
+     */
+    JavaConstant clonePrimitiveArray(JavaConstant primitiveArray);
+
+    /**
      * Writes {@code element} into {@code array} at {@code index}.
      *
      * @param array the array in which the element will be written

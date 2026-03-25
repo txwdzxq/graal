@@ -293,6 +293,34 @@ final class HostVMAccess implements VMAccess {
         return providers.getSnippetReflection().forObject(array);
     }
 
+    @Override
+    public JavaConstant clonePrimitiveArray(JavaConstant primitiveArray) {
+        ResolvedJavaType arrayType = getProviders().getMetaAccess().lookupJavaType(primitiveArray);
+        if (arrayType == null || !arrayType.isArray() || !arrayType.getComponentType().isPrimitive()) {
+            throw new IllegalArgumentException("Expected a primitive array constant, got " + primitiveArray);
+        }
+        Object source = providers.getSnippetReflection().asObject(Object.class, primitiveArray);
+        if (source == null) {
+            throw new IllegalArgumentException("Could not unwrap a primitive array constant: " + primitiveArray);
+        }
+        /*
+         * Keep cloning explicit by primitive array kind. This avoids reflective clone access and
+         * preserves exact array runtime type through each typed clone() call.
+         */
+        Object copy = switch (source) {
+            case boolean[] array -> array.clone();
+            case byte[] array -> array.clone();
+            case short[] array -> array.clone();
+            case char[] array -> array.clone();
+            case int[] array -> array.clone();
+            case long[] array -> array.clone();
+            case float[] array -> array.clone();
+            case double[] array -> array.clone();
+            default -> throw new IllegalArgumentException("Expected a primitive array constant, got " + primitiveArray);
+        };
+        return providers.getSnippetReflection().forObject(copy);
+    }
+
     private void doWriteArrayElement(Object array, ResolvedJavaType componentType, int index, JavaConstant element) {
         Object unwrappedValue;
         if (componentType.isPrimitive()) {
