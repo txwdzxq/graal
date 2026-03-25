@@ -24,16 +24,11 @@
  */
 package com.oracle.svm.hosted.pltgot;
 
-import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.graal.code.SubstrateBackend;
 import com.oracle.svm.core.meta.SharedMethod;
-
-import jdk.vm.ci.meta.ResolvedJavaMethod;
+import com.oracle.svm.hosted.image.RelocatableBuffer;
 
 public interface PLTStubGenerator {
 
-    byte[] generatePLT(SharedMethod[] got, SubstrateBackend substrateBackend);
-
-    void markResolverMethodPatch(ObjectFile.ProgbitsSectionImpl pltBuffer, ResolvedJavaMethod resolverMethod);
-
+    RelocatableBuffer generatePLT(SharedMethod[] got, SubstrateBackend substrateBackend);
 }

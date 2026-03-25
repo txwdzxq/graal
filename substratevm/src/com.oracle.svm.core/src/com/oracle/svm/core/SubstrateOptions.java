@@ -1660,9 +1660,8 @@ public class SubstrateOptions {
             UserError.guarantee(!useLLVMBackend(), "%s is currently not supported with the LLVM backend.", enabledOption);
 
             /*
-             * Code offsets of PLT stubs cannot be predetermined because the PLT is separate from
-             * the text section and has its own base address. It would need to become a part of the
-             * text section (e.g., by turning it into a compilation unit).
+             * With PLT/GOT enabled, some relative code pointers need to be redirected through
+             * PLT/GOT, which is currently not implemented.
              */
             UserError.guarantee(!PLTGOTConfiguration.isEnabled(), "%s cannot be used together with PLT/GOT.", enabledOption);
         }

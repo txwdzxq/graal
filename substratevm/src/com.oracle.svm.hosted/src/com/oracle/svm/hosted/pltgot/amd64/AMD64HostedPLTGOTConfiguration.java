@@ -50,7 +50,7 @@ public final class AMD64HostedPLTGOTConfiguration extends HostedPLTGOTConfigurat
     }
 
     @Override
-    public PLTStubGenerator getArchSpecificPLTStubGenerator() {
+    public PLTStubGenerator createArchSpecificPLTStubGenerator() {
         return new AMD64PLTStubGenerator();
     }
 

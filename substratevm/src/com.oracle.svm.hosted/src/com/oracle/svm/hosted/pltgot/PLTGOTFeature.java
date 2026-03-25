@@ -170,24 +170,24 @@ public class PLTGOTFeature implements InternalFeature {
 
     @Override
     public void beforeCompilation(BeforeCompilationAccess access) {
-        HostedPLTGOTConfiguration.singleton().setHostedMetaAccess(((BeforeCompilationAccessImpl) access).getMetaAccess());
+        HostedPLTGOTConfiguration.singleton().initializeArchSpecificResolverMethod(((BeforeCompilationAccessImpl) access).getMetaAccess());
     }
 
     @Override
     public void afterCompilation(AfterCompilationAccess access) {
-        MethodAddressResolutionSupport methodAddressResolutionSupport = HostedPLTGOTConfiguration.singleton().getMethodAddressResolutionSupport();
-        GOTEntryAllocator gotEntryAllocator = HostedPLTGOTConfiguration.singleton().getGOTEntryAllocator();
+        HostedPLTGOTConfiguration configuration = HostedPLTGOTConfiguration.singleton();
+        MethodAddressResolutionSupport methodAddressResolutionSupport = configuration.getMethodAddressResolutionSupport();
+        GOTEntryAllocator gotEntryAllocator = configuration.getGOTEntryAllocator();
 
         gotEntryAllocator.reserveAndLayout(((AfterCompilationAccessImpl) access).getCompilations().keySet(), methodAddressResolutionSupport);
 
         Set<SharedMethod> gotTable = Set.of(gotEntryAllocator.getGOT());
-        ImageSingletons.add(MethodPointerRelocationProvider.class, new PLTGOTPointerRelocationProvider(gotTable::contains));
+        ImageSingletons.add(MethodPointerRelocationProvider.class, new PLTGOTPointerRelocationProvider(configuration.getPLTSupport(), gotTable::contains));
     }
 
     @Override
     public void beforeImageWrite(BeforeImageWriteAccess a) {
         var access = ((BeforeImageWriteAccessImpl) a);
-        HostedPLTGOTConfiguration.singleton().markResolverMethodPatch();
         ((NativeImage) access.getImage()).markRelocationSitesFromBuffer(gotBuffer, gotBufferImpl);
         if (PLTGOTOptions.PrintPLTGOTCallsInfo.getValue()) {
             reportPLTGOTCallSites();
@@ -198,15 +198,20 @@ public class PLTGOTFeature implements InternalFeature {
     public void afterAbstractImageCreation(AfterAbstractImageCreationAccess a) {
         var access = (AfterAbstractImageCreationAccessImpl) a;
         ObjectFile imageObjectFile = access.getImage().getObjectFile();
-        SharedMethod[] got = HostedPLTGOTConfiguration.singleton().getGOTEntryAllocator().getGOT();
-        /* We must create the PLT and the GOT section before we mark any relocations. */
-        PLTSectionSupport pltSectionSupport = HostedPLTGOTConfiguration.singleton().getPLTSectionSupport();
-        pltSectionSupport.createPLTSection(got, imageObjectFile, access.getSubstrateBackend());
-        createGOTSection(got, imageObjectFile, pltSectionSupport);
-        HostedPLTGOTConfiguration.singleton().getMethodAddressResolutionSupport().augmentImage(access.getImage());
+        HostedPLTGOTConfiguration configuration = HostedPLTGOTConfiguration.singleton();
+        SharedMethod[] got = configuration.getGOTEntryAllocator().getGOT();
+        /*
+         * Generate the PLT before GOT relocations are emitted. Space for it in the text section is
+         * reserved later during image writing, and the actual bytes are written when the text
+         * buffer is written.
+         */
+        PLTSupport pltSupport = configuration.getPLTSupport();
+        pltSupport.generatePLT(got, access.getSubstrateBackend());
+        createGOTSection(got, imageObjectFile, pltSupport);
+        configuration.getMethodAddressResolutionSupport().augmentImage(access.getImage());
     }
 
-    private void createGOTSection(SharedMethod[] got, ObjectFile objectFile, PLTSectionSupport pltSectionSupport) {
+    private void createGOTSection(SharedMethod[] got, ObjectFile objectFile, PLTSupport pltSupport) {
         int wordSize = ConfigurationValues.getWordSize();
         int gotSectionSize = got.length * wordSize;
         gotBuffer = new RelocatableBuffer(gotSectionSize, objectFile.getByteOrder());
@@ -221,7 +226,7 @@ public class PLTGOTFeature implements InternalFeature {
             if (methodsForDirectGOTRelocation.contains(method)) {
                 gotBuffer.addRelocationWithoutAddend(methodGOTEntryOffsetInSection, relocationKind, new MethodPointer(method, false));
             } else {
-                pltSectionSupport.markRelocationToPLTResolverJump(gotBufferImpl, methodGOTEntryOffsetInSection, relocationKind, got[gotEntryNo]);
+                pltSupport.addMethodPLTStubResolverRelocation(gotBuffer, methodGOTEntryOffsetInSection, relocationKind, method);
             }
         }
         // Prevent methods from being marked for a direct GOT relocation, after the relocations have
