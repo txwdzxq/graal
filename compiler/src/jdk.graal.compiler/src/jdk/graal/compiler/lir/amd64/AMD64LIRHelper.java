@@ -48,6 +48,8 @@ public final class AMD64LIRHelper {
                 temps[i] = register.asValue(LIRKind.value(AMD64Kind.QWORD));
             } else if (AMD64.XMM.equals(register.getRegisterCategory())) {
                 temps[i] = register.asValue(LIRKind.value(AMD64Kind.DOUBLE));
+            } else if (AMD64.MASK.equals(register.getRegisterCategory())) {
+                temps[i] = register.asValue(LIRKind.value(AMD64Kind.MASK64));
             } else {
                 throw GraalError.shouldNotReachHere("Unsupported register type in math stubs."); // ExcludeFromJacocoGeneratedReport
             }
