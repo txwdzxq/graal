@@ -255,13 +255,7 @@ public final class OptionValues {
      * values are set also if they would be the default value for their respective key.
      */
     public OptionValues derive(UnmodifiableEconomicMap<OptionKey<?>, Object> changedValues) {
-        if (changedValues.isEmpty()) {
-            return this;
-        } else {
-            EconomicMap<OptionKey<?>, Object> newMap = EconomicMap.create(values);
-            newMap.putAll(changedValues);
-            return new OptionValues(newMap);
-        }
+        return changedValues.isEmpty() ? this : new OptionValues(this, changedValues);
     }
 
     /**
@@ -274,10 +268,9 @@ public final class OptionValues {
      * {@link #derive(UnmodifiableEconomicMap)} or chain calls in the desired order.
      */
     public OptionValues derive(OptionKey<?> key, Object value) {
-        EconomicMap<OptionKey<?>, Object> map = newOptionMap();
-        if (!Objects.equals(key.getValue(this), value)) {
-            map.put(key, value);
+        if (Objects.equals(key.getValue(this), value)) {
+            return this;
         }
-        return derive(map);
+        return new OptionValues(this, key, value);
     }
 }
