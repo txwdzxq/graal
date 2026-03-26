@@ -174,15 +174,24 @@ public class PLTGOTFeature implements InternalFeature {
     }
 
     @Override
-    public void afterCompilation(AfterCompilationAccess access) {
+    public void afterCompilation(AfterCompilationAccess a) {
+        AfterCompilationAccessImpl access = (AfterCompilationAccessImpl) a;
         HostedPLTGOTConfiguration configuration = HostedPLTGOTConfiguration.singleton();
         MethodAddressResolutionSupport methodAddressResolutionSupport = configuration.getMethodAddressResolutionSupport();
+
         GOTEntryAllocator gotEntryAllocator = configuration.getGOTEntryAllocator();
+        gotEntryAllocator.reserveAndLayout(access.getCompilations().keySet(), methodAddressResolutionSupport);
 
-        gotEntryAllocator.reserveAndLayout(((AfterCompilationAccessImpl) access).getCompilations().keySet(), methodAddressResolutionSupport);
+        SharedMethod[] got = gotEntryAllocator.getGOT();
+        ImageSingletons.add(MethodPointerRelocationProvider.class, new PLTGOTPointerRelocationProvider(configuration.getPLTSupport(), Set.of(got)::contains));
 
-        Set<SharedMethod> gotTable = Set.of(gotEntryAllocator.getGOT());
-        ImageSingletons.add(MethodPointerRelocationProvider.class, new PLTGOTPointerRelocationProvider(configuration.getPLTSupport(), gotTable::contains));
+        /*
+         * Generate the PLT before GOT relocations are emitted. Space for it in the text section is
+         * reserved later during image writing, and the actual bytes are written when the text
+         * buffer is written.
+         */
+        PLTSupport pltSupport = configuration.getPLTSupport();
+        pltSupport.generatePLT(got, access.getRuntimeConfiguration().getBackendForNormalMethod());
     }
 
     @Override
@@ -200,14 +209,7 @@ public class PLTGOTFeature implements InternalFeature {
         ObjectFile imageObjectFile = access.getImage().getObjectFile();
         HostedPLTGOTConfiguration configuration = HostedPLTGOTConfiguration.singleton();
         SharedMethod[] got = configuration.getGOTEntryAllocator().getGOT();
-        /*
-         * Generate the PLT before GOT relocations are emitted. Space for it in the text section is
-         * reserved later during image writing, and the actual bytes are written when the text
-         * buffer is written.
-         */
-        PLTSupport pltSupport = configuration.getPLTSupport();
-        pltSupport.generatePLT(got, access.getSubstrateBackend());
-        createGOTSection(got, imageObjectFile, pltSupport);
+        createGOTSection(got, imageObjectFile, configuration.getPLTSupport());
         configuration.getMethodAddressResolutionSupport().augmentImage(access.getImage());
     }
 

@@ -154,6 +154,7 @@ public abstract class NativeImage extends AbstractImage {
     private final int wordSize;
     private final Set<HostedMethod> uniqueEntryPoints = new HashSet<>(); // noEconomicSet(streaming)
     private final MethodPointerRelocationProvider relocationProvider;
+    private final long textSectionSize;
 
     // The sections of the native image.
     private Section textSection;
@@ -164,6 +165,14 @@ public abstract class NativeImage extends AbstractImage {
     public NativeImage(NativeImageKind k, HostedUniverse universe, HostedMetaAccess metaAccess, NativeLibraries nativeLibs, NativeImageHeap heap, ImageHeapLayoutInfo heapLayout,
                     NativeImageCodeCache codeCache, List<HostedMethod> entryPoints, ClassLoader imageClassLoader) {
         super(k, universe, metaAccess, nativeLibs, heap, heapLayout, codeCache, entryPoints, imageClassLoader);
+
+        int codeCacheSize = codeCache.getCodeCacheSize();
+        if (PLTGOTConfiguration.isEnabled()) {
+            PLTSupport pltSupport = HostedPLTGOTConfiguration.singleton().getPLTSupport();
+            textSectionSize = pltSupport.reserveTextSectionSpace(codeCacheSize);
+        } else {
+            textSectionSize = codeCacheSize;
+        }
 
         uniqueEntryPoints.addAll(entryPoints);
         relocationProvider = MethodPointerRelocationProvider.singleton();
@@ -445,11 +454,6 @@ public abstract class NativeImage extends AbstractImage {
             }
 
             // Text section (code)
-            int textSectionSize = codeCache.getCodeCacheSize();
-            if (PLTGOTConfiguration.isEnabled()) {
-                PLTSupport pltSupport = HostedPLTGOTConfiguration.singleton().getPLTSupport();
-                textSectionSize = pltSupport.reserveTextSectionSpace(textSectionSize);
-            }
             final RelocatableBuffer textBuffer = new RelocatableBuffer(textSectionSize, objectFile.getByteOrder());
             final NativeTextSectionImpl textImpl = NativeTextSectionImpl.factory(textBuffer, objectFile, codeCache);
             textSection = objectFile.newProgbitsSection(SectionName.TEXT.getFormatDependentName(objectFile.getFormat()), pageSize, false, true, textImpl);
@@ -867,6 +871,11 @@ public abstract class NativeImage extends AbstractImage {
     @Override
     public long getImageHeapSize() {
         return heapLayout.getSize();
+    }
+
+    @Override
+    public long getCodeSize() {
+        return textSectionSize;
     }
 
     @Override

@@ -596,7 +596,7 @@ public class ProgressReporter {
         this.debugInfoTimer = timer;
     }
 
-    public void printCreationEnd(int imageFileSize, int heapObjectCount, long imageHeapSize, int codeAreaSize, int numCompilations, int debugInfoSize, int imageDiskFileSize) {
+    public void printCreationEnd(int imageFileSize, int heapObjectCount, long imageHeapSize, long codeSize, int numCompilations, int debugInfoSize, int imageDiskFileSize) {
         recordJsonMetric(ImageDetailKey.IMAGE_HEAP_OBJECT_COUNT, heapObjectCount);
         Timer imageTimer = getTimer(TimerCollection.Registry.IMAGE);
         Timer writeTimer = getTimer(TimerCollection.Registry.WRITE);
@@ -604,7 +604,7 @@ public class ProgressReporter {
         stagePrinter.end(imageTimer.getTotalTime() + writeTimer.getTotalTime() + archiveTimer.getTotalTime());
         creationStageEndCompleted = true;
         String format = BYTES_TO_HUMAN_FORMAT + " (%5.2f%%) for ";
-        l().a(format, ByteFormattingUtil.bytesToHuman(codeAreaSize), ProgressReporterUtils.toPercentage(codeAreaSize, imageFileSize))
+        l().a(format, ByteFormattingUtil.bytesToHuman(codeSize), ProgressReporterUtils.toPercentage(codeSize, imageFileSize))
                         .doclink("code area", "#glossary-code-area").a(":%,10d compilation units", numCompilations).println();
         int numResources = 0;
         for (ConditionalRuntimeValue<ResourceStorageEntryBase> entry : Resources.currentLayer().resources().getValues()) {
@@ -615,7 +615,7 @@ public class ProgressReporter {
         recordJsonMetric(ImageDetailKey.IMAGE_HEAP_RESOURCE_COUNT, numResources);
         l().a(format, ByteFormattingUtil.bytesToHuman(imageHeapSize), ProgressReporterUtils.toPercentage(imageHeapSize, imageFileSize))
                         .doclink("image heap", "#glossary-image-heap").a(":%,9d objects and %,d resource%s", heapObjectCount, numResources, numResources == 1 ? "" : "s").println();
-        long otherBytes = imageFileSize - codeAreaSize - imageHeapSize;
+        long otherBytes = imageFileSize - codeSize - imageHeapSize;
         if (debugInfoSize > 0) {
             recordJsonMetric(ImageDetailKey.DEBUG_INFO_SIZE, debugInfoSize); // Optional metric
             DirectPrinter l = l().a(format, ByteFormattingUtil.bytesToHuman(debugInfoSize), ProgressReporterUtils.toPercentage(debugInfoSize, imageFileSize))
@@ -633,7 +633,7 @@ public class ProgressReporter {
         assert otherBytes >= 0 : "Other bytes should never be negative: " + otherBytes;
         recordJsonMetric(ImageDetailKey.IMAGE_HEAP_SIZE, imageHeapSize);
         recordJsonMetric(ImageDetailKey.TOTAL_SIZE, imageFileSize);
-        recordJsonMetric(ImageDetailKey.CODE_AREA_SIZE, codeAreaSize);
+        recordJsonMetric(ImageDetailKey.CODE_AREA_SIZE, codeSize);
         recordJsonMetric(ImageDetailKey.NUM_COMP_UNITS, numCompilations);
         l().a(format, ByteFormattingUtil.bytesToHuman(otherBytes), ProgressReporterUtils.toPercentage(otherBytes, imageFileSize))
                         .doclink("other data", "#glossary-other-data").println();
@@ -642,7 +642,7 @@ public class ProgressReporter {
             l().a(", %s in total file size", ByteFormattingUtil.bytesToHuman(imageDiskFileSize));
         }
         l().println();
-        printBreakdowns();
+        printBreakdowns(codeSize);
         ProgressReporterSupport.singleton().afterBreakdowns();
         printRecommendations();
     }
@@ -653,7 +653,7 @@ public class ProgressReporter {
         }
     }
 
-    private void printBreakdowns() {
+    private void printBreakdowns(long totalCodeBytes) {
         Map<ProgressReporterUtils.BreakDownClassifier, Long> codeBreakdown = CodeBreakdownProvider.getAndClear().entrySet().stream()
                         .collect(Collectors.groupingBy(
                                         entry -> ProgressReporterUtils.BreakDownClassifier.of(entry.getKey()),
@@ -726,7 +726,6 @@ public class ProgressReporter {
 
         int numCodeItems = codeBreakdown.size();
         int numHeapItems = heapBreakdown.getSortedBreakdownEntries().size();
-        long totalCodeBytes = codeBreakdown.values().stream().mapToLong(Long::longValue).sum();
 
         p.l().a(String.format(BYTES_TO_HUMAN_FORMAT + " for %s more packages", ByteFormattingUtil.bytesToHuman(totalCodeBytes - printedCodeBytes), numCodeItems - printedCodeItems))
                         .jumpToMiddle()

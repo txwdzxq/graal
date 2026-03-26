@@ -77,7 +77,6 @@ import com.oracle.svm.common.meta.MethodVariant;
 import com.oracle.svm.core.LinkerInvocation;
 import com.oracle.svm.core.annotate.Delete;
 import com.oracle.svm.core.feature.InternalFeature;
-import com.oracle.svm.core.graal.code.SubstrateBackend;
 import com.oracle.svm.core.graal.meta.RuntimeConfiguration;
 import com.oracle.svm.core.meta.SharedField;
 import com.oracle.svm.core.meta.SharedMethod;
@@ -850,6 +849,10 @@ public class FeatureImpl {
             return (HostedMetaAccess) getProviders().getMetaAccess();
         }
 
+        public RuntimeConfiguration getRuntimeConfiguration() {
+            return runtimeConfiguration;
+        }
+
         public Providers getProviders() {
             return runtimeConfiguration.getProviders();
         }
@@ -882,9 +885,6 @@ public class FeatureImpl {
             super(featureHandler, imageClassLoader, aUniverse, hUniverse, heap, debugContext, runtimeConfiguration, nativeLibraries);
         }
 
-        public RuntimeConfiguration getRuntimeConfiguration() {
-            return runtimeConfiguration;
-        }
     }
 
     public static class AfterCompilationAccessImpl extends CompilationAccessImpl implements Feature.AfterCompilationAccess {
@@ -1008,23 +1008,16 @@ public class FeatureImpl {
 
     public static class AfterAbstractImageCreationAccessImpl extends HostedFeatureAccessImpl implements InternalFeature.AfterAbstractImageCreationAccess {
         protected final AbstractImage abstractImage;
-        protected final SubstrateBackend substrateBackend;
         private final HostedMetaAccess hMetaAccess;
 
-        AfterAbstractImageCreationAccessImpl(FeatureHandler featureHandler, ImageClassLoader imageClassLoader, HostedMetaAccess hMetaAccess, DebugContext debugContext, AbstractImage abstractImage,
-                        SubstrateBackend substrateBackend) {
+        AfterAbstractImageCreationAccessImpl(FeatureHandler featureHandler, ImageClassLoader imageClassLoader, HostedMetaAccess hMetaAccess, DebugContext debugContext, AbstractImage abstractImage) {
             super(featureHandler, imageClassLoader, debugContext);
             this.abstractImage = abstractImage;
-            this.substrateBackend = substrateBackend;
             this.hMetaAccess = hMetaAccess;
         }
 
         public AbstractImage getImage() {
             return abstractImage;
-        }
-
-        public SubstrateBackend getSubstrateBackend() {
-            return substrateBackend;
         }
 
         @Override
