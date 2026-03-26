@@ -65,6 +65,7 @@ import jdk.graal.compiler.nodes.ValueProxyNode;
 import jdk.graal.compiler.nodes.calc.MinMaxNode;
 import jdk.graal.compiler.nodes.extended.FixedValueAnchorNode;
 import jdk.graal.compiler.nodes.java.InstanceOfNode;
+import jdk.graal.compiler.nodes.java.LoadFieldNode;
 import jdk.graal.compiler.nodes.java.MethodCallTargetNode;
 import jdk.graal.compiler.nodes.spi.CoreProviders;
 import jdk.graal.compiler.nodes.spi.SimplifierTool;
@@ -714,6 +715,12 @@ public class VectorAPIExpansionPhase extends PostRunCanonicalizationPhase<HighTi
         } else if (use instanceof ReturnNode returnNode && returnNode.result().equals(value)) {
             /* If a vector value is returned, we can also try to box the vector there. */
             return VectorAPIBoxingUtils.asUnboxableVectorType(value, providers) != null;
+        } else if (use instanceof LoadFieldNode loadField && loadField.object() == value) {
+            /*
+             * Some Vector API operations still use Java fallbacks that read the boxed vector's
+             * payload field. Box the value so these payload reads don't block SIMD expansion.
+             */
+            return loadField.field().getName().equals("payload") && VectorAPIBoxingUtils.asUnboxableVectorType(value, providers) != null;
         } else if (use instanceof ValuePhiNode phi && isPhiToBox(phi, providers)) {
             /* A phi that mixes vector and non-vector inputs, box all its input vectors. */
             return true;
