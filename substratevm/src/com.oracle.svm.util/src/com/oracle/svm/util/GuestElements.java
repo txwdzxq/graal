@@ -29,6 +29,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.nio.ByteOrder;
 import java.util.Objects;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
@@ -39,6 +42,7 @@ import org.graalvm.nativeimage.c.function.InvokeCFunctionPointer;
 import com.oracle.svm.shared.singletons.ImageSingletonsSupportImpl;
 
 import jdk.graal.compiler.vmaccess.VMAccess;
+import jdk.vm.ci.meta.JavaKind;
 import jdk.vm.ci.meta.ResolvedJavaField;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
@@ -113,9 +117,37 @@ public abstract sealed class GuestElements permits GuestAccess.GuestElementsImpl
     public final ResolvedJavaMethod HostedManagement_install = lookupMethod(HostedManagement, "install");
     // Checkstyle: resume field name check
 
+    public final Set<ResolvedJavaMethod> abstractMemorySegmentGetSetMethods = computeAbstractMemorySegmentGetSetMethods();
+
     protected abstract ResolvedJavaType lookupType(Class<?> clazz);
 
     protected abstract ResolvedJavaType lookupType(String className);
 
     protected abstract ResolvedJavaMethod lookupMethod(ResolvedJavaType type, String name, Class<?>... parameterTypes);
+
+    private Set<ResolvedJavaMethod> computeAbstractMemorySegmentGetSetMethods() {
+        ResolvedJavaType abstractMemorySegment = lookupType("jdk.internal.foreign.AbstractMemorySegmentImpl");
+        ResolvedJavaType longType = lookupType(long.class);
+
+        Set<ResolvedJavaMethod> roots = new HashSet<>();
+        for (JavaKind kind : JavaKind.values()) {
+            if (kind.isPrimitive() && kind != JavaKind.Void) {
+                ResolvedJavaType valueLayoutType = lookupType("java.lang.foreign.ValueLayout$Of" + kind.name());
+                addGetSetMethods(roots, abstractMemorySegment, valueLayoutType, longType, lookupType(kind.toJavaClass()));
+            }
+        }
+
+        ResolvedJavaType addressLayoutType = lookupType("java.lang.foreign.AddressLayout");
+        ResolvedJavaType memorySegmentType = lookupType("java.lang.foreign.MemorySegment");
+        addGetSetMethods(roots, abstractMemorySegment, addressLayoutType, longType, memorySegmentType);
+        return Collections.unmodifiableSet(roots);
+    }
+
+    private static void addGetSetMethods(Set<ResolvedJavaMethod> intrinsificationRoots, ResolvedJavaType abstractMemorySegment, ResolvedJavaType valueLayoutType, ResolvedJavaType longType,
+                    ResolvedJavaType carrierType) {
+        intrinsificationRoots.add(JVMCIReflectionUtil.getUniqueDeclaredMethod(abstractMemorySegment, "get", valueLayoutType, longType));
+        intrinsificationRoots.add(JVMCIReflectionUtil.getUniqueDeclaredMethod(abstractMemorySegment, "getAtIndex", valueLayoutType, longType));
+        intrinsificationRoots.add(JVMCIReflectionUtil.getUniqueDeclaredMethod(abstractMemorySegment, "set", valueLayoutType, longType, carrierType));
+        intrinsificationRoots.add(JVMCIReflectionUtil.getUniqueDeclaredMethod(abstractMemorySegment, "setAtIndex", valueLayoutType, longType, carrierType));
+    }
 }

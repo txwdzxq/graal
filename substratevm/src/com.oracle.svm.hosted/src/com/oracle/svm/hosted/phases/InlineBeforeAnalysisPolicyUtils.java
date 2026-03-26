@@ -26,6 +26,7 @@ package com.oracle.svm.hosted.phases;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
+import java.lang.reflect.Method;
 import java.util.Set;
 
 import com.oracle.graal.pointsto.api.PointstoOptions;
@@ -36,16 +37,19 @@ import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.UninterruptibleAnnotationUtils;
 import com.oracle.svm.core.heap.RestrictHeapAccess;
-import com.oracle.svm.shared.option.HostedOptionKey;
 import com.oracle.svm.hosted.AbstractAnalysisMetadataTrackingNode;
 import com.oracle.svm.hosted.SVMHost;
 import com.oracle.svm.hosted.SharedArenaSupport;
 import com.oracle.svm.hosted.code.FactoryMethodSupport;
 import com.oracle.svm.hosted.methodhandles.MethodHandleInvokerRenamingSubstitutionProcessor;
+import com.oracle.svm.shared.option.HostedOptionKey;
 import com.oracle.svm.shared.option.HostedOptionValues;
+import com.oracle.svm.shared.util.BasedOnJDKFile;
 import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.AnnotationUtil;
+import com.oracle.svm.util.GuestAccess;
+import com.oracle.svm.util.OriginalMethodProvider;
 
 import jdk.graal.compiler.api.replacements.Fold;
 import jdk.graal.compiler.core.common.type.IntegerStamp;
@@ -92,10 +96,10 @@ import jdk.vm.ci.meta.ResolvedJavaMethod;
  * configuration.
  *
  * Important: the implementation details of this class are publicly observable API. Since
- * {@link java.lang.reflect.Method} constants can be produced by inlining lookup methods with
- * constant arguments, reducing inlining can break customer code. This means we can never reduce the
- * amount of inlining in a future version without breaking compatibility. This also means that we
- * must be conservative and only inline what is necessary for known use cases.
+ * {@link Method} constants can be produced by inlining lookup methods with constant arguments,
+ * reducing inlining can break customer code. This means we can never reduce the amount of inlining
+ * in a future version without breaking compatibility. This also means that we must be conservative
+ * and only inline what is necessary for known use cases.
  */
 public class InlineBeforeAnalysisPolicyUtils {
     public static class Options {
@@ -158,8 +162,24 @@ public class InlineBeforeAnalysisPolicyUtils {
     private static final Class<? extends Annotation> COMPILED_LAMBDA_FORM_ANNOTATION = //
                     (Class<? extends Annotation>) ReflectionUtil.lookupClass("java.lang.invoke.LambdaForm$Compiled");
 
-    public static boolean isMethodHandleIntrinsificationRoot(ResolvedJavaMethod method) {
-        return AnnotationUtil.isAnnotationPresent(method, COMPILED_LAMBDA_FORM_ANNOTATION);
+    /**
+     * Contains methods that are explicitly registered as method handle intrinsification roots.
+     * Currently, this set contains methods
+     * 'AbstractMemorySegmentImpl.get/getAtIndex/set/setAtIndex(...)'. These methods are very simple
+     * and will just load a VarHandle and invoke it. Since the handle is loaded from an argument,
+     * these methods must be inlined. Otherwise, the handle is not seen to be constant. It is also
+     * necessary to declare them as intrinsification roots because although they are annotated
+     * with @ForceInline, the annotation is ignored by InlineBeforeAnalysis. If we specify those
+     * methods in {@link #alwaysInlineInvoke}, they will be inlined but MH intrinsification won't
+     * work anymore (since we don't inline MH roots if already in an inlining context; this is the
+     * mechanism to avoid partial inlining of method handles).
+     */
+    @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+10/src/java.base/share/classes/jdk/internal/foreign/AbstractMemorySegmentImpl.java#L681-L915") //
+    private final Set<ResolvedJavaMethod> explicitMethodHandleIntrinisificationRoots = GuestAccess.elements().abstractMemorySegmentGetSetMethods;
+
+    public boolean isMethodHandleIntrinsificationRoot(ResolvedJavaMethod method) {
+        return AnnotationUtil.isAnnotationPresent(method, COMPILED_LAMBDA_FORM_ANNOTATION) ||
+                        explicitMethodHandleIntrinisificationRoots.contains(OriginalMethodProvider.getOriginalMethod(method));
     }
 
     public boolean isScopedMethod(ResolvedJavaMethod method) {
@@ -580,7 +600,7 @@ public class InlineBeforeAnalysisPolicyUtils {
                     ReflectionUtil.lookupMethod(ReflectionUtil.lookupClass(false, "java.lang.invoke.DirectMethodHandle$Accessor"), "checkCast", Object.class),
                     ReflectionUtil.lookupMethod(ReflectionUtil.lookupClass(false, "java.lang.invoke.DirectMethodHandle$StaticAccessor"), "checkCast", Object.class));
 
-    private static boolean inlineForMethodHandleIntrinsification(AnalysisMethod method) {
+    private boolean inlineForMethodHandleIntrinsification(AnalysisMethod method) {
         return AnnotationUtil.isAnnotationPresent(method, ForceInline.class) ||
                         isMethodHandleIntrinsificationRoot(method) ||
                         INLINE_METHOD_HANDLE_CLASSES.contains(method.getDeclaringClass().getJavaClass()) ||
