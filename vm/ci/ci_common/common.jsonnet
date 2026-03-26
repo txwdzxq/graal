@@ -318,7 +318,7 @@ local devkits = graal_common.devkits;
         if (vm.maven_deploy_base_functions.edition == 'ce') then
           self.deploy_ce(os, arch, false, dry_run, [remote_mvn_repo])
         else
-          self.deploy_ee(os, arch, false, dry_run, ['--dummy-javadoc', '--skip', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', remote_mvn_repo])
+          self.deploy_ee(os, arch, false, dry_run, ['--dummy-javadoc', '--skip=' + std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', remote_mvn_repo])
           + self.deploy_ee(os, arch, false, dry_run, ['--dummy-javadoc', '--only', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch, true)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', remote_mvn_repo], extra_mx_args=polyglot_isolate_mx_args);
 
       local mvn_bundle_snippet =
@@ -333,7 +333,7 @@ local devkits = graal_common.devkits;
           if (vm.maven_deploy_base_functions.edition == 'ce') then
             self.deploy_ce(os, arch, false, dry_run, [local_repo, '${LOCAL_MAVEN_REPO_URL}'])
           else
-            self.deploy_ce(os, arch, false, dry_run, ['--dummy-javadoc', '--skip', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', local_repo, '${LOCAL_MAVEN_REPO_URL}'])
+            self.deploy_ce(os, arch, false, dry_run, ['--dummy-javadoc', '--skip=' + std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', local_repo, '${LOCAL_MAVEN_REPO_URL}'])
             + self.deploy_ee(os, arch, false, dry_run, ['--dummy-javadoc', '--only', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', local_repo, '${LOCAL_MAVEN_REPO_URL}'], extra_mx_args=polyglot_isolate_mx_args)
             + self.deploy_ee(os, arch, false, dry_run, ['--dummy-javadoc', local_repo, '${LOCAL_MAVEN_REPO_URL}'])
         )
