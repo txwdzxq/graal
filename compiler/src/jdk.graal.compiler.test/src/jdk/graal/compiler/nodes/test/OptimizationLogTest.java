@@ -182,8 +182,7 @@ public class OptimizationLogTest extends GraalCompilerTest {
         if (enableOptimizationLog) {
             optimizationLogTargets.add(DebugOptions.OptimizationLogTarget.Stdout);
         }
-        OptionValues options = getInitialOptions().derive(DebugOptions.OptimizationLog, optimizationLogTargets,
-                        GraalOptions.TrackNodeSourcePosition, true);
+        OptionValues options = getInitialOptions().derive(DebugOptions.OptimizationLog, optimizationLogTargets).derive(GraalOptions.TrackNodeSourcePosition, true);
         DebugContext debugContext = getDebugContext(options, null, method);
         StructuredGraph.Builder builder = new StructuredGraph.Builder(options, debugContext, null).method(method).compilationId(getCompilationId(method));
         return parse(builder, getEagerGraphBuilderSuite());

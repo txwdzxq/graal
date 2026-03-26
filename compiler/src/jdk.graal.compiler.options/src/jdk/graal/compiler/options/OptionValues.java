@@ -62,7 +62,7 @@ public final class OptionValues {
     }
 
     /**
-     * Please use method {@link #derive(OptionKey, Object, Object...)} instead.
+     * Please use method {@link #derive(OptionKey, Object)} instead.
      */
     public OptionValues(OptionValues initialValues, OptionKey<?> key1, Object value1, Object... extraPairs) {
         this(initialValues, asMap(key1, value1, extraPairs));
@@ -255,31 +255,22 @@ public final class OptionValues {
      * values are set also if they would be the default value for their respective key.
      */
     public OptionValues derive(UnmodifiableEconomicMap<OptionKey<?>, Object> changedValues) {
-        if (changedValues.isEmpty()) {
-            return this;
-        } else {
-            EconomicMap<OptionKey<?>, Object> newMap = EconomicMap.create(values);
-            newMap.putAll(changedValues);
-            return new OptionValues(newMap);
-        }
+        return changedValues.isEmpty() ? this : new OptionValues(this, changedValues);
     }
 
     /**
-     * Derives new option values where the respective keys are set to the respective values. A key
-     * is not set, if its default value would anyway return the correct value.
+     * Derives new option values where the given key is set to the given value.
+     * <p>
+     * The key is omitted if its current effective value already equals {@code value}. For keys with
+     * a computed {@link OptionKey#getValue(OptionValues)} implementation, this means that the
+     * derived options preserve the current "unset" state instead of forcing an explicit setting.
+     * Callers that need to materialize several interacting option updates at once should use
+     * {@link #derive(UnmodifiableEconomicMap)} or chain calls in the desired order.
      */
-    public OptionValues derive(OptionKey<?> key1, Object value1, Object... extraPairs) {
-        EconomicMap<OptionKey<?>, Object> map = newOptionMap();
-        if (!Objects.equals(key1.getValue(this), value1)) {
-            map.put(key1, value1);
+    public OptionValues derive(OptionKey<?> key, Object value) {
+        if (Objects.equals(key.getValue(this), value)) {
+            return this;
         }
-        for (int i = 0; i < extraPairs.length; i += 2) {
-            OptionKey<?> key = (OptionKey<?>) extraPairs[i];
-            Object value = extraPairs[i + 1];
-            if (!Objects.equals(key.getValue(this), value)) {
-                map.put(key, value);
-            }
-        }
-        return derive(map);
+        return new OptionValues(this, key, value);
     }
 }
