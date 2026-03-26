@@ -1084,6 +1084,10 @@ public class SVMHost extends HostVM {
             return false;
         }
 
+        if (annotationSubstitutions.isDeleted(type)) {
+            return false;
+        }
+
         /* Substitution types should never be reachable directly. */
         if (AnnotationUtil.isAnnotationPresent(type, TargetClass.class)) {
             return false;
