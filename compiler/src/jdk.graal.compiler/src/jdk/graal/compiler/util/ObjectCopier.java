@@ -34,6 +34,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.nio.file.FileSystem;
@@ -781,6 +782,18 @@ public class ObjectCopier {
             return ClassInfo.of(declaringClass);
         }
 
+        /**
+         * Gets the value to encode for a field after applying any field transformer.
+         */
+        protected Object getFieldValue(Object obj, Field field) {
+            Object value = readField(field, obj);
+            Transformer transformer = getFieldTransformer(field);
+            if (transformer != null) {
+                value = transformer.encodeValue(this, obj, value);
+            }
+            return value;
+        }
+
         private static void addExternalValue(Map<Object, Field> externalValues, Field field) {
             GraalError.guarantee(Modifier.isStatic(field.getModifiers()), "Field '%s' is not static. Only a static field can be used as known location for an instance.", field);
             Object value = readField(field, null);
@@ -889,22 +902,16 @@ public class ObjectCopier {
                 checkIllegalValue(LocationIdentity.class, obj, objectPath, "must come from a static field");
                 checkIllegalValue(HashSet.class, obj, objectPath, "hashes are typically not stable across VM executions");
 
-                prepareObject(obj);
                 makeStringId(clazz.getName(), objectPath);
                 ClassInfo classInfo = makeClassInfo(clazz, this, objectPath);
                 classInfo.fields().forEach((fieldDesc, f) -> {
                     String fieldName = f.getDeclaringClass().getSimpleName() + "#" + f.getName();
                     if (!f.getType().isPrimitive()) {
-                        Object fieldValue = readField(f, obj);
+                        Object fieldValue = getFieldValue(obj, f);
                         makeId(fieldValue, objectPath.add(fieldName));
                     }
                 });
             }
-        }
-
-        @SuppressWarnings("unused")
-        protected void prepareObject(Object obj) {
-            /* Hook to prepare special objects */
         }
 
         private ClassInfo makeClassInfo(Class<?> clazz, Encoder encoder, ObjectPath objectPath) {
@@ -981,7 +988,7 @@ public class ObjectCopier {
                         Field f = e.getValue();
                         debugf("%n ");
                         Class<?> fieldType = f.getType();
-                        Object fValue = readField(f, obj);
+                        Object fValue = getFieldValue(obj, f);
                         if (fieldType.isPrimitive()) {
                             out.writeUntypedValue(fValue);
                         } else {
@@ -1017,6 +1024,50 @@ public class ObjectCopier {
 
         static String escapeDebugStringValue(String s) {
             return s.replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r");
+        }
+    }
+
+    /**
+     * Marks a field whose encoded value must be produced by a {@link Transformer} instead of being
+     * read directly from the field.
+     * <p>
+     * This is useful for fields whose value is derived lazily, may be mutated while
+     * {@link ObjectCopier} is still walking the object graph, or should be rewritten for a specific
+     * encoder context.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.FIELD)
+    public @interface Transformed {
+        /**
+         * The transformer that computes the value to encode for the annotated field.
+         */
+        Class<? extends Transformer> transformer();
+    }
+
+    /**
+     * Per-field hook for stabilizing or rewriting a field value during {@link ObjectCopier}
+     * encoding.
+     * <p>
+     * The transformer is invoked when the annotated field is read by the encoder. Implementations
+     * can return a derived value, eagerly materialize a lazily initialized value, or rewrite the
+     * encoded form for a specific encoder context.
+     */
+    public interface Transformer {
+        /**
+         * Computes the value that should be encoded for the annotated field.
+         */
+        Object encodeValue(Encoder encoder, Object receiver, Object value);
+    }
+
+    private static Transformer getFieldTransformer(Field field) {
+        Transformed annotation = field.getAnnotation(Transformed.class);
+        if (annotation == null) {
+            return null;
+        }
+        try {
+            return annotation.transformer().getDeclaredConstructor().newInstance();
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+            throw GraalError.shouldNotReachHere(e, "Error while processing @ObjectCopier.Transformed field %s".formatted(field));
         }
     }
 

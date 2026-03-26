@@ -88,7 +88,6 @@ import com.oracle.svm.util.JVMCIReflectionUtil;
 import com.oracle.svm.util.OriginalMethodProvider;
 
 import jdk.graal.compiler.api.replacements.SnippetReflectionProvider;
-import jdk.graal.compiler.debug.CounterKey;
 import jdk.graal.compiler.nodes.EncodedGraph;
 import jdk.graal.compiler.nodes.FieldLocationIdentity;
 import jdk.graal.compiler.nodes.NodeClassMap;
@@ -393,17 +392,6 @@ public class SVMImageLayerSnapshotUtil {
             addBuiltin(new CGlobalDataInfoBuiltIn(cGlobalTracking));
             if (nodeClassMap != null) {
                 addBuiltin(new NodeClassMapBuiltin(nodeClassMap));
-            }
-        }
-
-        @Override
-        protected void prepareObject(Object obj) {
-            if (obj instanceof CounterKey counterKey) {
-                /*
-                 * The name needs to be cached before we persist the graph to avoid modifying the
-                 * field during the encoding.
-                 */
-                counterKey.getName();
             }
         }
     }
