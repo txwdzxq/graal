@@ -276,6 +276,13 @@ public final class Target_java_lang_invoke_MethodHandleNatives {
 
     @Alias
     @TargetElement(onlyWith = WithRuntimeClassLoading.class)
+    public static native Object linkDynamicConstant(Object callerObj,
+                    Object bootstrapMethodObj,
+                    Object nameObj, Object typeObj,
+                    Object staticArguments);
+
+    @Alias
+    @TargetElement(onlyWith = WithRuntimeClassLoading.class)
     public static native MethodType findMethodHandleType(Class<?> rtype, Class<?>[] ptypes);
 
     @Delete
