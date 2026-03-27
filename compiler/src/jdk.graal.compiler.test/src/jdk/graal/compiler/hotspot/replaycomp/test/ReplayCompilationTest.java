@@ -145,6 +145,7 @@ public class ReplayCompilationTest extends GraalCompilerTest {
             logTargets.add(DebugOptions.OptimizationLogTarget.Stdout);
             OptionValues diagnosticOptions = new OptionValues(initialOptions, DebugOptions.DumpPath, temp.toString(),
                             DebugOptions.PrintGraph, DebugOptions.PrintGraphTarget.File, DebugOptions.Dump, ":1",
+                            DebugOptions.PrintCanonicalGraphStrings, true,
                             DebugOptions.OptimizationLog, logTargets, DebugOptions.Log, "", DebugOptions.PrintBackendCFG, true);
             replayCompilation(replayFile, diagnosticOptions, false);
         });
