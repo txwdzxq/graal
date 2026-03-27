@@ -382,9 +382,15 @@ public final class BytecodeSensitiveAnalysisPolicy extends AnalysisPolicy {
     public void registerAsImplementationInvoked(InvokeTypeFlow invoke, PointsToAnalysisMethod method) {
         if (invoke.isContextInsensitive()) {
             method.registerAsImplementationInvoked(invoke);
-        } else {
-            method.registerAsImplementationInvoked(invoke.getOriginalInvoke());
+            return;
         }
+        /*
+         * Cloned invokes keep a pointer to their original invoke, but the original invoke itself
+         * has no original pointer. Use the original when available and fall back to the current
+         * invoke otherwise.
+         */
+        InvokeTypeFlow originalInvoke = invoke.getOriginalInvoke();
+        method.registerAsImplementationInvoked(originalInvoke != null ? originalInvoke : invoke);
     }
 
     static BytecodeAnalysisContextPolicy contextPolicy(BigBang bb) {
