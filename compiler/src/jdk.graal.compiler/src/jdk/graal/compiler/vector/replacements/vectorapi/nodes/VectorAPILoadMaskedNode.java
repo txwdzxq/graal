@@ -125,6 +125,13 @@ public class VectorAPILoadMaskedNode extends VectorAPIMacroNode implements Canon
         }
 
         GraalError.guarantee(loadType.payloadStamp.isCompatible(loadStamp), "%s - %s", loadType.payloadStamp, loadStamp);
+        return supportsVectorMaskedMove(vectorArch);
+    }
+
+    /**
+     * Checks whether the current target supports a direct masked move for this load shape.
+     */
+    public boolean supportsVectorMaskedMove(VectorArchitecture vectorArch) {
         return vectorArch.getSupportedVectorMaskedMoveLength(loadStamp.getComponent(0), loadStamp.getVectorLength()) == loadStamp.getVectorLength();
     }
 

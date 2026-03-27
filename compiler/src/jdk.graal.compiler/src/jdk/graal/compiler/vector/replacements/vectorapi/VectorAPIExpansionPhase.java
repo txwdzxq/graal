@@ -81,6 +81,7 @@ import jdk.graal.compiler.serviceprovider.SpeculationReasonGroup;
 import jdk.graal.compiler.vector.architecture.VectorArchitecture;
 import jdk.graal.compiler.vector.architecture.VectorLoweringProvider;
 import jdk.graal.compiler.vector.nodes.simd.SimdStamp;
+import jdk.graal.compiler.vector.replacements.vectorapi.nodes.VectorAPILoadMaskedNode;
 import jdk.graal.compiler.vector.replacements.vectorapi.nodes.VectorAPIMacroNode;
 import jdk.graal.compiler.vector.replacements.vectorapi.nodes.VectorAPISinkNode;
 import jdk.graal.compiler.vector.replacements.vectorapi.nodes.VectorAPIStoreMaskedNode;
@@ -298,7 +299,7 @@ public class VectorAPIExpansionPhase extends PostRunCanonicalizationPhase<HighTi
         EconomicMap<ConstantNode, ValueNode> simdConstantCache = EconomicMap.create();
 
         NodeUnionFind unionFind = collectNodes(graph, context, flood, vectorArch);
-        Iterable<ConnectedComponent> components = buildConnectedComponents(graph, context, unionFind, flood, simdConstantCache);
+        Iterable<ConnectedComponent> components = buildConnectedComponents(graph, context, unionFind, flood, simdConstantCache, vectorArch);
         checkComponentExpandability(graph, components, vectorArch);
         expandComponents(graph, context, simdConstantCache, components, vectorArch);
     }
@@ -317,12 +318,14 @@ public class VectorAPIExpansionPhase extends PostRunCanonicalizationPhase<HighTi
         /* Connect all macro nodes to their inputs. */
         for (VectorAPIMacroNode macro : graph.getNodes(VectorAPIMacroNode.TYPE)) {
             flood.add(macro);
-            boolean disconnectFromInputs = macro instanceof VectorAPIStoreMaskedNode storeMasked && !storeMasked.supportsVectorMaskedMove(vectorArch);
+            boolean disconnectFromInputs = (macro instanceof VectorAPIStoreMaskedNode storeMasked && !storeMasked.supportsVectorMaskedMove(vectorArch)) ||
+                            (macro instanceof VectorAPILoadMaskedNode loadMasked && loadMasked.vectorStamp() != null && !loadMasked.supportsVectorMaskedMove(vectorArch));
             for (Node input : macro.vectorInputs()) {
                 if (disconnectFromInputs) {
                     /*
-                     * Keep unsupported masked stores as scalar macro calls. Their vector inputs are
-                     * boxed at the use site so neighboring SIMD components can still expand.
+                     * Keep unsupported masked load/store operations as scalar macro calls. Their
+                     * vector inputs are boxed at the use site so neighboring SIMD components can
+                     * still expand.
                      */
                     continue;
                 }
@@ -385,7 +388,7 @@ public class VectorAPIExpansionPhase extends PostRunCanonicalizationPhase<HighTi
      * the {@code BinaryOp}. This method below will build a component containing all four nodes.
      */
     private static Iterable<ConnectedComponent> buildConnectedComponents(StructuredGraph graph, HighTierContext context, NodeUnionFind unionFind, NodeFlood flood,
-                    EconomicMap<ConstantNode, ValueNode> simdConstantCache) {
+                    EconomicMap<ConstantNode, ValueNode> simdConstantCache, VectorArchitecture vectorArch) {
         /*
          * This map contains the components we build. For each node n in the union find, its
          * component can be found using unionFind.find(n) as the key.
@@ -407,17 +410,34 @@ public class VectorAPIExpansionPhase extends PostRunCanonicalizationPhase<HighTi
              * properties to determine if the component can still be expanded to SIMD code.
              */
             if (node instanceof VectorAPIMacroNode macro) {
-                component.macros.add(macro);
-                if (macro instanceof VectorAPISinkNode sink) {
-                    component.sinks.add(sink);
-                    isSink = true;
-                }
-                if (macro.vectorStamp() == null) {
-                    node.graph().getDebug().log(DebugContext.DETAILED_LEVEL, "macro %s has null vector stamp %s", macro, macro.vectorStamp());
-                    component.canExpand = false;
-                } else if (component.canExpand) {
-                    component.simdStamps.put(macro, macro.vectorStamp());
-                    propagateStampToUsages(macro, macro.vectorStamp(), component, flood, context);
+                if (macro instanceof VectorAPILoadMaskedNode loadMasked && loadMasked.vectorStamp() != null && !loadMasked.supportsVectorMaskedMove(vectorArch)) {
+                    /*
+                     * Keep unsupported masked loads as scalar macro calls. The resulting boxed vector
+                     * object is unboxed where used so surrounding SIMD operations can still expand.
+                     */
+                    VectorAPIType unboxableType = VectorAPIBoxingUtils.asUnboxableVectorType(loadMasked, context);
+                    if (unboxableType == null) {
+                        node.graph().getDebug().log(DebugContext.DETAILED_LEVEL, "unsupported masked load %s is not unboxable", loadMasked);
+                        component.canExpand = false;
+                    } else {
+                        component.unboxes.add(loadMasked);
+                        component.simdStamps.put(loadMasked, unboxableType.stamp);
+                        propagateStampToUsages(loadMasked, unboxableType.stamp, component, flood, context);
+                        isUnboxInput = true;
+                    }
+                } else {
+                    component.macros.add(macro);
+                    if (macro instanceof VectorAPISinkNode sink) {
+                        component.sinks.add(sink);
+                        isSink = true;
+                    }
+                    if (macro.vectorStamp() == null) {
+                        node.graph().getDebug().log(DebugContext.DETAILED_LEVEL, "macro %s has null vector stamp %s", macro, macro.vectorStamp());
+                        component.canExpand = false;
+                    } else if (component.canExpand) {
+                        component.simdStamps.put(macro, macro.vectorStamp());
+                        propagateStampToUsages(macro, macro.vectorStamp(), component, flood, context);
+                    }
                 }
             } else if (node instanceof ValuePhiNode phi) {
                 component.phis.add(phi);
