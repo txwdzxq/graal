@@ -119,10 +119,10 @@ local devkits = graal_common.devkits;
   // svm_common includes the dependencies for all platforms besides windows amd64
   svm_common_windows_amd64(jdk): graal_common.deps.svm + graal_common.devkits["windows-jdk" + jdk],
 
-  maven_deploy_sdk:      ['--suite', 'sdk', 'maven-deploy', '--validate', 'none', '--all-distribution-types', '--with-suite-revisions-metadata'],
+  maven_deploy_sdk:      ['--suite', 'sdk', '--', 'maven-deploy', '--validate', 'none', '--all-distribution-types', '--with-suite-revisions-metadata'],
   deploy_artifacts_sdk(os, base_dist_name=null): (if base_dist_name != null then ['--base-dist-name=' + base_dist_name] else []) + ['--suite', 'sdk', 'deploy-artifacts', '--uploader', if os == 'windows' then 'artifact_uploader.cmd' else 'artifact_uploader'],
 
-  maven_deploy_all_suites: ['maven-deploy', '--all-suites', '--validate', 'none', '--all-distribution-types', '--with-suite-revisions-metadata'],
+  maven_deploy_all_suites: ['--', 'maven-deploy', '--all-suites', '--validate', 'none', '--all-distribution-types', '--with-suite-revisions-metadata'],
   deploy_artifacts_all_suites(os): ['deploy-artifacts', '--all-suites', '--uploader', if os == 'windows' then 'artifact_uploader.cmd' else 'artifact_uploader'],
 
   # All 3 used in vm.jsonnet
@@ -276,7 +276,7 @@ local devkits = graal_common.devkits;
 
     pd_layouts_artifact_name(platform, dry_run):: 'pd-layouts-' + (if dry_run then 'dry-run-' else '') + platform,
 
-    mvn_args: ['maven-deploy', '--tags=public', '--all-distribution-types', '--validate=full', '--version-suite=vm'],
+    mvn_args: ['--', 'maven-deploy', '--tags=public', '--all-distribution-types', '--validate=full', '--version-suite=vm'],
     mvn_args_only_native: self.mvn_args + ['--all-suites', '--only', self.only_native_dists],
 
     compose_platform(os, arch):: os + '-' + arch,
@@ -318,7 +318,7 @@ local devkits = graal_common.devkits;
         if (vm.maven_deploy_base_functions.edition == 'ce') then
           self.deploy_ce(os, arch, false, dry_run, [remote_mvn_repo])
         else
-          self.deploy_ee(os, arch, false, dry_run, ['--dummy-javadoc', '--skip', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', remote_mvn_repo])
+          self.deploy_ee(os, arch, false, dry_run, ['--dummy-javadoc', '--skip=' + std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', remote_mvn_repo])
           + self.deploy_ee(os, arch, false, dry_run, ['--dummy-javadoc', '--only', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch, true)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', remote_mvn_repo], extra_mx_args=polyglot_isolate_mx_args);
 
       local mvn_bundle_snippet =
@@ -333,7 +333,7 @@ local devkits = graal_common.devkits;
           if (vm.maven_deploy_base_functions.edition == 'ce') then
             self.deploy_ce(os, arch, false, dry_run, [local_repo, '${LOCAL_MAVEN_REPO_URL}'])
           else
-            self.deploy_ce(os, arch, false, dry_run, ['--dummy-javadoc', '--skip', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', local_repo, '${LOCAL_MAVEN_REPO_URL}'])
+            self.deploy_ce(os, arch, false, dry_run, ['--dummy-javadoc', '--skip=' + std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', local_repo, '${LOCAL_MAVEN_REPO_URL}'])
             + self.deploy_ee(os, arch, false, dry_run, ['--dummy-javadoc', '--only', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', local_repo, '${LOCAL_MAVEN_REPO_URL}'], extra_mx_args=polyglot_isolate_mx_args)
             + self.deploy_ee(os, arch, false, dry_run, ['--dummy-javadoc', local_repo, '${LOCAL_MAVEN_REPO_URL}'])
         )
