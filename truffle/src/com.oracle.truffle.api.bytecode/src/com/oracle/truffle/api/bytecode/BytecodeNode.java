@@ -432,6 +432,40 @@ public abstract class BytecodeNode extends Node {
     public abstract boolean hasSourceInformation();
 
     /**
+     * Ensures that sources are materialized for this node (see {@link #ensureSourceInformation()})
+     * and that content is loaded.
+     * <p>
+     * This method has no effect unless the interpreter declares a
+     * {@link GenerateBytecode#sourceContentSupplier() source content supplier}.
+     *
+     * @see BytecodeLocation#ensureSourceInformationWithContent()
+     * @see BytecodeRootNodes#ensureSourceInformationWithContent()
+     * @since 25.1
+     */
+    public BytecodeNode ensureSourceInformationWithContent() {
+        if (hasSourceInformationWithContent()) {
+            // fast-path optimization
+            return this;
+        }
+        BytecodeRootNode rootNode = this.getBytecodeRootNode();
+        rootNode.getRootNodes().update(BytecodeConfig.WITH_SOURCE_CONTENT);
+        BytecodeNode newNode = getBytecodeRootNode().getBytecodeNode();
+        assert newNode.hasSourceInformationWithContent() : "materialization of source content failed";
+        return newNode;
+    }
+
+    /**
+     * Returns <code>true</code> if source content was loaded for this bytecode node.
+     * <p>
+     * If the interpreter does not declare a {@link GenerateBytecode#sourceContentSupplier() source
+     * content supplier}, this method is equivalent to {@link #hasSourceInformation}.
+     *
+     * @see #ensureSourceInformationWithContent()
+     * @since 25.1
+     */
+    public abstract boolean hasSourceInformationWithContent();
+
+    /**
      * Returns all of the {@link ExceptionHandler exception handlers} associated with this node.
      *
      * @since 24.2

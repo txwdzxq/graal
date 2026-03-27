@@ -142,7 +142,7 @@ final class BytecodeTransitionImplElement extends AbstractElement {
         b.startReturn().startStaticCall(type(Set.class), "of").end().end();
         b.end();
 
-        int maxInstrumentations = parent.model.getInstrumentations().size() + (parent.model.enableInstructionTracing ? 1 : 0);
+        int maxInstrumentations = parent.model.bytecodeConfigEncoding.numInstrumentationBits();
         if (maxInstrumentations == 0) {
             b.startReturn().startStaticCall(type(Set.class), "of").end().end();
             return ex;
@@ -152,15 +152,13 @@ final class BytecodeTransitionImplElement extends AbstractElement {
         b.statement("int classesIndex = 0");
 
         if (parent.model.enableInstructionTracing) {
-            int mask = 1 << parent.model.traceInstructionInstrumentationIndex;
-            b.startIf().string("(instrumentationMask & 0x").string(Integer.toHexString(mask)).string(") != 0").end().startBlock();
+            b.startIf().string(parent.configEncoder.checkInstructionTracingEnabled("instrumentationMask")).end().startBlock();
             b.startStatement().string("classes[classesIndex++] = ").typeLiteral(types.InstructionTracer).end();
             b.end();
         }
 
         for (var instrumentation : parent.model.getInstrumentations()) {
-            int mask = 1 << instrumentation.operation.instrumentationIndex;
-            b.startIf().string("(instrumentationMask & 0x").string(Integer.toHexString(mask)).string(") != 0").end().startBlock();
+            b.startIf().string(parent.configEncoder.checkInstrumentationEnabled("instrumentationMask", instrumentation.operation)).end().startBlock();
             b.startStatement().string("classes[classesIndex++] = ").typeLiteral(instrumentation.operation.instruction.nodeType.asType()).end();
             b.end();
         }
@@ -187,8 +185,9 @@ final class BytecodeTransitionImplElement extends AbstractElement {
         GeneratorUtils.mergeSuppressWarnings(ex, "unchecked");
 
         CodeTreeBuilder b = ex.createBuilder();
-        b.statement("int oldTagsMask = (int)((oldBytecodeNode.configEncoding >> " + BytecodeRootNodeElement.TAG_OFFSET + ") & 0xFFFF_FFFFL)");
-        b.statement("int newTagsMask = (int)((newBytecodeNode.configEncoding >> " + BytecodeRootNodeElement.TAG_OFFSET + ") & 0xFFFF_FFFFL)");
+        BytecodeConfigEncoderImplElement configEncoder = parent.configEncoder;
+        b.declaration(type(int.class), "oldTagsMask", configEncoder.decodeTags("oldBytecodeNode.configEncoding"));
+        b.declaration(type(int.class), "newTagsMask", configEncoder.decodeTags("newBytecodeNode.configEncoding"));
         b.statement("return (Set<Class<?>>) mapAddedTags(newTagsMask & ~oldTagsMask)");
         return ex;
     }
@@ -198,8 +197,9 @@ final class BytecodeTransitionImplElement extends AbstractElement {
         GeneratorUtils.mergeSuppressWarnings(ex, "unchecked");
 
         CodeTreeBuilder b = ex.createBuilder();
-        b.statement("int oldInstrumentationsMask = (int)((oldBytecodeNode.configEncoding >> " + BytecodeRootNodeElement.INSTRUMENTATION_OFFSET + ") & 0x7FFF_FFFFL)");
-        b.statement("int newInstrumentationsMask = (int)((newBytecodeNode.configEncoding >> " + BytecodeRootNodeElement.INSTRUMENTATION_OFFSET + ") & 0x7FFF_FFFFL)");
+        BytecodeConfigEncoderImplElement configEncoder = parent.configEncoder;
+        b.declaration(type(int.class), "oldInstrumentationsMask", configEncoder.decodeInstrumentations("oldBytecodeNode.configEncoding"));
+        b.declaration(type(int.class), "newInstrumentationsMask", configEncoder.decodeInstrumentations("newBytecodeNode.configEncoding"));
         b.statement("return (Set<Class<?>>) mapAddedInstrumentations(newInstrumentationsMask & ~oldInstrumentationsMask)");
         return ex;
     }

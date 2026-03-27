@@ -171,6 +171,8 @@ public class BytecodeDSLModel extends Template implements PrettyPrintable {
 
     public IllegalLocalExceptionFactory illegalLocalExceptionFactory;
 
+    public ExecutableElement sourceContentSupplier;
+
     public String variadicStackLimit;
     public DSLExpression variadicStackLimitExpression;
 
@@ -236,7 +238,8 @@ public class BytecodeDSLModel extends Template implements PrettyPrintable {
     public InstructionModel tagResumeInstruction;
     public InstructionModel clearLocalInstruction;
     public InstructionModel traceInstruction;
-    public int traceInstructionInstrumentationIndex = -1;
+
+    public BytecodeConfigEncoding bytecodeConfigEncoding;
 
     public ExportsData tagTreeNodeLibrary;
 
@@ -434,7 +437,6 @@ public class BytecodeDSLModel extends Template implements PrettyPrintable {
         operationsToCustomOperations.put(op, customOp);
 
         if (kind == OperationKind.CUSTOM_INSTRUMENTATION) {
-            op.setInstrumentationIndex(instrumentations.size());
             instrumentations.add(customOp);
         } else if (kind == OperationKind.CUSTOM_YIELD) {
             customOp.setCustomYield();

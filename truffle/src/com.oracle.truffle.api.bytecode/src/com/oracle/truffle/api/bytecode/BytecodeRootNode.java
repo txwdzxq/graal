@@ -217,6 +217,20 @@ public interface BytecodeRootNode {
     }
 
     /**
+     * Returns the source section for this root node and materializes source information with
+     * content if it was not yet materialized.
+     * <p>
+     * This method can only be used if the interpreter declares a
+     * {@link GenerateBytecode#sourceContentSupplier() source content supplier}.
+     *
+     * @see BytecodeNode#ensureSourceInformationWithContent()
+     * @since 25.1
+     */
+    default SourceSection ensureSourceSectionWithContent() {
+        return getBytecodeNode().ensureSourceInformationWithContent().getSourceSection();
+    }
+
+    /**
      * Helper method to dump the root node's bytecode.
      *
      * @return a string representation of the bytecode
