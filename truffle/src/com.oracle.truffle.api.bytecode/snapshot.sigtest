@@ -215,6 +215,7 @@ meth public com.oracle.truffle.api.bytecode.BytecodeLocation getStartLocation()
 meth public com.oracle.truffle.api.bytecode.BytecodeNode getBytecodeNode()
 meth public com.oracle.truffle.api.bytecode.BytecodeRootNodes<?> getRootNodes()
 meth public com.oracle.truffle.api.exception.AbstractTruffleException interceptTruffleException(com.oracle.truffle.api.exception.AbstractTruffleException,com.oracle.truffle.api.frame.VirtualFrame,com.oracle.truffle.api.bytecode.BytecodeNode,int)
+meth public com.oracle.truffle.api.source.Source getSource()
 meth public com.oracle.truffle.api.source.SourceSection ensureSourceSection()
 meth public com.oracle.truffle.api.source.SourceSection ensureSourceSectionWithContent()
 meth public java.lang.Object interceptControlFlowException(com.oracle.truffle.api.nodes.ControlFlowException,com.oracle.truffle.api.frame.VirtualFrame,com.oracle.truffle.api.bytecode.BytecodeNode,int) throws java.lang.Throwable
