@@ -36,6 +36,7 @@ import com.oracle.svm.core.annotate.Alias;
 import com.oracle.svm.core.annotate.RecomputeFieldValue;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
+import com.oracle.svm.core.annotate.TargetElement;
 import com.oracle.svm.core.jdk.localization.LocalizationSupport;
 
 import jdk.internal.util.ReferencedKeyMap;
@@ -51,8 +52,8 @@ final class Target_java_util_ResourceBundle_Control {
      * That computation is pure and fully reconstructible from the BaseLocale key, so a fresh cache
      * preserves the default JDK behavior while avoiding analysis-time cache rescans.
      */
-    @Alias @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.FromAlias, isFinal = true)//
-    private static ReferencedKeyMap<BaseLocale, List<Locale>> CANDIDATES_CACHE = ReferencedKeyMap.create(true, ConcurrentHashMap::new);
+    @Alias @TargetElement(name = "CANDIDATES_CACHE") @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.FromAlias, isFinal = true)//
+    private static ReferencedKeyMap<BaseLocale, List<Locale>> candidatesCache = ReferencedKeyMap.create(true, ConcurrentHashMap::new);
 
     /**
      * Bundles are baked into the image, therefore their source can't really be modified at runtime.

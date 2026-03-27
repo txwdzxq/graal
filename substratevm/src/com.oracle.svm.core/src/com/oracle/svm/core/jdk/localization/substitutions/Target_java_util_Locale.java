@@ -30,6 +30,7 @@ import com.oracle.svm.core.annotate.Alias;
 import com.oracle.svm.core.annotate.InjectAccessors;
 import com.oracle.svm.core.annotate.RecomputeFieldValue;
 import com.oracle.svm.core.annotate.TargetClass;
+import com.oracle.svm.core.annotate.TargetElement;
 
 import jdk.internal.util.ReferencedKeyMap;
 
@@ -74,6 +75,6 @@ final class Target_java_util_Locale_LocaleCache {
      * Locale directly from the BaseLocale / LocaleKey input, so retaining build-time entries is
      * unnecessary and causes avoidable cache mutations during analysis.
      */
-    @Alias @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.FromAlias, isFinal = true)//
-    private static ReferencedKeyMap<Object, Locale> LOCALE_CACHE = ReferencedKeyMap.create(true, ReferencedKeyMap.concurrentHashMapSupplier());
+    @Alias @TargetElement(name = "LOCALE_CACHE") @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.FromAlias, isFinal = true)//
+    private static ReferencedKeyMap<Object, Locale> localeCache = ReferencedKeyMap.create(true, ReferencedKeyMap.concurrentHashMapSupplier());
 }
