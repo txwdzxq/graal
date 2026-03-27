@@ -27,6 +27,7 @@ package jdk.graal.compiler.phases.common;
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.Equivalence;
 
+import jdk.graal.compiler.debug.Assertions;
 import jdk.graal.compiler.graph.Graph;
 import jdk.graal.compiler.graph.Node;
 import jdk.graal.compiler.graph.NodeBitMap;
@@ -69,64 +70,30 @@ public class BoxNodeOptimizationPhase extends PostRunCanonicalizationPhase<CoreP
         ControlFlowGraph cfg = null;
         Graph.Mark before = graph.getMark();
         NodeBitMap boxesToKill = null;
-        EconomicMap<HIRBlock, EconomicMap<BoxNode, Integer>> boxOrderByBlock = null;
-        boxLoop: for (BoxNode box : graph.getNodes(BoxNode.TYPE)) {
-            if (box.isAlive() && !isUnlinked(box) && !box.hasIdentity()) {
-                final ValueNode primitiveVal = box.getValue();
-                assert primitiveVal != null : "Box " + box + " has no value";
-                // try to optimize with dominating box of the same value
-                // Note: deferred box deletion keeps primitiveVal usages stable during this scan.
-                boxedValUsageLoop: for (Node usage : primitiveVal.usages()) {
-                    if (usage == box) {
-                        continue;
-                    }
-                    if (usage instanceof BoxNode boxUsageOnBoxedVal) {
-                        if (boxUsageOnBoxedVal.isAlive() && !isUnlinked(boxUsageOnBoxedVal) &&
-                                        boxUsageOnBoxedVal.getBoxingKind() == box.getBoxingKind()) {
-                            if (cfg == null) {
-                                cfg = ControlFlowGraph.newBuilder(graph).connectBlocks(true).computeLoops(true).computeDominators(true).build();
-                            }
-                            if (graph.isNew(before, boxUsageOnBoxedVal) || graph.isNew(before, box)) {
-                                continue boxedValUsageLoop;
-                            }
-                            HIRBlock boxUsageOnBoxedValBlock = cfg.blockFor(boxUsageOnBoxedVal);
-                            HIRBlock originalBoxBlock = cfg.blockFor(box);
-                            if (boxUsageOnBoxedValBlock.getLoop() != null) {
-                                if (originalBoxBlock.getLoop() != boxUsageOnBoxedValBlock.getLoop()) {
-                                    // avoid proxy creation for now
-                                    continue boxedValUsageLoop;
-                                }
-                            }
-                            if (boxUsageOnBoxedValBlock.dominates(originalBoxBlock)) {
-                                if (boxUsageOnBoxedValBlock == originalBoxBlock) {
-                                    // check dominance within one block
-                                    if (boxOrderByBlock == null) {
-                                        boxOrderByBlock = EconomicMap.create(Equivalence.IDENTITY);
-                                    }
-                                    if (!dominatesWithinBlock(boxUsageOnBoxedValBlock, boxUsageOnBoxedVal, box, boxOrderByBlock)) {
-                                        /*
-                                         * they are within the same block but the usage block does
-                                         * not dominate the box block, that scenario will still be
-                                         * optimizable but for the usage block node later in the
-                                         * outer box loop
-                                         */
-                                        continue boxedValUsageLoop;
-                                    }
-                                }
-                                box.replaceAtUsages(boxUsageOnBoxedVal);
-                                graph.getOptimizationLog().report(getClass(), "BoxUsageReplacement", box);
-                                GraphUtil.unlinkFixedNode(box);
-                                if (boxesToKill == null) {
-                                    boxesToKill = graph.createNodeBitMap();
-                                }
-                                boxesToKill.mark(box);
-                                continue boxLoop;
-                            }
-                        }
-                    }
+        EconomicMap<HIRBlock, EconomicMap<BoxNode, Integer>> boxOrderByBlock = EconomicMap.create(Equivalence.IDENTITY);
+        for (BoxNode box : graph.getNodes(BoxNode.TYPE)) {
+            if (!isOptimizableBox(box) || graph.isNew(before, box)) {
+                continue;
+            }
+            final ValueNode primitiveVal = box.getValue();
+            assert primitiveVal != null : "Box " + box + " has no value";
+            // try to optimize with dominating box of the same value
+            // Note: deferred box deletion keeps primitiveVal usages stable during this scan.
+            for (Node usage : primitiveVal.usages()) {
+                if (usage == box || !(usage instanceof BoxNode boxUsageOnBoxedVal) || graph.isNew(before, boxUsageOnBoxedVal)) {
+                    continue;
+                }
+                if (!isReplacementCandidate(boxUsageOnBoxedVal, box)) {
+                    continue;
+                }
+                if (cfg == null) {
+                    cfg = ControlFlowGraph.newBuilder(graph).connectBlocks(true).computeLoops(true).computeDominators(true).build();
+                }
+                if (isDominatingBox(cfg.blockFor(boxUsageOnBoxedVal), cfg.blockFor(box), boxUsageOnBoxedVal, box, boxOrderByBlock)) {
+                    boxesToKill = replaceWithDominatingBox(graph, box, boxUsageOnBoxedVal, boxesToKill);
+                    break;
                 }
             }
-
         }
 
         if (boxesToKill != null) {
@@ -134,10 +101,65 @@ public class BoxNodeOptimizationPhase extends PostRunCanonicalizationPhase<CoreP
         }
     }
 
+    /**
+     * Returns whether {@code box} is still in the graph and eligible for replacement.
+     */
+    private static boolean isOptimizableBox(BoxNode box) {
+        return box.isAlive() && !isUnlinked(box) && !box.hasIdentity();
+    }
+
+    /**
+     * Returns whether {@code candidate} can be considered as a replacement for {@code box} before
+     * dominance is checked.
+     */
+    private static boolean isReplacementCandidate(BoxNode candidate, BoxNode box) {
+        return candidate.isAlive() && !isUnlinked(candidate) && candidate.getBoxingKind() == box.getBoxingKind();
+    }
+
+    /**
+     * Replaces {@code box} with {@code dominatingBox} at all usages, unlinks it and marks it for
+     * deletion.
+     */
+    private NodeBitMap replaceWithDominatingBox(StructuredGraph graph, BoxNode box, BoxNode dominatingBox, NodeBitMap boxesToKillOrNull) {
+        box.replaceAtUsages(dominatingBox);
+        graph.getOptimizationLog().report(getClass(), "BoxUsageReplacement", box);
+        GraphUtil.unlinkFixedNode(box);
+        NodeBitMap boxesToKill = boxesToKillOrNull != null ? boxesToKillOrNull : graph.createNodeBitMap();
+        boxesToKill.mark(box);
+        return boxesToKill;
+    }
+
     private static boolean isUnlinked(BoxNode box) {
         return box.predecessor() == null;
     }
 
+    /**
+     * Returns whether {@code dominatorCandidate} dominates {@code box}, including fixed-node order
+     * when both boxes are in the same block.
+     */
+    private static boolean isDominatingBox(HIRBlock dominatorCandidateBlock, HIRBlock boxBlock, BoxNode dominatorCandidate, BoxNode box,
+                    EconomicMap<HIRBlock, EconomicMap<BoxNode, Integer>> boxOrderByBlock) {
+        if (dominatorCandidateBlock.getLoop() != null && boxBlock.getLoop() != dominatorCandidateBlock.getLoop()) {
+            // avoid proxy creation for now
+            return false;
+        }
+        if (!dominatorCandidateBlock.dominates(boxBlock)) {
+            return false;
+        }
+        if (dominatorCandidateBlock == boxBlock) {
+            /*
+             * Both boxes are in the same block, i.e. the usage block does not strictly dominate the
+             * box block, so the relative fixed-node order decides dominance. If this check fails,
+             * the later box can still be optimized when it is visited by the outer loop.
+             */
+            return dominatesWithinBlock(dominatorCandidateBlock, dominatorCandidate, box, boxOrderByBlock);
+        }
+        return true;
+    }
+
+    /**
+     * Returns whether {@code dominatorCandidate} appears before {@code box} in {@code block}.
+     */
     private static boolean dominatesWithinBlock(HIRBlock block, BoxNode dominatorCandidate, BoxNode box,
                     EconomicMap<HIRBlock, EconomicMap<BoxNode, Integer>> boxOrderByBlock) {
         EconomicMap<BoxNode, Integer> boxOrder = boxOrderByBlock.get(block);
@@ -145,13 +167,13 @@ public class BoxNodeOptimizationPhase extends PostRunCanonicalizationPhase<CoreP
             boxOrder = computeBoxOrder(block);
             boxOrderByBlock.put(block, boxOrder);
         }
-        Integer dominatorCandidateOrder = boxOrder.get(dominatorCandidate);
-        Integer boxOrderNumber = boxOrder.get(box);
-        assert dominatorCandidateOrder != null : dominatorCandidate;
-        assert boxOrderNumber != null : box;
-        return dominatorCandidateOrder < boxOrderNumber;
+        assert boxOrder.containsKey(dominatorCandidate) && boxOrder.containsKey(box) : Assertions.errorMessage("block must contain both boxes", dominatorCandidate, box, block);
+        return boxOrder.get(dominatorCandidate) < boxOrder.get(box);
     }
 
+    /**
+     * Computes the fixed-node order of all {@link BoxNode}s in {@code block}.
+     */
     private static EconomicMap<BoxNode, Integer> computeBoxOrder(HIRBlock block) {
         EconomicMap<BoxNode, Integer> boxOrder = EconomicMap.create(Equivalence.IDENTITY);
         int order = 0;
