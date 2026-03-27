@@ -511,6 +511,11 @@ public final class GuestAccess implements VMAccess {
     }
 
     @Override
+    public void copyArray(JavaConstant src, int srcPos, JavaConstant dest, int destPos, int length) {
+        delegate.copyArray(src, srcPos, dest, destPos, length);
+    }
+
+    @Override
     public void writeArrayElement(JavaConstant array, int index, JavaConstant element) {
         delegate.writeArrayElement(array, index, element);
     }

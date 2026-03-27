@@ -170,6 +170,22 @@ public interface VMAccess {
     JavaConstant clonePrimitiveArray(JavaConstant primitiveArray);
 
     /**
+     * Copies array elements using {@link System#arraycopy(Object, int, Object, int, int)}
+     * semantics.
+     *
+     * @param src source array constant
+     * @param srcPos source start index
+     * @param dest destination array constant
+     * @param destPos destination start index
+     * @param length number of elements to copy
+     * @throws IllegalArgumentException if either array constant cannot be unwrapped to an array
+     * @throws ArrayStoreException if an element in {@code src} cannot be stored into {@code dest}
+     * @throws IndexOutOfBoundsException if any index or range argument violates
+     *             {@link System#arraycopy(Object, int, Object, int, int)} bounds constraints
+     */
+    void copyArray(JavaConstant src, int srcPos, JavaConstant dest, int destPos, int length);
+
+    /**
      * Writes {@code element} into {@code array} at {@code index}.
      *
      * @param array the array in which the element will be written
