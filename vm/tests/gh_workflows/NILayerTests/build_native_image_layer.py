@@ -58,10 +58,10 @@ def generate_matrix(path_to_data, libs_per_job, delimiter):
         sys.exit(1)
 
     matrix = {'coordinates': []}
-    excluded_coordinates = {f'{lib['group_id']}:{lib['artifact_id']}:{lib['version']}' for lib in exclude_data}
+    excluded_coordinates = {f"{lib['group_id']}:{lib['artifact_id']}:{lib['version']}" for lib in exclude_data}
     libs_in_job = []
     for lib in data:
-        lib_coordinates = f'{lib['group_id']}:{lib['artifact_id']}:{lib['version']}'
+        lib_coordinates = f"{lib['group_id']}:{lib['artifact_id']}:{lib['version']}"
         if lib_coordinates in excluded_coordinates:
             continue
         libs_in_job.append(lib_coordinates)
@@ -100,7 +100,9 @@ def build_layers(native_image_path, coordinates, delimiter):
 
         library_path = os.path.join(Path.home(), '.m2', 'repository', group_id.replace('.','/'), artifact_id, version)
         jar_path = os.path.join(library_path, f'{artifact_id}-{version}.jar')
-        subprocess.run(['cp', f'{os.path.join(library_path, f'{artifact_id}-{version}.pom')}', f'{os.path.join(library_path, 'pom.xml')}'], check=True)
+        pom_path = os.path.join(library_path, f'{artifact_id}-{version}.pom')
+        destination_pom_path = os.path.join(library_path, 'pom.xml')
+        subprocess.run(['cp', pom_path, destination_pom_path], check=True)
 
         if Path(library_path).exists():
             subprocess.run(['mkdir', gav], check=True)
@@ -118,7 +120,7 @@ def build_layers(native_image_path, coordinates, delimiter):
                     '-H:+ReportExceptionStackTraces',
                     '-o', f'lib-{artifact_id}-{version}'
             ]
-            print(f'Command: {' '.join(command)}')
+            print(f"Command: {' '.join(command)}")
             subprocess.run(command, check=True)
             os.chdir('..')
 
