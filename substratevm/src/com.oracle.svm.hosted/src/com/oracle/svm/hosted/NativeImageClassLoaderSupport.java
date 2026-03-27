@@ -81,7 +81,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipFile;
 
-import jdk.graal.compiler.options.OptionDescriptors;
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.EconomicSet;
 import org.graalvm.collections.UnmodifiableEconomicSet;
@@ -113,6 +112,7 @@ import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.HostedModuleSupport;
 
 import jdk.graal.compiler.debug.GraalError;
+import jdk.graal.compiler.options.OptionDescriptors;
 import jdk.graal.compiler.options.OptionKey;
 import jdk.graal.compiler.options.OptionValues;
 import jdk.internal.module.Modules;
@@ -900,6 +900,15 @@ public final class NativeImageClassLoaderSupport {
             preservePackages = PackageRequest.create(preserveSelectors.packages.keySet());
         }
 
+        private enum InitModuleAction {
+            LoadLink,
+            LoadLinkAndRegisterTypes;
+
+            boolean registerTypes() {
+                return this == LoadLinkAndRegisterTypes;
+            }
+        }
+
         private void run() {
             ScheduledExecutorService scheduledExecutor = Executors.newSingleThreadScheduledExecutor();
             try {
@@ -911,35 +920,69 @@ public final class NativeImageClassLoaderSupport {
                     System.out.println("Total processed entries: " + entriesProcessed.longValue() + ", current entry: " + currentlyProcessedEntry);
                 }, 5, 1, TimeUnit.MINUTES);
 
-                var requiresInit = EconomicSet.create(List.of(
-                                "java.base",
-                                "jdk.internal.vm.ci",
-                                "jdk.graal.compiler",
-                                "com.oracle.graal.graal_enterprise",
-                                "org.graalvm.nativeimage",
-                                "org.graalvm.truffle",
-                                "org.graalvm.truffle.runtime",
-                                "org.graalvm.truffle.compiler",
-                                "com.oracle.truffle.enterprise",
-                                "org.graalvm.jniutils",
-                                "org.graalvm.nativebridge"));
+                /*
+                 * Modules for which LoadClassHandler.initModule must be called explicitly. The
+                 * reasons differ by module, so each entry must document why the initModule
+                 * processing is needed.
+                 */
+                EconomicMap<String, InitModuleAction> modulesRequiringInitModule = EconomicMap.create();
+                /*
+                 * The -H:Preserve=package=... suboption can request packages from java.base, such
+                 * as sun.invoke.util, so initModule must scan java.base for those classes/packages.
+                 */
+                modulesRequiringInitModule.put("java.base", InitModuleAction.LoadLink);
+                /*
+                 * Ensure generated @NodeIntrinsic plugin classes from jdk.graal.compiler are
+                 * eagerly registered before analysis starts parsing code that uses them, e.g.
+                 * BranchProbabilityNode.probability(...) and UnreachableNode.unreachable().
+                 */
+                modulesRequiringInitModule.put("jdk.graal.compiler", InitModuleAction.LoadLinkAndRegisterTypes);
+                /*
+                 * Ensure enterprise nodes, snippets, and lowering code are eagerly available before
+                 * image compilation reaches them, e.g. EE CopyOfSnippets / CopyOfNode lowering.
+                 */
+                modulesRequiringInitModule.put("com.oracle.graal.graal_enterprise", InitModuleAction.LoadLinkAndRegisterTypes);
+                /*
+                 * Word and C interface types such as WordPointer and CCharPointer must be available
+                 * during analysis for native-image hosted intrinsics.
+                 */
+                modulesRequiringInitModule.put("org.graalvm.nativeimage", InitModuleAction.LoadLinkAndRegisterTypes);
+                /*
+                 * libjvmcicompiler analysis reaches JNIUtil and needs the org.graalvm.jniutils
+                 * word-based JNI interfaces eagerly available. A cleaner fix would package jniutils
+                 * only for image builds that need it, but that is blocked by the currently built-in
+                 * org.graalvm.truffle.runtime module depending on org.graalvm.jniutils. Defer that
+                 * packaging cleanup to GR-74275.
+                 */
+                modulesRequiringInitModule.put("org.graalvm.jniutils", InitModuleAction.LoadLinkAndRegisterTypes);
 
-                Set<String> additionalSystemModules = upgradeAndSystemModuleFinder.findAll().stream()
+                upgradeAndSystemModuleFinder.findAll().stream()
                                 .map(v -> v.descriptor().name())
                                 .filter(n -> getJavaModuleNamesToInclude().contains(n) || getJavaModuleNamesToPreserve().contains(n))
-                                .collect(Collectors.toSet());
-                requiresInit.addAll(additionalSystemModules);
+                                .distinct().forEach(mn -> modulesRequiringInitModule.putIfAbsent(mn, InitModuleAction.LoadLinkAndRegisterTypes));
 
                 Set<String> explicitlyAddedModules = HostedModuleSupport.parseModuleSetModifierProperty(HostedModuleSupport.PROPERTY_IMAGE_EXPLICITLY_ADDED_MODULES);
 
                 for (ModuleReference moduleReference : upgradeAndSystemModuleFinder.findAll()) {
                     String moduleName = moduleReference.descriptor().name();
-                    boolean moduleRequiresInit = requiresInit.contains(moduleName);
-                    if (moduleRequiresInit || explicitlyAddedModules.contains(moduleName)) {
-                        initModule(moduleReference, moduleRequiresInit);
+                    InitModuleAction action = modulesRequiringInitModule.get(moduleName);
+                    if (explicitlyAddedModules.contains(moduleName) && action == null) {
+                        /*
+                         * Make sure --add-modules can be used to make -H:Preserve=package= work for
+                         * built-in modules other than java.base.
+                         */
+                        action = InitModuleAction.LoadLink;
+                    }
+                    if (action != null) {
+                        initModule(moduleReference, action.registerTypes());
                     }
                 }
+
                 for (ModuleReference moduleReference : modulepathModuleFinder.findAll()) {
+                    /*
+                     * For all modules on the imageMP we need tracking so that e.g.
+                     * -H:Preserve=package= works for them.
+                     */
                     initModule(moduleReference, true);
                 }
 
@@ -968,7 +1011,7 @@ public final class NativeImageClassLoaderSupport {
             return false;
         }
 
-        private void initModule(ModuleReference moduleReference, boolean moduleRequiresInit) {
+        private void initModule(ModuleReference moduleReference, boolean registerTypes) {
             String moduleReferenceLocation = moduleReference.location().map(URI::toString).orElse("UnknownModuleReferenceLocation");
             currentlyProcessedEntry = moduleReferenceLocation;
             Optional<Module> optionalModule = findModule(moduleReference.descriptor().name());
@@ -996,7 +1039,7 @@ public final class NativeImageClassLoaderSupport {
                         String className = extractClassName(moduleResource, fileSystemSeparatorChar);
                         if (className != null) {
                             currentlyProcessedEntry = moduleReferenceLocation + fileSystemSeparatorChar + moduleResource;
-                            executor.execute(() -> handleClassFileName(container, module, className, includeUnconditionally, moduleRequiresInit, preserveModule));
+                            executor.execute(() -> handleClassFileName(container, module, className, includeUnconditionally, registerTypes, preserveModule));
                         }
                         if (isInImageModulePathOfLayeredBuild) {
                             executor.execute(() -> PathDigests.storePathFileDigest(container, moduleResource, isJar, pathDigests.mpDigests));
@@ -1179,15 +1222,19 @@ public final class NativeImageClassLoaderSupport {
             return strippedClassFileName.equals("module-info") ? null : strippedClassFileName.replace(fileSystemSeparatorChar, '.');
         }
 
-        private void handleClassFileName(URI container, Module module, String className, boolean includeUnconditionally, boolean classRequiresInit, boolean preserveReflectionMetadata) {
-            handleClassFileNameInBuilderContext(module, className, classRequiresInit);
+        /**
+         * Processes the name of a class discovered while scanning a classpath or module-path
+         * origin.
+         */
+        private void handleClassFileName(URI container, Module module, String className, boolean includeUnconditionally, boolean registerTypes, boolean preserveReflectionMetadata) {
+            handleClassFileNameInBuilderContext(module, className, registerTypes);
 
             imageClassLoader.guestTypes.handleClassFileName(container,
                             module,
                             className,
                             packageName(className),
                             includeUnconditionally,
-                            classRequiresInit,
+                            registerTypes,
                             preserveReflectionMetadata,
                             includePackages,
                             preservePackages);
@@ -1195,7 +1242,7 @@ public final class NativeImageClassLoaderSupport {
             imageClassLoader.watchdog.recordActivity();
         }
 
-        private void handleClassFileNameInBuilderContext(Module module, String className, boolean classRequiresInit) {
+        private void handleClassFileNameInBuilderContext(Module module, String className, boolean registerTypes) {
             Class<?> clazz = null;
             try {
                 clazz = imageClassLoader.forName(className, module);
@@ -1206,7 +1253,7 @@ public final class NativeImageClassLoaderSupport {
                 ImageClassLoader.handleClassLoadingError(le, "host: resolving class %s in %s", className, module);
             }
 
-            if (clazz != null && classRequiresInit) {
+            if (clazz != null && registerTypes) {
                 imageClassLoader.registerClass(clazz);
             }
         }
