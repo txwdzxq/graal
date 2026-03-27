@@ -116,7 +116,6 @@ import jdk.graal.compiler.debug.DebugContext;
 import jdk.graal.compiler.graph.Node;
 import jdk.graal.compiler.options.OptionValues;
 import jdk.graal.compiler.phases.util.Providers;
-import jdk.vm.ci.meta.ResolvedJavaField;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
 
@@ -152,7 +151,6 @@ public class WebImageFeature implements InternalFeature {
     public void beforeAnalysis(BeforeAnalysisAccess access) {
         FeatureImpl.BeforeAnalysisAccessImpl a = (FeatureImpl.BeforeAnalysisAccessImpl) access;
         AnalysisMetaAccess metaAccess = a.getMetaAccess();
-        ImageClassLoader imageClassLoader = a.getImageClassLoader();
         BigBang bigbang = a.getBigBang();
 
         // For DynamicNewArrayLowerer
