@@ -189,9 +189,15 @@ public class NativeImage {
         return null;
     }
 
-    private static final String HELP_TEXT = NativeImage.getResource("/Help.txt");
-    private static final String HELP_EXTRA_TEXT = NativeImage.getResource("/HelpExtra.txt");
+    static final String HELP_TEXT = NativeImage.getResource("/Help.txt");
+    static final String HELP_EXTRA_TEXT = NativeImage.getResource("/HelpExtra.txt");
     private static final String USAGE_TEXT = getResource("/Usage.txt");
+
+    private static String stripHelpMetaInfo(String helpText) {
+        return Arrays.stream(helpText.split("\\n", -1))
+                        .filter(line -> !line.stripLeading().startsWith("||"))
+                        .collect(Collectors.joining("\n"));
+    }
 
     static class ArgumentQueue {
 
@@ -2032,13 +2038,13 @@ public class NativeImage {
             boolean exit = true;
             switch (arg) {
                 case "--help" -> {
-                    showMessage(HELP_TEXT);
+                    showMessage(stripHelpMetaInfo(HELP_TEXT));
                     showNewline();
                     nativeImageProvider.apply(config).apiOptionHandler.printOptions(NativeImage::showMessage, false);
                     showNewline();
                 }
                 case "--help-extra" -> {
-                    showMessage(HELP_EXTRA_TEXT);
+                    showMessage(stripHelpMetaInfo(HELP_EXTRA_TEXT));
                     nativeImageProvider.apply(config).apiOptionHandler.printOptions(NativeImage::showMessage, true);
                     showNewline();
                 }

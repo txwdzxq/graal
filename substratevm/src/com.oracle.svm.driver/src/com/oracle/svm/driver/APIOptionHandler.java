@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -431,7 +431,7 @@ class APIOptionHandler extends NativeImage.OptionHandler<NativeImage> {
                         continue;
                     }
 
-                    return headArg.replace(APIOption.Utils.optionName(optionInfo.group.name()), "-H:" + optionInfo.group.multiValueOption().getName());
+                    return headArg.replace(APIOption.Utils.optionName(optionInfo.group.name()), NativeImage.oH + optionInfo.group.multiValueOption().getName());
                 } else {
                     optionName = APIOption.Utils.groupName(optionInfo.group) + variant;
                 }
@@ -615,6 +615,10 @@ class APIOptionHandler extends NativeImage.OptionHandler<NativeImage> {
                 printGroupOption(println, optionName, options);
             }
         });
+    }
+
+    void printComprehensiveOptions(Consumer<String> println, String format) {
+        ComprehensiveOptions.printOptions(println, format, apiOptions, groupInfos);
     }
 
     private static void printGroupOption(Consumer<String> println, String groupName, List<OptionInfo> options) {
