@@ -97,7 +97,7 @@ public final class ImageHeapPrimitiveArray extends ImageHeapArray {
      * Clones a primitive array guest constant to preserve a stable snapshot copy.
      */
     private static JavaConstant cloneArray(JavaConstant original) {
-        return GuestAccess.get().invoke(GuestAccess.elements().java_lang_Object_clone, original);
+        return GuestAccess.get().clonePrimitiveArray(original);
     }
 
     /**

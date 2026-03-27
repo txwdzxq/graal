@@ -506,6 +506,11 @@ public final class GuestAccess implements VMAccess {
     }
 
     @Override
+    public JavaConstant clonePrimitiveArray(JavaConstant primitiveArray) {
+        return delegate.clonePrimitiveArray(primitiveArray);
+    }
+
+    @Override
     public void writeArrayElement(JavaConstant array, int index, JavaConstant element) {
         delegate.writeArrayElement(array, index, element);
     }

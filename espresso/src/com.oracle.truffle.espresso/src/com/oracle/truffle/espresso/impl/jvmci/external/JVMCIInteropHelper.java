@@ -58,6 +58,7 @@ import com.oracle.truffle.espresso.classfile.descriptors.Symbol;
 import com.oracle.truffle.espresso.classfile.descriptors.Type;
 import com.oracle.truffle.espresso.classfile.descriptors.TypeSymbols;
 import com.oracle.truffle.espresso.classfile.descriptors.Validation;
+import com.oracle.truffle.espresso.impl.ArrayKlass;
 import com.oracle.truffle.espresso.impl.ContextAccess;
 import com.oracle.truffle.espresso.impl.Field;
 import com.oracle.truffle.espresso.impl.KeysArray;
@@ -113,6 +114,7 @@ public final class JVMCIInteropHelper implements ContextAccess, TruffleObject {
                         InvokeMember.ESPRESSO_SINGLE_IMPLEMENTOR,
                         InvokeMember.TO_GUEST_STRING,
                         InvokeMember.TO_GUEST_PRIMITIVE_ARRAY,
+                        InvokeMember.CLONE_PRIMITIVE_ARRAY,
                         InvokeMember.MAKE_IDENTITY_HASH_CODE,
                         InvokeMember.NEW_OBJECT_ARRAY,
                         InvokeMember.NEW_PRIMITIVE_ARRAY,
@@ -180,6 +182,7 @@ public final class JVMCIInteropHelper implements ContextAccess, TruffleObject {
         static final String ESPRESSO_SINGLE_IMPLEMENTOR = "espressoSingleImplementor";
         static final String TO_GUEST_STRING = "toGuestString";
         static final String TO_GUEST_PRIMITIVE_ARRAY = "toGuestPrimitiveArray";
+        static final String CLONE_PRIMITIVE_ARRAY = "clonePrimitiveArray";
         static final String MAKE_IDENTITY_HASH_CODE = "makeIdentityHashCode";
         static final String NEW_OBJECT_ARRAY = "newObjectArray";
         static final String NEW_PRIMITIVE_ARRAY = "newPrimitiveArray";
@@ -799,6 +802,39 @@ public final class JVMCIInteropHelper implements ContextAccess, TruffleObject {
                 }
             }
             return guestArray;
+        }
+
+        /**
+         * Clones an Espresso primitive array and returns a new guest array with independent
+         * storage.
+         * <p>
+         * This helper is intentionally restricted to primitive arrays for now.
+         */
+        @Specialization(guards = "CLONE_PRIMITIVE_ARRAY.equals(member)")
+        static Object clonePrimitiveArray(JVMCIInteropHelper receiver, @SuppressWarnings("unused") String member, Object[] arguments,
+                        @Bind Node node,
+                        @Cached @Shared InlinedBranchProfile typeError,
+                        @Cached @Shared InlinedBranchProfile arityError) throws ArityException, UnsupportedTypeException {
+            assert receiver != null;
+            EspressoLanguage language = EspressoLanguage.get(node);
+            assert language.isExternalJVMCIEnabled();
+            if (arguments.length != 1) {
+                arityError.enter(node);
+                throw ArityException.create(1, 1, arguments.length);
+            }
+            if (!(arguments[0] instanceof StaticObject sourceArray) || !sourceArray.isArray()) {
+                typeError.enter(node);
+                throw UnsupportedTypeException.create(arguments, "Expected a primitive array as the argument.");
+            }
+            Object sourceStorage = sourceArray.unwrap(language);
+            /* Guard against object arrays: primitive clone API only accepts primitive storage. */
+            if (!sourceStorage.getClass().getComponentType().isPrimitive()) {
+                typeError.enter(node);
+                throw UnsupportedTypeException.create(arguments, "Expected a primitive array as the argument.");
+            }
+            /* cloneWrappedArray duplicates underlying storage, so source and clone do not alias. */
+            Object clonedStorage = sourceArray.cloneWrappedArray(language);
+            return StaticObject.createArray((ArrayKlass) sourceArray.getKlass(), clonedStorage, EspressoContext.get(node));
         }
 
         @Specialization(guards = "MAKE_IDENTITY_HASH_CODE.equals(member)")
