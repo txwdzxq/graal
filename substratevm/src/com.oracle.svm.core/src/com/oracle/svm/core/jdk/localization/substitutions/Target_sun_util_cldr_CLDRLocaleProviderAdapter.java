@@ -38,8 +38,8 @@ final class Target_sun_util_cldr_CLDRLocaleProviderAdapter {
 
     /*
      * This is a memoization cache for irregular CLDR parent locales. The source of truth lives in
-     * CLDRBaseLocaleDataMetaInfo, so we can rebuild lazily at runtime. The JDK seeds ROOT,
-     * ENGLISH, and US eagerly, so preserve that default behavior.
+     * CLDRBaseLocaleDataMetaInfo, so we can rebuild lazily at runtime. The JDK seeds ROOT, ENGLISH,
+     * and US eagerly, so preserve that default behavior.
      */
     @Alias @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.FromAlias, isFinal = true)//
     private static Map<Locale, Locale> parentLocalesMap = Util_sun_util_cldr_CLDRLocaleProviderAdapter.createParentLocalesMap();

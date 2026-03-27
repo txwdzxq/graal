@@ -36,11 +36,10 @@ import sun.util.locale.BaseLocale;
 final class Target_sun_util_locale_BaseLocale_1InterningCache {
 
     /*
-     * This is a pure interning cache. BaseLocale.getInstance() reconstructs entries from the
-     * locale components and the preserved BaseLocale constants, so the build-time contents do not
-     * need to be kept alive through analysis.
+     * This is a pure interning cache. BaseLocale.getInstance() reconstructs entries from the locale
+     * components and the preserved BaseLocale constants, so the build-time contents do not need to
+     * be kept alive through analysis.
      */
     @Alias @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.FromAlias, isFinal = true)//
-    private static ReferencedKeySet<BaseLocale> CACHE =
-                    ReferencedKeySet.create(true, ReferencedKeySet.concurrentHashMapSupplier());
+    private static ReferencedKeySet<BaseLocale> CACHE = ReferencedKeySet.create(true, ReferencedKeySet.concurrentHashMapSupplier());
 }

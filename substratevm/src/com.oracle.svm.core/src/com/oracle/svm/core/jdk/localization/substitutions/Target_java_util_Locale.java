@@ -70,11 +70,10 @@ final class Util_java_util_Locale {
 final class Target_java_util_Locale_LocaleCache {
 
     /*
-     * This is only a canonicalization cache for Locale instances. LocaleCache.apply() recreates
-     * the Locale directly from the BaseLocale / LocaleKey input, so retaining build-time entries is
+     * This is only a canonicalization cache for Locale instances. LocaleCache.apply() recreates the
+     * Locale directly from the BaseLocale / LocaleKey input, so retaining build-time entries is
      * unnecessary and causes avoidable cache mutations during analysis.
      */
     @Alias @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.FromAlias, isFinal = true)//
-    private static ReferencedKeyMap<Object, Locale> LOCALE_CACHE =
-                    ReferencedKeyMap.create(true, ReferencedKeyMap.concurrentHashMapSupplier());
+    private static ReferencedKeyMap<Object, Locale> LOCALE_CACHE = ReferencedKeyMap.create(true, ReferencedKeyMap.concurrentHashMapSupplier());
 }

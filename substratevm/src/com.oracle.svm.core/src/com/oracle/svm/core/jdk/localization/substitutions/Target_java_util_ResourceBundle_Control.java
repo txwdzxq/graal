@@ -52,8 +52,7 @@ final class Target_java_util_ResourceBundle_Control {
      * preserves the default JDK behavior while avoiding analysis-time cache rescans.
      */
     @Alias @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.FromAlias, isFinal = true)//
-    private static ReferencedKeyMap<BaseLocale, List<Locale>> CANDIDATES_CACHE =
-                    ReferencedKeyMap.create(true, ConcurrentHashMap::new);
+    private static ReferencedKeyMap<BaseLocale, List<Locale>> CANDIDATES_CACHE = ReferencedKeyMap.create(true, ConcurrentHashMap::new);
 
     /**
      * Bundles are baked into the image, therefore their source can't really be modified at runtime.
