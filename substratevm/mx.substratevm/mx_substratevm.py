@@ -851,7 +851,15 @@ def batched(iterable, n):
         yield batch
 
 
-def _native_junit(native_image, unittest_args, build_args=None, run_args=None, blacklist=None, whitelist=None, preserve_image=False, test_classes_per_run=None):
+def _native_junit(native_image, unittest_args, build_args=None, run_args=None, blacklist=None, whitelist=None, preserve_image=False, test_classes_per_run=None, include_custom_test_groups=True):
+    """
+    Builds and runs native JUnit images for the selected tests.
+
+    Selected tests are grouped by their effective @NativeImageBuildArgs, and each group is built
+    into its own image. The default no-argument native-unittest flow keeps the run cheap by
+    excluding non-default groups, while explicit selectors or --all opt into the additional images
+    required by custom build arguments.
+    """
     build_args = build_args or []
     for key, value in get_java_properties().items():
         build_args.append("-D" + key + "=" + value)
@@ -861,48 +869,105 @@ def _native_junit(native_image, unittest_args, build_args=None, run_args=None, b
     run_args = run_args or ['--verbose']
     junit_native_dir = join(svmbuild_dir(), platform_name(), 'junit')
     mx_util.ensure_dir_exists(junit_native_dir)
-    junit_test_dir = junit_native_dir if preserve_image else tempfile.mkdtemp(dir=junit_native_dir)
+    # NativeImageBuildArgs grouping can place multiple image-specific subdirectories under this root.
+    junit_root_dir = junit_native_dir if preserve_image else tempfile.mkdtemp(dir=junit_native_dir)
     try:
         unittest_deps = []
         def dummy_harness(test_deps, vm_launcher, vm_args):
             unittest_deps.extend(test_deps)
-        unittest_file = join(junit_test_dir, 'svmjunit.tests')
+        unittest_file = join(junit_root_dir, 'svmjunit.tests')
         _run_tests(unittest_args, dummy_harness, _VMLauncher('dummy_launcher', None, mx_compiler.jdk), ['@Test', '@Parameters'], unittest_file, blacklist, whitelist, None, None)
         if not exists(unittest_file):
             mx.abort('No matching unit tests found. Skip image build and execution.')
         with open(unittest_file, encoding='utf-8') as f:
             test_classes = [line.rstrip() for line in f]
-            mx.log('Building junit image for matching: ' + ' '.join(test_classes))
+        # @NativeImageBuildArgs is recorded per selected test so native-unittest can keep the
+        # default no-argument path on a single image while still splitting custom-arg tests into
+        # separate images when explicitly requested.
+        test_classes_by_build_args = _collect_native_image_build_args(unittest_deps, unittest_file)
+        test_groups, skipped_tests = _partition_native_unittest_groups(test_classes, test_classes_by_build_args, include_custom_test_groups)
+        if skipped_tests:
+            mx.log('Skipping tests that require custom @NativeImageBuildArgs in the default native-unittest run. '
+                   'Re-run with --all or select the tests explicitly: ' + ' '.join(skipped_tests))
+        if not test_groups:
+            mx.abort('No tests remain after excluding custom @NativeImageBuildArgs groups. '
+                     'Re-run with --all or select the desired tests explicitly.')
         extra_image_args = mx.get_runtime_jvm_args(unittest_deps, jdk=mx_compiler.jdk, exclude_names=mx_sdk_vm_impl.NativePropertiesBuildTask.implicit_excludes)
-        macro_junit = '--macro:junit'
-        unittest_image = native_image(['-ea', '-esa'] + build_args + extra_image_args + [macro_junit + '=' + unittest_file] + svm_experimental_options(['-H:Path=' + junit_test_dir]))
-        image_pattern_replacement = unittest_image + ".exe" if mx.is_windows() else unittest_image
-        run_args = [arg.replace('${unittest.image}', image_pattern_replacement) for arg in run_args]
-        mx.log('Running: ' + ' '.join(map(shlex.quote, [unittest_image] + run_args)))
-
-        if not test_classes_per_run:
-            # Run all tests in one go. The default behavior.
-            test_classes_per_run = sys.maxsize
-
         failures = []
-        for classes in batched(test_classes, test_classes_per_run):
-            # Run the tests with the working directory set to the junit test dir so that any
-            # artifacts created with default filenames (e.g. JFR dumps like svmjunit-pid-*.jfr)
-            # end up under the suite output (MX_ALT_OUTPUT_ROOT) rather than the source tree.
-            ret = mx.run(
-                [unittest_image] + run_args + [arg for c in classes for arg in ['--run-explicit', c]],
-                nonZeroIsFatal=False,
-                cwd=junit_test_dir
-            )
-            if ret != 0:
-                failures.append((ret, classes))
+        for group_index, (group_build_args, group_tests) in enumerate(test_groups.items()):
+            group_dir = _native_junit_group_dir(junit_root_dir, len(test_groups), group_index, len(group_build_args) != 0)
+            group_unittest_file = join(group_dir, 'svmjunit.tests')
+            with open(group_unittest_file, 'w', encoding='utf-8') as f:
+                for test_class in group_tests:
+                    print(test_class, file=f)
+            mx.log('Building junit image for matching: ' + ' '.join(group_tests))
+            group_image_args = ['-ea', '-esa'] + build_args + list(group_build_args) + extra_image_args + ['--macro:junit=' + group_unittest_file] + svm_experimental_options(['-H:Path=' + group_dir])
+            unittest_image = native_image(group_image_args)
+            image_pattern_replacement = unittest_image + ".exe" if mx.is_windows() else unittest_image
+            group_run_args = [arg.replace('${unittest.image}', image_pattern_replacement) for arg in run_args]
+            mx.log('Running: ' + ' '.join(map(shlex.quote, [unittest_image] + group_run_args)))
+
+            effective_test_classes_per_run = test_classes_per_run if test_classes_per_run else sys.maxsize
+            for classes in batched(group_tests, effective_test_classes_per_run):
+                # Run the tests with the working directory set to the image-specific directory so
+                # artifacts created with default filenames stay under the suite output and do not
+                # clash with other native-unittest image groups.
+                ret = mx.run(
+                    [unittest_image] + group_run_args + [arg for c in classes for arg in ['--run-explicit', c]],
+                    nonZeroIsFatal=False,
+                    cwd=group_dir
+                )
+                if ret != 0:
+                    failures.append((ret, classes))
         if len(failures) != 0:
             fail_descs = (f"> Test run of the following classes failed with exit code {ret}: {', '.join(classes)}" for ret, classes in failures)
             mx.log('Some test runs failed:\n' + '\n'.join(fail_descs))
             mx.abort(1)
     finally:
         if not preserve_image:
-            mx.rmtree(junit_test_dir)
+            mx.rmtree(junit_root_dir)
+
+
+def _collect_native_image_build_args(unittest_deps, unittest_file):
+    helper_deps = list(unittest_deps) + [mx.dependency('substratevm:JUNIT_SUPPORT')]
+    vm_args = mx.get_runtime_jvm_args(helper_deps, jdk=mx_compiler.jdk, include_system_properties=False)
+    # The helper inspects selected test classes reflectively. Enable preview on the helper JVM so
+    # preview-compiled tests remain loadable without forcing preview on the native-image build.
+    vm_args = ['--enable-preview'] + vm_args
+    out = mx.LinesOutputCapture()
+    mx.run_java(vm_args + ['com.oracle.svm.junit.NativeImageBuildArgsSupport', unittest_file], jdk=mx_compiler.jdk, out=out)
+    test_classes_by_build_args = {}
+    for line in out.lines:
+        if line:
+            # One emitted line per selected test: field 0 is the test id, remaining fields are the
+            # effective @NativeImageBuildArgs collected for that test.
+            parts = line.split('\t')
+            test_classes_by_build_args[parts[0]] = parts[1:]
+    return test_classes_by_build_args
+
+
+def _partition_native_unittest_groups(test_classes, test_classes_by_build_args, include_custom_test_groups):
+    grouped_tests = collections.OrderedDict()
+    skipped_tests = []
+    for test_class in test_classes:
+        group_key = tuple(test_classes_by_build_args.get(test_class, ()))
+        # The default no-argument command remains cheap by only running the empty-args group.
+        # Explicit selectors or --all opt into the extra images required by custom build args.
+        if len(group_key) == 0 or include_custom_test_groups:
+            grouped_tests.setdefault(group_key, []).append(test_class)
+        else:
+            skipped_tests.append(test_class)
+    return grouped_tests, skipped_tests
+
+
+def _native_junit_group_dir(junit_root_dir, total_groups, group_index, has_custom_build_args):
+    if total_groups == 1:
+        return junit_root_dir
+    group_name = f'group-{group_index + 1}'
+    if not has_custom_build_args:
+        group_name += '-default'
+    mx_util.ensure_dir_exists(join(junit_root_dir, group_name))
+    return join(junit_root_dir, group_name)
 
 _mask_str = '$mask$'
 
@@ -920,7 +985,7 @@ def unmask(args):
 
 def _native_unittest(native_image, cmdline_args):
     parser = ArgumentParser(prog='mx native-unittest', description='Run unittests as native image.')
-    all_args = ['--build-args', '--run-args', '--blacklist', '--whitelist', '-p', '--preserve-image', '--test-classes-per-run']
+    all_args = ['--build-args', '--run-args', '--blacklist', '--whitelist', '-p', '--preserve-image', '--test-classes-per-run', '--all']
     cmdline_args = [_mask(arg, all_args) for arg in cmdline_args]
     parser.add_argument(all_args[0], metavar='ARG', nargs='*', default=[])
     parser.add_argument(all_args[1], metavar='ARG', nargs='*', default=[])
@@ -928,6 +993,7 @@ def _native_unittest(native_image, cmdline_args):
     parser.add_argument('--whitelist', help='run testcases specified in <file> only', metavar='<file>')
     parser.add_argument('-p', '--preserve-image', help='do not delete the generated native image', action='store_true')
     parser.add_argument('--test-classes-per-run', help='run N test classes per image run, instead of all tests at once', nargs=1, type=int)
+    parser.add_argument('--all', help='include tests that require custom @NativeImageBuildArgs and build one image per effective build-arg group', action='store_true')
     parser.add_argument('unittest_args', metavar='TEST_ARG', nargs='*')
     pargs = parser.parse_args(cmdline_args)
 
@@ -948,8 +1014,12 @@ def _native_unittest(native_image, cmdline_args):
         except OSError:
             mx.log('warning: could not read blacklist: ' + blacklist)
 
-    unittest_args = unmask(pargs.unittest_args) if unmask(pargs.unittest_args) else ['com.oracle.svm.test', 'com.oracle.svm.configure.test']
-    _native_junit(native_image, unittest_args, unmask(pargs.build_args), unmask(pargs.run_args), blacklist, whitelist, pargs.preserve_image, test_classes_per_run)
+    user_unittest_args = unmask(pargs.unittest_args)
+    unittest_args = user_unittest_args if user_unittest_args else ['com.oracle.svm.test', 'com.oracle.svm.configure.test']
+    # Keep the no-argument path cheap for presubmit and GitHub-action usage by only running the
+    # default image group. Explicit selectors or --all opt into additional custom-arg images.
+    include_custom_test_groups = pargs.all or bool(user_unittest_args)
+    _native_junit(native_image, unittest_args, unmask(pargs.build_args), unmask(pargs.run_args), blacklist, whitelist, pargs.preserve_image, test_classes_per_run, include_custom_test_groups)
 
 
 def jvm_unittest(args):
