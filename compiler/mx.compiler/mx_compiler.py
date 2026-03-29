@@ -939,40 +939,6 @@ mx_unittest.set_vm_launcher('JDK VM launcher', _unittest_vm_launcher, _get_unitt
 # with the mx_compiler behavior.
 mx_unittest.add_unittest_argument('--use-graalvm', default=False, help='Use the previously built GraalVM for running the unit test.', action=SwitchToGraalVMJDK)
 
-
-def _record_last_updated_jar(dist, path):
-    last_updated_jar = join(dist.suite.get_output_root(), dist.name + '.lastUpdatedJar')
-    with open(last_updated_jar, 'w', encoding='utf-8') as fp:
-        java_home = mx.get_env('JAVA_HOME', '')
-        extra_java_homes = mx.get_env('EXTRA_JAVA_HOMES', '')
-        fp.write(path + '|' + java_home + '|' + extra_java_homes)
-
-def _get_last_updated_jar(dist):
-    last_updated_jar = join(dist.suite.get_output_root(), dist.name + '.lastUpdatedJar')
-    if exists(last_updated_jar):
-        try:
-            with open(last_updated_jar, encoding='utf-8') as fp:
-                return fp.read().split('|')
-        except BaseException as e:
-            mx.warn(f'Error reading {last_updated_jar}: {e}')
-    return None, None, None
-
-def _check_using_latest_jars(dists):
-    for dist in dists:
-        last_updated_jar, java_home, extra_java_homes = _get_last_updated_jar(dist)
-        if last_updated_jar:
-            current_jar = dist.original_path()
-            if last_updated_jar != current_jar:
-                mx.warn(
-                    f'The most recently updated jar for {dist} ({last_updated_jar}) differs from the jar used to construct '
-                    f'the VM class or module path ({current_jar}). '
-                    'This usually means the current values of JAVA_HOME and EXTRA_JAVA_HOMES are '
-                    f'different from the values when {dist} was last built by `mx build` '
-                    'or an IDE. As a result, you may be running with out-of-date code.\n'
-                    f"Current JDKs:\n  JAVA_HOME={mx.get_env('JAVA_HOME', '')}\n  EXTRA_JAVA_HOMES={mx.get_env('EXTRA_JAVA_HOMES', '')}\n"
-                    f'Build time JDKs:\n  JAVA_HOME={java_home}\n  EXTRA_JAVA_HOMES={extra_java_homes}'
-                )
-
 def _parseVmArgs(args, addDefaultArgs=True):
     args = mx.expand_project_in_args(args, insitu=False)
     argsPrefix = []
@@ -1377,7 +1343,6 @@ class GraalArchiveParticipant:
         return False
 
     def __closing__(self):
-        _record_last_updated_jar(self.dist, self.arc.path)
         if self.dist.name == 'GRAAL':
             # Check if we're using the same JVMCI JDK as the CI system does.
             # This only done when building the GRAAL distribution to avoid
