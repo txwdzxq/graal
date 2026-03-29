@@ -170,6 +170,7 @@ if os.environ.get('JDK_VERSION_CHECK', None) != 'ignore' and jdk.javaCompliance 
     mx.abort('Graal requires JDK 25 or later, got ' + str(jdk) +
              '. This check can be bypassed by setting env var JDK_VERSION_CHECK=ignore')
 
+
 def _check_jvmci_version(jdk):
     """
     Runs a Java utility to check that `jdk` supports the minimum JVMCI API required by Graal.
@@ -198,6 +199,13 @@ def _check_jvmci_version(jdk):
     _jdk_min_jvmci_version = _capture_jvmci_version(['--min-version'])
 
 
+def _ensure_jvmci_version_checked(jdk):
+    if os.environ.get('JVMCI_VERSION_CHECK', None) == 'ignore':
+        return
+    if _jdk_jvmci_version is None or _jdk_min_jvmci_version is None:
+        _check_jvmci_version(jdk)
+
+
 
 @mx.command(_suite.name, 'jvmci-version-check')
 def _run_jvmci_version_check(args=None, jdk=jdk, **kwargs):
@@ -205,9 +213,6 @@ def _run_jvmci_version_check(args=None, jdk=jdk, **kwargs):
                        'JVMCIVersionCheck.java')
     return mx.run([jdk.java, '-Xlog:disable', source_path] + (args or []), **kwargs)
 
-
-if os.environ.get('JVMCI_VERSION_CHECK', None) != 'ignore':
-    _check_jvmci_version(jdk)
 
 def _get_graal_option(vmargs, name, default=None, prefix='-Djdk.graal.'):
     """
@@ -1243,6 +1248,7 @@ def _check_latest_jvmci_version():
     the JVMCI version of the JVMCI JDKs in the "jdks" section of the
     ``common.json`` file and issues a warning if not.
     """
+    _ensure_jvmci_version_checked(jdk)
     jvmci_re = re.compile(r'(?:ce|ee)-(?P<jdk_version>.+)-jvmci(?:-(?P<release_name>.+))?-b(?P<jvmci_build>\d+)')
     common_path = os.path.normpath(join(_suite.dir, '..', 'common.json'))
 
@@ -1374,8 +1380,8 @@ class GraalArchiveParticipant:
         _record_last_updated_jar(self.dist, self.arc.path)
         if self.dist.name == 'GRAAL':
             # Check if we're using the same JVMCI JDK as the CI system does.
-            # This only done when building the GRAAL distribution so as to
-            # not be too intrusive.
+            # This only done when building the GRAAL distribution to avoid
+            # impacting mx startup when the compiler suite is included.
             _check_latest_jvmci_version()
 
 mx.add_argument('--vmprefix', action='store', dest='vm_prefix', help='prefix for running the VM (e.g. "gdb --args")', metavar='<prefix>')
