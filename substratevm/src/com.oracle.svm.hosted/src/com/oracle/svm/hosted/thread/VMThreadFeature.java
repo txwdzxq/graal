@@ -227,8 +227,11 @@ public class VMThreadFeature implements InternalFeature {
 
     @Override
     public void beforeCompilation(BeforeCompilationAccess config) {
-        ImageSingletons.add(VMThreadLocalOffsetProvider.class, threadLocalCollector);
         int nextOffset = threadLocalCollector.sortAndAssignOffsets();
+        if (!ImageLayerBuildingSupport.buildingExtensionLayer()) {
+            // Extension-layer builds restore the provider key from the loaded layer snapshot.
+            ImageSingletons.add(VMThreadLocalOffsetProvider.class, threadLocalCollector);
+        }
 
         if (ImageLayerBuildingSupport.firstImageBuild()) {
             /*
