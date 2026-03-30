@@ -217,7 +217,8 @@ public class NeverInlineFailedTest {
                     callerTarget = new Caller(calleeTarget).getCallTarget();
                     callerRef.set(callerTarget);
                     callerTarget.call();
-                    // In some rare cases, the caller compilation might timeout as well in which case we retry.
+                    // In some rare cases, the caller compilation might timeout as well in which
+                    // case we retry.
                 } while (callerCompilationInlinedCalls.get() < 0);
                 Assert.assertEquals(0, callerCompilationInlinedCalls.get());
                 Assert.assertTrue(((OptimizedCallTarget) callerTarget).isValid());
