@@ -87,6 +87,7 @@ public class MethodHandleWithExceptionNode extends MacroWithExceptionNode implem
         return invoke;
     }
 
+    /** {@link MethodHandleNode#tryResolveTargetInvoke}. */
     protected <T extends Invoke> T tryResolveTargetInvoke(GraphAdder adder, InvokeFactory<T> factory, MethodHandleAccessProvider methodHandleAccess, ValueNode... argumentsArray) {
         return MethodHandleNode.tryResolveTargetInvoke(adder, factory, methodHandleAccess, intrinsicMethod, targetMethod, bci, returnStamp, argumentsArray);
     }

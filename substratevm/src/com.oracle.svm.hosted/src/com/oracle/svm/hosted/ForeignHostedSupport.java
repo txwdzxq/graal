@@ -26,7 +26,6 @@ package com.oracle.svm.hosted;
 
 import org.graalvm.nativeimage.ImageSingletons;
 
-import jdk.graal.compiler.api.replacements.Fold;
 import jdk.graal.compiler.replacements.MethodHandleWithExceptionPlugin;
 import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.MethodHandleAccessProvider;
@@ -34,12 +33,10 @@ import jdk.vm.ci.meta.ResolvedJavaMethod;
 
 public interface ForeignHostedSupport {
 
-    @Fold
     static boolean isAvailable() {
         return ImageSingletons.contains(ForeignHostedSupport.class);
     }
 
-    @Fold
     static ForeignHostedSupport singleton() {
         return ImageSingletons.lookup(ForeignHostedSupport.class);
     }

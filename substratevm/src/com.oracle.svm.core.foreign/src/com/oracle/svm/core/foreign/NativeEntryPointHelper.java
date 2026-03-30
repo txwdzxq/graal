@@ -25,31 +25,6 @@
 
 package com.oracle.svm.core.foreign;
 
-/*
- * Copyright (c) 2026, 2026, Oracle and/or its affiliates. All rights reserved.
- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
- *
- * This code is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 only, as
- * published by the Free Software Foundation.  Oracle designates this
- * particular file as subject to the "Classpath" exception as provided
- * by Oracle in the LICENSE file that accompanied this code.
- *
- * This code is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- * version 2 for more details (a copy is included in the LICENSE file that
- * accompanied this code).
- *
- * You should have received a copy of the GNU General Public License version
- * 2 along with this work; if not, write to the Free Software Foundation,
- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
- *
- * Please contact Oracle, 500 Oracle Parkway, Redwood Shores, CA 94065 USA
- * or visit www.oracle.com if you need additional information or have any
- * questions.
- */
-
 import java.lang.invoke.MethodType;
 import java.util.Arrays;
 import java.util.Objects;
@@ -58,7 +33,6 @@ import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
 import com.oracle.svm.shared.util.BasedOnJDKClass;
-import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.util.GuestElements;
 import com.oracle.svm.util.JVMCIReflectionUtil;
@@ -69,7 +43,7 @@ import jdk.vm.ci.meta.JavaConstant;
 
 @BasedOnJDKClass(NativeEntryPoint.class)
 @BasedOnJDKClass(className = "jdk.internal.foreign.abi.SoftReferenceCache")
-@BasedOnJDKClass(className = "jdk.internal.foreign.abi.NativeEntryPoint$CacheKey")
+@BasedOnJDKClass(className = "jdk.internal.foreign.abi.NativeEntryPoint", innerClass = "CacheKey")
 @Platforms(Platform.HOSTED_ONLY.class)
 public final class NativeEntryPointHelper {
 
@@ -105,11 +79,14 @@ public final class NativeEntryPointHelper {
         }
 
         /*
-         * Any instance of NativeEntryPoint is created via 'NativeEntryPoint.make' and will
-         * therefore be added to NEP_CACHE. Further, the keys of NEP_CACHE are strongly referenced.
-         * This means that there must be a cache key for any NativeEntryPoint that exists.
+         * In the common case, any instance of NativeEntryPoint is created via
+         * 'NativeEntryPoint.make' and will therefore be added to NEP_CACHE and the keys of
+         * NEP_CACHE are strongly referenced. However, we are defensive and do not fail if we
+         * couldn't find the key.
          */
-        VMError.guarantee(cacheKeyConstant != null, "Cannot extract info for NativeEntryPoint because it is not in NEP_CACHE");
+        if (cacheKeyConstant == null) {
+            return null;
+        }
 
         /*
          * Field 'CacheKey.abi' is ignored because the ABIDescriptor is JDK's equivalent of our

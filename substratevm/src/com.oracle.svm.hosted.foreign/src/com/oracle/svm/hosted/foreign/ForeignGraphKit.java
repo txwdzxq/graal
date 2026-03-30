@@ -68,14 +68,12 @@ class ForeignGraphKit extends HostedGraphKit {
     }
 
     ValueNode[] unboxArguments(List<ValueNode> args, Signature targetSignature) {
-        // there must be at least the NativeEntryPoint (the last arg)
-        assert !args.isEmpty();
+        assert !args.isEmpty() : "there must be at least the NativeEntryPoint (the last arg)";
         assert args.size() == targetSignature.getParameterCount(false) : args.size() + " " + targetSignature.getParameterCount(false);
         var newArgs = new ValueNode[args.size()];
         for (int i = 0; i < newArgs.length; ++i) {
             ValueNode argument = args.get(i);
             JavaKind targetKind = targetSignature.getParameterKind(i);
-            // unbox if object kind is given but primitive kind is expected
             if (argument.getStackKind().isObject() && targetKind.isPrimitive()) {
                 argument = createUnboxing(argument, targetKind);
             }

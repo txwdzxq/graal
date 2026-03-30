@@ -28,12 +28,17 @@ import static com.oracle.svm.shared.util.VMError.shouldNotReachHere;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Executable;
+
+import org.graalvm.nativeimage.Platform.HOSTED_ONLY;
+import org.graalvm.nativeimage.Platforms;
 
 import com.oracle.svm.core.ForeignSupport;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.core.methodhandles.MethodHandleInterpreterUtils;
 import com.oracle.svm.shared.AlwaysInline;
 
+import jdk.vm.ci.meta.JavaKind;
 import sun.invoke.util.Wrapper;
 
 public class MethodHandleUtils {
@@ -177,5 +182,15 @@ public class MethodHandleUtils {
             return memberName.resolved;
         }
         return null;
+    }
+
+    @Platforms(HOSTED_ONLY.class)
+    public static Executable getUnboxMethod(JavaKind returnKind, boolean crema, Class<?>... parameterTypes) throws NoSuchMethodException {
+        return MethodHandleUtils.class.getMethod(returnKind + (crema ? "UnboxCrema" : "Unbox"), parameterTypes);
+    }
+
+    @Platforms(HOSTED_ONLY.class)
+    public static Executable getUnboxForeignMethod(JavaKind returnKind) throws NoSuchMethodException {
+        return MethodHandleUtils.class.getMethod(returnKind + "UnboxForeign", Object.class, Object.class);
     }
 }

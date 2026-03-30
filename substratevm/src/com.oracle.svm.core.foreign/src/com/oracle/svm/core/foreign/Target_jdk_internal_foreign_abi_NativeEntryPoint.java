@@ -27,12 +27,14 @@ package com.oracle.svm.core.foreign;
 import java.lang.invoke.MethodType;
 
 import org.graalvm.nativeimage.MissingForeignRegistrationError;
+import org.graalvm.nativeimage.c.function.CFunctionPointer;
 import org.graalvm.nativeimage.hosted.FieldValueTransformer;
 
-import com.oracle.svm.core.FunctionPointerHolder;
 import com.oracle.svm.core.annotate.RecomputeFieldValue;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
+import com.oracle.svm.core.util.UserError;
+import com.oracle.svm.core.util.UserError.UserException;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.GuestAccess;
 
@@ -42,10 +44,9 @@ import jdk.internal.foreign.abi.VMStorage;
 import jdk.vm.ci.meta.JavaConstant;
 
 /**
- * Packs the address of a {@link com.oracle.svm.hosted.foreign.DowncallStub} with some extra
+ * Packs the address of a {@code com.oracle.svm.hosted.foreign.DowncallStub} with some extra
  * information.
  */
-@SuppressWarnings("javadoc")
 @TargetClass(value = NativeEntryPoint.class, onlyWith = ForeignAPIPredicates.Enabled.class)
 @Substitute
 public final class Target_jdk_internal_foreign_abi_NativeEntryPoint {
@@ -55,18 +56,18 @@ public final class Target_jdk_internal_foreign_abi_NativeEntryPoint {
     private MethodType methodType;
 
     @RecomputeFieldValue(isFinal = true, kind = RecomputeFieldValue.Kind.Custom, declClass = DowncallAddressTransformer.class) //
-    final FunctionPointerHolder downcallStubPointerHolder;
+    final CFunctionPointer downcallStubPointer;
 
     @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.Reset) //
     final int captureMask;
 
     @RecomputeFieldValue(isFinal = true, kind = RecomputeFieldValue.Kind.Custom, declClass = DowncallInvokerAddressTransformer.class) //
-    final FunctionPointerHolder downcallInvokerPointerHolder;
+    final CFunctionPointer downcallInvokerPointer;
 
-    Target_jdk_internal_foreign_abi_NativeEntryPoint(MethodType methodType, FunctionPointerHolder downcallStubPointerHolder, int captureMask) {
+    Target_jdk_internal_foreign_abi_NativeEntryPoint(MethodType methodType, CFunctionPointer downcallStubPointer, int captureMask) {
         this.methodType = methodType;
-        this.downcallStubPointerHolder = downcallStubPointerHolder;
-        this.downcallInvokerPointerHolder = ForeignFunctionsRuntime.singleton().getDowncallStubInvokerPointerHolder(methodType);
+        this.downcallStubPointer = downcallStubPointer;
+        this.downcallInvokerPointer = ForeignFunctionsRuntime.singleton().getDowncallStubInvokerPointer(methodType);
         this.captureMask = captureMask;
     }
 
@@ -92,8 +93,8 @@ public final class Target_jdk_internal_foreign_abi_NativeEntryPoint {
          * construction in the NativeEntryPointInfo.make function.
          */
         boolean allowHeapAccess = false;
-        for (int i = 0; i < argMoves.length; i++) {
-            if (argMoves[i] == null) {
+        for (VMStorage argMove : argMoves) {
+            if (argMove == null) {
                 allowHeapAccess = true;
                 break;
             }
@@ -109,7 +110,7 @@ public final class Target_jdk_internal_foreign_abi_NativeEntryPoint {
     static final class MethodTypeTransformer implements FieldValueTransformer {
         @Override
         public Object transform(Object receiver, Object originalValue) {
-            VMError.guarantee(receiver.getClass() == NativeEntryPoint.class);
+            assert receiver.getClass() == NativeEntryPoint.class;
             return ((NativeEntryPoint) receiver).type();
         }
     }
@@ -117,27 +118,35 @@ public final class Target_jdk_internal_foreign_abi_NativeEntryPoint {
     static final class DowncallAddressTransformer implements FieldValueTransformer {
         @Override
         public Object transform(Object receiver, Object originalValue) {
-            VMError.guarantee(receiver.getClass() == NativeEntryPoint.class);
+            assert receiver.getClass() == NativeEntryPoint.class;
             try {
                 JavaConstant nativeEntryPoint = GuestAccess.get().getSnippetReflection().forObject(receiver);
                 NativeEntryPointInfo nativeEntryPointInfo = NativeEntryPointHelper.extractNativeEntryPointInfo(nativeEntryPoint);
-                return ForeignFunctionsRuntime.singleton().getDowncallStubPointerHolder(nativeEntryPointInfo);
+                VMError.guarantee(nativeEntryPointInfo != null, "Cannot extract info for NativeEntryPoint because it is not in NEP_CACHE");
+                return ForeignFunctionsRuntime.singleton().getDowncallStubPointer(nativeEntryPointInfo);
             } catch (MissingForeignRegistrationError e) {
-                // explicitly catch and rethrow with VMError; otherwise, it may be ignored
-                throw VMError.shouldNotReachHere(e);
+                throw rethrowMissingForeignRegistrationError(e);
             }
+        }
+
+        static UserException rethrowMissingForeignRegistrationError(MissingForeignRegistrationError e) {
+            /*
+             * MissingForeignRegistrationError is a LinkageError, which are deliberately ignored in
+             * the ImageHeapScanner when reading a hosted field value. Therefore, explicitly catch
+             * and rethrow with UserError.
+             */
+            throw UserError.abort(e, "Missing downcall stub registration");
         }
     }
 
     static final class DowncallInvokerAddressTransformer implements FieldValueTransformer {
         @Override
         public Object transform(Object receiver, Object originalValue) {
-            VMError.guarantee(receiver.getClass() == NativeEntryPoint.class);
+            assert receiver.getClass() == NativeEntryPoint.class;
             try {
-                return ForeignFunctionsRuntime.singleton().getDowncallStubInvokerPointerHolder(((NativeEntryPoint) receiver).type());
+                return ForeignFunctionsRuntime.singleton().getDowncallStubInvokerPointer(((NativeEntryPoint) receiver).type());
             } catch (MissingForeignRegistrationError e) {
-                // explicitly catch and rethrow with VMError; otherwise, it may be ignored
-                throw VMError.shouldNotReachHere(e);
+                throw DowncallAddressTransformer.rethrowMissingForeignRegistrationError(e);
             }
         }
     }

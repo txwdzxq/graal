@@ -73,14 +73,15 @@ import jdk.vm.ci.meta.Signature;
 
 /**
  * A stub for foreign downcalls.
- *
+ * <p>
  * The "work repartition" for downcalls is as follows:
  * <ul>
  * <li>Transform "high-level" (e.g. structs) arguments into "low-level" arguments (i.e. int, long,
  * float, double, pointer) which fit in a register --- done by HotSpot's implementation using method
  * handles (or specialized classes);</li>
  * <li>Unbox the arguments (the arguments are in an array of Objects, due to funneling through
- * {@link ForeignFunctionsRuntime#invoke}) --- done by {@link ForeignGraphKit#unboxArguments};</li>
+ * {@link ForeignFunctionsRuntime#linkToNative}) --- done by
+ * {@link ForeignGraphKit#unboxArguments};</li>
  * <li>Further adapt arguments as to satisfy SubstrateVM's backends --- done by
  * {@link AbiUtils#adapt}</li>
  * <li>Perform a C-function call:</li>
@@ -98,12 +99,12 @@ import jdk.vm.ci.meta.Signature;
  * Call state capture is done in the call epilogue to prevent the runtime environment from modifying
  * the call state, which could happen if a safepoint was inserted between the downcall and the
  * capture.
- *
- * The downcall stubs will have the signature provided by the {@link NativeEntryPointInfo}. This is
- * necessary for the intrinsification of downcall handles in which case a direct call do the
- * downcall stub will be emitted (or the stub will even be inlined). This implies that downcall
- * stubs cannot directly be called from the method handle interpreter which invokes varargs method
- * {@code java.lang.invoke.MethodHandle#linkToNative}. This path will use
+ * <p>
+ * The downcall stubs conform to the signature from {@link NativeEntryPointInfo}. This is necessary
+ * for the intrinsification of downcall handles in which case a direct call to the downcall stub
+ * will be emitted (or the stub will even be inlined). As a consequence, downcall stubs cannot
+ * directly be called from the method handle interpreter which invokes varargs method
+ * {@code java.lang.invoke.MethodHandle#linkToNative}. That part goes through
  * {@link DowncallStubInvoker}.
  */
 @SuppressWarnings("javadoc")
@@ -169,8 +170,8 @@ class DowncallStub extends NonBytecodeMethod {
          */
         assert initialArguments.size() >= 2;
 
-        List<ValueNode> arguments = initialArguments.subList(0, initialArguments.size() - 1);
         ValueNode runtimeNep = initialArguments.getLast();
+        List<ValueNode> arguments = initialArguments.subList(0, initialArguments.size() - 1);
 
         AbiUtils.Adapter.Result.FullNativeAdaptation adapted = abiUtils.adapt(arguments, nepi);
         for (var node : adapted.nodesToAppendToGraph()) {
@@ -210,32 +211,27 @@ class DowncallStub extends NonBytecodeMethod {
 
         return kit.finalizeGraph();
     }
-
-    public NativeEntryPointInfo getNativeEntryPointInfo() {
-        return nepi;
-    }
 }
 
 /**
- * This method just invokes a downcall stub that matches an expected signature. The actual downcall
- * stub to be invoked needs to be provided as first argument. The downcall stub is then invoked
- * using an indirect call.
- *
- * This wrapper is required for the case if downcall handles are created and executed at run time
- * via the method handle interpreter. The interpreter will call varargs method
- * {@code java.lang.invoke.MethodHandle#linkToNative} to invoke the stub. This downcall stub wrapper
- * is therefore responsible for:
+ * This method just invokes a downcall stub with a specific signature. The actual downcall stub to
+ * be invoked needs to be provided as a function pointer in the first argument.
+ * <p>
+ * This invoker is required for the common case where downcall handles are created run time and
+ * invoked via the method handle interpreter. The interpreter will call varargs method
+ * {@code java.lang.invoke.MethodHandle#linkToNative} to invoke the stub. This downcall stub
+ * invoker's responsibilities are therefore to:
  * <ul>
  * <li>Unbox the arguments (the arguments are in an array of Objects, due to funneling through
  * {@link ForeignFunctionsRuntime#linkToNative}) --- done by
  * {@link ForeignGraphKit#unboxArguments};</li>
  * <li>Call the {@link DowncallStub downcall stub}.</li>
- * <li>If needed, box the return --- done by {@link ForeignGraphKit#boxAndReturn}.</li>
+ * <li>If needed, box the return value --- done by {@link ForeignGraphKit#boxAndReturn}.</li>
  * </ul>
  */
 class DowncallStubInvoker extends NonBytecodeMethod {
 
-    // signature of the call target
+    /** Signature of the {@link DowncallStub}s that this invoker is able to invoke. */
     private final Signature targetSignature;
 
     DowncallStubInvoker(Signature targetSignature, MetaAccessProvider metaAccess, WordTypes wordTypes) {
@@ -256,7 +252,7 @@ class DowncallStubInvoker extends NonBytecodeMethod {
     }
 
     private static String createName(Signature targetSignature) {
-        return "invoke_downcallStub_" + ForeignGraphKit.signatureToIdentifier(targetSignature);
+        return "downcall_invoker_" + ForeignGraphKit.signatureToIdentifier(targetSignature);
     }
 
     @Override
@@ -275,13 +271,9 @@ class DowncallStubInvoker extends NonBytecodeMethod {
 
         // the last argument (i.e. 'args[n-1]') is the run-time NativeEntryPoint object
         assert arguments.getLast().getStackKind().isObject();
-        assert targetSignature.getParameterKind(targetSignature.getParameterCount(false) - 1).isObject();
+        assert targetSignature.getParameterKind(n - 1).isObject();
 
         ValueNode[] unboxedArguments = kit.unboxArguments(arguments, targetSignature);
-        for (var node : unboxedArguments) {
-            kit.append(node);
-        }
-
         ValueNode returnValue = createMethodCall(kit, invokeSignature.getReturnType(), invokeSignature.toParameterTypes(null), methodAddress, unboxedArguments);
 
         kit.boxAndReturn(returnValue, targetSignature.getReturnKind());

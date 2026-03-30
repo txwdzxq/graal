@@ -34,6 +34,11 @@ import com.oracle.svm.core.annotate.TargetClass;
 import jdk.internal.foreign.abi.SharedUtils;
 import jdk.internal.vm.annotation.ForceInline;
 
+/**
+ * Substitutions of FFM API helper functions. Those substitutions are not required for correctness.
+ * They prevent the exception path (which is a slow path) from being inlined during method handle
+ * intrinsification and reduce the code size in the intrinsification scope.
+ */
 @TargetClass(value = SharedUtils.class, onlyWith = ForeignAPIPredicates.Enabled.class)
 final class Target_jdk_internal_foreign_abi_SharedUtils {
     @ForceInline
@@ -41,7 +46,7 @@ final class Target_jdk_internal_foreign_abi_SharedUtils {
     public static void checkSymbol(MemorySegment symbol) {
         Objects.requireNonNull(symbol);
         if (MemorySegment.NULL.equals(symbol)) {
-            throw SubstrateForeignUtil.getSymbolIsNullException(symbol);
+            SubstrateForeignUtil.throwSymbolIsNullException(symbol);
         }
     }
 
@@ -49,7 +54,7 @@ final class Target_jdk_internal_foreign_abi_SharedUtils {
     @Substitute
     public static void checkNative(MemorySegment segment) {
         if (!segment.isNative()) {
-            throw SubstrateForeignUtil.getHeapSegmentNotAllowedException(segment);
+            SubstrateForeignUtil.throwHeapSegmentNotAllowedException(segment);
         }
     }
 }

@@ -39,8 +39,8 @@ import jdk.vm.ci.meta.MethodHandleAccessProvider;
 import jdk.vm.ci.meta.MethodHandleAccessProvider.IntrinsicMethod;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 
-public class NativeMethodHandleWithExceptionPlugin extends SVMMethodHandleWithExceptionPlugin {
-    public NativeMethodHandleWithExceptionPlugin(MethodHandleAccessProvider methodHandleAccess) {
+public class ForeignCapableMethodHandleWithExceptionPlugin extends SVMMethodHandleWithExceptionPlugin {
+    public ForeignCapableMethodHandleWithExceptionPlugin(MethodHandleAccessProvider methodHandleAccess) {
         super(methodHandleAccess, false);
     }
 
@@ -52,14 +52,14 @@ public class NativeMethodHandleWithExceptionPlugin extends SVMMethodHandleWithEx
     @Override
     protected MacroInvokable createMethodHandleNode(GraphBuilderContext b, ResolvedJavaMethod method, ValueNode[] args,
                     IntrinsicMethod intrinsicMethod, CallTargetNode.InvokeKind invokeKind, StampPair invokeReturnStamp) {
-        return new NativeMethodHandleWithExceptionNode(intrinsicMethod, MacroNode.MacroParams.of(invokeKind, b.getMethod(), method, b.bci(), invokeReturnStamp, args));
+        return new ForeignCapableMethodHandleWithExceptionNode(intrinsicMethod, MacroNode.MacroParams.of(invokeKind, b.getMethod(), method, b.bci(), invokeReturnStamp, args));
     }
 
     @Override
     protected <T extends Invoke> T tryResolveTargetInvoke(GraphAdder adder, InvokeFactory<T> factory, IntrinsicMethod intrinsicMethod, ResolvedJavaMethod original, int bci, StampPair returnStamp,
                     ValueNode... arguments) {
         if (intrinsicMethod == IntrinsicMethod.LINK_TO_NATIVE) {
-            return NativeMethodHandleWithExceptionNode.getLinkToNativeTarget(adder, factory, methodHandleAccess, original, bci, returnStamp, arguments);
+            return ForeignCapableMethodHandleWithExceptionNode.getLinkToNativeTarget(adder, factory, methodHandleAccess, original, bci, returnStamp, arguments);
         }
         return super.tryResolveTargetInvoke(adder, factory, intrinsicMethod, original, bci, returnStamp, arguments);
     }

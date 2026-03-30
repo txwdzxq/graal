@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -42,10 +42,12 @@ import java.lang.invoke.VarHandle;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -93,8 +95,6 @@ import com.oracle.svm.core.graal.RuntimeCompilation;
 import com.oracle.svm.core.graal.code.SubstrateBackend;
 import com.oracle.svm.core.graal.code.SubstrateBackendWithAssembler;
 import com.oracle.svm.core.graal.meta.SubstrateForeignCallsProvider;
-import com.oracle.svm.core.hub.DynamicHub;
-import com.oracle.svm.core.hub.DynamicHubCompanion;
 import com.oracle.svm.core.jdk.VectorAPIEnabled;
 import com.oracle.svm.core.meta.MethodPointer;
 import com.oracle.svm.core.nodes.SubstrateMethodCallTargetNode;
@@ -126,15 +126,12 @@ import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.AnnotationUtil;
 
 import jdk.graal.compiler.api.replacements.Fold;
-import jdk.graal.compiler.core.common.type.StampFactory;
 import jdk.graal.compiler.debug.GraalError;
 import jdk.graal.compiler.nodes.CallTargetNode.InvokeKind;
 import jdk.graal.compiler.nodes.ConstantNode;
 import jdk.graal.compiler.nodes.ValueNode;
-import jdk.graal.compiler.nodes.graphbuilderconf.GraphBuilderConfiguration;
 import jdk.graal.compiler.nodes.graphbuilderconf.GraphBuilderConfiguration.Plugins;
 import jdk.graal.compiler.nodes.graphbuilderconf.GraphBuilderContext;
-import jdk.graal.compiler.nodes.graphbuilderconf.InvocationPlugin;
 import jdk.graal.compiler.nodes.graphbuilderconf.InvocationPlugin.RequiredInvocationPlugin;
 import jdk.graal.compiler.nodes.graphbuilderconf.InvocationPlugins;
 import jdk.graal.compiler.nodes.graphbuilderconf.NodePlugin;
@@ -151,13 +148,13 @@ import jdk.internal.foreign.AbstractMemorySegmentImpl;
 import jdk.internal.foreign.MemorySessionImpl;
 import jdk.internal.foreign.abi.AbstractLinker;
 import jdk.internal.foreign.abi.LinkerOptions;
+import jdk.internal.foreign.abi.NativeEntryPoint;
 import jdk.internal.foreign.abi.SharedUtils;
 import jdk.internal.misc.ScopedMemoryAccess.ScopedAccessError;
 import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.JavaKind;
 import jdk.vm.ci.meta.MetaAccessProvider;
 import jdk.vm.ci.meta.MethodHandleAccessProvider;
-import jdk.vm.ci.meta.ResolvedJavaField;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
 
@@ -195,6 +192,8 @@ public class ForeignFunctionsFeature implements InternalFeature, ForeignHostedSu
     private AbiUtils abiUtils;
     private ForeignFunctionsRuntime foreignFunctionsRuntime;
 
+    private final Deque<Object> nativeEntryPointsInImageHeap = new ConcurrentLinkedDeque<>();
+
     @Fold
     public static ForeignFunctionsFeature singleton() {
         return ImageSingletons.lookup(ForeignFunctionsFeature.class);
@@ -202,7 +201,7 @@ public class ForeignFunctionsFeature implements InternalFeature, ForeignHostedSu
 
     @Override
     public MethodHandleWithExceptionPlugin createHandleWithExceptionPlugin(MethodHandleAccessProvider methodHandleAccess) {
-        return new NativeMethodHandleWithExceptionPlugin(methodHandleAccess);
+        return new ForeignCapableMethodHandleWithExceptionPlugin(methodHandleAccess);
     }
 
     @Override
@@ -211,13 +210,22 @@ public class ForeignFunctionsFeature implements InternalFeature, ForeignHostedSu
         JavaConstant hostedConstant = toHostedConstant(nativeEntryPoint);
         if (hostedConstant == null) {
             /*
-             * The ImageHeapConstant may not be backed by a hosted object. This is usually the case
+             * The image heap constant is not be backed by a hosted object. This is usually the case
              * when building layered native images which is currently unsupported.
              */
             return null;
         }
+
         NativeEntryPointInfo resolve = NativeEntryPointHelper.extractNativeEntryPointInfo(hostedConstant);
-        MethodPointer downcallStubPointer = ensureDowncallStub(resolve);
+        if (resolve == null) {
+            /*
+             * The NativeEntryPoint could not be found in NEP_CACHE and we cannot re-create the
+             * corresponding NativeEntryPointInfo.
+             */
+            return null;
+        }
+
+        MethodPointer downcallStubPointer = ensureDowncallStubCreated(resolve);
         assert downcallStubPointer != null;
         return downcallStubPointer.getMethod();
     }
@@ -229,14 +237,14 @@ public class ForeignFunctionsFeature implements InternalFeature, ForeignHostedSu
         return c;
     }
 
-    MethodPointer ensureDowncallStub(NativeEntryPointInfo resolve) {
+    MethodPointer ensureDowncallStubCreated(NativeEntryPointInfo resolve) {
         if (!foreignFunctionsRuntime.downcallStubExists(resolve)) {
             DowncallStub stub = accessSupport.createStub(DowncallStubFactory.INSTANCE, resolve);
             /*
              * If the downcall stub was just created (i.e. 'stub != null'), we also need to ensure
-             * that the downcall stub invoker exists. Downcall stub invokers exist per MethodType
-             * and may be used to invoke several downcall stubs. Hence, the invoker may already
-             * exist.
+             * that a compatible downcall stub invoker exists. Downcall stub invokers exist per
+             * MethodType and may be used to invoke several downcall stubs. Hence, the invoker may
+             * already exist.
              */
             if (stub != null && !foreignFunctionsRuntime.downcallStubInvokerExists(stub.getMethodType())) {
                 accessSupport.createStub(DowncallStubInvokerFactory.INSTANCE, resolve.methodType());
@@ -482,6 +490,7 @@ public class ForeignFunctionsFeature implements InternalFeature, ForeignHostedSu
 
         ImageClassLoader imageClassLoader = access.getImageClassLoader();
         ConfigurationParserUtils.parseAndRegisterConfigurationsFromCombinedFile(getConfigurationParser(imageClassLoader), imageClassLoader, "panama foreign");
+        a.registerObjectReachabilityHandler(nativeEntryPointsInImageHeap::add, NativeEntryPoint.class);
     }
 
     @Override
@@ -494,6 +503,14 @@ public class ForeignFunctionsFeature implements InternalFeature, ForeignHostedSu
             } else {
                 throw VMError.shouldNotReachHere("Support for the Foreign Function and Memory API needs a backend with an assembler, it is not available with backend %s", b.getClass());
             }
+        }
+
+        /*
+         * NativeEntryPoint objects store a relocatable pointer to the downcall stub and the
+         * invoker. Therefore, we must explicitly register them as immutable.
+         */
+        for (var nativeEntryPoint : nativeEntryPointsInImageHeap) {
+            access.registerAsImmutable(nativeEntryPoint);
         }
     }
 
@@ -627,7 +644,7 @@ public class ForeignFunctionsFeature implements InternalFeature, ForeignHostedSu
     /**
      * The DirectMethodHandle provided by the "user" is not directly called but will be wrapped into
      * other method handles that do appropriate argument and result value conversions.
-     *
+     * <p>
      * However, there is no clean way to get access to the MethodHandle that is actually executed by
      * the upcall stub. This class extracts the 'UpcallStubFactory' and then re-creates an equal
      * method handle. This one is then passed to the DirectUpcallStub and is there subject for
@@ -932,7 +949,6 @@ public class ForeignFunctionsFeature implements InternalFeature, ForeignHostedSu
 
     @Override
     public void registerGraphBuilderPlugins(Providers providers, Plugins plugins, ParsingReason reason) {
-
         /*
          * If support for shared arenas is enabled, register a graph builder plugin that replaces
          * invocations '((MemorySessionImpl)session).checkValidStateRaw' with
@@ -962,26 +978,6 @@ public class ForeignFunctionsFeature implements InternalFeature, ForeignHostedSu
                 }
                 MethodCallTargetNode mt = b.add(new SubstrateMethodCallTargetNode(InvokeKind.Static, checkValidStateRawInRuntimeCompiledCode, args, b.getInvokeReturnStamp(b.getAssumptions())));
                 b.handleReplacedInvoke(mt, b.getInvokeReturnType().getJavaKind());
-                return true;
-            }
-        });
-    }
-
-    @Override
-    public void registerInvocationPlugins(Providers providers, GraphBuilderConfiguration.Plugins plugins, ParsingReason reason) {
-        InvocationPlugins.Registration r = new InvocationPlugins.Registration(plugins.getInvocationPlugins(), MethodHandles.class).setAllowOverwrite(true);
-        r.register(new InvocationPlugin("classData", Class.class) {
-            @Override
-            public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode arg) {
-                assert receiver == null;
-                if (!arg.isConstant() || arg.isNullConstant()) {
-                    return false;
-                }
-                ResolvedJavaField fieldCompanion = b.getMetaAccess().lookupJavaField(ReflectionUtil.lookupField(DynamicHub.class, "companion"));
-                JavaConstant companion = b.getConstantReflection().readFieldValue(fieldCompanion, arg.asJavaConstant());
-                ResolvedJavaField fieldClassData = b.getMetaAccess().lookupJavaField(ReflectionUtil.lookupField(DynamicHubCompanion.class, "classData"));
-                JavaConstant classData = b.getConstantReflection().readFieldValue(fieldClassData, companion);
-                b.addPush(JavaKind.Object, ConstantNode.forConstant(StampFactory.object(), classData, b.getMetaAccess()));
                 return true;
             }
         });

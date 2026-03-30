@@ -224,24 +224,20 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
         neverAccessesSharedArenaMethods.add(method);
     }
 
-    FunctionPointerHolder getDowncallStubPointerHolder(NativeEntryPointInfo nep) {
+    public CFunctionPointer getDowncallStubPointer(NativeEntryPointInfo nep) {
         FunctionPointerHolder holder = downcallStubs.get(nep);
         if (holder == null) {
             throw reportMissingDowncall(nep);
         }
-        return holder;
+        return holder.functionPointer;
     }
 
-    public CFunctionPointer getDowncallStubPointer(NativeEntryPointInfo nep) {
-        return getDowncallStubPointerHolder(nep).functionPointer;
-    }
-
-    FunctionPointerHolder getDowncallStubInvokerPointerHolder(MethodType methodType) {
+    CFunctionPointer getDowncallStubInvokerPointer(MethodType methodType) {
         FunctionPointerHolder holder = downcallStubInvokers.get(methodType);
         if (holder == null) {
             throw reportMissingDowncall(methodType);
         }
-        return holder;
+        return holder.functionPointer;
     }
 
     CFunctionPointer getUpcallStubPointer(JavaEntryPointInfo jep) {
@@ -331,6 +327,9 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
     private MissingForeignRegistrationError reportMissingDowncall(NativeEntryPointInfo nep) {
         LinkRequest currentLinkRequest = null;
         for (LinkRequest linkRequest : currentLinkRequests) {
+            if (!Thread.currentThread().equals(linkRequest.requester)) {
+                continue;
+            }
             NativeEntryPointInfo nativeEntryPointInfo = abiUtils.makeNativeEntrypoint(linkRequest.functionDescriptor, linkRequest.linkerOptions);
             if (nep.equals(nativeEntryPointInfo)) {
                 currentLinkRequest = linkRequest;
@@ -391,10 +390,10 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
                                         "upcallStub"));
     }
 
-    record LinkRequest(boolean upcall, FunctionDescriptor functionDescriptor, LinkerOptions linkerOptions) implements AutoCloseable, JsonPrintable {
+    record LinkRequest(boolean upcall, FunctionDescriptor functionDescriptor, LinkerOptions linkerOptions, Thread requester) implements AutoCloseable, JsonPrintable {
 
         static LinkRequest create(boolean upcall, FunctionDescriptor functionDescriptor, LinkerOptions linkerOptions) {
-            LinkRequest linkRequest = new LinkRequest(upcall, functionDescriptor, linkerOptions);
+            LinkRequest linkRequest = new LinkRequest(upcall, functionDescriptor, linkerOptions, Thread.currentThread());
             ForeignFunctionsRuntime.singleton().currentLinkRequests.push(linkRequest);
             return linkRequest;
         }
@@ -438,8 +437,10 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
     @Override
     public Object linkToNative(Object... args) throws Throwable {
         Target_jdk_internal_foreign_abi_NativeEntryPoint nep = (Target_jdk_internal_foreign_abi_NativeEntryPoint) args[args.length - 1];
-        /* The nep argument will be dropped in the invoked function */
-        return ((StubInvokerPointer) nep.downcallInvokerPointerHolder.functionPointer).invoke(nep.downcallStubPointerHolder.functionPointer, args);
+        StubInvokerPointer invoker = (StubInvokerPointer) nep.downcallInvokerPointer;
+        CFunctionPointer stub = nep.downcallStubPointer;
+        /* The nep argument will be dropped in the invoked downcall stub */
+        return invoker.invoke(stub, args);
     }
 
     @Override

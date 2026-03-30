@@ -36,7 +36,7 @@ import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.LinkedList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -206,7 +206,7 @@ public class SVMImageLayerSnapshotUtil {
 
     protected Set<URI> getBuilderLocations() {
         try {
-            List<URI> uris = new LinkedList<>();
+            Set<URI> uris = new HashSet<>();
 
             Class<?> vmFeatureClass = ImageSingletons.lookup(VMFeature.class).getClass();
             GuestAccess access = GuestAccess.get();
@@ -220,7 +220,7 @@ public class SVMImageLayerSnapshotUtil {
                 uris.add(access.getCodeSourceLocation(access.lookupType(foreignFunctionsFeature)).toURI());
             }
 
-            return Set.copyOf(uris);
+            return uris;
         } catch (URISyntaxException e) {
             throw VMError.shouldNotReachHere("Error when trying to get SVM URI", e);
         }

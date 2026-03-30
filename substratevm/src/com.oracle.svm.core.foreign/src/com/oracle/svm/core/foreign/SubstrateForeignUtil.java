@@ -40,7 +40,6 @@ import java.util.Optional;
 import com.oracle.svm.configure.UnresolvedAccessCondition;
 import com.oracle.svm.configure.config.ForeignConfiguration.ConfigurationFunctionDescriptor;
 import com.oracle.svm.configure.config.ForeignConfiguration.StubDesc;
-import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.core.ArenaIntrinsics;
 import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.SubstrateOptions;
@@ -49,6 +48,7 @@ import com.oracle.svm.core.nodes.foreign.ScopedMemExceptionHandlerClusterNode.Cl
 import com.oracle.svm.core.nodes.foreign.ScopedMemExceptionHandlerClusterNode.ExceptionInputNode;
 import com.oracle.svm.core.nodes.foreign.ScopedMemExceptionHandlerClusterNode.ExceptionPathNode;
 import com.oracle.svm.core.nodes.foreign.ScopedMemExceptionHandlerClusterNode.RegularPathNode;
+import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.shared.util.LogUtils;
 import com.oracle.svm.shared.util.VMError;
 
@@ -61,7 +61,7 @@ import jdk.internal.foreign.layout.AbstractLayout;
 /**
  * For details on the implementation of shared arenas on substrate see
  * {@link Target_jdk_internal_misc_ScopedMemoryAccess}.
- *
+ * <p>
  * Note that this code should only be called by substitutions in
  * {@link Target_jdk_internal_misc_ScopedMemoryAccess}.
  */
@@ -111,7 +111,7 @@ public class SubstrateForeignUtil {
 
     /**
      * Handles exceptions related to memory sessions within a specific arena scope.
-     *
+     * <p>
      * This method checks if the {@link java.lang.foreign.Arena} associated with {@code session} is
      * in a valid state. If validation fails, it logs the exception and propagates it through the
      * exception path.
@@ -205,12 +205,12 @@ public class SubstrateForeignUtil {
     }
 
     @NeverInline("inlining cut off")
-    static IllegalArgumentException getSymbolIsNullException(MemorySegment symbol) {
-        return new IllegalArgumentException("Symbol is NULL: " + symbol);
+    static void throwSymbolIsNullException(MemorySegment symbol) {
+        throw new IllegalArgumentException("Symbol is NULL: " + symbol);
     }
 
     @NeverInline("inlining cut off")
-    static IllegalArgumentException getHeapSegmentNotAllowedException(MemorySegment segment) {
-        return new IllegalArgumentException("Heap segment not allowed: " + segment);
+    static void throwHeapSegmentNotAllowedException(MemorySegment segment) {
+        throw new IllegalArgumentException("Heap segment not allowed: " + segment);
     }
 }
