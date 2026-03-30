@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -80,7 +80,7 @@ import com.oracle.svm.core.option.RuntimeOptionKey;
 import com.oracle.svm.core.util.ByteFormattingUtil;
 import com.oracle.svm.core.util.TimeUtils;
 import com.oracle.svm.core.util.UserError;
-import com.oracle.svm.hosted.ProgressReporterFeature.UserRecommendation;
+import com.oracle.svm.hosted.ProgressReporterSupport.UserRecommendation;
 import com.oracle.svm.hosted.ProgressReporterJsonHelper.AnalysisResults;
 import com.oracle.svm.hosted.ProgressReporterJsonHelper.GeneralInfo;
 import com.oracle.svm.hosted.ProgressReporterJsonHelper.ImageDetailKey;
@@ -256,7 +256,7 @@ public class ProgressReporter {
         String march = CPUType.getSelectedOrDefaultMArch();
         recordJsonMetric(GeneralInfo.GRAAL_COMPILER_MARCH, march);
         DirectPrinter graalLine = l().a(" - ").doclink("Graal compiler", "#glossary-graal-compiler").a(": optimization level: %s, target machine: %s", optimizationLevel, march);
-        ImageSingletons.lookup(ProgressReporterFeature.class).appendGraalSuffix(graalLine);
+        ProgressReporterSupport.singleton().appendGraalSuffix(graalLine);
         graalLine.println();
         String cCompilerShort = null;
         if (ImageSingletons.contains(CCompilerInvoker.class)) {
@@ -643,7 +643,7 @@ public class ProgressReporter {
         }
         l().println();
         printBreakdowns();
-        ImageSingletons.lookup(ProgressReporterFeature.class).afterBreakdowns();
+        ProgressReporterSupport.singleton().afterBreakdowns();
         printRecommendations();
     }
 
@@ -743,7 +743,7 @@ public class ProgressReporter {
         if (!SubstrateOptions.BuildOutputRecommendations.getValue()) {
             return;
         }
-        List<UserRecommendation> recommendations = ImageSingletons.lookup(ProgressReporterFeature.class).getRecommendations();
+        List<UserRecommendation> recommendations = ProgressReporterSupport.singleton().getRecommendations();
         List<UserRecommendation> topApplicableRecommendations = recommendations.stream().filter(r -> r.isApplicable().get()).limit(5).toList();
         if (topApplicableRecommendations.isEmpty()) {
             return;
@@ -892,7 +892,7 @@ public class ProgressReporter {
         if (generator.getBigbang() != null && ImageBuildStatistics.Options.CollectImageBuildStatistics.getValue(parsedHostedOptions)) {
             artifacts.add(ArtifactType.BUILD_INFO, reportImageBuildStatistics());
         }
-        ImageSingletons.lookup(ProgressReporterFeature.class).createAdditionalArtifactsOnSuccess(artifacts);
+        ProgressReporterSupport.singleton().createAdditionalArtifactsOnSuccess(artifacts);
     }
 
     private void printArtifacts(BuildArtifacts artifacts) {
