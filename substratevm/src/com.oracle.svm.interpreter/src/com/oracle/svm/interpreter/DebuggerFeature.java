@@ -489,7 +489,7 @@ public class DebuggerFeature implements InternalFeature {
                 if (needsMethodBody) {
                     BuildTimeInterpreterUniverse.singleton().getOrCreateMethodWithMethodBody(aMethod, aMetaAccess);
                 } else {
-                    BuildTimeInterpreterUniverse.singleton().getOrCreateMethod(aMethod);
+                    BuildTimeInterpreterUniverse.singleton().getOrCreateMethod(aMethod, false);
                 }
             }
         }

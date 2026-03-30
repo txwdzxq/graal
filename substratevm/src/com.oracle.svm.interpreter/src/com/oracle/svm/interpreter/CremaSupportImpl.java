@@ -216,11 +216,24 @@ public class CremaSupportImpl implements CremaSupport {
             /* Method has hosted type in signature */
             return;
         }
-        InterpreterResolvedJavaMethod method = btiUniverse.getOrCreateMethod(analysisMethod);
+        InterpreterResolvedJavaMethod method = btiUniverse.getOrCreateMethod(analysisMethod, shouldRetainMethodCode(analysisMethod));
         if (!method.isAbstract()) {
             method.setNativeEntryPoint(new MethodPointer(analysisMethod));
         }
         methods.add(method);
+    }
+
+    @Platforms(Platform.HOSTED_ONLY.class)
+    private static boolean shouldRetainMethodCode(AnalysisMethod analysisMethod) {
+        /*
+         * AOT methods normally should not retain bytecodes: they increase image heap size and are
+         * usually unusable at runtime because constant-pool accesses cannot be resolved against a
+         * proper runtime constant pool.
+         *
+         * Keep bytecodes for java.lang.Object::<init> as a temporary exception. Its body is
+         * effectively just a ret instruction, and Ristretto currently relies on that behavior.
+         */
+        return analysisMethod.isConstructor() && analysisMethod.getDeclaringClass().toJavaName().equals(Object.class.getName());
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)

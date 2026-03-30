@@ -189,7 +189,7 @@ public final class BuildTimeInterpreterUniverse {
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
-    public static InterpreterResolvedJavaMethod createResolveJavaMethod(ResolvedJavaMethod originalMethod) {
+    public static InterpreterResolvedJavaMethod createResolveJavaMethod(ResolvedJavaMethod originalMethod, boolean retainMethodCode) {
         assert originalMethod instanceof AnalysisMethod;
         MetadataUtil.requireNonNull(originalMethod);
         BuildTimeInterpreterUniverse universe = BuildTimeInterpreterUniverse.singleton();
@@ -199,7 +199,7 @@ public final class BuildTimeInterpreterUniverse {
         int modifiers = originalMethod.getModifiers();
         InterpreterResolvedObjectType declaringClass = universe.referenceType(originalMethod.getDeclaringClass());
         InterpreterUnresolvedSignature signature = universe.unresolvedSignature(originalMethod.getSignature());
-        byte[] interpretedCode = originalMethod.getCode() == null ? null : originalMethod.getCode().clone();
+        byte[] interpretedCode = retainMethodCode && originalMethod.getCode() != null ? originalMethod.getCode().clone() : null;
 
         boolean isSubstitutedNative = false;
         AnalysisMethod analysisMethod = (AnalysisMethod) originalMethod;
@@ -544,15 +544,16 @@ public final class BuildTimeInterpreterUniverse {
         return methods.get(wrapped);
     }
 
-    public InterpreterResolvedJavaMethod getOrCreateMethod(ResolvedJavaMethod resolvedJavaMethod) {
+    public InterpreterResolvedJavaMethod getOrCreateMethod(ResolvedJavaMethod resolvedJavaMethod, boolean retainMethodCode) {
         assert resolvedJavaMethod instanceof AnalysisMethod;
         InterpreterResolvedJavaMethod result = getMethod(resolvedJavaMethod);
 
         if (result != null) {
+            ensureMethodCodeRetained(result, resolvedJavaMethod, retainMethodCode);
             return result;
         }
 
-        result = createResolveJavaMethod(resolvedJavaMethod);
+        result = createResolveJavaMethod(resolvedJavaMethod, retainMethodCode);
 
         InterpreterResolvedJavaMethod previous = methods.putIfAbsent(resolvedJavaMethod, result);
         if (previous != null) {
@@ -564,12 +565,19 @@ public final class BuildTimeInterpreterUniverse {
     }
 
     public InterpreterResolvedJavaMethod getOrCreateMethodWithMethodBody(ResolvedJavaMethod resolvedJavaMethod, MetaAccessProvider metaAccessProvider) {
-        InterpreterResolvedJavaMethod result = getOrCreateMethod(resolvedJavaMethod);
+        InterpreterResolvedJavaMethod result = getOrCreateMethod(resolvedJavaMethod, true);
 
         /* added explicitly, bytecodes are needed for interpretation */
         setNeedMethodBody(result, true, metaAccessProvider);
 
         return result;
+    }
+
+    private static void ensureMethodCodeRetained(InterpreterResolvedJavaMethod method, ResolvedJavaMethod resolvedJavaMethod, boolean retainMethodCode) {
+        if (!retainMethodCode || method.getInterpretedCode() != null || resolvedJavaMethod.getCode() == null) {
+            return;
+        }
+        method.setCode(resolvedJavaMethod.getCode().clone());
     }
 
     public JavaConstant weakObjectConstant(ImageHeapConstant imageHeapConstant) {
