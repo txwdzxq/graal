@@ -28,6 +28,7 @@ import java.io.Closeable;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.WeakHashMap;
 
@@ -40,6 +41,12 @@ import com.oracle.svm.core.annotate.TargetClass;
 final class Target_jdk_internal_loader_URLClassPath {
 
     /* Reset fields that can store a Zip file via sun.misc.URLClassPath$JarLoader.jar. */
+
+    @Alias
+    public native URL findResource(String name);
+
+    @Alias
+    public native Enumeration<URL> findResources(String name);
 
     @Alias @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.NewInstance, declClass = ArrayList.class)//
     private ArrayList<?> loaders;

@@ -29,6 +29,8 @@ import java.io.InputStream;
 import java.lang.module.ModuleReader;
 import java.lang.module.ModuleReference;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +51,8 @@ import com.oracle.svm.shared.util.SubstrateUtil;
 @TargetClass(value = jdk.internal.loader.BuiltinClassLoader.class)
 @SuppressWarnings({"unused", "static-method"})
 final class Target_jdk_internal_loader_BuiltinClassLoader {
+
+    @Alias private Target_jdk_internal_loader_URLClassPath ucp;
 
     @Alias @RecomputeFieldValue(kind = Kind.Custom, declClass = NewConcurrentHashMap.class) //
     private Map<ModuleReference, ModuleReader> moduleToReader;
@@ -93,20 +97,45 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
 
     @Substitute
     public URL findResource(String name) {
-        if (ClassRegistries.respectClassLoader() && this != Target_jdk_internal_loader_ClassLoaders.bootLoader()) {
-            /* Workaround for GR-73221 */
-            return null;
+        if (!ClassRegistries.respectClassLoader()) {
+            // Return only image resources
+            return ResourcesHelper.nameToResourceURL(name);
         }
-        return ResourcesHelper.nameToResourceURL(name);
+
+        if (this == Target_jdk_internal_loader_ClassLoaders.bootLoader()) {
+            // Workaround for GR-73221: Only retrieve image resources for boot loader
+            URL url = ResourcesHelper.nameToResourceURL(name);
+            if (url != null) {
+                return url;
+            }
+        }
+        return ucp == null ? null : ucp.findResource(name);
     }
 
     @Substitute
-    public Enumeration<URL> findResources(String name) {
-        if (ClassRegistries.respectClassLoader() && this != Target_jdk_internal_loader_ClassLoaders.bootLoader()) {
-            /* Workaround for GR-73221 */
-            return null;
+    public Enumeration<URL> findResources(String name) throws IOException {
+        if (!ClassRegistries.respectClassLoader()) {
+            // Return only image resources
+            return ResourcesHelper.nameToResourceEnumerationURLs(name);
         }
-        return ResourcesHelper.nameToResourceEnumerationURLs(name);
+
+        List<URL> resources = new ArrayList<>();
+
+        if (this == Target_jdk_internal_loader_ClassLoaders.bootLoader()) {
+            // Workaround for GR-73221: Only retrieve image resources for boot loader
+            resources.addAll(ResourcesHelper.nameToResourceListURLs(name));
+        }
+        if (ucp != null) {
+            Enumeration<URL> e = ucp.findResources(name);
+            if (resources.isEmpty()) {
+                return e;
+            }
+            while (e.hasMoreElements()) {
+                URL url = e.nextElement();
+                resources.add(url);
+            }
+        }
+        return resources.isEmpty() ? Collections.emptyEnumeration() : Collections.enumeration(resources);
     }
 
     @Substitute
@@ -118,24 +147,6 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
     private URL findResource(ModuleReference mref, String name) {
         Module module = ModuleLayer.boot().findModule(mref.descriptor().name()).orElse(null);
         return ResourcesHelper.nameToResourceURL(module, name);
-    }
-
-    @Substitute
-    private URL findResourceOnClassPath(String name) {
-        if (ClassRegistries.respectClassLoader() && this != Target_jdk_internal_loader_ClassLoaders.bootLoader()) {
-            /* Workaround for GR-73221 */
-            return null;
-        }
-        return ResourcesHelper.nameToResourceURL(name);
-    }
-
-    @Substitute
-    private Enumeration<URL> findResourcesOnClassPath(String name) {
-        if (ClassRegistries.respectClassLoader() && this != Target_jdk_internal_loader_ClassLoaders.bootLoader()) {
-            /* Workaround for GR-73221 */
-            return null;
-        }
-        return ResourcesHelper.nameToResourceEnumerationURLs(name);
     }
 
     static final class NewConcurrentHashMap implements FieldValueTransformer {
