@@ -67,7 +67,7 @@ public final class SweepAndPromotePinnedChunkVisitor implements AlignedHeapChunk
         assert space.isToSpace() || (space.isCompactingOldSpace() && !completeCollection && fromYoung);
         boolean rememberedSet = SerialGCOptions.useRememberedSet() && space.isOldSpace();
         if (rememberedSet) {
-            if (completeCollection) {
+            if (fromYoung || completeCollection) {
                 RememberedSet.get().clearRememberedSet(chunk);
             }
             // We always need to rebuild the first object table.
