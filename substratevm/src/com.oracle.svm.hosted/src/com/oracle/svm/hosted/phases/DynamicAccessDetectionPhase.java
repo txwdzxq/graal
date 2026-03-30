@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -32,7 +32,7 @@ import java.security.CodeSource;
 import org.graalvm.collections.EconomicSet;
 
 import com.oracle.graal.pointsto.meta.AnalysisType;
-import com.oracle.svm.hosted.DynamicAccessDetectionFeature;
+import com.oracle.svm.hosted.DynamicAccessDetectionReportSupport;
 import com.oracle.svm.hosted.DynamicAccessDetectionSupport;
 import com.oracle.svm.hosted.InlinedCalleeTrackingNode;
 import com.oracle.svm.hosted.ReachabilityCallbackNode;
@@ -58,11 +58,11 @@ import jdk.vm.ci.meta.ResolvedJavaMethod;
  * provided source entries.
  */
 public class DynamicAccessDetectionPhase extends BasePhase<CoreProviders> {
-    private final DynamicAccessDetectionFeature dynamicAccessDetectionFeature;
+    private final DynamicAccessDetectionReportSupport dynamicAccessDetectionReportSupport;
     private final DynamicAccessDetectionSupport dynamicAccessDetectionSupport;
 
     public DynamicAccessDetectionPhase() {
-        dynamicAccessDetectionFeature = DynamicAccessDetectionFeature.instance();
+        dynamicAccessDetectionReportSupport = DynamicAccessDetectionReportSupport.singleton();
         dynamicAccessDetectionSupport = DynamicAccessDetectionSupport.instance();
     }
 
@@ -123,7 +123,7 @@ public class DynamicAccessDetectionPhase extends BasePhase<CoreProviders> {
             DynamicAccessDetectionSupport.MethodInfo methodInfo = dynamicAccessDetectionSupport.lookupDynamicAccessMethod(targetMethod);
             if (methodInfo != null) {
                 String callLocation = invokeLocation.getMethod().asStackTraceElement(invokeLocation.getBCI()).toString();
-                dynamicAccessDetectionFeature.addCall(sourceEntry, methodInfo.accessKind(), methodInfo.signature(), callLocation);
+                dynamicAccessDetectionReportSupport.addCall(sourceEntry, methodInfo.accessKind(), methodInfo.signature(), callLocation);
             }
         }
     }
@@ -133,7 +133,7 @@ public class DynamicAccessDetectionPhase extends BasePhase<CoreProviders> {
      * the value specified by the option, otherwise returns null.
      */
     private static String getSourceEntry(AnalysisType callerClass) {
-        EconomicSet<String> sourceEntries = DynamicAccessDetectionFeature.instance().getSourceEntries();
+        EconomicSet<String> sourceEntries = DynamicAccessDetectionReportSupport.singleton().getSourceEntries();
         try {
             CodeSource entryPathSource = callerClass.getJavaClass().getProtectionDomain().getCodeSource();
             if (entryPathSource != null) {
