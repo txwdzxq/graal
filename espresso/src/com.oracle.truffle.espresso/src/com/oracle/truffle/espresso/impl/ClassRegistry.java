@@ -634,6 +634,9 @@ public abstract class ClassRegistry {
                 appendModuleAndLoadersDetails(env, klass, superKlass, sb, context);
                 throw EspressoClassLoadingException.illegalAccessError(sb.toString());
             }
+            if (context.getJavaVersion().java25OrLater() && superKlass.isFinalFlagSet()) {
+                throw EspressoClassLoadingException.incompatibleClassChangeError("class " + type + " declares a final class as its super class: " + superKlassType);
+            }
             if (!superKlass.permittedSubclassCheck(klass)) {
                 throw EspressoClassLoadingException.incompatibleClassChangeError("class " + klass.getExternalName() + " is not a permitted subclass of class " + superKlass.getExternalName());
             }
