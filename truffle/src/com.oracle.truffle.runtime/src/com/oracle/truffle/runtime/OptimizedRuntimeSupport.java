@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2020, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -306,7 +306,7 @@ final class OptimizedRuntimeSupport extends RuntimeSupport {
     @Override
     public Object callProfiled(CallTarget target, Object... arguments) {
         OptimizedCallTarget castTarget = (OptimizedCallTarget) target;
-        assert castTarget.isValidArgumentProfile(arguments) : "Invalid argument profile. callProfiled requires to explicity initialize the profile.";
+        assert castTarget.isValidArgumentProfile(arguments) : "Invalid argument profile. callProfiled requires to explicitly initialize the profile.";
         return castTarget.doInvoke(arguments);
     }
 
