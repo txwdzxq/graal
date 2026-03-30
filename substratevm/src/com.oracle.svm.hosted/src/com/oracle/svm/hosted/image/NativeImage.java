@@ -725,74 +725,78 @@ public abstract class NativeImage extends AbstractImage {
                 baseSectionImpl.markRelocationSite(offsetInSection, RelocationKind.getDirect(wordSize), data.symbolName, 0L);
             }
         } else if (target instanceof ConstantReference cr) {
-            JavaConstant constant = (JavaConstant) cr.getConstant();
-            long targetValue;
-            if (constant.getJavaKind() == JavaKind.Object) {
-                // Direct object reference in code that must be patched (not a linker relocation)
-                long address = heap.getConstantInfo(constant).getOffset();
-                int encShift = ImageSingletons.lookup(CompressEncoding.class).getShift();
-                targetValue = address >>> encShift;
-                assert (targetValue << encShift) == address : "Reference compression shift discards non-zero bits: " + Long.toHexString(address);
-            } else {
-                // The value of the hub pointer in the header of an object
-                VMError.guarantee(constant instanceof TLABObjectHeaderConstant, "must be an EncodedHubPointerConstant: %s", constant);
-                TLABObjectHeaderConstant hpc = (TLABObjectHeaderConstant) constant;
-                JavaConstant hub = hpc.hub();
-                long hubOffsetFromHeapBase = heap.getConstantInfo(hub).getOffset();
-                VMError.guarantee(hubOffsetFromHeapBase != 0, "hub must be non-null: %s", hub);
-                targetValue = Heap.getHeap().getObjectHeader().encodeAsTLABObjectHeader(hubOffsetFromHeapBase);
-                VMError.guarantee(hpc.getJavaKind() == JavaKind.Long || NumUtil.isUInt(targetValue), "constant does not fit %d", targetValue);
-            }
-
-            ByteBuffer bufferBytes = buffer.getByteBuffer();
-            if (arch instanceof AMD64) {
-                assert (info.getRelocationKind() == RelocationKind.DIRECT_4) || (info.getRelocationKind() == RelocationKind.DIRECT_8);
-                if (info.getRelocationSize() == Long.BYTES) {
-                    bufferBytes.putLong(offset, targetValue);
-                } else if (info.getRelocationSize() == Integer.BYTES) {
-                    bufferBytes.putInt(offset, NumUtil.safeToUInt(targetValue));
-                } else {
-                    throw shouldNotReachHere("Unsupported object reference size: " + info.getRelocationSize());
-                }
-            } else if (arch instanceof AArch64) {
-                int patchValue;
-                switch (info.getRelocationKind()) {
-                    case AARCH64_R_MOVW_UABS_G0:
-                    case AARCH64_R_MOVW_UABS_G0_NC:
-                        patchValue = (int) targetValue & 0xFFFF;
-                        break;
-                    case AARCH64_R_MOVW_UABS_G1:
-                    case AARCH64_R_MOVW_UABS_G1_NC:
-                        patchValue = (int) (targetValue >> 16) & 0xFFFF;
-                        break;
-                    case AARCH64_R_MOVW_UABS_G2:
-                    case AARCH64_R_MOVW_UABS_G2_NC:
-                        patchValue = (int) (targetValue >> 32) & 0xFFFF;
-                        break;
-                    case AARCH64_R_MOVW_UABS_G3:
-                        patchValue = (int) (targetValue >> 48) & 0xFFFF;
-                        break;
-                    default:
-                        throw shouldNotReachHere("Unsupported AArch64 relocation kind: " + info.getRelocationKind());
-                }
-                // validating patched value does not overflow operand
-                switch (info.getRelocationKind()) {
-                    case AARCH64_R_MOVW_UABS_G0:
-                        assert (targetValue & 0xFFFF_FFFF_FFFF_0000L) == 0 : "value to patch does not fit";
-                        break;
-                    case AARCH64_R_MOVW_UABS_G1:
-                        assert (targetValue & 0xFFFF_FFFF_0000_0000L) == 0 : "value to patch does not fit";
-                        break;
-                    case AARCH64_R_MOVW_UABS_G2:
-                        assert (targetValue & 0xFFFF_0000_0000_0000L) == 0 : "value to patch does not fit";
-                        break;
-                }
-                int originalInst = bufferBytes.getInt(offset);
-                int newInst = AArch64Assembler.PatcherUtil.patchMov(originalInst, patchValue);
-                bufferBytes.putInt(offset, newInst);
-            }
+            markConstantReference(buffer, offset, info, cr, arch, heap);
         } else {
             throw shouldNotReachHere("Unsupported target object for relocation in text section");
+        }
+    }
+
+    public static void markConstantReference(RelocatableBuffer buffer, int offset, Info info, ConstantReference cr, Architecture arch, NativeImageHeap heap) {
+        JavaConstant constant = (JavaConstant) cr.getConstant();
+        long targetValue;
+        if (constant.getJavaKind() == JavaKind.Object) {
+            // Direct object reference in code that must be patched (not a linker relocation)
+            long address = heap.getConstantInfo(constant).getOffset();
+            int encShift = ImageSingletons.lookup(CompressEncoding.class).getShift();
+            targetValue = address >>> encShift;
+            assert (targetValue << encShift) == address : "Reference compression shift discards non-zero bits: " + Long.toHexString(address);
+        } else {
+            // The value of the hub pointer in the header of an object
+            VMError.guarantee(constant instanceof TLABObjectHeaderConstant, "must be an EncodedHubPointerConstant: %s", constant);
+            TLABObjectHeaderConstant hpc = (TLABObjectHeaderConstant) constant;
+            JavaConstant hub = hpc.hub();
+            long hubOffsetFromHeapBase = heap.getConstantInfo(hub).getOffset();
+            VMError.guarantee(hubOffsetFromHeapBase != 0, "hub must be non-null: %s", hub);
+            targetValue = Heap.getHeap().getObjectHeader().encodeAsTLABObjectHeader(hubOffsetFromHeapBase);
+            VMError.guarantee(hpc.getJavaKind() == JavaKind.Long || NumUtil.isUInt(targetValue), "constant does not fit %d", targetValue);
+        }
+
+        ByteBuffer bufferBytes = buffer.getByteBuffer();
+        if (arch instanceof AMD64) {
+            assert (info.getRelocationKind() == RelocationKind.DIRECT_4) || (info.getRelocationKind() == RelocationKind.DIRECT_8);
+            if (info.getRelocationSize() == Long.BYTES) {
+                bufferBytes.putLong(offset, targetValue);
+            } else if (info.getRelocationSize() == Integer.BYTES) {
+                bufferBytes.putInt(offset, NumUtil.safeToUInt(targetValue));
+            } else {
+                throw shouldNotReachHere("Unsupported object reference size: " + info.getRelocationSize());
+            }
+        } else if (arch instanceof AArch64) {
+            int patchValue;
+            switch (info.getRelocationKind()) {
+                case AARCH64_R_MOVW_UABS_G0:
+                case AARCH64_R_MOVW_UABS_G0_NC:
+                    patchValue = (int) targetValue & 0xFFFF;
+                    break;
+                case AARCH64_R_MOVW_UABS_G1:
+                case AARCH64_R_MOVW_UABS_G1_NC:
+                    patchValue = (int) (targetValue >> 16) & 0xFFFF;
+                    break;
+                case AARCH64_R_MOVW_UABS_G2:
+                case AARCH64_R_MOVW_UABS_G2_NC:
+                    patchValue = (int) (targetValue >> 32) & 0xFFFF;
+                    break;
+                case AARCH64_R_MOVW_UABS_G3:
+                    patchValue = (int) (targetValue >> 48) & 0xFFFF;
+                    break;
+                default:
+                    throw shouldNotReachHere("Unsupported AArch64 relocation kind: " + info.getRelocationKind());
+            }
+            // validating patched value does not overflow operand
+            switch (info.getRelocationKind()) {
+                case AARCH64_R_MOVW_UABS_G0:
+                    assert (targetValue & 0xFFFF_FFFF_FFFF_0000L) == 0 : "value to patch does not fit";
+                    break;
+                case AARCH64_R_MOVW_UABS_G1:
+                    assert (targetValue & 0xFFFF_FFFF_0000_0000L) == 0 : "value to patch does not fit";
+                    break;
+                case AARCH64_R_MOVW_UABS_G2:
+                    assert (targetValue & 0xFFFF_0000_0000_0000L) == 0 : "value to patch does not fit";
+                    break;
+            }
+            int originalInst = bufferBytes.getInt(offset);
+            int newInst = AArch64Assembler.PatcherUtil.patchMov(originalInst, patchValue);
+            bufferBytes.putInt(offset, newInst);
         }
     }
 

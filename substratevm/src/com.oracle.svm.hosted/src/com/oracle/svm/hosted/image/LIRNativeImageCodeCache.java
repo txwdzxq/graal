@@ -134,17 +134,20 @@ public class LIRNativeImageCodeCache extends NativeImageCodeCache {
         return true;
     }
 
-    @SuppressWarnings({"try", "resource"})
     @Override
     public void layoutMethods(DebugContext debug, BigBang bb) {
+        layoutMethods(debug, getOrderedCompilations());
+    }
 
+    @SuppressWarnings({"try", "resource"})
+    private void layoutMethods(DebugContext debug, List<Pair<HostedMethod, CompilationResult>> compilations) {
         try (Indent _ = debug.logAndIndent("layout methods")) {
             // Assign initial location to all methods.
             HostedDirectCallTrampolineSupport trampolineSupport = HostedDirectCallTrampolineSupport.singleton();
             Map<HostedMethod, Integer> curOffsetMap = trampolineSupport.mayNeedTrampolines() ? new HashMap<>() : null;
 
             int curPos = 0;
-            for (Pair<HostedMethod, CompilationResult> entry : getOrderedCompilations()) {
+            for (Pair<HostedMethod, CompilationResult> entry : compilations) {
                 HostedMethod method = entry.getLeft();
                 CompilationResult compilation = entry.getRight();
                 curPos = align(curPos, SharedCompilationResult.getCodeAlignment(compilation));
@@ -163,7 +166,7 @@ public class LIRNativeImageCodeCache extends NativeImageCodeCache {
                 addDirectCallTrampolines(curOffsetMap);
 
                 // record final code address offsets and trampoline metadata
-                for (Pair<HostedMethod, CompilationResult> pair : getOrderedCompilations()) {
+                for (Pair<HostedMethod, CompilationResult> pair : compilations) {
                     HostedMethod method = pair.getLeft();
                     int methodStartOffset = curOffsetMap.get(method);
                     method.setCodeAddressOffset(methodStartOffset);
@@ -189,7 +192,7 @@ public class LIRNativeImageCodeCache extends NativeImageCodeCache {
                 }
             }
 
-            Pair<HostedMethod, CompilationResult> lastCompilation = getLastCompilation();
+            Pair<HostedMethod, CompilationResult> lastCompilation = compilations.getLast();
             HostedMethod lastMethod = lastCompilation.getLeft();
 
             // the total code size is aligned up to SubstrateOptions.buildTimeCodeAlignment()

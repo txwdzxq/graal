@@ -203,7 +203,7 @@ public class PLTGOTFeature implements InternalFeature {
         PLTSectionSupport pltSectionSupport = HostedPLTGOTConfiguration.singleton().getPLTSectionSupport();
         pltSectionSupport.createPLTSection(got, imageObjectFile, access.getSubstrateBackend());
         createGOTSection(got, imageObjectFile, pltSectionSupport);
-        HostedPLTGOTConfiguration.singleton().getMethodAddressResolutionSupport().augmentImageObjectFile(imageObjectFile);
+        HostedPLTGOTConfiguration.singleton().getMethodAddressResolutionSupport().augmentImage(access.getImage());
     }
 
     private void createGOTSection(SharedMethod[] got, ObjectFile objectFile, PLTSectionSupport pltSectionSupport) {

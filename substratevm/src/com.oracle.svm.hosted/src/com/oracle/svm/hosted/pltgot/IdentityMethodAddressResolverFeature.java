@@ -27,6 +27,7 @@ package com.oracle.svm.hosted.pltgot;
 import java.util.Collections;
 import java.util.List;
 
+import com.oracle.svm.hosted.image.AbstractImage;
 import org.graalvm.nativeimage.hosted.Feature;
 
 import com.oracle.objectfile.BasicProgbitsSectionImpl;
@@ -81,7 +82,8 @@ public class IdentityMethodAddressResolverFeature implements InternalFeature {
         }
 
         @Override
-        public void augmentImageObjectFile(ObjectFile imageObjectFile) {
+        public void augmentImage(AbstractImage abstractImage) {
+            ObjectFile imageObjectFile = abstractImage.getObjectFile();
             GOTEntryAllocator gotEntryAllocator = HostedPLTGOTConfiguration.singleton().getGOTEntryAllocator();
             SharedMethod[] got = gotEntryAllocator.getGOT();
             long methodCount = got.length;
