@@ -57,7 +57,6 @@ import jdk.graal.compiler.options.OptionValues;
 public final class DynamicAccessDetectionFeature implements InternalFeature {
 
     public static final String TRACK_ALL = "all";
-
     private static final String TRACK_NONE = "none";
     private static final String TO_CONSOLE = "to-console";
     private static final String NO_DUMP = "no-dump";
@@ -78,21 +77,8 @@ public final class DynamicAccessDetectionFeature implements InternalFeature {
                         .collect(Collectors.toSet()));
         EconomicSet<String> sourceEntries = EconomicSet.create(tmpSet);
 
-        AccumulatingLocatableMultiOptionValue.Strings options = SubstrateOptions.TrackDynamicAccess.getValue();
-        boolean printToConsole = false;
-        boolean dumpJsonFiles = true;
-        for (String optionValue : options.values()) {
-            switch (optionValue) {
-                case TO_CONSOLE -> printToConsole = true;
-                case NO_DUMP -> dumpJsonFiles = false;
-                case TRACK_NONE -> {
-                    printToConsole = false;
-                    dumpJsonFiles = true;
-                }
-            }
-        }
-
-        ImageSingletons.add(DynamicAccessDetectionReportSupport.class, new DynamicAccessDetectionReportSupport(sourceEntries, printToConsole, dumpJsonFiles));
+        var reportOptions = reportOptionsFromTrackDynamicAccessOptions(SubstrateOptions.TrackDynamicAccess.getValue());
+        ImageSingletons.add(DynamicAccessDetectionReportSupport.class, new DynamicAccessDetectionReportSupport(sourceEntries, reportOptions));
         ImageSingletons.add(TrackDynamicAccessEnabled.TrackDynamicAccessEnabledSingleton.class, new TrackDynamicAccessEnabled.TrackDynamicAccessEnabledSingleton() {
         });
     }
@@ -125,6 +111,22 @@ public final class DynamicAccessDetectionFeature implements InternalFeature {
     private static String dynamicAccessPossibleOptions() {
         return String.format("[%s, %s, %s, %s, %s]",
                         TRACK_ALL, TRACK_NONE, TO_CONSOLE, NO_DUMP, IncludeOptionsSupport.possibleExtendedOptions());
+    }
+
+    private static DynamicAccessDetectionReportSupport.ReportOptions reportOptionsFromTrackDynamicAccessOptions(AccumulatingLocatableMultiOptionValue.Strings options) {
+        boolean printToConsole = false;
+        boolean dumpJsonFiles = true;
+        for (String optionValue : options.values()) {
+            switch (optionValue) {
+                case TO_CONSOLE -> printToConsole = true;
+                case NO_DUMP -> dumpJsonFiles = false;
+                case TRACK_NONE -> {
+                    printToConsole = false;
+                    dumpJsonFiles = true;
+                }
+            }
+        }
+        return new DynamicAccessDetectionReportSupport.ReportOptions(printToConsole, dumpJsonFiles);
     }
 
     public static void parseDynamicAccessOptions(EconomicMap<OptionKey<?>, Object> hostedValues, NativeImageClassLoaderSupport classLoaderSupport) {

@@ -60,6 +60,9 @@ import jdk.graal.compiler.options.OptionValues;
 public final class DynamicAccessDetectionReportSupport {
     private static final String OUTPUT_DIR_NAME = "dynamic-access";
 
+    public record ReportOptions(boolean printToConsole, boolean dumpJsonFiles) {
+    }
+
     // We use a ConcurrentSkipListMap, as opposed to a ConcurrentHashMap, to maintain
     // order of methods by access kind.
     public record MethodsByAccessKind(Map<DynamicAccessDetectionSupport.DynamicAccessKind, CallLocationsByMethod> methodsByAccessKind) {
@@ -100,11 +103,11 @@ public final class DynamicAccessDetectionReportSupport {
     private final boolean printToConsole;
     private final boolean dumpJsonFiles;
 
-    public DynamicAccessDetectionReportSupport(EconomicSet<String> sourceEntries, boolean printToConsole, boolean dumpJsonFiles) {
+    public DynamicAccessDetectionReportSupport(EconomicSet<String> sourceEntries, ReportOptions reportOptions) {
         this.sourceEntries = EconomicSet.create(sourceEntries);
         this.callsBySourceEntry = new ConcurrentSkipListMap<>();
-        this.printToConsole = printToConsole;
-        this.dumpJsonFiles = dumpJsonFiles;
+        this.printToConsole = reportOptions.printToConsole();
+        this.dumpJsonFiles = reportOptions.dumpJsonFiles();
     }
 
     public static DynamicAccessDetectionReportSupport singleton() {
