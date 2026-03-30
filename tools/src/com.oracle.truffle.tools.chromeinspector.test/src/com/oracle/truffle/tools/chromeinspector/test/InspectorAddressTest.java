@@ -84,7 +84,7 @@ public class InspectorAddressTest {
 
     @Test
     public void testPort() {
-        try (Context context = Context.newBuilder().option("inspect", "2992").info(outOutput).build()) {
+        try (Context context = Context.newBuilder().option("inspect", "2992").out(outOutput).build()) {
             assert context != null;
         }
         String[] wsAddress = parseWSAddress(outOutput.toString());
