@@ -36,7 +36,6 @@ import org.graalvm.nativeimage.ImageSingletons;
 
 import com.oracle.graal.pointsto.meta.AnalysisMetaAccess;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.TrackDynamicAccessEnabled;
 import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.util.UserError;
@@ -50,8 +49,8 @@ import jdk.graal.compiler.options.OptionKey;
 import jdk.graal.compiler.options.OptionValues;
 
 /**
- * This feature installs and manages the hosted support used by
- * {@link DynamicAccessDetectionPhase} to report dynamic access calls that may require metadata.
+ * This feature installs and manages the hosted support used by {@link DynamicAccessDetectionPhase}
+ * to report dynamic access calls that may require metadata.
  */
 @AutomaticallyRegisteredFeature
 public final class DynamicAccessDetectionFeature implements InternalFeature {
@@ -79,8 +78,6 @@ public final class DynamicAccessDetectionFeature implements InternalFeature {
 
         var reportOptions = reportOptionsFromTrackDynamicAccessOptions(SubstrateOptions.TrackDynamicAccess.getValue());
         ImageSingletons.add(DynamicAccessDetectionReportSupport.class, new DynamicAccessDetectionReportSupport(sourceEntries, reportOptions));
-        ImageSingletons.add(TrackDynamicAccessEnabled.TrackDynamicAccessEnabledSingleton.class, new TrackDynamicAccessEnabled.TrackDynamicAccessEnabledSingleton() {
-        });
     }
 
     @Override

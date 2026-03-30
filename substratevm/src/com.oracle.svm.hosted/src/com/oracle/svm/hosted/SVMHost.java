@@ -83,7 +83,6 @@ import com.oracle.svm.core.NeverStrengthenGraphWithConstants;
 import com.oracle.svm.core.RuntimeAssertionsSupport;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.SubstrateOptions.OptimizationLevel;
-import com.oracle.svm.core.TrackDynamicAccessEnabled;
 import com.oracle.svm.core.annotate.Delete;
 import com.oracle.svm.core.annotate.InjectAccessors;
 import com.oracle.svm.core.annotate.TargetClass;
@@ -321,7 +320,7 @@ public class SVMHost extends HostVM {
 
         constantExpressionRegistry = StrictDynamicAccessInferenceFeature.isActive() ? ConstantExpressionRegistry.singleton() : null;
 
-        trackDynamicAccess = TrackDynamicAccessEnabled.isTrackDynamicAccessEnabled();
+        trackDynamicAccess = DynamicAccessDetectionReportSupport.isDynamicAccessTrackingEnabled();
     }
 
     /**

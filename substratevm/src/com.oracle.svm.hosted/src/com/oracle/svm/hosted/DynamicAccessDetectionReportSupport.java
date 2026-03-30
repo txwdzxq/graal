@@ -114,6 +114,10 @@ public final class DynamicAccessDetectionReportSupport {
         return ImageSingletons.lookup(DynamicAccessDetectionReportSupport.class);
     }
 
+    public static boolean isDynamicAccessTrackingEnabled() {
+        return ImageSingletons.contains(DynamicAccessDetectionReportSupport.class);
+    }
+
     public void addCall(String entry, DynamicAccessDetectionSupport.DynamicAccessKind accessKind, String call, String callLocation) {
         MethodsByAccessKind entryContent = callsBySourceEntry.computeIfAbsent(entry, _ -> new MethodsByAccessKind());
         CallLocationsByMethod methodCallLocations = entryContent.methodsByAccessKind().computeIfAbsent(accessKind, _ -> new CallLocationsByMethod());
