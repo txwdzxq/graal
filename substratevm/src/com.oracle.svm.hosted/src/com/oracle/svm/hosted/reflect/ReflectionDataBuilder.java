@@ -89,7 +89,6 @@ import com.oracle.graal.pointsto.meta.AnalysisUniverse;
 import com.oracle.svm.configure.config.ConfigurationMemberInfo.ConfigurationMemberAccessibility;
 import com.oracle.svm.core.configure.ConditionalRuntimeValue;
 import com.oracle.svm.core.configure.RuntimeDynamicAccessMetadata;
-import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.PredefinedClassesSupport;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
@@ -106,6 +105,7 @@ import com.oracle.svm.hosted.LinkAtBuildTimeSupport;
 import com.oracle.svm.hosted.SVMHost;
 import com.oracle.svm.hosted.annotation.SubstrateAnnotationExtractor;
 import com.oracle.svm.hosted.substitute.SubstitutionReflectivityFilter;
+import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.shared.singletons.ImageSingletonLoader;
 import com.oracle.svm.shared.singletons.ImageSingletonWriter;
 import com.oracle.svm.shared.singletons.LayeredPersistFlags;
@@ -401,7 +401,11 @@ public class ReflectionDataBuilder extends ConditionalConfigurationRegistry impl
     }
 
     private void registerClassLookupException(AccessCondition condition, String typeName, Throwable t, boolean preserved) {
-        if (RuntimeClassLoading.isSupported()) {
+        if (RuntimeClassLoading.isSupported() && t != null) {
+            /*
+             * Linkage errors don't need to be stored in the image when runtime class loading is
+             * enabled as they can be recreated when trying to load the class at run-time.
+             */
             return;
         }
         if (layeredReflectionDataBuilder != null && layeredReflectionDataBuilder.isTypeNameRegistered(typeName)) {
