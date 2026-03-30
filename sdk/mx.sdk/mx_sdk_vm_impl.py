@@ -2973,6 +2973,14 @@ def graalvm_version(version_type):
         """
         :rtype: (str, str, str, str)
         """
+        release_file = join(mx_sdk_vm.base_jdk().home, 'release')
+        if isfile(release_file):
+            runtime_version = mx_sdk_vm.parse_release_file(release_file).get('JAVA_RUNTIME_VERSION')
+            if runtime_version:
+                match = re.fullmatch(r'(?P<java_vnum>\d+(?:\.\d+){0,3})(?:-(?P<java_pre>[^+]+))?(?P<java_build>\+\d+)?(?:-(?P<java_opt>.+))?', runtime_version)
+                if match:
+                    return tuple(part or '' for part in match.group('java_vnum', 'java_pre', 'java_build', 'java_opt'))
+
         out = mx.OutputCapture()
         with mx.DisableJavaDebugging():
             code = mx_sdk_vm.base_jdk().run_java(['-Xlog:disable', join(_suite.mxDir, 'vm', 'java', 'src', 'JDKVersionInfo.java')], out=out, err=out)
