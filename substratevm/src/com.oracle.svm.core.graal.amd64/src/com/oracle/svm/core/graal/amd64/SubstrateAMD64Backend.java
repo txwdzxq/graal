@@ -1995,7 +1995,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
 
     @Override
     protected AMD64MacroAssembler createAssembler(OptionValues options) {
-        return new AMD64MacroAssembler(getTarget(), options, true);
+        return new AMD64SvmMacroAssembler(getTarget(), options, true);
     }
 
     protected FrameContext createFrameContext(SharedMethod method, Deoptimizer.StubType stubType, CallingConvention callingConvention) {
