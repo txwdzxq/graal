@@ -46,6 +46,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.function.BiConsumer;
 
+import jdk.graal.compiler.phases.PreLIRGraphVerifier;
 import org.graalvm.nativeimage.ImageSingletons;
 
 import com.oracle.svm.core.CPUFeatureAccess;
@@ -190,6 +191,7 @@ import jdk.graal.compiler.nodes.spi.NodeLIRBuilderTool;
 import jdk.graal.compiler.nodes.spi.NodeValueMap;
 import jdk.graal.compiler.options.OptionValues;
 import jdk.graal.compiler.phases.BasePhase;
+import jdk.graal.compiler.phases.constantblinding.ConstantBlindingInstance;
 import jdk.graal.compiler.phases.common.AddressLoweringByNodePhase;
 import jdk.graal.compiler.phases.util.Providers;
 import jdk.graal.compiler.replacements.amd64.AMD64IntrinsicStubs;
@@ -1961,6 +1963,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
 
     @Override
     public NodeLIRBuilderTool newNodeLIRBuilder(StructuredGraph graph, LIRGeneratorTool lirGen) {
+        assert PreLIRGraphVerifier.createInstance(graph.getOptions()).verify(graph) : "Graph must verify pre LIR";
         AMD64NodeMatchRules nodeMatchRules = createMatchRules(lirGen);
         return new SubstrateAMD64NodeLIRBuilder(graph, lirGen, nodeMatchRules);
     }
@@ -1975,6 +1978,9 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
         LIR lir = lirGenResult.getLIR();
         OptionValues options = lir.getOptions();
         AMD64MacroAssembler masm = createAssembler(options);
+        if (ConstantBlindingInstance.shouldForce4ByteDisplacements(options) && !SubstrateUtil.HOSTED) {
+            masm.setForce4ByteNonZeroDisplacements(true);
+        }
         PatchConsumerFactory patchConsumerFactory;
         if (SubstrateUtil.HOSTED) {
             patchConsumerFactory = PatchConsumerFactory.HostedPatchConsumerFactory.factory();

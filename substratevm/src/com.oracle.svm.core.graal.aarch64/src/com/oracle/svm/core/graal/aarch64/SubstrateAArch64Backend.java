@@ -40,6 +40,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.function.BiConsumer;
 
+import jdk.graal.compiler.phases.PreLIRGraphVerifier;
 import org.graalvm.nativeimage.ImageSingletons;
 
 import com.oracle.svm.core.FrameAccess;
@@ -1552,6 +1553,7 @@ public class SubstrateAArch64Backend extends SubstrateBackendWithAssembler<Subst
 
     @Override
     public NodeLIRBuilderTool newNodeLIRBuilder(StructuredGraph graph, LIRGeneratorTool lirGen) {
+        assert PreLIRGraphVerifier.createInstance(graph.getOptions()).verify(graph);
         AArch64NodeMatchRules nodeMatchRules = createMatchRules(lirGen);
         return new SubstrateAArch64NodeLIRBuilder(graph, lirGen, nodeMatchRules);
     }
