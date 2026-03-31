@@ -48,6 +48,9 @@ final class Target_jdk_internal_loader_URLClassPath {
     @Alias
     public native Enumeration<URL> findResources(String name);
 
+    @Alias
+    public native Target_jdk_internal_loader_Resource getResource(String name);
+
     @Alias @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.NewInstance, declClass = ArrayList.class)//
     private ArrayList<?> loaders;
 
@@ -57,6 +60,13 @@ final class Target_jdk_internal_loader_URLClassPath {
     /* The original locations of the .jar files are no longer available at run time. */
     @Alias @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.NewInstance, declClass = ArrayList.class)//
     private ArrayList<URL> path;
+}
+
+@TargetClass(className = "jdk.internal.loader.Resource")
+@SuppressWarnings({"unused", "static-method"})
+final class Target_jdk_internal_loader_Resource {
+    @Alias
+    public native byte[] getBytes() throws java.io.IOException;
 }
 
 @TargetClass(URLClassLoader.class)

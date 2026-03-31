@@ -52,7 +52,7 @@ import com.oracle.svm.shared.util.SubstrateUtil;
 @SuppressWarnings({"unused", "static-method"})
 final class Target_jdk_internal_loader_BuiltinClassLoader {
 
-    @Alias private Target_jdk_internal_loader_URLClassPath ucp;
+    @Alias Target_jdk_internal_loader_URLClassPath ucp;
 
     @Alias @RecomputeFieldValue(kind = Kind.Custom, declClass = NewConcurrentHashMap.class) //
     private Map<ModuleReference, ModuleReader> moduleToReader;

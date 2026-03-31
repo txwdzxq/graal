@@ -30,6 +30,7 @@ import org.graalvm.nativeimage.Platforms;
 
 import com.oracle.svm.core.SubstrateGCOptions;
 import com.oracle.svm.core.SubstrateOptions;
+import com.oracle.svm.core.jdk.SystemPropertiesSupport;
 import com.oracle.svm.shared.option.SubstrateOptionsParser;
 
 import jdk.graal.compiler.options.OptionKey;
@@ -54,6 +55,11 @@ public final class XOptions {
         if (xFlag != null) {
             long value = parse(xFlag, keyAndValue);
             xFlag.optionKey.update(values, value);
+            return true;
+        } else if (keyAndValue.startsWith("bootclasspath/a:")) {
+            // Set the property read by jdk.internal.loader.ClassLoaders.<clinit>
+            String value = keyAndValue.substring("bootclasspath/a:".length());
+            SystemPropertiesSupport.singleton().initializeProperty("jdk.boot.class.path.append", value);
             return true;
         }
         return false;
