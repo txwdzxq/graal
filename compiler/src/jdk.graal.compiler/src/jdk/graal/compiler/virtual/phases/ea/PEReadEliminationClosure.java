@@ -153,8 +153,8 @@ public final class PEReadEliminationClosure extends PartialEscapeClosure<PEReadE
 
     private boolean processStore(FixedNode store, ValueNode object, LocationIdentity identity, int index, JavaKind accessKind, boolean overflowAccess, ValueNode value,
                     PEReadEliminationBlockState state, GraphEffectList effects) {
-        ValueNode unproxiedObject = GraphUtil.unproxify(object);
-        ValueNode cachedValue = state.getReadCache(object, identity, index, accessKind, this);
+        ValueNode unproxiedObject = GraphUtil.unproxify(getAlias(object));
+        ValueNode cachedValue = state.getReadCache(unproxiedObject, identity, index, accessKind, this);
 
         ValueNode finalValue = getScalarAlias(value);
         boolean result = false;
@@ -168,7 +168,7 @@ public final class PEReadEliminationClosure extends PartialEscapeClosure<PEReadE
     }
 
     private boolean processLoad(FixedNode load, ValueNode object, LocationIdentity identity, int index, JavaKind kind, PEReadEliminationBlockState state, GraphEffectList effects) {
-        ValueNode unproxiedObject = GraphUtil.unproxify(object);
+        ValueNode unproxiedObject = GraphUtil.unproxify(getAlias(object));
         ValueNode cachedValue = state.getReadCache(unproxiedObject, identity, index, kind, this);
         if (cachedValue != null) {
             // perform the read elimination
