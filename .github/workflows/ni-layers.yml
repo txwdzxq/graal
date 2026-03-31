@@ -54,6 +54,9 @@ env:
   JAVA_VERSION: 21
   PYTHON_VERSION: 3.12.3
 
+permissions:
+  contents: read
+
 jobs:
   build-graalvm:
     uses: ./.github/workflows/build-graalvm.yml
