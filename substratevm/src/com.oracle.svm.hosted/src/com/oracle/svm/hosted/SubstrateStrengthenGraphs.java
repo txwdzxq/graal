@@ -70,7 +70,7 @@ public class SubstrateStrengthenGraphs extends StrengthenGraphs {
 
     public SubstrateStrengthenGraphs(Inflation bb, Universe converter) {
         super(bb, converter);
-        trackDynamicAccess = DynamicAccessDetectionReportSupport.isDynamicAccessTrackingEnabled();
+        trackDynamicAccess = DynamicAccessDetectionSupport.isDynamicAccessTrackingEnabled();
         trackJavaHomeAccess = SubstrateOptions.TrackJavaHomeAccess.getValue();
         trackJavaHomeAccessDetailed = SubstrateOptions.TrackJavaHomeAccessDetailed.getValue();
     }

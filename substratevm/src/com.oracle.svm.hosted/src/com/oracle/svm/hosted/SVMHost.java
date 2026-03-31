@@ -275,7 +275,7 @@ public class SVMHost extends HostVM {
     private final ConstantExpressionRegistry constantExpressionRegistry;
 
     private final boolean trackDynamicAccess;
-    private DynamicAccessDetectionSupport dynamicAccessDetectionSupport = null;
+    private DynamicAccessMethodLookupSupport dynamicAccessMethodLookupSupport = null;
 
     @SuppressWarnings("this-escape")
     public SVMHost(OptionValues options, ImageClassLoader loader, ClassInitializationSupport classInitializationSupport, AnnotationSubstitutionProcessor annotationSubstitutions,
@@ -320,7 +320,7 @@ public class SVMHost extends HostVM {
 
         constantExpressionRegistry = StrictDynamicAccessInferenceFeature.isActive() ? ConstantExpressionRegistry.singleton() : null;
 
-        trackDynamicAccess = DynamicAccessDetectionReportSupport.isDynamicAccessTrackingEnabled();
+        trackDynamicAccess = DynamicAccessDetectionSupport.isDynamicAccessTrackingEnabled();
     }
 
     /**
@@ -811,10 +811,10 @@ public class SVMHost extends HostVM {
             }
 
             if (trackDynamicAccess) {
-                if (dynamicAccessDetectionSupport == null) {
-                    dynamicAccessDetectionSupport = DynamicAccessDetectionSupport.instance();
+                if (dynamicAccessMethodLookupSupport == null) {
+                    dynamicAccessMethodLookupSupport = DynamicAccessMethodLookupSupport.instance();
                 }
-                if (dynamicAccessDetectionSupport.lookupDynamicAccessMethod(graph.method()) != null) {
+                if (dynamicAccessMethodLookupSupport.lookupDynamicAccessMethod(graph.method()) != null) {
                     new DynamicAccessMarkingPhase().apply(graph, bb.getProviders(method));
                 }
             }

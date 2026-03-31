@@ -77,25 +77,25 @@ public final class DynamicAccessDetectionFeature implements InternalFeature {
         EconomicSet<String> sourceEntries = EconomicSet.create(tmpSet);
 
         var reportOptions = reportOptionsFromTrackDynamicAccessOptions(SubstrateOptions.TrackDynamicAccess.getValue());
-        ImageSingletons.add(DynamicAccessDetectionReportSupport.class, new DynamicAccessDetectionReportSupport(sourceEntries, reportOptions));
+        ImageSingletons.add(DynamicAccessDetectionSupport.class, new DynamicAccessDetectionSupport(sourceEntries, reportOptions));
     }
 
     @Override
     public void beforeAnalysis(BeforeAnalysisAccess access) {
         AnalysisMetaAccess metaAccess = ((FeatureImpl.BeforeAnalysisAccessImpl) access).getMetaAccess();
-        DynamicAccessDetectionSupport dynamicAccessDetectionSupport = new DynamicAccessDetectionSupport(metaAccess);
-        ImageSingletons.add(DynamicAccessDetectionSupport.class, dynamicAccessDetectionSupport);
+        DynamicAccessMethodLookupSupport dynamicAccessMethodLookupSupport = new DynamicAccessMethodLookupSupport(metaAccess);
+        ImageSingletons.add(DynamicAccessMethodLookupSupport.class, dynamicAccessMethodLookupSupport);
     }
 
     @Override
     public void beforeCompilation(BeforeCompilationAccess access) {
-        DynamicAccessDetectionReportSupport.singleton().reportDynamicAccess();
-        DynamicAccessDetectionSupport.instance().clear();
+        DynamicAccessDetectionSupport.singleton().reportDynamicAccess();
+        DynamicAccessMethodLookupSupport.instance().clear();
     }
 
     @Override
     public void beforeHeapLayout(BeforeHeapLayoutAccess access) {
-        DynamicAccessDetectionReportSupport.singleton().clear();
+        DynamicAccessDetectionSupport.singleton().clear();
     }
 
     @Override
@@ -110,7 +110,7 @@ public final class DynamicAccessDetectionFeature implements InternalFeature {
                         TRACK_ALL, TRACK_NONE, TO_CONSOLE, NO_DUMP, IncludeOptionsSupport.possibleExtendedOptions());
     }
 
-    private static DynamicAccessDetectionReportSupport.ReportOptions reportOptionsFromTrackDynamicAccessOptions(AccumulatingLocatableMultiOptionValue.Strings options) {
+    private static DynamicAccessDetectionSupport.ReportOptions reportOptionsFromTrackDynamicAccessOptions(AccumulatingLocatableMultiOptionValue.Strings options) {
         boolean printToConsole = false;
         boolean dumpJsonFiles = true;
         for (String optionValue : options.values()) {
@@ -123,7 +123,7 @@ public final class DynamicAccessDetectionFeature implements InternalFeature {
                 }
             }
         }
-        return new DynamicAccessDetectionReportSupport.ReportOptions(printToConsole, dumpJsonFiles);
+        return new DynamicAccessDetectionSupport.ReportOptions(printToConsole, dumpJsonFiles);
     }
 
     public static void parseDynamicAccessOptions(EconomicMap<OptionKey<?>, Object> hostedValues, NativeImageClassLoaderSupport classLoaderSupport) {
