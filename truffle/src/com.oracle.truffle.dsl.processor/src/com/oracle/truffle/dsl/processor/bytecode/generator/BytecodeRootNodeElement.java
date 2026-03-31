@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -498,6 +498,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         this.add(createInvalidate());
 
         this.add(createGetRootNodes());
+        this.addOptional(createGetSource());
         this.add(createGetSourceSection());
         CodeExecutableElement translateStackTraceElement = this.addOptional(createTranslateStackTraceElement());
         if (translateStackTraceElement != null) {
@@ -1230,6 +1231,39 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         b.string("stackTraceElement");
         b.end();
         b.end();
+        return ex;
+    }
+
+    private CodeExecutableElement createGetSource() {
+        ExecutableElement executable = ElementUtils.findOverride(ElementUtils.findMethod(types.BytecodeRootNode, "getSource"), model.templateType);
+        if (executable != null) {
+            return null;
+        }
+        CodeExecutableElement ex = GeneratorUtils.override(types.BytecodeRootNode, "getSource");
+        ex.getModifiers().remove(Modifier.DEFAULT);
+        ex.getModifiers().add(Modifier.FINAL);
+        ex.getAnnotationMirrors().add(new CodeAnnotationMirror(types.CompilerDirectives_TruffleBoundary));
+        CodeTreeBuilder b = ex.createBuilder();
+
+        b.declaration(arrayOf(type(int.class)), "info", "bytecode.sourceInfo");
+        b.startIf().string("info == null || info.length == 0").end().startBlock();
+        b.startReturn().string("null").end();
+        b.end();
+
+        b.startDeclaration(type(int.class), "lastEntry");
+        b.string("info.length - ").variable(sourceInfoTable.entryLengthVariable);
+        b.end();
+        b.startIf();
+        b.tree(sourceInfoTable.loadStartBci("info", "lastEntry")).string(" == 0 &&").startIndention().newLine();
+        b.tree(sourceInfoTable.loadEndBci("info", "lastEntry")).string(" == bytecode.bytecodes.length").end();
+        b.end().startBlock();
+        b.startDeclaration(type(int.class), "sourceIndex");
+        b.tree(sourceInfoTable.loadSource("info", "lastEntry"));
+        b.end();
+        b.startReturn().string("bytecode.sources.get(sourceIndex)").end();
+        b.end(); // if
+
+        b.startReturn().string("null").end();
         return ex;
     }
 

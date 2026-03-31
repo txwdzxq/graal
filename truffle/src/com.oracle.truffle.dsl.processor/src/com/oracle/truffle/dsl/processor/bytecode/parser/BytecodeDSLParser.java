@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -444,6 +444,13 @@ public class BytecodeDSLParser extends AbstractParser<BytecodeDSLModels> {
         }
 
         BytecodeDSLBuiltins.addBuiltins(model, types, context);
+
+        // Note: Need to turn this into a function if we end up having more overrides we need to
+        // check
+        if (ElementUtils.findOverride(ElementUtils.findMethod(types.BytecodeRootNode, "getSource"), model.templateType) != null) {
+            model.addWarning("Custom operation with name %s conflicts with a built-in operation with the same name. " +
+                            "The built-in operation will not be generated. Rename or remove the overriding method to resolve this.", "getSource");
+        }
 
         String sourceContentSupplierMethodName = ElementUtils.getAnnotationValue(String.class, generateBytecodeMirror, "sourceContentSupplier", false);
         if (sourceContentSupplierMethodName != null) {
