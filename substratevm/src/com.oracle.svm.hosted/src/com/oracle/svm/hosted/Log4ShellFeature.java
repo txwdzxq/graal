@@ -72,6 +72,11 @@ public class Log4ShellFeature implements InternalFeature {
     /* Different versions of log4j overload all these methods. */
     private static final Set<String> targetMethods = Set.of("debug", "error", "fatal", "info", "log", "trace", "warn");
 
+    @Override
+    public void afterAnalysis(AfterAnalysisAccess access) {
+        ImageSingletons.add(Log4ShellSupport.class, new Log4ShellSupport(createUserWarning((AfterAnalysisAccessImpl) access)));
+    }
+
     private static Optional<String> getPomVersion(ResolvedJavaType log4jClass) {
         URL location = JVMCIReflectionUtil.getOrigin(log4jClass);
         if (location == null) {
@@ -145,11 +150,6 @@ public class Log4ShellFeature implements InternalFeature {
         }
 
         return false;
-    }
-
-    @Override
-    public void afterAnalysis(AfterAnalysisAccess access) {
-        ImageSingletons.add(Log4ShellSupport.class, new Log4ShellSupport(createUserWarning((AfterAnalysisAccessImpl) access)));
     }
 
     private static String createUserWarning(AfterAnalysisAccessImpl afterAnalysisAccess) {
