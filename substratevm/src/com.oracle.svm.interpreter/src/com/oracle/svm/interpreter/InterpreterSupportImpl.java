@@ -43,7 +43,6 @@ import com.oracle.svm.core.deopt.DeoptimizedFrame;
 import com.oracle.svm.core.deopt.DeoptimizedFrame.DeoptTargetTier;
 import com.oracle.svm.core.deopt.Deoptimizer;
 import com.oracle.svm.core.deopt.SubstrateInstalledCode;
-import com.oracle.svm.core.graal.code.PreparedArgumentType;
 import com.oracle.svm.core.graal.code.PreparedSignature;
 import com.oracle.svm.core.graal.code.SubstrateCallingConventionKind;
 import com.oracle.svm.core.graal.code.SubstrateCallingConventionType;
@@ -80,6 +79,9 @@ import jdk.vm.ci.meta.LineNumberTable;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
 
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
+
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class, other = Disallowed.class)
 public final class InterpreterSupportImpl extends InterpreterSupport {
     private static final int MAX_SYMBOL_LOG_LENGTH = 255;
@@ -89,6 +91,7 @@ public final class InterpreterSupportImpl extends InterpreterSupport {
     private final int interpretedFrameSlot;
     private final int intrinsicMethodSlot;
     private final int intrinsicFrameSlot;
+    private final ConcurrentHashMap<PreparedSignature, PreparedSignature> preparedSignatures;
 
     InterpreterSupportImpl(int bciSlot, int interpretedMethodSlot, int interpretedFrameSlot, int intrinsicMethodSlot, int intrinsicFrameSlot) {
         this.bciSlot = bciSlot;
@@ -96,6 +99,7 @@ public final class InterpreterSupportImpl extends InterpreterSupport {
         this.interpretedFrameSlot = interpretedFrameSlot;
         this.intrinsicMethodSlot = intrinsicMethodSlot;
         this.intrinsicFrameSlot = intrinsicFrameSlot;
+        this.preparedSignatures = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -104,9 +108,10 @@ public final class InterpreterSupportImpl extends InterpreterSupport {
 
         InterpreterUnresolvedSignature signature = interpreterMethod.getSignature();
         boolean hasReceiver = interpreterMethod.hasReceiver();
-        InterpreterStubSection stubSection = ImageSingletons.lookup(InterpreterStubSection.class);
         int count = signature.getParameterCount(false);
-        PreparedArgumentType[] argumentTypes = new PreparedArgumentType[count + (hasReceiver ? 1 : 0)];
+
+        InterpreterStubSection stubSection = ImageSingletons.lookup(InterpreterStubSection.class);
+        int[] argumentTypes = new int[count + (hasReceiver ? 1 : 0)];
 
         // The calling convention is always used with a caller perspective, i.e. sp is unmodified.
         SubstrateCallingConventionType callingConventionType = SubstrateCallingConventionKind.Java.toType(true);
@@ -116,7 +121,7 @@ public final class InterpreterSupportImpl extends InterpreterSupport {
         CallingConvention callingConvention = stubSection.registerConfig.getCallingConvention(callingConventionType, returnType, signature.toParameterTypes(thisType), stubSection.valueKindFactory);
 
         if (hasReceiver) {
-            argumentTypes[0] = new PreparedArgumentType(JavaKind.Object, 0, true);
+            argumentTypes[0] = PreparedSignature.encodeArgumentType(JavaKind.Object, 0, true);
         }
         for (int i = 0; i < count; i++) {
             int index = i + (hasReceiver ? 1 : 0);
@@ -128,9 +133,13 @@ public final class InterpreterSupportImpl extends InterpreterSupport {
                 value = stackSlot.getOffset(0);
             }
             boolean isRegister = !(allocatableValue instanceof StackSlot);
-            argumentTypes[index] = new PreparedArgumentType(argKind, value, isRegister);
+            argumentTypes[index] = PreparedSignature.encodeArgumentType(argKind, value, isRegister);
         }
-        return new PreparedSignature(signature.getReturnKind(), argumentTypes, callingConvention.getStackSize());
+        return preparedSignature(signature.getReturnKind(), argumentTypes, callingConvention.getStackSize());
+    }
+
+    public PreparedSignature preparedSignature(JavaKind returnKind, int[] argumentTypes, int stackSize) {
+        return preparedSignatures.computeIfAbsent(new PreparedSignature(returnKind, argumentTypes, stackSize), Function.identity());
     }
 
     @Override

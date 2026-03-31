@@ -53,7 +53,6 @@ import com.oracle.svm.core.c.CGlobalDataFactory;
 import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.deopt.Deoptimizer;
 import com.oracle.svm.core.graal.code.InterpreterAccessStubData;
-import com.oracle.svm.core.graal.code.PreparedArgumentType;
 import com.oracle.svm.core.graal.code.PreparedSignature;
 import com.oracle.svm.core.handles.ThreadLocalHandles;
 import com.oracle.svm.core.heap.GCCause;
@@ -241,7 +240,7 @@ public abstract class InterpreterStubSection {
         InterpreterAccessStubData accessHelper = ImageSingletons.lookup(InterpreterAccessStubData.class);
 
         /* assuming that this is a virtual method, i.e. has a 'this' argument */
-        Object receiver = ((Pointer) Word.pointer(accessHelper.getGpArgumentAt(null, enterData, 0))).toObject();
+        Object receiver = ((Pointer) Word.pointer(accessHelper.getGpArgumentAt(PreparedSignature.getDefaultArgumentType(), enterData, 0))).toObject();
 
         DynamicHub hub = DynamicHub.fromClass(receiver.getClass());
         InterpreterResolvedObjectType thisType = (InterpreterResolvedObjectType) hub.getInterpreterType();
@@ -276,6 +275,7 @@ public abstract class InterpreterStubSection {
 
         PreparedSignature compiledSignature = interpreterMethod.getPreparedSignature();
         VMError.guarantee(compiledSignature != null);
+        int[] argumentTypes = compiledSignature.getArgumentTypes();
 
         ThreadLocalHandles<ThreadLocalInterpreterHandle> handles = tlsHandles();
         VMError.guarantee(handles.getHandleCount() == 0);
@@ -283,9 +283,10 @@ public abstract class InterpreterStubSection {
 
         int gpIdx = 0;
         int handleCount = 0;
-        for (int i = 0; i < compiledSignature.getCount(); i++) {
-            PreparedArgumentType cArgType = compiledSignature.getPreparedArgumentTypes()[i];
-            if (cArgType.getKind() == JavaKind.Object) {
+        for (int i = 0; i < argumentTypes.length; i++) {
+            int cArgType = argumentTypes[i];
+            JavaKind argKind = PreparedSignature.getKind(cArgType);
+            if (argKind == JavaKind.Object) {
                 /*
                  * The GC is not aware of references in enterData, therefore they are replaced with
                  * object handles before allowing safepoints again.
@@ -302,7 +303,7 @@ public abstract class InterpreterStubSection {
                 }
             }
 
-            switch (cArgType.getKind()) {
+            switch (argKind) {
                 case Float:
                 case Double:
                     break;
@@ -369,9 +370,9 @@ public abstract class InterpreterStubSection {
 
     private static Object enterInterpreterStubCore(InterpreterResolvedJavaMethod interpreterMethod, PreparedSignature compiledSignature, Pointer enterData, int handleCount, int handleFrameId) {
         InterpreterAccessStubData accessHelper = ImageSingletons.lookup(InterpreterAccessStubData.class);
-        PreparedArgumentType[] cArgsType = compiledSignature.getPreparedArgumentTypes();
         ThreadLocalHandles<ThreadLocalInterpreterHandle> handles = tlsHandles();
-        int count = cArgsType.length;
+        int[] argumentTypes = compiledSignature.getArgumentTypes();
+        int count = argumentTypes.length;
 
         int interpSlot = 0;
         int gpIdx = 0;
@@ -381,8 +382,9 @@ public abstract class InterpreterStubSection {
 
         for (int i = 0; i < count; i++) {
             long arg = 0;
-            PreparedArgumentType cArgType = cArgsType[gpIdx + fpIdx];
-            JavaKind argKind = cArgType.getKind();
+            assert gpIdx + fpIdx == i;
+            int cArgType = argumentTypes[i];
+            JavaKind argKind = PreparedSignature.getKind(cArgType);
             switch (argKind) {
                 case Float:
                 case Double:
@@ -427,7 +429,7 @@ public abstract class InterpreterStubSection {
     }
 
     @Uninterruptible(reason = "Raw object pointer.")
-    private static Object popReferenceFromEnterData(InterpreterAccessStubData accessHelper, PreparedArgumentType cArgType, Pointer enterData, int gpIdx) {
+    private static Object popReferenceFromEnterData(InterpreterAccessStubData accessHelper, int cArgType, Pointer enterData, int gpIdx) {
         long arg = accessHelper.getGpArgumentAt(cArgType, enterData, gpIdx);
 
         /* reference in `enterData` has been replaced with a handle */
@@ -441,7 +443,7 @@ public abstract class InterpreterStubSection {
     }
 
     @Uninterruptible(reason = "Wrapping of getter, no raw object pointer involved in this case.")
-    private static long popPrimitiveFromEnterData(InterpreterAccessStubData accessHelper, PreparedArgumentType cArgType, Pointer enterData, int gpIdx) {
+    private static long popPrimitiveFromEnterData(InterpreterAccessStubData accessHelper, int cArgType, Pointer enterData, int gpIdx) {
         return accessHelper.getGpArgumentAt(cArgType, enterData, gpIdx);
     }
 
@@ -485,14 +487,17 @@ public abstract class InterpreterStubSection {
     @Uninterruptible(reason = "References are put on the stack which the GC is unaware of.")
     private static Object leaveInterpreter0(CFunctionPointer compiledEntryPoint, Object[] args, PreparedSignature compiledSignature, InterpreterAccessStubData accessHelper, Pointer leaveData,
                     int stackSize) {
+        int[] argumentTypes = compiledSignature.getArgumentTypes();
         int gpIdx = 0;
         int fpIdx = 0;
 
-        int argCount = compiledSignature.getCount();
+        int argCount = argumentTypes.length;
         for (int i = 0; i < argCount; i++) {
             Object arg = args[i];
-            PreparedArgumentType cArgType = compiledSignature.getPreparedArgumentTypes()[gpIdx + fpIdx];
-            switch (cArgType.getKind()) {
+            assert gpIdx + fpIdx == i;
+            int cArgType = argumentTypes[i];
+            JavaKind argKind = PreparedSignature.getKind(cArgType);
+            switch (argKind) {
                 case Boolean:
                     accessHelper.setGpArgumentAtOutgoing(cArgType, leaveData, gpIdx, (boolean) arg ? 1 : 0);
                     gpIdx++;
