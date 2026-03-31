@@ -51,8 +51,6 @@ import com.oracle.truffle.runtime.OptimizedTruffleRuntime;
 import com.oracle.truffle.runtime.OptimizedTruffleRuntimeListener;
 
 import jdk.graal.compiler.core.common.util.CompilationAlarm;
-import jdk.graal.compiler.util.CollectionsUtil;
-
 public class NeverInlineFailedTest {
 
     static class Caller extends RootNode {
