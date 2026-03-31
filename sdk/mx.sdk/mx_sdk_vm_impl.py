@@ -1580,7 +1580,7 @@ class GraalVmJImageBuildTask(mx.ProjectBuildTask):
 
     def build(self):
         def with_source(dep):
-            return not isinstance(dep, mx.Dependency) or (_include_sources(dep.qualifiedName()) and dep.isJARDistribution() and not dep.is_stripped())
+            return not isinstance(dep, mx.Dependency) or (_include_sources(dep.qualifiedName()) and dep.isJARDistribution() and getattr(dep, 'maven', False))
         vendor_info = {'vendor-version': graalvm_vendor_version()}
         out_dir = self.subject.output_directory()
         stage1 = 'stage1' in self.subject.name
@@ -1653,7 +1653,6 @@ class GraalVmJImageBuildTask(mx.ProjectBuildTask):
         src_jimage = mx.TimeStampFile(join(mx_sdk_vm.base_jdk().home, 'lib', 'modules'))
         return [
             f'include sources: {_include_sources_str()}',
-            f'strip jars: {mx.get_opts().strip_jars}',
             f'vendor-version: {graalvm_vendor_version()}',
             f'use jlink{_jlink_libraries()}',
             f'build exploded: {mx.get_env("MX_BUILD_EXPLODED") == "true"}',
@@ -2645,7 +2644,7 @@ def mx_register_dynamic_suite_constituents(register_project, register_distributi
         register_distribution(dist)
         main_dists[label].append(dist.name)
         if _debuginfo_dists():
-            if _get_svm_support().is_debug_supported() or mx.get_opts().strip_jars or with_non_rebuildable_configs:
+            if _get_svm_support().is_debug_supported() or with_non_rebuildable_configs:
                 debuginfo_dist = DebuginfoDistribution(dist)
                 register_distribution(debuginfo_dist)
                 main_dists[label].append(debuginfo_dist.name)

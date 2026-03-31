@@ -36,7 +36,6 @@ local devkits = graal_common.devkits;
   common_vm: graal_common.build_base + vm.vm_setup + {
     python_version: "3",
     logs+: [
-      '*/mxbuild/dists/stripped/*.map',
       '**/install.packages.R.log',
     ],
   },
@@ -566,7 +565,7 @@ local devkits = graal_common.devkits;
   {
     local name = "graalvm-jdklatest-" + vm + "-" + os + "-" + arch,
     local env = vm,
-    local mx = ["mx", "--strip-jars", "--env", env],
+    local mx = ["mx", "--env", env],
     name: "build-" + name,
     run+: [
       ["cd", repo_config.vm.suite_dir],
@@ -581,9 +580,6 @@ local devkits = graal_common.devkits;
         dir: "../artifacts",
         patterns: ["*"],
       },
-    ],
-    logs+: [
-      "*/mxbuild/dists/stripped/*.map",
     ],
     targets: ["ondemand"],
     timelimit: "0:30:00",

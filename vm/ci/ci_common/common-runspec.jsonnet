@@ -72,7 +72,6 @@ local evaluate_late(key, object) = task_spec(run_spec.evaluate_late({key:object}
     local common_vm = graal_common.build_base + vm.vm_setup + vm.custom_vm + {
       python_version: "3",
       logs+: [
-        '*/mxbuild/dists/stripped/*.map',
         '**/install.packages.R.log',
       ],
     },
