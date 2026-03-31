@@ -27,13 +27,17 @@ package com.oracle.svm.core.graal.code;
 import static com.oracle.svm.shared.util.VMError.intentionallyUnimplemented;
 
 import java.lang.reflect.Method;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Consumer;
 
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.word.LocationIdentity;
 
 import com.oracle.svm.shared.util.SubstrateUtil;
+import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.graal.meta.RuntimeConfiguration;
+import com.oracle.svm.core.graal.meta.SharedRuntimeMethod;
 import com.oracle.svm.core.graal.nodes.ComputedIndirectCallTargetNode;
 import com.oracle.svm.core.graal.snippets.CFunctionSnippets;
 import com.oracle.svm.core.meta.SharedMethod;
@@ -46,6 +50,7 @@ import jdk.graal.compiler.core.common.CompilationIdentifier;
 import jdk.graal.compiler.core.common.alloc.RegisterAllocationConfig;
 import jdk.graal.compiler.core.target.Backend;
 import jdk.graal.compiler.lir.LIRFrameState;
+import jdk.graal.compiler.lir.asm.CompilationResultBuilder;
 import jdk.graal.compiler.nodes.CallTargetNode;
 import jdk.graal.compiler.nodes.IndirectCallTargetNode;
 import jdk.graal.compiler.nodes.LoweredCallTargetNode;
@@ -184,6 +189,20 @@ public abstract class SubstrateBackend extends Backend {
     /** For runtime compilations, emit only indirect calls to avoid additional patching. */
     public static boolean shouldEmitOnlyIndirectCalls() {
         return !SubstrateUtil.HOSTED;
+    }
+
+    public static boolean shouldRandomizeRuntimeCodeOffset(ResolvedJavaMethod method) {
+        return SubstrateOptions.MaxRuntimeCodeOffset.getValue() > 0 && method instanceof SharedRuntimeMethod;
+    }
+
+    /**
+     * Insert a random offset before the compiled code and record the location of the actual
+     * prologue start.
+     */
+    public static void randomizeRuntimeCodeOffset(CompilationResultBuilder crb, Consumer<Integer> offsetInserter) {
+        int offset = ThreadLocalRandom.current().nextInt(SubstrateOptions.MaxRuntimeCodeOffset.getValue());
+        offsetInserter.accept(offset);
+        crb.recordMark(SubstrateMarkId.PROLOGUE_START);
     }
 
     /**
