@@ -24,7 +24,6 @@
  */
 package com.oracle.svm.hosted.jdk.localization;
 
-import java.lang.reflect.Field;
 import java.nio.charset.Charset;
 import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.StandardCharsets;
@@ -50,8 +49,6 @@ import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.dynamicaccess.AccessCondition;
 import org.graalvm.nativeimage.impl.RuntimeClassInitializationSupport;
 
-import com.oracle.graal.pointsto.ObjectScanner.OtherReason;
-import com.oracle.graal.pointsto.ObjectScanner.ScanReason;
 import com.oracle.svm.core.ClassLoaderSupport;
 import com.oracle.svm.core.FutureDefaultsOptions;
 import com.oracle.svm.core.annotate.Substitute;
@@ -62,8 +59,6 @@ import com.oracle.svm.core.jdk.localization.LocalizationSupport;
 import com.oracle.svm.core.util.UserError;
 import com.oracle.svm.hosted.FeatureImpl;
 import com.oracle.svm.hosted.FeatureImpl.AfterRegistrationAccessImpl;
-import com.oracle.svm.hosted.FeatureImpl.DuringAnalysisAccessImpl;
-import com.oracle.svm.hosted.FeatureImpl.DuringSetupAccessImpl;
 import com.oracle.svm.hosted.ImageClassLoader;
 import com.oracle.svm.shared.option.AccumulatingLocatableMultiOptionValue;
 import com.oracle.svm.shared.option.HostedOptionKey;
@@ -88,7 +83,6 @@ import jdk.internal.access.SharedSecrets;
 import jdk.vm.ci.meta.ResolvedJavaField;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
-import sun.util.cldr.CLDRLocaleProviderAdapter;
 import sun.util.locale.provider.LocaleProviderAdapter;
 import sun.util.locale.provider.ResourceBundleBasedAdapter;
 import sun.util.resources.LocaleData;
@@ -136,12 +130,6 @@ public class LocalizationFeature implements InternalFeature {
 
     private Function<String, Class<?>> findClassByName;
 
-    private Field baseLocaleCacheField;
-    private Field localeCacheField;
-    private Field candidatesCacheField;
-    private Field localeObjectCacheMapField;
-    private Field langAliasesCacheField;
-    private Field parentLocalesMapField;
     @Platforms(Platform.HOSTED_ONLY.class) private ImageClassLoader imageClassLoader;
 
     public static class Options {
@@ -259,14 +247,6 @@ public class LocalizationFeature implements InternalFeature {
 
     @Override
     public void duringSetup(DuringSetupAccess a) {
-        DuringSetupAccessImpl access = (DuringSetupAccessImpl) a;
-        langAliasesCacheField = access.findField(CLDRLocaleProviderAdapter.class, "langAliasesCache");
-        parentLocalesMapField = access.findField(CLDRLocaleProviderAdapter.class, "parentLocalesMap");
-        baseLocaleCacheField = access.findField("sun.util.locale.BaseLocale$1InterningCache", "CACHE");
-        localeCacheField = access.findField("java.util.Locale$LocaleCache", "LOCALE_CACHE");
-        localeObjectCacheMapField = null;
-        candidatesCacheField = access.findField("java.util.ResourceBundle$Control", "CANDIDATES_CACHE");
-
         String reason = "All ResourceBundleControlProvider that are registered as services end up as objects in the image heap, and are therefore registered to be initialized at image build time";
         ServiceLoader.load(ResourceBundleControlProvider.class).stream()
                         .forEach(provider -> ImageSingletons.lookup(RuntimeClassInitializationSupport.class).initializeAtBuildTime(provider.type(), reason));
@@ -324,31 +304,6 @@ public class LocalizationFeature implements InternalFeature {
 
         if (FutureDefaultsOptions.resourceBundlesInitializedAtRunTime()) {
             a.registerReachabilityHandler(_ -> registerLocaleProviderAdapters(), LocaleProviderAdapter.class);
-        }
-    }
-
-    @Override
-    public void duringAnalysis(DuringAnalysisAccess a) {
-        DuringAnalysisAccessImpl access = (DuringAnalysisAccessImpl) a;
-        ScanReason reason = new OtherReason("Manual rescan triggered during analysis from " + LocalizationFeature.class);
-        scanLocaleCache(access, baseLocaleCacheField, reason);
-        scanLocaleCache(access, localeCacheField, reason);
-        scanLocaleCache(access, candidatesCacheField, reason);
-        access.rescanRoot(langAliasesCacheField, reason);
-        access.rescanRoot(parentLocalesMapField, reason);
-    }
-
-    private void scanLocaleCache(DuringAnalysisAccessImpl access, Field cacheFieldField, ScanReason reason) {
-        access.rescanRoot(cacheFieldField, reason);
-
-        Object localeCache;
-        try {
-            localeCache = cacheFieldField.get(null);
-        } catch (ReflectiveOperationException ex) {
-            throw VMError.shouldNotReachHere(ex);
-        }
-        if (localeCache != null && localeObjectCacheMapField != null) {
-            access.rescanField(localeCache, localeObjectCacheMapField, reason);
         }
     }
 
