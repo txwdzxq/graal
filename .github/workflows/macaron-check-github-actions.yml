@@ -55,25 +55,9 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
       - name: Run Macaron action
-        uses: oracle/macaron@fda4dda04aa7228fcaba162804891806cf5a1375  # v0.22.0
+        uses: oracle/macaron@b31acfe389133a5587d9639063ec70cb84e7bc47 # v0.23.0
         with:
           repo_path: ./
           policy_file: check-github-actions
           policy_purl: pkg:github.com/oracle/graal@.*
-      - name: Upload Macaron reports
-        if: ${{ always() }}
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
-        with:
-          name: macaron-reports
-          path: |
-            output/reports/github_com/oracle/graal/graal.html
-            output/macaron.db
-          if-no-files-found: warn
-          retention-days: 90
-      - name: Check policy verification passes
-        if: ${{ always() }}
-        run: |
-          if [[ ! -f output/vsa.intoto.jsonl ]]; then
-            echo "The check-github-actions policy failed. Check the uploaded reports."
-            exit 1
-          fi
+          reports_retention_days: 90
