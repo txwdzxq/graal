@@ -25,10 +25,11 @@
 package com.oracle.svm.hosted.phases;
 
 import java.lang.reflect.Method;
+
 import org.graalvm.nativeimage.ImageSingletons;
 
-import com.oracle.graal.pointsto.BigBang;
 import com.oracle.graal.pointsto.meta.AnalysisMethod;
+import com.oracle.graal.pointsto.meta.AnalysisMetaAccess;
 import com.oracle.svm.core.ParsingReason;
 import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
@@ -61,11 +62,9 @@ final class EnumSwitchPlugin implements NodePlugin {
 
     private static final String METHOD_NAME_PREFIX = "$SWITCH_TABLE$";
 
-    private final BigBang bb;
     private final ParsingReason reason;
 
-    EnumSwitchPlugin(BigBang bb, ParsingReason reason) {
-        this.bb = bb;
+    EnumSwitchPlugin(ParsingReason reason) {
         this.reason = reason;
     }
 
@@ -94,7 +93,8 @@ final class EnumSwitchPlugin implements NodePlugin {
          * that end up in the same class or in the JDK.
          */
         EnumSwitchSupport support = EnumSwitchSupport.singleton();
-        method.ensureGraphParsed(bb);
+        AnalysisMetaAccess metaAccess = (AnalysisMetaAccess) b.getMetaAccess();
+        method.ensureGraphParsed(metaAccess.getUniverse().getBigbang());
         Boolean methodSafeForExecution = support.isMethodsSafeForExecution(method);
         assert methodSafeForExecution != null : "after-parsing hook not executed for method " + method.format("%H.%n(%p)");
         if (!methodSafeForExecution.booleanValue()) {
@@ -120,12 +120,9 @@ final class EnumSwitchPlugin implements NodePlugin {
 @AutomaticallyRegisteredFeature
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
 final class EnumSwitchFeature implements InternalFeature {
-    private BigBang bb;
-
     @Override
     public void duringSetup(DuringSetupAccess a) {
         DuringSetupAccessImpl access = (DuringSetupAccessImpl) a;
-        bb = access.getBigBang();
         EnumSwitchSupport support = new EnumSwitchSupport();
         ImageSingletons.add(EnumSwitchSupport.class, support);
         access.getHostVM().addMethodAfterParsingListener(support::onMethodParsed);
@@ -133,12 +130,11 @@ final class EnumSwitchFeature implements InternalFeature {
 
     @Override
     public void afterAnalysis(AfterAnalysisAccess access) {
-        bb = null;
         EnumSwitchSupport.singleton().afterAnalysis();
     }
 
     @Override
     public void registerGraphBuilderPlugins(Providers providers, Plugins plugins, ParsingReason reason) {
-        plugins.appendNodePlugin(new EnumSwitchPlugin(bb, reason));
+        plugins.appendNodePlugin(new EnumSwitchPlugin(reason));
     }
 }
