@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -25,36 +25,22 @@
 package com.oracle.svm.hosted.phases;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-
 import org.graalvm.nativeimage.ImageSingletons;
 
 import com.oracle.graal.pointsto.BigBang;
 import com.oracle.graal.pointsto.meta.AnalysisMethod;
 import com.oracle.svm.core.ParsingReason;
-import com.oracle.svm.core.classinitialization.EnsureClassInitializedNode;
 import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
-import com.oracle.svm.core.imagelayer.ImageLayerBuildingSupport;
 import com.oracle.svm.hosted.FeatureImpl.DuringSetupAccessImpl;
-import com.oracle.svm.hosted.code.SubstrateCompilationDirectives;
-import com.oracle.svm.shared.singletons.ImageSingletonLoader;
-import com.oracle.svm.shared.singletons.ImageSingletonWriter;
-import com.oracle.svm.shared.singletons.LayeredPersistFlags;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
-import com.oracle.svm.shared.singletons.traits.LayeredCallbacksSingletonTrait;
-import com.oracle.svm.shared.singletons.traits.SingletonLayeredCallbacks;
-import com.oracle.svm.shared.singletons.traits.SingletonLayeredCallbacksSupplier;
+import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.shared.util.ReflectionUtil;
 
 import jdk.graal.compiler.debug.GraalError;
 import jdk.graal.compiler.nodes.ConstantNode;
-import jdk.graal.compiler.nodes.StructuredGraph;
 import jdk.graal.compiler.nodes.ValueNode;
 import jdk.graal.compiler.nodes.graphbuilderconf.GraphBuilderConfiguration.Plugins;
 import jdk.graal.compiler.nodes.graphbuilderconf.GraphBuilderContext;
@@ -75,9 +61,11 @@ final class EnumSwitchPlugin implements NodePlugin {
 
     private static final String METHOD_NAME_PREFIX = "$SWITCH_TABLE$";
 
+    private final BigBang bb;
     private final ParsingReason reason;
 
-    EnumSwitchPlugin(ParsingReason reason) {
+    EnumSwitchPlugin(BigBang bb, ParsingReason reason) {
+        this.bb = bb;
         this.reason = reason;
     }
 
@@ -105,9 +93,9 @@ final class EnumSwitchPlugin implements NodePlugin {
          * check for transitive callees, because we trust that the Eclipse compiler only emits calls
          * that end up in the same class or in the JDK.
          */
-        EnumSwitchFeature feature = ImageSingletons.lookup(EnumSwitchFeature.class);
-        method.ensureGraphParsed(feature.getBigBang());
-        Boolean methodSafeForExecution = feature.isMethodsSafeForExecution(method);
+        EnumSwitchSupport support = EnumSwitchSupport.singleton();
+        method.ensureGraphParsed(bb);
+        Boolean methodSafeForExecution = support.isMethodsSafeForExecution(method);
         assert methodSafeForExecution != null : "after-parsing hook not executed for method " + method.format("%H.%n(%p)");
         if (!methodSafeForExecution.booleanValue()) {
             return false;
@@ -130,91 +118,27 @@ final class EnumSwitchPlugin implements NodePlugin {
 }
 
 @AutomaticallyRegisteredFeature
-@SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = EnumSwitchFeature.LayeredCallbacks.class)
+@SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
 final class EnumSwitchFeature implements InternalFeature {
-
-    private static final String METHODS_ID = "methodsId";
-    private static final String METHODS_METHOD_VARIANT_KEY_NAME = "methodsMethodVariantKeyName";
-    private static final String METHODS_SAFE = "methodsSafe";
-
     private BigBang bb;
-
-    private ConcurrentMap<AnalysisMethodKey, Boolean> methodsSafeForExecution = new ConcurrentHashMap<>();
-
-    private record AnalysisMethodKey(int id, String methodVariantKeyName) {
-    }
 
     @Override
     public void duringSetup(DuringSetupAccess a) {
         DuringSetupAccessImpl access = (DuringSetupAccessImpl) a;
         bb = access.getBigBang();
-        access.getHostVM().addMethodAfterParsingListener(this::onMethodParsed);
-    }
-
-    private void onMethodParsed(AnalysisMethod method, StructuredGraph graph) {
-        boolean methodSafeForExecution = graph.getNodes().filter(node -> node instanceof EnsureClassInitializedNode).isEmpty();
-
-        Boolean existingValue = methodsSafeForExecution.put(new AnalysisMethodKey(method.getId(), method.getMethodVariantKey().toString()), methodSafeForExecution);
-        assert existingValue == null || SubstrateCompilationDirectives.isDeoptTarget(method) : "Method parsed twice: " + method.format("%H.%n(%p)");
+        EnumSwitchSupport support = new EnumSwitchSupport();
+        ImageSingletons.add(EnumSwitchSupport.class, support);
+        access.getHostVM().addMethodAfterParsingListener(support::onMethodParsed);
     }
 
     @Override
     public void afterAnalysis(AfterAnalysisAccess access) {
         bb = null;
-        /*
-         * When building a Layered Image, the methods that are safe for execution need to be
-         * persisted across layers.
-         */
-        if (!ImageLayerBuildingSupport.buildingImageLayer()) {
-            methodsSafeForExecution = null;
-        }
+        EnumSwitchSupport.singleton().afterAnalysis();
     }
 
     @Override
     public void registerGraphBuilderPlugins(Providers providers, Plugins plugins, ParsingReason reason) {
-        plugins.appendNodePlugin(new EnumSwitchPlugin(reason));
-    }
-
-    Boolean isMethodsSafeForExecution(AnalysisMethod method) {
-        return methodsSafeForExecution.get(new AnalysisMethodKey(method.getId(), method.getMethodVariantKey().toString()));
-    }
-
-    public BigBang getBigBang() {
-        return bb;
-    }
-
-    static class LayeredCallbacks extends SingletonLayeredCallbacksSupplier {
-        @Override
-        public LayeredCallbacksSingletonTrait getLayeredCallbacksTrait() {
-            return new LayeredCallbacksSingletonTrait(new SingletonLayeredCallbacks<EnumSwitchFeature>() {
-                @Override
-                public LayeredPersistFlags doPersist(ImageSingletonWriter writer, EnumSwitchFeature singleton) {
-                    List<Integer> methodsId = new ArrayList<>();
-                    List<String> methodsMethodVariantKey = new ArrayList<>();
-                    List<Boolean> methodsSafe = new ArrayList<>();
-                    for (var entry : singleton.methodsSafeForExecution.entrySet()) {
-                        AnalysisMethodKey key = entry.getKey();
-                        methodsId.add(key.id());
-                        methodsMethodVariantKey.add(key.methodVariantKeyName());
-                        methodsSafe.add(entry.getValue());
-                    }
-                    writer.writeIntList(METHODS_ID, methodsId);
-                    writer.writeStringList(METHODS_METHOD_VARIANT_KEY_NAME, methodsMethodVariantKey);
-                    writer.writeBoolList(METHODS_SAFE, methodsSafe);
-                    return LayeredPersistFlags.CALLBACK_ON_REGISTRATION;
-                }
-
-                @Override
-                public void onSingletonRegistration(ImageSingletonLoader loader, EnumSwitchFeature singleton) {
-                    List<Integer> methodsId = loader.readIntList(METHODS_ID);
-                    List<String> methodsMethodVariantKeyName = loader.readStringList(METHODS_METHOD_VARIANT_KEY_NAME);
-                    List<Boolean> methodsSafe = loader.readBoolList(METHODS_SAFE);
-                    ConcurrentMap<AnalysisMethodKey, Boolean> methodsSafeForExecution = singleton.methodsSafeForExecution;
-                    for (int i = 0; i < methodsId.size(); ++i) {
-                        methodsSafeForExecution.put(new AnalysisMethodKey(methodsId.get(i), methodsMethodVariantKeyName.get(i)), methodsSafe.get(i));
-                    }
-                }
-            });
-        }
+        plugins.appendNodePlugin(new EnumSwitchPlugin(bb, reason));
     }
 }
