@@ -577,4 +577,9 @@ public final class AMD64Base64EncodeOp extends AMD64LIRInstruction {
         masm.pop(r13);
         masm.pop(r12);
     }
+
+    @Override
+    public boolean modifiesStackPointer() {
+        return true;
+    }
 }
