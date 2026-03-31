@@ -393,8 +393,8 @@ public class SimplePartialEvaluationTest extends PartialEvaluationTest {
 
         Assert.assertEquals(resBefore, resAfter);
 
-        Assert.assertEquals(UnrollingTestNode.OUTER_LOOP_INSIDE_LOOP_MARKER, 1554, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.OUTER_LOOP_INSIDE_LOOP_MARKER));
-        Assert.assertEquals(UnrollingTestNode.CONTINUE_LOOP_MARKER, 4356, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.CONTINUE_LOOP_MARKER));
+        Assert.assertEquals(UnrollingTestNode.OUTER_LOOP_INSIDE_LOOP_MARKER, 340, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.OUTER_LOOP_INSIDE_LOOP_MARKER));
+        Assert.assertEquals(UnrollingTestNode.CONTINUE_LOOP_MARKER, 912, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.CONTINUE_LOOP_MARKER));
         Assert.assertEquals(UnrollingTestNode.AFTER_LOOP_MARKER, 1, UnrollingTestNode.countBlackholeNodes(peResult, UnrollingTestNode.AFTER_LOOP_MARKER));
     }
 
