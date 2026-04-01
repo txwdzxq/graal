@@ -25,6 +25,7 @@
 package jdk.graal.compiler.truffle.test;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -50,7 +51,7 @@ import com.oracle.truffle.runtime.OptimizedCallTarget;
 import com.oracle.truffle.runtime.OptimizedTruffleRuntime;
 import com.oracle.truffle.runtime.OptimizedTruffleRuntimeListener;
 
-import jdk.graal.compiler.core.common.util.CompilationAlarm;
+import jdk.graal.compiler.util.CollectionsUtil;
 
 public class NeverInlineFailedTest {
 
@@ -138,14 +139,6 @@ public class NeverInlineFailedTest {
         }
 
         @Override
-        protected boolean prepareForCompilation(boolean rootCompilation, int compilationTier, boolean lastTier) {
-            if (rootCompilation) {
-                CompilationAlarm.current().reset(0.001D);
-            }
-            return super.prepareForCompilation(rootCompilation, compilationTier, lastTier);
-        }
-
-        @Override
         public Object execute(VirtualFrame frame) {
             recurse();
             foo();
@@ -177,15 +170,15 @@ public class NeverInlineFailedTest {
 
     @Test
     public void testNeverInlineFailed() throws IOException, InterruptedException {
-        testNeverInlineFailedImpl(Callee::new, "java.lang.RuntimeException: Intentionally fail compilation");
+        testNeverInlineFailedImpl(Callee::new, CollectionsUtil.mapOfEntries(), "java.lang.RuntimeException: Intentionally fail compilation");
     }
 
     @Test
     public void testNeverInlineFailed2() throws IOException, InterruptedException {
-        testNeverInlineFailedImpl(Callee2::new, "jdk.graal.compiler.core.common.PermanentBailoutException: Compilation exceeded");
+        testNeverInlineFailedImpl(Callee2::new, CollectionsUtil.mapOf("compiler.MaximumGraalGraphSize", "5000"), "Graph too big to safely compile");
     }
 
-    private static void testNeverInlineFailedImpl(Supplier<RootNode> calleeSupplier, String reasonContains) throws IOException, InterruptedException {
+    private static void testNeverInlineFailedImpl(Supplier<RootNode> calleeSupplier, Map<String, String> extraOptions, String reasonContains) throws IOException, InterruptedException {
         Assume.assumeTrue(Truffle.getRuntime() instanceof OptimizedTruffleRuntime);
         Runnable test = () -> {
             OptimizedTruffleRuntime optimizedTruffleRuntime = (OptimizedTruffleRuntime) Truffle.getRuntime();
@@ -211,7 +204,7 @@ public class NeverInlineFailedTest {
             };
             optimizedTruffleRuntime.addListener(listener);
             try (Context context = Context.newBuilder().allowExperimentalOptions(true).option("engine.CompileImmediately", "true").option("engine.BackgroundCompilation", "false").option(
-                            "engine.CompilationFailureAction", "Silent").build()) {
+                            "engine.CompilationFailureAction", "Silent").options(extraOptions).build()) {
                 context.enter();
                 CallTarget calleeTarget = calleeSupplier.get().getCallTarget();
                 calleeRef.set(calleeTarget);
