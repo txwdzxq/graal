@@ -404,7 +404,7 @@ public class ResourcesFeature implements InternalFeature {
         resourcesRegistry = new ResourcesRegistryImpl();
         ImageSingletons.add(ResourcesRegistry.class, resourcesRegistry);
         ImageSingletons.add(RuntimeResourceSupport.class, resourcesRegistry);
-        EmbeddedResourcesInfo embeddedResourcesInfo = new EmbeddedResourcesInfo();
+        EmbeddedResourcesInfo embeddedResourcesInfo = new EmbeddedResourcesInfo(collectEmbeddedResourcesInfo());
         ImageSingletons.add(EmbeddedResourcesInfo.class, embeddedResourcesInfo);
     }
 
