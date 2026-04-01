@@ -27,6 +27,7 @@ package com.oracle.svm.hosted.image;
 import java.io.IOException;
 import java.nio.file.Path;
 
+import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.impl.InternalPlatform;
 
@@ -44,8 +45,6 @@ import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.util.LogUtils;
-import com.oracle.svm.shared.util.VMError;
-
 import jdk.graal.compiler.core.common.SuppressFBWarnings;
 import jdk.graal.compiler.debug.Indent;
 
@@ -53,11 +52,14 @@ import jdk.graal.compiler.debug.Indent;
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
 public class NativeImageDebugInfoStripFeature implements InternalFeature {
 
-    private Boolean hasStrippedSuccessfully = null;
-
     @Override
     public boolean isInConfiguration(IsInConfigurationAccess access) {
         return SubstrateOptions.StripDebugInfo.getValue();
+    }
+
+    @Override
+    public void duringSetup(DuringSetupAccess access) {
+        ImageSingletons.add(NativeImageDebugInfoStripSupport.class, new NativeImageDebugInfoStripSupport());
     }
 
     @Override
@@ -66,11 +68,11 @@ public class NativeImageDebugInfoStripFeature implements InternalFeature {
         try (Indent _ = accessImpl.getDebugContext().logAndIndent("Stripping debuginfo")) {
             switch (ObjectFile.getNativeFormat()) {
                 case ELF:
-                    hasStrippedSuccessfully = stripLinux(accessImpl);
+                    NativeImageDebugInfoStripSupport.singleton().setStrippedSuccessfully(stripLinux(accessImpl));
                     break;
                 case PECOFF:
                     // debug info is always "stripped" to a pdb file by linker
-                    hasStrippedSuccessfully = true;
+                    NativeImageDebugInfoStripSupport.singleton().setStrippedSuccessfully(true);
                     break;
                 case MACH_O:
                     // Not supported. See warning in SubstrateOptions.validateStripDebugInfo
@@ -79,13 +81,6 @@ public class NativeImageDebugInfoStripFeature implements InternalFeature {
                     throw UserError.abort("Unsupported object file format");
             }
         }
-    }
-
-    public boolean hasStrippedSuccessfully() {
-        if (hasStrippedSuccessfully == null) {
-            throw VMError.shouldNotReachHere("hasStrippedSuccessfully not available yet");
-        }
-        return hasStrippedSuccessfully;
     }
 
     @SuppressFBWarnings(value = "", justification = "FB reports null pointer dereferencing although it is not possible in this case.")

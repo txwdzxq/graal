@@ -88,7 +88,7 @@ import com.oracle.svm.hosted.ProgressReporterJsonHelper.JsonMetric;
 import com.oracle.svm.hosted.ProgressReporterJsonHelper.ResourceUsageKey;
 import com.oracle.svm.hosted.c.codegen.CCompilerInvoker;
 import com.oracle.svm.hosted.image.AbstractImage.NativeImageKind;
-import com.oracle.svm.hosted.image.NativeImageDebugInfoStripFeature;
+import com.oracle.svm.hosted.image.NativeImageDebugInfoStripSupport;
 import com.oracle.svm.hosted.reflect.ReflectionHostedSupport;
 import com.oracle.svm.hosted.util.CPUType;
 import com.oracle.svm.hosted.util.DiagnosticUtils;
@@ -625,7 +625,7 @@ public class ProgressReporter {
                 l.a(" generated in %.1fs", ProgressReporterUtils.millisToSeconds(debugInfoTimer.getTotalTime()));
             }
             l.println();
-            if (!(ImageSingletons.contains(NativeImageDebugInfoStripFeature.class) && ImageSingletons.lookup(NativeImageDebugInfoStripFeature.class).hasStrippedSuccessfully())) {
+            if (!(ImageSingletons.contains(NativeImageDebugInfoStripSupport.class) && NativeImageDebugInfoStripSupport.singleton().hasStrippedSuccessfully())) {
                 // Only subtract if debug info is embedded in file (not stripped).
                 otherBytes -= debugInfoSize;
             }
