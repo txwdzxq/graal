@@ -94,8 +94,8 @@ local devkits = graal_common.devkits;
 
   vm_darwin_aarch64: self.common_vm_darwin + graal_common.darwin_aarch64 + {
     environment+: {
-      # for compatibility with macOS BigSur
-      MACOSX_DEPLOYMENT_TARGET: '11.0',
+      # for compatibility with macOS Sonoma
+      MACOSX_DEPLOYMENT_TARGET: '14.0',
     },
   },
 
