@@ -46,7 +46,7 @@ import org.graalvm.word.Pointer;
 
 import com.oracle.graal.pointsto.heap.ImageHeapConstant;
 import com.oracle.svm.core.BuildPhaseProvider;
-import com.oracle.svm.core.FunctionPointerHolder;
+import com.oracle.svm.core.MethodRefHolder;
 import com.oracle.svm.core.c.CGlobalData;
 import com.oracle.svm.core.c.CGlobalDataFactory;
 import com.oracle.svm.core.heap.UnknownObjectField;
@@ -81,14 +81,14 @@ public class DebuggerSupport {
     private ArrayList<Object> referencesInImage = new ArrayList<>();
 
     @UnknownObjectField(availability = BuildPhaseProvider.AfterCompilation.class) //
-    private final ArrayList<FunctionPointerHolder> methodPointersInImage = new ArrayList<>();
+    private final ArrayList<MethodRefHolder> methodRefsInImage = new ArrayList<>();
 
     private final Lazy<InterpreterUniverse> universe;
 
     @SuppressWarnings("this-escape")
     public DebuggerSupport() {
         this.universe = Lazy.of(() -> {
-            logForcedReferencesHistogram(this.referencesInImage, this.methodPointersInImage);
+            logForcedReferencesHistogram(this.referencesInImage, this.methodRefsInImage);
             try {
                 return InterpreterUniverseImpl.loadFrom(getUniverseSerializerBuilder(), false, getMetadataHashString(), getMetadataFilePath());
             } catch (IOException e) {
@@ -126,9 +126,9 @@ public class DebuggerSupport {
         return new String(bytes, StandardCharsets.UTF_8);
     }
 
-    private static void logForcedReferencesHistogram(ArrayList<Object> references, ArrayList<FunctionPointerHolder> methodPointers) {
+    private static void logForcedReferencesHistogram(ArrayList<Object> references, ArrayList<MethodRefHolder> methodRefs) {
         traceInterpreter().string("Forced constants: ").signed(references.size()).newline();
-        traceInterpreter().string("Forced method pointers: ").signed(methodPointers.size()).newline();
+        traceInterpreter().string("Forced method refs: ").signed(methodRefs.size()).newline();
         traceInterpreter().string("Forced constants histogram:");
         EconomicMap<Class<?>, Integer> histogram = EconomicMap.create();
         for (Object object : references) {
@@ -195,9 +195,9 @@ public class DebuggerSupport {
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
-    public void ensureMethodPointerIsInImage(FunctionPointerHolder value) {
+    public void ensureMethodRefIsInImage(MethodRefHolder value) {
         if (value != null) {
-            methodPointersInImage.add(value);
+            methodRefsInImage.add(value);
         }
     }
 

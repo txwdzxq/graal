@@ -51,8 +51,9 @@ import org.graalvm.nativeimage.c.function.CFunctionPointer;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.BuildPhaseProvider;
-import com.oracle.svm.core.FunctionPointerHolder;
+import com.oracle.svm.core.MethodRefHolder;
 import com.oracle.svm.core.SubstrateMetadata;
+import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.graal.code.PreparedSignature;
 import com.oracle.svm.core.heap.UnknownObjectField;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
@@ -60,7 +61,9 @@ import com.oracle.svm.core.hub.crema.CremaSupport;
 import com.oracle.svm.core.hub.registry.SymbolsSupport;
 import com.oracle.svm.core.invoke.ResolvedMember;
 import com.oracle.svm.core.invoke.Target_java_lang_invoke_MemberName;
+import com.oracle.svm.core.meta.MethodOffset;
 import com.oracle.svm.core.meta.MethodPointer;
+import com.oracle.svm.core.meta.MethodRef;
 import com.oracle.svm.espresso.classfile.Constants;
 import com.oracle.svm.espresso.classfile.JavaVersion;
 import com.oracle.svm.espresso.classfile.ParserMethod;
@@ -156,7 +159,7 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
 
     private LocalVariableTable localVariableTable;
 
-    private ReferenceConstant<FunctionPointerHolder> nativeEntryPoint;
+    private ReferenceConstant<MethodRefHolder> nativeEntryPoint;
 
     // Token set by the toggle of method enter/exit events.
     private volatile Object interpreterExecToken;
@@ -210,7 +213,7 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
     private InterpreterResolvedJavaMethod(ResolvedJavaMethod originalMethod, Symbol<Name> name, int maxLocals, int maxStackSize, int flags,
                     InterpreterResolvedObjectType declaringClass, InterpreterUnresolvedSignature signature, PreparedSignature preparedSignature, Symbol<Signature> signatureSymbol,
                     byte[] code, ExceptionHandler[] exceptionHandlers, LineNumberTable lineNumberTable, LocalVariableTable localVariableTable,
-                    ReferenceConstant<FunctionPointerHolder> nativeEntryPoint, int vtableIndex, int gotOffset, int enterStubOffset, int methodId) {
+                    ReferenceConstant<MethodRefHolder> nativeEntryPoint, int vtableIndex, int gotOffset, int enterStubOffset, int methodId) {
         this.name = MetadataUtil.requireNonNull(name);
         this.maxLocals = maxLocals;
         this.maxStackSize = maxStackSize;
@@ -238,7 +241,7 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
     private InterpreterResolvedJavaMethod(Symbol<Name> name, int maxLocals, int maxStackSize, int flags,
                     InterpreterResolvedObjectType declaringClass, InterpreterUnresolvedSignature signature, PreparedSignature preparedSignature, Symbol<Signature> signatureSymbol,
                     byte[] code, ExceptionHandler[] exceptionHandlers, LineNumberTable lineNumberTable, LocalVariableTable localVariableTable,
-                    ReferenceConstant<FunctionPointerHolder> nativeEntryPoint, int vtableIndex, int gotOffset, int enterStubOffset, int methodId) {
+                    ReferenceConstant<MethodRefHolder> nativeEntryPoint, int vtableIndex, int gotOffset, int enterStubOffset, int methodId) {
         this.name = MetadataUtil.requireNonNull(name);
         this.maxLocals = maxLocals;
         this.maxStackSize = maxStackSize;
@@ -321,7 +324,7 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
     public static InterpreterResolvedJavaMethod createForDeserialization(String name, int maxLocals, int maxStackSize, int flags, InterpreterResolvedObjectType declaringClass,
                     InterpreterUnresolvedSignature signature, PreparedSignature preparedSignature,
                     byte[] code, ExceptionHandler[] exceptionHandlers, LineNumberTable lineNumberTable, LocalVariableTable localVariableTable,
-                    ReferenceConstant<FunctionPointerHolder> nativeEntryPoint, int vtableIndex, int gotOffset, int enterStubOffset, int methodId) {
+                    ReferenceConstant<MethodRefHolder> nativeEntryPoint, int vtableIndex, int gotOffset, int enterStubOffset, int methodId) {
         Symbol<Name> nameSymbol = SymbolsSupport.getNames().getOrCreate(name);
         Symbol<Signature> signatureSymbol = toSymbol(signature);
         return new InterpreterResolvedJavaMethod(nameSymbol, maxLocals, maxStackSize, flags, declaringClass, signature, preparedSignature, signatureSymbol, code,
@@ -334,13 +337,18 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
                     InterpreterResolvedObjectType declaringClass,
                     InterpreterUnresolvedSignature signature, boolean isSubstitutedNative,
                     byte[] code, ExceptionHandler[] exceptionHandlers, LineNumberTable lineNumberTable, LocalVariableTable localVariableTable,
-                    ReferenceConstant<FunctionPointerHolder> nativeEntryPoint, int vtableIndex, int gotOffset, int enterStubOffset, int methodId) {
+                    ReferenceConstant<MethodRefHolder> nativeEntryPoint, int vtableIndex, int gotOffset, int enterStubOffset, int methodId) {
         Symbol<Name> nameSymbol = SymbolsSupport.getNames().getOrCreate(name);
         Symbol<Signature> signatureSymbol = toSymbol(signature);
         int flags = createFlags(modifiers, declaringClass, signatureSymbol, isSubstitutedNative, originalMethod);
         PreparedSignature preparedSignature = null;
         return new InterpreterResolvedJavaMethod(originalMethod, nameSymbol, maxLocals, maxStackSize, flags, declaringClass, signature, preparedSignature, signatureSymbol, code,
                         exceptionHandlers, lineNumberTable, localVariableTable, nativeEntryPoint, vtableIndex, gotOffset, enterStubOffset, methodId);
+    }
+
+    @Platforms(Platform.HOSTED_ONLY.class)
+    public static MethodRef createMethodRef(ResolvedJavaMethod method) {
+        return SubstrateOptions.useRelativeCodePointers() ? new MethodOffset(method) : new MethodPointer(method);
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
@@ -691,18 +699,18 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
         if (nativeEntryPoint == null) {
             return Word.nullPointer();
         }
-        return nativeEntryPoint.getReferent().functionPointer;
+        return nativeEntryPoint.getReferent().getFunctionPointer();
     }
 
-    public final ReferenceConstant<FunctionPointerHolder> getNativeEntryPointHolderConstant() {
+    public final ReferenceConstant<MethodRefHolder> getNativeEntryPointHolderConstant() {
         return nativeEntryPoint;
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
-    public final void setNativeEntryPoint(MethodPointer nativeEntryPoint) {
+    public final void setNativeEntryPoint(MethodRef nativeEntryPoint) {
         if (this.nativeEntryPoint != null && nativeEntryPoint != null) {
             /* already set, verify if it's the same */
-            ResolvedJavaMethod setMethod = ((MethodPointer) this.nativeEntryPoint.getReferent().functionPointer).getMethod();
+            ResolvedJavaMethod setMethod = this.nativeEntryPoint.getReferent().getMethod();
             VMError.guarantee(setMethod.equals(nativeEntryPoint.getMethod()));
             return;
         }
@@ -710,7 +718,7 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
         if (nativeEntryPoint == null) {
             this.nativeEntryPoint = null;
         } else {
-            this.nativeEntryPoint = ReferenceConstant.createFromNonNullReference(new FunctionPointerHolder(nativeEntryPoint));
+            this.nativeEntryPoint = ReferenceConstant.createFromNonNullReference(new MethodRefHolder(nativeEntryPoint));
         }
     }
 

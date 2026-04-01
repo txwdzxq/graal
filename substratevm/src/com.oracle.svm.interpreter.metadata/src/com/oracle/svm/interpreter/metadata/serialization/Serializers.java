@@ -36,9 +36,9 @@ import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.word.Pointer;
 
-import com.oracle.svm.core.FunctionPointerHolder;
 import com.oracle.svm.core.graal.code.PreparedSignature;
 import com.oracle.svm.core.hub.registry.SymbolsSupport;
+import com.oracle.svm.core.MethodRefHolder;
 import com.oracle.svm.shared.singletons.MultiLayeredImageSingleton;
 import com.oracle.svm.core.snippets.KnownIntrinsics;
 import com.oracle.svm.shared.util.VMError;
@@ -665,7 +665,7 @@ public final class Serializers {
                         LineNumberTable lineNumberTable = context.readReference(in);
                         LocalVariableTable localVariableTable = context.readReference(in);
 
-                        ReferenceConstant<FunctionPointerHolder> nativeEntryPoint = context.readReference(in);
+                        ReferenceConstant<MethodRefHolder> nativeEntryPoint = context.readReference(in);
                         int vtableIndex = LEB128.readUnsignedInt(in);
                         int gotOffset = LEB128.readUnsignedInt(in);
                         int enterStubOffset = LEB128.readUnsignedInt(in);
@@ -692,7 +692,7 @@ public final class Serializers {
                          * reference cycle
                          */
 
-                        ReferenceConstant<FunctionPointerHolder> nativeEntryPointHolder = value.getNativeEntryPointHolderConstant();
+                        ReferenceConstant<MethodRefHolder> nativeEntryPointHolder = value.getNativeEntryPointHolderConstant();
                         int vtableIndex = value.getVTableIndex();
                         int gotOffset = value.getGotOffset();
                         int enterStubOffset = value.getEnterStubOffset();
@@ -767,7 +767,7 @@ public final class Serializers {
                     InterpreterResolvedObjectType.VTableHolder.class,
                     PreparedSignature.class,
                     InterpreterResolvedJavaField.class,
-                    FunctionPointerHolder.class,
+                    MethodRefHolder.class,
                     InterpreterResolvedJavaMethod.class,
                     InterpreterResolvedJavaMethod.InlinedBy.class);
 
@@ -804,7 +804,7 @@ public final class Serializers {
                         .registerSerializer(InterpreterResolvedObjectType.VTableHolder.class, VTABLE_HOLDER)
                         .registerSerializer(PreparedSignature.class, PREPARED_SIGNATURE)
                         .registerSerializer(InterpreterResolvedJavaField.class, RESOLVED_FIELD)
-                        .registerSerializer(FunctionPointerHolder.class, asReferenceConstant())
+                        .registerSerializer(MethodRefHolder.class, asReferenceConstant())
                         .registerSerializer(InterpreterResolvedJavaMethod.class, RESOLVED_METHOD)
                         .registerSerializer(InterpreterResolvedJavaMethod.InlinedBy.class, INLINED_BY)
                         .registerReader(ReferenceConstant.class, REFERENCE_CONSTANT_READER)

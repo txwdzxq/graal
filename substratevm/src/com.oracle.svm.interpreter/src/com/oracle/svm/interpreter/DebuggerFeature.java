@@ -71,13 +71,12 @@ import com.oracle.graal.pointsto.meta.AnalysisMetaAccess;
 import com.oracle.graal.pointsto.meta.AnalysisMethod;
 import com.oracle.graal.pointsto.meta.AnalysisType;
 import com.oracle.svm.core.BuildArtifacts;
-import com.oracle.svm.core.FunctionPointerHolder;
+import com.oracle.svm.core.MethodRefHolder;
 import com.oracle.svm.core.ParsingReason;
 import com.oracle.svm.core.RuntimeAssertionsSupport;
 import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.hub.DynamicHub;
-import com.oracle.svm.core.meta.MethodPointer;
 import com.oracle.svm.core.util.UserError;
 import com.oracle.svm.graal.hosted.DeoptimizationFeature;
 import com.oracle.svm.hosted.FeatureImpl;
@@ -213,7 +212,7 @@ public class DebuggerFeature implements InternalFeature {
         AnalysisType aDebuggerSupport = metaAccess.lookupJavaType(DebuggerSupport.class);
         accessImpl.registerAsAccessed((AnalysisField) JVMCIReflectionUtil.getUniqueDeclaredField(aDebuggerSupport, "referencesInImage"),
                         "Holds references that must be kept alive in the image heap.");
-        accessImpl.registerAsAccessed((AnalysisField) JVMCIReflectionUtil.getUniqueDeclaredField(aDebuggerSupport, "methodPointersInImage"),
+        accessImpl.registerAsAccessed((AnalysisField) JVMCIReflectionUtil.getUniqueDeclaredField(aDebuggerSupport, "methodRefsInImage"),
                         "Holds references that must be kept alive in the image heap.");
 
         AnalysisType aSystem = metaAccess.lookupJavaType(System.class);
@@ -565,7 +564,7 @@ public class DebuggerFeature implements InternalFeature {
                     interpreterMethod.setEnterStubOffset(estOffset++);
                 }
 
-                interpreterMethod.setNativeEntryPoint(new MethodPointer(interpreterMethod.getOriginalMethod()));
+                interpreterMethod.setNativeEntryPoint(InterpreterResolvedJavaMethod.createMethodRef(interpreterMethod.getOriginalMethod()));
             }
 
             if (!interpreterMethod.isStatic() && !interpreterMethod.isConstructor()) {
@@ -633,9 +632,9 @@ public class DebuggerFeature implements InternalFeature {
 
         DebuggerSupport supportImpl = DebuggerSupport.singleton();
         for (InterpreterResolvedJavaMethod method : BuildTimeInterpreterUniverse.singleton().getMethods()) {
-            ReferenceConstant<FunctionPointerHolder> nativeEntryPointHolderConstant = method.getNativeEntryPointHolderConstant();
+            ReferenceConstant<MethodRefHolder> nativeEntryPointHolderConstant = method.getNativeEntryPointHolderConstant();
             if (nativeEntryPointHolderConstant != null) {
-                supportImpl.ensureMethodPointerIsInImage(nativeEntryPointHolderConstant.getReferent());
+                supportImpl.ensureMethodRefIsInImage(nativeEntryPointHolderConstant.getReferent());
             }
         }
     }

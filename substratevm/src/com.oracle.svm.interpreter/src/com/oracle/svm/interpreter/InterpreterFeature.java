@@ -45,7 +45,6 @@ import org.graalvm.word.WordBase;
 
 import com.oracle.graal.pointsto.meta.AnalysisMetaAccess;
 import com.oracle.graal.pointsto.meta.AnalysisMethod;
-import com.oracle.svm.core.InvalidMethodPointerHandler;
 import com.oracle.svm.core.ParsingReason;
 import com.oracle.svm.core.UninterruptibleAnnotationUtils;
 import com.oracle.svm.core.feature.InternalFeature;
@@ -257,7 +256,6 @@ public class InterpreterFeature implements InternalFeature {
 
         ImageSingletons.add(InterpreterSupport.class, new InterpreterSupportImpl(bciSlot, interpreterMethodSlot, interpreterFrameSlot, intrinsicMethodSlot, intrinsicFrameSlot));
         ImageSingletons.add(InterpreterDirectivesSupport.class, new InterpreterDirectivesSupportImpl());
-        ImageSingletons.add(InterpreterMethodPointerHolder.class, new InterpreterMethodPointerHolder());
 
         // Locals must be available at runtime to retrieve BCI, interpreted method and interpreter
         // frame.
@@ -275,12 +273,7 @@ public class InterpreterFeature implements InternalFeature {
     public void beforeCompilation(BeforeCompilationAccess access) {
         FeatureImpl.BeforeCompilationAccessImpl accessImpl = (FeatureImpl.BeforeCompilationAccessImpl) access;
 
-        /* required so that it can hold a relocatable pointer */
-        accessImpl.registerAsImmutable(InterpreterMethodPointerHolder.singleton());
         accessImpl.registerAsImmutable(InterpreterSupport.singleton());
-
-        HostedMethod methodNotCompiledHandler = accessImpl.getMetaAccess().lookupJavaMethod(InvalidMethodPointerHandler.METHOD_POINTER_NOT_COMPILED_HANDLER_METHOD);
-        InterpreterMethodPointerHolder.setMethodNotCompiledHandler(new MethodPointer(methodNotCompiledHandler));
     }
 
     /**
