@@ -24,7 +24,10 @@
  */
 package com.oracle.svm.core.jdk;
 
+import java.lang.module.Configuration;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.graalvm.nativeimage.hosted.FieldValueTransformer;
 
@@ -32,12 +35,25 @@ import com.oracle.svm.core.annotate.Alias;
 import com.oracle.svm.core.annotate.RecomputeFieldValue;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
+import com.oracle.svm.shared.util.SubstrateUtil;
 
 import jdk.internal.loader.ClassLoaderValue;
+import jdk.internal.module.ServicesCatalog;
 
 @SuppressWarnings("unused")
 @TargetClass(value = java.lang.ModuleLayer.class)
 final class Target_java_lang_ModuleLayer {
+    @Alias //
+    @RecomputeFieldValue(isFinal = false, kind = RecomputeFieldValue.Kind.None) Configuration cf;
+
+    @Alias //
+    @RecomputeFieldValue(isFinal = false, kind = RecomputeFieldValue.Kind.None) Map<String, Module> nameToModule;
+
+    @Alias //
+    volatile Set<Module> modules;
+
+    @Alias //
+    volatile ServicesCatalog servicesCatalog;
 
     @Substitute
     public static ModuleLayer boot() {
@@ -46,6 +62,23 @@ final class Target_java_lang_ModuleLayer {
 
     @Alias @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.Custom, declClass = ModuleLayerCLVTransformer.class, isFinal = true) //
     static ClassLoaderValue<List<ModuleLayer>> CLV;
+}
+
+final class ModuleLayerSubstitutionsSupport {
+    private ModuleLayerSubstitutionsSupport() {
+    }
+
+    static Map<String, Module> nameToModule(ModuleLayer layer) {
+        return SubstrateUtil.cast(layer, Target_java_lang_ModuleLayer.class).nameToModule;
+    }
+
+    static void patchBootLayer(ModuleLayer layer, Configuration configuration, Map<String, Module> augmentedNameToModule) {
+        Target_java_lang_ModuleLayer target = SubstrateUtil.cast(layer, Target_java_lang_ModuleLayer.class);
+        target.cf = configuration;
+        target.nameToModule = augmentedNameToModule;
+        target.modules = null;
+        target.servicesCatalog = null;
+    }
 }
 
 final class ModuleLayerCLVTransformer implements FieldValueTransformer {

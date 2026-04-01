@@ -28,8 +28,11 @@ import java.util.Arrays;
 
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.MapCursor;
+import org.graalvm.nativeimage.ImageSingletons;
 
+import com.oracle.svm.core.jdk.RuntimeBootModuleLayerSupport;
 import com.oracle.svm.core.jdk.SystemPropertiesSupport;
+import com.oracle.svm.core.libjvm.LibJVMMainMethodWrappers;
 
 public final class RuntimeSystemPropertyParser {
 
@@ -44,13 +47,20 @@ public final class RuntimeSystemPropertyParser {
     public static String[] parse(String[] args, String graalOptionPrefix, String legacyGraalOptionPrefix) {
         int newIdx = 0;
         EconomicMap<String, String> properties = EconomicMap.create();
-        for (int oldIdx = 0; oldIdx < args.length; oldIdx++) {
+        int oldIdx = 0;
+        while (oldIdx < args.length) {
+            int consumed = parseModuleOption(args, oldIdx, properties);
+            if (consumed > 0) {
+                oldIdx += consumed;
+                continue;
+            }
             String arg = args[oldIdx];
             if (!parseProperty(arg, properties, graalOptionPrefix, legacyGraalOptionPrefix)) {
                 assert newIdx <= oldIdx;
                 args[newIdx] = arg;
                 newIdx++;
             }
+            oldIdx++;
         }
         MapCursor<String, String> cursor = properties.getEntries();
         while (cursor.advance()) {
@@ -82,5 +92,71 @@ public final class RuntimeSystemPropertyParser {
         String value = property.substring(splitIndex + 1);
         parsedProperties.put(key, value);
         return true;
+    }
+
+    private static int parseModuleOption(String[] args, int index, EconomicMap<String, String> properties) {
+        if (!ImageSingletons.contains(LibJVMMainMethodWrappers.class)) {
+            return 0;
+        }
+
+        String arg = args[index];
+        if (RuntimeBootModuleLayerSupport.MAIN_MODULE_OPTION.equals(arg) || RuntimeBootModuleLayerSupport.MAIN_MODULE_SHORT_OPTION.equals(arg)) {
+            if (index + 1 >= args.length) {
+                throw new IllegalArgumentException(arg + " requires module name");
+            }
+            properties.put(RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY, getModuleName(args[index + 1]));
+            return 2;
+        }
+        if (arg.startsWith(RuntimeBootModuleLayerSupport.MAIN_MODULE_OPTION + "=")) {
+            properties.put(RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY,
+                            getModuleName(arg.substring(RuntimeBootModuleLayerSupport.MAIN_MODULE_OPTION.length() + 1)));
+            return 1;
+        }
+        if (arg.startsWith(RuntimeBootModuleLayerSupport.MAIN_MODULE_SHORT_OPTION + "=")) {
+            properties.put(RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY,
+                            getModuleName(arg.substring(RuntimeBootModuleLayerSupport.MAIN_MODULE_SHORT_OPTION.length() + 1)));
+            return 1;
+        }
+        if (RuntimeBootModuleLayerSupport.MODULE_PATH_OPTION.equals(arg) || RuntimeBootModuleLayerSupport.MODULE_PATH_SHORT_OPTION.equals(arg)) {
+            if (index + 1 >= args.length) {
+                throw new IllegalArgumentException(arg + " requires module path specification");
+            }
+            properties.put(RuntimeBootModuleLayerSupport.MODULE_PATH_PROPERTY, args[index + 1]);
+            return 2;
+        }
+        if (arg.startsWith(RuntimeBootModuleLayerSupport.MODULE_PATH_OPTION + "=")) {
+            properties.put(RuntimeBootModuleLayerSupport.MODULE_PATH_PROPERTY, arg.substring(RuntimeBootModuleLayerSupport.MODULE_PATH_OPTION.length() + 1));
+            return 1;
+        }
+        if (arg.startsWith(RuntimeBootModuleLayerSupport.MODULE_PATH_SHORT_OPTION + "=")) {
+            properties.put(RuntimeBootModuleLayerSupport.MODULE_PATH_PROPERTY, arg.substring(RuntimeBootModuleLayerSupport.MODULE_PATH_SHORT_OPTION.length() + 1));
+            return 1;
+        }
+        if (RuntimeBootModuleLayerSupport.ADD_MODULES_OPTION.equals(arg)) {
+            if (index + 1 >= args.length) {
+                throw new IllegalArgumentException(arg + " equires modules to be specified");
+            }
+            addNumberedProperty(RuntimeBootModuleLayerSupport.ADD_MODULES_PROPERTY_PREFIX, args[index + 1], properties);
+            return 2;
+        }
+        if (arg.startsWith(RuntimeBootModuleLayerSupport.ADD_MODULES_OPTION + "=")) {
+            addNumberedProperty(RuntimeBootModuleLayerSupport.ADD_MODULES_PROPERTY_PREFIX,
+                            arg.substring(RuntimeBootModuleLayerSupport.ADD_MODULES_OPTION.length() + 1), properties);
+            return 1;
+        }
+        return 0;
+    }
+
+    private static void addNumberedProperty(String prefix, String value, EconomicMap<String, String> properties) {
+        int index = 0;
+        while (properties.containsKey(prefix + index)) {
+            index++;
+        }
+        properties.put(prefix + index, value);
+    }
+
+    private static String getModuleName(String moduleSpecifier) {
+        int separatorIndex = moduleSpecifier.indexOf('/');
+        return separatorIndex == -1 ? moduleSpecifier : moduleSpecifier.substring(0, separatorIndex);
     }
 }

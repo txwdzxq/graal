@@ -100,7 +100,8 @@ import jdk.internal.misc.PreviewFeatures;
 public final class ClassRegistries implements ParsingContext {
     public static final class Options {
         @LayerVerifiedOption(kind = LayerVerifiedOption.Kind.Changed, severity = LayerVerifiedOption.Severity.Error)//
-        @Option(help = "Class.forName and similar respect their class loader argument.", stability = EXPERIMENTAL)//
+        @Option(help = "Class.forName and similar respect their class loader argument, and resource lookups " +
+                        "use class loader delegation instead of a global namespace.", stability = EXPERIMENTAL)//
         public static final HostedOptionKey<Boolean> ClassForNameRespectsClassLoader = new HostedOptionKey<>(false);
     }
 

@@ -57,6 +57,9 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
     @Alias @RecomputeFieldValue(kind = Kind.Custom, declClass = NewConcurrentHashMap.class) //
     private Map<ModuleReference, ModuleReader> moduleToReader;
 
+    @Alias
+    public native void loadModule(ModuleReference mref);
+
     @Substitute
     @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
     protected Class<?> findClass(String name) throws ClassNotFoundException {
