@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
+import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.collections.EconomicSet;
 import org.graalvm.nativeimage.hosted.RuntimeReflection;
 
@@ -118,8 +119,6 @@ public class MethodHandleFeature implements InternalFeature {
     private Object runtimeMethodTypeInternTable;
     private Method referencedKeySetAdd;
 
-    private MethodHandleInvokerRenamingSubstitutionProcessor substitutionProcessor;
-
     private EconomicSet<Object> heapSpeciesData = EconomicSet.create(); // concurrent access
 
     @Override
@@ -143,7 +142,8 @@ public class MethodHandleFeature implements InternalFeature {
         referencedKeySetAdd = ReflectionUtil.lookupMethod(referencedKeySetClass, "add", Object.class);
 
         var accessImpl = (DuringSetupAccessImpl) access;
-        substitutionProcessor = new MethodHandleInvokerRenamingSubstitutionProcessor(accessImpl.getBigBang());
+        MethodHandleInvokerRenamingSubstitutionProcessor substitutionProcessor = new MethodHandleInvokerRenamingSubstitutionProcessor(accessImpl.getBigBang());
+        ImageSingletons.add(MethodHandleInvokerRenamingSubstitutionProcessor.class, substitutionProcessor);
         accessImpl.registerSubstitutionProcessor(substitutionProcessor);
 
         accessImpl.registerObjectReachableCallback(memberNameClass, (a1, member, reason) -> registerHeapMemberName((Member) member));
@@ -514,10 +514,6 @@ public class MethodHandleFeature implements InternalFeature {
 
     @Override
     public void afterAnalysis(AfterAnalysisAccess access) {
-        assert substitutionProcessor == null || substitutionProcessor.checkAllTypeNames();
-    }
-
-    public MethodHandleInvokerRenamingSubstitutionProcessor getMethodHandleSubstitutionProcessor() {
-        return substitutionProcessor;
+        assert MethodHandleInvokerRenamingSubstitutionProcessor.singleton().checkAllTypeNames();
     }
 }

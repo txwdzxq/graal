@@ -145,7 +145,7 @@ import com.oracle.svm.hosted.meta.HostedField;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.hosted.meta.HostedUniverse;
 import com.oracle.svm.hosted.meta.PatchedWordConstant;
-import com.oracle.svm.hosted.methodhandles.MethodHandleFeature;
+import com.oracle.svm.hosted.methodhandles.MethodHandleInvokerRenamingSubstitutionProcessor;
 import com.oracle.svm.hosted.methodhandles.MethodHandleInvokerSubstitutionType;
 import com.oracle.svm.hosted.reflect.ReflectionExpandSignatureMethod;
 import com.oracle.svm.hosted.reflect.proxy.ProxyRenamingSubstitutionProcessor;
@@ -567,8 +567,7 @@ public class SVMImageLayerWriter extends ImageLayerWriter {
          * still have a different name, but in a multi threading context, the names can be switched.
          */
         if (type.getWrapped() instanceof MethodHandleInvokerSubstitutionType methodHandleSubstitutionType) {
-            MethodHandleFeature methodHandleFeature = ImageSingletons.lookup(MethodHandleFeature.class);
-            if (!methodHandleFeature.getMethodHandleSubstitutionProcessor().isNameAlwaysStable(methodHandleSubstitutionType.getName())) {
+            if (!MethodHandleInvokerRenamingSubstitutionProcessor.singleton().isNameAlwaysStable(methodHandleSubstitutionType.getName())) {
                 String message = "The method handle " + methodHandleSubstitutionType.getName() + " might not have a stable name in the extension image.";
                 handleNameConflict(message);
             }
