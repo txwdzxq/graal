@@ -1494,6 +1494,7 @@ suite = {
                 ],
                 "jdk.internal.vm.ci": [
                     "jdk.vm.ci.aarch64",
+                    "jdk.vm.ci.amd64",
                     "jdk.vm.ci.meta",
                     "jdk.vm.ci.meta.annotation",
                     "jdk.vm.ci.code",
