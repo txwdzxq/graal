@@ -72,7 +72,7 @@ import com.oracle.svm.hosted.FeatureHandler;
 import com.oracle.svm.hosted.NativeImageGenerator;
 import com.oracle.svm.hosted.NativeImageOptions;
 import com.oracle.svm.hosted.ProgressReporter;
-import com.oracle.svm.hosted.diagnostic.HostedHeapDumpFeature;
+import com.oracle.svm.hosted.diagnostic.HostedHeapDumpSupport;
 import com.oracle.svm.hosted.imagelayer.HostedImageLayerBuildingSupport;
 import com.oracle.svm.hosted.imagelayer.LayeredDispatchTableFeature;
 import com.oracle.svm.hosted.imagelayer.SVMImageLayerLoader;
@@ -453,14 +453,14 @@ public class CompileQueue {
                 method.wrapped.clearAnalyzedGraph();
             }
 
-            if (ImageSingletons.contains(HostedHeapDumpFeature.class)) {
-                ImageSingletons.lookup(HostedHeapDumpFeature.class).beforeInlining();
+            if (ImageSingletons.contains(HostedHeapDumpSupport.class)) {
+                HostedHeapDumpSupport.singleton().beforeInlining();
             }
             try (ProgressReporter.ReporterClosable _ = reporter.printInlining()) {
                 inlineTrivialMethods(debug);
             }
-            if (ImageSingletons.contains(HostedHeapDumpFeature.class)) {
-                ImageSingletons.lookup(HostedHeapDumpFeature.class).afterInlining();
+            if (ImageSingletons.contains(HostedHeapDumpSupport.class)) {
+                HostedHeapDumpSupport.singleton().afterInlining();
             }
 
             assert suitesNotCreated();
@@ -478,8 +478,8 @@ public class CompileQueue {
         if (printMethodHistogram) {
             printMethodHistogram();
         }
-        if (ImageSingletons.contains(HostedHeapDumpFeature.class)) {
-            ImageSingletons.lookup(HostedHeapDumpFeature.class).compileQueueAfterCompilation();
+        if (ImageSingletons.contains(HostedHeapDumpSupport.class)) {
+            HostedHeapDumpSupport.singleton().compileQueueAfterCompilation();
         }
         if (ImageLayerBuildingSupport.buildingExtensionLayer()) {
             HostedImageLayerBuildingSupport.singleton().getLoader().cleanupAfterCompilation();

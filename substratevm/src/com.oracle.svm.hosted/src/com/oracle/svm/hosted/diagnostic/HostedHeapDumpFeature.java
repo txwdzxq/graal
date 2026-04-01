@@ -24,18 +24,13 @@
  */
 package com.oracle.svm.hosted.diagnostic;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.oracle.graal.pointsto.reports.ReportUtils;
-import com.oracle.svm.core.SubstrateOptions;
+import org.graalvm.nativeimage.ImageSingletons;
+
 import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.util.UserError;
@@ -56,28 +51,9 @@ public class HostedHeapDumpFeature implements InternalFeature {
         public static final HostedOptionKey<AccumulatingLocatableMultiOptionValue.Strings> DumpHeap = new HostedOptionKey<>(AccumulatingLocatableMultiOptionValue.Strings.buildWithCommaDelimiter());
     }
 
-    enum Phases {
-        DuringAnalysis("during-analysis"),
-        AfterAnalysis("after-analysis"),
-        BeforeCompilation("before-compilation"),
-        CompileQueueBeforeInlining("compile-queue-before-inlining"),
-        CompileQueueAfterInlining("compile-queue-after-inlining"),
-        CompileQueueAfterCompilation("compile-queue-after-compilation");
-
-        final String name;
-
-        Phases(String name) {
-            this.name = name;
-        }
-
-        public String getName() {
-            return name;
-        }
-    }
-
     @Override
     public boolean isInConfiguration(IsInConfigurationAccess access) {
-        List<String> validPhases = Stream.of(Phases.values()).map(Phases::getName).collect(Collectors.toList());
+        List<String> validPhases = Stream.of(HostedHeapDumpSupport.Phases.values()).map(HostedHeapDumpSupport.Phases::getName).collect(Collectors.toList());
         List<String> values = Options.DumpHeap.getValue().values();
         phases = new ArrayList<>();
         for (String value : values) {
@@ -92,72 +68,25 @@ public class HostedHeapDumpFeature implements InternalFeature {
     }
 
     private List<String> phases;
-    private Path dumpLocation;
-    private String imageName;
-    private String timeStamp;
 
     @Override
     public void duringSetup(DuringSetupAccess access) {
         DuringSetupAccessImpl config = (DuringSetupAccessImpl) access;
-        dumpLocation = getDumpLocation();
-        imageName = ReportUtils.extractImageName(config.getHostVM().getImageName());
-        timeStamp = getTimeStamp();
+        ImageSingletons.add(HostedHeapDumpSupport.class, new HostedHeapDumpSupport(phases, config.getHostVM().getImageName()));
     }
-
-    private int iteration;
 
     @Override
     public void duringAnalysis(DuringAnalysisAccess access) {
-        if (phases.contains(Phases.DuringAnalysis.getName())) {
-            dumpHeap(Phases.DuringAnalysis.getName() + "-" + iteration++);
-        }
+        HostedHeapDumpSupport.singleton().duringAnalysis();
     }
 
     @Override
     public void onAnalysisExit(OnAnalysisExitAccess access) {
-        dumpHeap(Phases.AfterAnalysis);
+        HostedHeapDumpSupport.singleton().onAnalysisExit();
     }
 
     @Override
     public void beforeCompilation(BeforeCompilationAccess access) {
-        dumpHeap(Phases.BeforeCompilation);
-    }
-
-    public void beforeInlining() {
-        dumpHeap(Phases.CompileQueueBeforeInlining);
-    }
-
-    public void afterInlining() {
-        dumpHeap(Phases.CompileQueueAfterInlining);
-    }
-
-    public void compileQueueAfterCompilation() {
-        dumpHeap(Phases.CompileQueueAfterCompilation);
-    }
-
-    private void dumpHeap(Phases phase) {
-        if (phases.contains(phase.getName())) {
-            dumpHeap(phase.getName());
-        }
-    }
-
-    private void dumpHeap(String reason) {
-        String outputFile = dumpLocation.resolve(imageName + '-' + reason + '-' + timeStamp + ".hprof").toString();
-        System.out.println("Dumping heap " + reason.replace("-", " ") + " to " + outputFile);
-        HostedHeapDump.take(outputFile);
-    }
-
-    private static Path getDumpLocation() {
-        try {
-            Path folder = SubstrateOptions.getImagePath().resolve("dumps").toAbsolutePath();
-            return Files.createDirectories(folder);
-        } catch (IOException e) {
-            throw new Error("Cannot create heap dumps directory.", e);
-        }
-    }
-
-    private static String getTimeStamp() {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
-        return LocalDateTime.now().format(formatter);
+        HostedHeapDumpSupport.singleton().beforeCompilation();
     }
 }
