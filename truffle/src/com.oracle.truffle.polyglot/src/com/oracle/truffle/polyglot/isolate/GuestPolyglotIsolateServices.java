@@ -126,7 +126,7 @@ final class GuestPolyglotIsolateServices implements PolyglotIsolateServices {
 
     static GuestPolyglotIsolateServices getInstance() {
         if (PolyglotIsolateGuestFeatureEnabled.isEnabled()) {
-            return new GuestPolyglotIsolateServices(PolyglotIsolateAccessor.ENGINE.getRootPolyglot());
+            return new GuestPolyglotIsolateServices(PolyglotIsolateAccessor.ENGINE.findPolyglot());
         } else {
             // Prevent parsing on host when JNI C directives are not enabled.
             throw new UnsupportedOperationException("Not reachable on host.");
@@ -341,7 +341,7 @@ final class GuestPolyglotIsolateServices implements PolyglotIsolateServices {
             prev = PolyglotIsolateAccessor.ENGINE.enterInternalContext(null, contextReceiver);
         }
         try {
-            TruffleObject stack = (TruffleObject) polyglot.getEmbedderExceptionStackTrace(engineReceiver, exception, inHost);
+            TruffleObject stack = (TruffleObject) PolyglotIsolateAccessor.EXCEPTION.getEmbedderStackTrace(exception, engineReceiver, inHost);
             return guestContext.hostToGuestObjectReferences.registerGuestObject(stack);
         } finally {
             if (enterNeeded) {

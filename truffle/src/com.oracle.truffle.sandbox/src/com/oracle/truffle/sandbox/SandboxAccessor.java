@@ -54,5 +54,10 @@ final class SandboxAccessor extends Accessor {
         public OptionKey<Integer> getMaxASTDepthOption() {
             return SandboxContext.MaxASTDepth;
         }
+
+        @Override
+        public boolean isInterpreterCallStackHeadRoomSupported() {
+            return SandboxInstrument.isInterpreterCallStackHeadRoomSupported();
+        }
     }
 }

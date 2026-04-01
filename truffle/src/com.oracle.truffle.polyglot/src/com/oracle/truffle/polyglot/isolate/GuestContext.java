@@ -40,6 +40,7 @@
  */
 package com.oracle.truffle.polyglot.isolate;
 
+import java.lang.ref.WeakReference;
 import java.util.Objects;
 
 import org.graalvm.nativebridge.ForeignObject;
@@ -53,6 +54,7 @@ final class GuestContext {
     final Object polyglotContextReceiver;
     final ReflectionLibraryDispatch guestToHostDispatch;
     final GuestObjectReferences hostToGuestObjectReferences;
+    private final WeakReference<GuestContext> weakThis;
     private volatile long contextHandle = UNSET_HANDLE;
     private boolean disposed;
 
@@ -61,6 +63,7 @@ final class GuestContext {
         this.polyglotContextReceiver = Objects.requireNonNull(polyglotContextReceiver, "PolyglotContextReceiver must be non-null");
         this.guestToHostDispatch = ForeignReflectionLibraryDispatch.optimized(this, (ForeignReflectionLibraryDispatch) guestToHostDispatch, hostStackSpaceHeadroom);
         this.hostToGuestObjectReferences = new GuestObjectReferences(this);
+        this.weakThis = new WeakReference<>(this);
     }
 
     void setHandle(long handle) {
@@ -76,6 +79,10 @@ final class GuestContext {
             throw new IllegalStateException("Context handle is not set");
         }
         return result;
+    }
+
+    WeakReference<GuestContext> asWeakReference() {
+        return weakThis;
     }
 
     synchronized void dispose() {

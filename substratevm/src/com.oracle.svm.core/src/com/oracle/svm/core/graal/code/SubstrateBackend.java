@@ -27,9 +27,10 @@ package com.oracle.svm.core.graal.code;
 import static com.oracle.svm.shared.util.VMError.intentionallyUnimplemented;
 
 import java.lang.reflect.Method;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
+import java.util.random.RandomGenerator;
 
+import com.oracle.svm.core.RuntimeRandomness;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.word.LocationIdentity;
@@ -192,7 +193,7 @@ public abstract class SubstrateBackend extends Backend {
     }
 
     public static boolean shouldRandomizeRuntimeCodeOffset(ResolvedJavaMethod method) {
-        return SubstrateOptions.MaxRuntimeCodeOffset.getValue() > 0 && method instanceof SharedRuntimeMethod;
+        return method instanceof SharedRuntimeMethod && SubstrateOptions.MaxRuntimeCodeOffset.getValue() > 0;
     }
 
     /**
@@ -200,7 +201,8 @@ public abstract class SubstrateBackend extends Backend {
      * prologue start.
      */
     public static void randomizeRuntimeCodeOffset(CompilationResultBuilder crb, Consumer<Integer> offsetInserter) {
-        int offset = ThreadLocalRandom.current().nextInt(SubstrateOptions.MaxRuntimeCodeOffset.getValue());
+        RandomGenerator random = RuntimeRandomness.instance().getRandom();
+        int offset = random.nextInt(SubstrateOptions.MaxRuntimeCodeOffset.getValue());
         offsetInserter.accept(offset);
         crb.recordMark(SubstrateMarkId.PROLOGUE_START);
     }

@@ -531,7 +531,7 @@ public abstract class Accessor {
 
         public abstract Object findMetaObjectForLanguage(Object polyglotLanguageContext, Object value);
 
-        public abstract boolean isInternal(Object engineObject, FileSystem fs);
+        public abstract boolean isInternal(FileSystem fs);
 
         public abstract boolean hasNoAccess(FileSystem fs);
 
@@ -609,6 +609,8 @@ public abstract class Accessor {
                         ProcessHandler.Redirect inputRedirect, ProcessHandler.Redirect outputRedirect, ProcessHandler.Redirect errorRedirect) throws IOException;
 
         public abstract boolean hasDefaultProcessHandler(Object polyglotLanguageContext);
+
+        public abstract boolean isDefaultProcessHandler(ProcessHandler handler);
 
         public abstract boolean isIOAllowed(Object polyglotLanguageContext, Env env);
 
@@ -852,17 +854,19 @@ public abstract class Accessor {
 
         public abstract int findHostToGuestFrame(Object polyglotEngineImpl, StackTraceElement firstElement, StackTraceElement[] hostStack, int nextElementIndex);
 
-        public abstract <T extends Throwable> T updateHostException(Throwable forException, T hostException);
-
         public abstract void materializePolyglotException(RuntimeException exception);
 
         public abstract IllegalArgumentException sandboxPolicyException(SandboxPolicy sandboxPolicy, String reason, String fix);
 
-        public abstract AbstractPolyglotImpl getRootPolyglot();
+        public abstract AbstractPolyglotImpl findPolyglot();
 
         public abstract boolean isInternalFileSystem(FileSystem fileSystem);
 
-        public abstract Map<String, String> hostOptions(Object polyglotEngineImpl, Map<String, String> polyglotOptions);
+        public abstract ProcessHandler newDefaultProcessHandler();
+
+        public abstract boolean isInCurrentEngineHostCallback(Object polyglotEngine);
+
+        public abstract Map<String, String> filterHostOptions(Object polyglotEngineImpl, Map<String, String> polyglotOptions);
 
         public abstract OptionKey<Long> getMaxIsolateMemoryOption();
 
@@ -1568,6 +1572,8 @@ public abstract class Accessor {
         }
 
         public abstract OptionKey<Integer> getMaxASTDepthOption();
+
+        public abstract boolean isInterpreterCallStackHeadRoomSupported();
     }
 
     public abstract static class PolyglotIsolateSupport extends Support {

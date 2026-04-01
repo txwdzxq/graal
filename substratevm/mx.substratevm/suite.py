@@ -476,7 +476,6 @@ suite = {
             "subDir": "src",
             "sourceDirs": ["src"],
             "dependencies": [
-                "com.oracle.svm.core",
                 "com.oracle.svm.core.genscavenge",
             ],
             "requiresConcealed" : {
@@ -2267,6 +2266,7 @@ suite = {
                 "SVM",
                 "OBJECTFILE",
                 "POINTSTO",
+                "sdk:NATIVEBRIDGE",
                 "truffle:TRUFFLE_RUNTIME",
             ],
             "moduleInfo" : {

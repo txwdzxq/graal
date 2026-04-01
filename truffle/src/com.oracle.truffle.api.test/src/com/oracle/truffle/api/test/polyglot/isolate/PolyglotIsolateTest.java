@@ -1889,6 +1889,30 @@ public class PolyglotIsolateTest {
     }
 
     @Test
+    public void testHSTruffleObjectCleanupReferenceLeak() {
+        final int objectsPerContext = 10;
+        final int maxIterations = 128;
+        try (Engine engine = Engine.newBuilder().allowExperimentalOptions(true).option("engine.SpawnIsolate", "true").option("engine.MaxIsolateMemory", "32MB").build()) {
+            for (int i = 0; i < maxIterations; i++) {
+                try (Context context = Context.newBuilder("triste").engine(engine).allowHostAccess(HostAccess.ALL).allowExperimentalOptions(true).build()) {
+                    Value scope = context.getBindings("triste");
+                    scope.putMember("carrier", new CarrierObject());
+                    for (int j = 0; j < objectsPerContext; j++) {
+                        Value guestValue = context.eval("triste", "allocateGuestObject(load(524288),1)");
+                        scope.putMember("guest_object_" + j, guestValue);
+                    }
+                }
+            }
+        }
+    }
+
+    @HostReflection
+    public static class CarrierObject {
+        CarrierObject() {
+        }
+    }
+
+    @Test
     public void testIsolateProcessDeathInHost() {
         Assume.assumeTrue("Only supported in external (process) isolate mode.", TruffleTestAssumptions.isExternalIsolate());
         HostAccess accessPolicy = HostAccess.newBuilder(HostAccess.ALL).build();

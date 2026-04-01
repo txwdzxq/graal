@@ -53,7 +53,7 @@ import com.oracle.truffle.api.library.Message;
 import com.oracle.truffle.api.library.ReflectionLibrary;
 import org.graalvm.nativebridge.ForeignObjectCleaner;
 
-import java.util.Objects;
+import java.lang.ref.WeakReference;
 
 /**
  * The guest object reference lives on the host JVM. It accepts all Truffle messages via the
@@ -85,18 +85,21 @@ final class NativeTruffleObject implements TruffleObject {
      */
     private static final class CleanupReference extends ForeignObjectCleaner<NativeTruffleObject> {
 
-        private final ForeignContext context;
+        private final WeakReference<ForeignContext> contextRef;
         private final long guestObjectId;
 
         CleanupReference(NativeTruffleObject referent, Isolate<?> isolate, ForeignContext context, long guestObjectId) {
             super(referent, isolate);
-            this.context = Objects.requireNonNull(context, "Context must be non-null");
+            this.contextRef = context.asWeakReference();
             this.guestObjectId = guestObjectId;
         }
 
         @Override
         protected void cleanUp(IsolateThread isolateThread) {
-            context.releaseReference(guestObjectId);
+            ForeignContext context = contextRef.get();
+            if (context != null) {
+                context.releaseReference(guestObjectId);
+            }
         }
 
         @Override

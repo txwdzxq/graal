@@ -50,7 +50,7 @@ import com.oracle.truffle.api.library.ExportMessage;
 import com.oracle.truffle.api.library.Message;
 import com.oracle.truffle.api.library.ReflectionLibrary;
 
-import java.util.Objects;
+import java.lang.ref.WeakReference;
 
 /**
  * The host object reference lives in the guest. It accepts all Truffle messages via the reflection
@@ -81,18 +81,21 @@ final class HSTruffleObject implements TruffleObject {
      */
     private static class CleanupReference extends CleanableWeakReference<HSTruffleObject> {
 
-        private final GuestContext context;
+        private final WeakReference<GuestContext> contextRef;
         private final long hostObjectId;
 
         CleanupReference(HSTruffleObject reference, GuestContext context, long hostObjectId) {
             super(reference);
-            this.context = Objects.requireNonNull(context, "Dispatch must be non-null");
+            this.contextRef = context.asWeakReference();
             this.hostObjectId = hostObjectId;
         }
 
         @Override
         public void run() {
-            context.releaseReference(hostObjectId);
+            GuestContext context = contextRef.get();
+            if (context != null) {
+                context.releaseReference(hostObjectId);
+            }
         }
     }
 

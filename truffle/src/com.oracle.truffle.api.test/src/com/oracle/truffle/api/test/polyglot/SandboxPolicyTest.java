@@ -230,6 +230,30 @@ public class SandboxPolicyTest {
         }
     }
 
+    @Test
+    public void testIsolateSpecificOptionsRequireIsolation() {
+        // Run only for TRUSTED policy, no need to repeat this with other policies
+        Assume.assumeTrue(configuration.sandboxPolicy == SandboxPolicy.TRUSTED);
+        // Ensure isolation is not implicitly enabled
+        TruffleTestAssumptions.assumeNoIsolateEncapsulation();
+
+        assertIsolateSpecificOptionRejectedWithoutSpawnIsolate("engine.HostCallStackHeadRoom", "256KB");
+        assertIsolateSpecificOptionRejectedWithoutSpawnIsolate("engine.IsolateOption.MaxHeapSize", "128MB");
+        assertIsolateSpecificOptionRejectedWithoutSpawnIsolate("engine.IsolateMemoryProtection", "true");
+        assertIsolateSpecificOptionRejectedWithoutSpawnIsolate("engine.UntrustedCodeMitigation", "software");
+        assertIsolateSpecificOptionRejectedWithoutSpawnIsolate("engine.MaxIsolateMemory", "128MB");
+    }
+
+    private static void assertIsolateSpecificOptionRejectedWithoutSpawnIsolate(String optionName, String optionValue) {
+        AbstractPolyglotTest.assertFails(() -> {
+            Engine engine = Engine.newBuilder(TrustedLanguage.ID).allowExperimentalOptions(true).option(optionName, optionValue).build();
+            engine.close();
+        },
+                        IllegalArgumentException.class, (iae) -> {
+                            assertTrue(iae.getMessage().contains("The isolated heap is not enabled, but isolate specific option " + optionName + " is set."));
+                        });
+    }
+
     private Engine.Builder newEngineWithIsolateOptions(String... permittedLanguages) {
         Engine.Builder builder = Engine.newBuilder(permittedLanguages);
         if (configuration.sandboxPolicy.isStricterOrEqual(SandboxPolicy.ISOLATED) && configuration.supportsIsolatedPolicy) {

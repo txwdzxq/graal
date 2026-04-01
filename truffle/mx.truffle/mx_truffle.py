@@ -44,7 +44,6 @@ import itertools
 import json
 import os
 import re
-import shutil
 import tempfile
 import difflib
 import zipfile
@@ -76,7 +75,6 @@ from mx_sigtest import sigtest
 from mx_unittest import unittest
 
 from mx_sdk_shaded import ShadedLibraryProject  # pylint: disable=unused-import
-from mx_sdk_vm_ng import is_enterprise
 
 _suite = mx.suite("truffle")
 
@@ -333,16 +331,13 @@ def enable_sun_misc_unsafe(vmArgs):
 
 
 class TruffleUnittestConfig(mx_unittest.MxUnittestConfig):
-    _use_enterprise_polyglot = True
     _use_optimized_runtime = True
 
     def __init__(self):
         super().__init__("truffle")
 
     def processDeps(self, deps):
-        dist_names = resolve_truffle_dist_names(
-            TruffleUnittestConfig._use_optimized_runtime, TruffleUnittestConfig._use_enterprise_polyglot
-        )
+        dist_names = resolve_truffle_dist_names(TruffleUnittestConfig._use_optimized_runtime)
         mx.logv(f'Adding Truffle runtime distributions {", ".join(dist_names)} to unittest dependencies.')
         for dist_name in dist_names:
             deps.add(mx.distribution(dist_name))
@@ -372,16 +367,6 @@ class TruffleUnittestConfig(mx_unittest.MxUnittestConfig):
 mx_unittest.register_unittest_config(TruffleUnittestConfig())
 
 
-class _DisableEnterpriseTruffleAction(Action):
-    def __init__(self, **kwargs):
-        kwargs["required"] = False
-        kwargs["nargs"] = 0
-        super().__init__(**kwargs)
-
-    def __call__(self, parser, namespace, values, option_string=None):
-        TruffleUnittestConfig._use_enterprise_polyglot = False
-
-
 class _DisableOptimizedRuntimeAction(Action):
     def __init__(self, **kwargs):
         kwargs["required"] = False
@@ -391,13 +376,6 @@ class _DisableOptimizedRuntimeAction(Action):
     def __call__(self, parser, namespace, values, option_string=None):
         TruffleUnittestConfig._use_optimized_runtime = False
 
-
-mx_unittest.add_unittest_argument(
-    "--disable-truffle-enterprise",
-    default=False,
-    help="Disables the automatic inclusion of Enterprise Truffle in unittest dependencies.",
-    action=_DisableEnterpriseTruffleAction,
-)
 mx_unittest.add_unittest_argument(
     "--disable-truffle-optimized-runtime",
     default=False,
@@ -488,13 +466,13 @@ mx_unittest.add_unittest_argument(
 
 # simple utility that returns the right distribution names to use
 # for building a language module path
-def resolve_truffle_dist_names(use_optimized_runtime=True, use_enterprise=True):
+def resolve_truffle_dist_names(use_optimized_runtime=True, use_enterprise=None):
+    if use_enterprise is not None:
+        mx.warn("The 'use_enterprise' parameter is deprecated and no longer has any effect. "
+                "The 'truffle-enterprise:TRUFFLE_ENTERPRISE' distribution has been removed. "
+                "Please remove the 'use_enterprise' argument from calls to resolve_truffle_dist_names().")
     if use_optimized_runtime:
-        enterprise = _get_enterprise_truffle()
-        if enterprise and use_enterprise:
-            return ["truffle-enterprise:TRUFFLE_ENTERPRISE"]
-        else:
-            return ["truffle:TRUFFLE_RUNTIME"]
+        return ["truffle:TRUFFLE_RUNTIME"]
     else:
         return ["truffle:TRUFFLE_API"]
 
@@ -503,12 +481,12 @@ def _get_enterprise_truffle():
     return mx.suite("truffle-enterprise", False)
 
 
-def resolve_sl_dist_names(use_optimized_runtime=True, use_enterprise=True):
+def resolve_sl_dist_names(use_optimized_runtime=True):
     return [
         "TRUFFLE_SL",
         "TRUFFLE_SL_LAUNCHER",
         "TRUFFLE_NFI_LIBFFI",
-        *resolve_truffle_dist_names(use_optimized_runtime=use_optimized_runtime, use_enterprise=use_enterprise),
+        *resolve_truffle_dist_names(use_optimized_runtime=use_optimized_runtime),
     ]
 
 
@@ -518,8 +496,8 @@ def sl(args):
     return mx.run(_sl_command(mx.get_jdk(tag="graalvm"), vm_args, sl_args, force_cp=False))
 
 
-def _sl_command(jdk, vm_args, sl_args, use_optimized_runtime=True, use_enterprise=True, force_cp=False):
-    dist_names = resolve_sl_dist_names(use_optimized_runtime=use_optimized_runtime, use_enterprise=use_enterprise)
+def _sl_command(jdk, vm_args, sl_args, use_optimized_runtime=True, force_cp=False):
+    dist_names = resolve_sl_dist_names(use_optimized_runtime=use_optimized_runtime)
     if force_cp:
         main_class = ["com.oracle.truffle.sl.launcher.SLMain"]
     else:
@@ -579,7 +557,6 @@ def _native_image_sl(
     vm_args,
     target_dir,
     use_optimized_runtime=True,
-    use_enterprise=True,
     force_cp=False,
     hosted_assertions=True,
     log_host_inlining=False,
@@ -587,7 +564,7 @@ def _native_image_sl(
     native_image_args = list(vm_args)
     native_image_path = _native_image(jdk)
     target_path = os.path.join(target_dir, mx.exe_suffix("sl"))
-    dist_names = resolve_sl_dist_names(use_optimized_runtime=use_optimized_runtime, use_enterprise=use_enterprise)
+    dist_names = resolve_sl_dist_names(use_optimized_runtime=use_optimized_runtime)
 
     if hosted_assertions:
         native_image_args += ["-J-ea", "-J-esa"]
@@ -884,7 +861,7 @@ def native_truffle_unittest(args):
     try:
         jdk = mx.get_jdk(tag="graalvm")
         unittest_distributions = ["mx:JUNIT-PLATFORM-NATIVE"]
-        truffle_runtime_distributions = resolve_truffle_dist_names(True, True)
+        truffle_runtime_distributions = resolve_truffle_dist_names(True)
         test_classes_file = os.path.join(tmp, "test_classes.txt")
 
         def collect_unittest_distributions(test_deps, vm_launcher, vm_args):
@@ -1060,69 +1037,12 @@ def _sl_jvm_gate_tests(jdk, vm_args, force_cp=False, compile_immediately=True):
         mx.log(f"Run SL JVM Optimized Immediately Test on {jdk.home} force_cp={force_cp}")
         _run_sl_tests(run_jvm_optimized_immediately)
 
-    # test if the enterprise compiler is in use
-    # that everything works fine if truffle-enterprise.jar is not available
-    enterprise = _get_enterprise_truffle()
-    if enterprise:
-
-        def run_jvm_no_enterprise_optimized(test_file):
-            return _sl_command(
-                jdk,
-                vm_args,
-                [test_file, "--disable-launcher-output", *default_args],
-                use_optimized_runtime=True,
-                use_enterprise=False,
-                force_cp=force_cp,
-            )
-
-        def run_jvm_no_enterprise_optimized_immediately(test_file):
-            return _sl_command(
-                jdk,
-                vm_args,
-                [
-                    test_file,
-                    "--disable-launcher-output",
-                    "--engine.CompileImmediately",
-                    "--engine.BackgroundCompilation=false",
-                    *default_args,
-                ],
-                use_optimized_runtime=True,
-                use_enterprise=False,
-                force_cp=force_cp,
-            )
-
-        def run_jvm_no_enterprise_jvmci_disabled(test_file):
-            return _sl_command(
-                jdk,
-                vm_args,
-                [
-                    test_file,
-                    "--disable-launcher-output",
-                    "--engine.WarnInterpreterOnly=false",
-                    "-XX:-EnableJVMCI",
-                    *default_args,
-                ],
-                use_optimized_runtime=True,
-                use_enterprise=False,
-                force_cp=force_cp,
-            )
-
-        mx.log(f"Run SL JVM Optimized  Test No Truffle Enterprise on {jdk.home} force_cp={force_cp}")
-        _run_sl_tests(run_jvm_no_enterprise_optimized)
-
-        if compile_immediately:
-            mx.log(f"Run SL JVM Optimized Immediately Test No Truffle Enterprise on {jdk.home} force_cp={force_cp}")
-            _run_sl_tests(run_jvm_no_enterprise_optimized_immediately)
-
-        mx.log(f"Run SL JVM Optimized  Test No Truffle Enterprise JVMCI disabled on {jdk.home} force_cp={force_cp}")
-        _run_sl_tests(run_jvm_no_enterprise_jvmci_disabled)
-
 
 def _sl_native_optimized_gate_tests(force_cp):
     target_dir = tempfile.mkdtemp()
     jdk = mx.get_jdk(tag="graalvm")
     vm_args = []
-    image = _native_image_sl(jdk, vm_args, target_dir, use_optimized_runtime=True, use_enterprise=True)
+    image = _native_image_sl(jdk, vm_args, target_dir, use_optimized_runtime=True)
 
     def run_native_optimized(test_file):
         return [image, test_file, "--disable-launcher-output"]
@@ -1142,34 +1062,6 @@ def _sl_native_optimized_gate_tests(force_cp):
     _run_sl_tests(run_native_optimized_immediately)
 
     mx.rmtree(target_dir)
-
-    # test if the enterprise compiler is in use
-    # that everything works fine if truffle-enterprise.jar is not availble
-    enterprise = _get_enterprise_truffle()
-    if enterprise:
-        target_dir = tempfile.mkdtemp()
-        image = _native_image_sl(
-            jdk, vm_args, target_dir, use_optimized_runtime=True, use_enterprise=False, force_cp=force_cp
-        )
-
-        def run_no_enterprise_native_optimized(test_file):
-            return [image, test_file, "--disable-launcher-output"]
-
-        def run_no_enterprise_native_optimized_immediately(test_file):
-            return [
-                image,
-                test_file,
-                "--disable-launcher-output",
-                "--engine.CompileImmediately",
-                "--engine.BackgroundCompilation=false",
-            ]
-
-        mx.log("Run SL Native Optimized Test No Truffle Enterprise")
-        _run_sl_tests(run_no_enterprise_native_optimized)
-        mx.log("Run SL Native Optimized Immediately Test No Truffle Enterprise")
-        _run_sl_tests(run_no_enterprise_native_optimized_immediately)
-
-        shutil.rmtree(target_dir)
 
 
 def truffle_native_context_preinitialization_tests(build_args=None):
@@ -1204,7 +1096,7 @@ def truffle_native_unit_tests_gate(use_optimized_runtime=True, build_args=None):
     test_packages = [
         "com.oracle.truffle.api.test",
         "com.oracle.truffle.api.staticobject.test",
-        "com.oracle.truffle.sandbox.enterprise.test",
+        "com.oracle.truffle.sandbox.test",
     ]
     if not is_static:
         # static executable does not support dynamic library loading required by NFI tests
@@ -1814,12 +1706,11 @@ class _PolyglotIsolateResourceProject(mx.JavaProject):
     """
 
     def __init__(
-        self, language_suite, subDir, language_id, all_language_ids, resource_id, os_name, cpu_architecture, deps, placeholder
-    ):
+        self, language_suite, subDir, language_id, all_language_ids, resource_id, os_name, cpu_architecture, placeholder):
         name = f"com.oracle.truffle.isolate.resource.{language_id}.{os_name}.{cpu_architecture}"
         javaCompliance = str(mx.distribution("truffle:TRUFFLE_API").javaCompliance) + "+"
         project_dir = os.path.join(language_suite.dir, subDir, name)
-        all_deps = ["truffle:TRUFFLE_API"] + deps
+        all_deps = ["truffle:TRUFFLE_API"]
         if placeholder:
             all_deps += ["sdk:NATIVEIMAGE"]
         super().__init__(
@@ -1980,18 +1871,14 @@ def register_polyglot_isolate_distributions(
         return False
 
     enterprise_graalvm = mx_sdk_vm_ng.is_enterprise()
-    optional_truffle_enterprise_dist = ['truffle-enterprise:TRUFFLE_ENTERPRISE'] if enterprise_graalvm else []
     maven_edition_qualifier = '' if enterprise_graalvm else '-community'
-    licenses = set(language_license)
-    if enterprise_graalvm:
-        # The graal-enterprise suite may not be fully loaded.
-        # We cannot look up the TRUFFLE_ENTERPRISE distribution to resolve its license
-        # We pass directly the license id
-        licenses.update(['GFTC'])
-
     if not isinstance(language_license, list):
         assert isinstance(language_license, str)
         language_license = [language_license]
+    licenses = set(language_license)
+    if enterprise_graalvm:
+        licenses.update(['GFTC'])
+    licenses = sorted(licenses)
 
     def _qualname(distribution_name):
         return language_suite.name + ":" + distribution_name if distribution_name.find(":") < 0 else distribution_name
@@ -2039,7 +1926,6 @@ def register_polyglot_isolate_distributions(
             resource_id,
             os_name,
             cpu_architecture,
-            optional_truffle_enterprise_dist,
             not build_for_current_platform,
         )
         register_project(build_internal_resource)
@@ -2051,7 +1937,6 @@ def register_polyglot_isolate_distributions(
             # 2. Register a project building the isolate library
             isolate_deps = [
                 language_pom_distribution,
-                *optional_truffle_enterprise_dist,
                 *additional_image_path_artifacts,
             ]
             build_library = PolyglotIsolateProject(
@@ -2067,12 +1952,13 @@ def register_polyglot_isolate_distributions(
                 "fileListEntry": f"{resource_base_folder}/files",
                 "maven": False,
             }
+            library_name = "polyglotisolate" if os_name == "windows" else "libpolyglotisolate"
             layout_dist = mx.LayoutDirDistribution(
                 suite=language_suite,
                 name=f"{language_id_upper_case}_ISOLATE_LAYOUT_{os_name_upper_case}_{cpu_architecture_upper_case}",
                 deps=[],
                 layout={
-                    f'{resource_base_folder}/{mx.add_lib_suffix("libpolyglotisolate")}': f"dependency:{build_library.name}",
+                    f'{resource_base_folder}/{mx.add_lib_suffix(library_name)}': f"dependency:{build_library.name}",
                     f"{resource_base_folder}/resources/": {
                         "source_type": "dependency",
                         "dependency": f"{build_library.name}",
@@ -2127,10 +2013,10 @@ def register_polyglot_isolate_distributions(
             deps=resources_dist_dependencies,
             mainClass=None,
             excludedLibs=[],
-            distDependencies=["truffle:TRUFFLE_API"] + optional_truffle_enterprise_dist,
+            distDependencies=["truffle:TRUFFLE_API"],
             javaCompliance=str(build_internal_resource.javaCompliance) + "+",
             platformDependent=True,
-            theLicense=sorted(licenses),
+            theLicense=licenses,
             compress=True,
             **attrs,
         )
@@ -2156,9 +2042,8 @@ def register_polyglot_isolate_distributions(
             distDependencies=[],
             runtimeDependencies=[
                 resources_dist_name,
-                *optional_truffle_enterprise_dist,
             ],
-            theLicense=sorted(licenses),
+            theLicense=licenses,
             **attrs,
         )
         register_distribution(meta_pom_dist)
@@ -2182,7 +2067,7 @@ def register_polyglot_isolate_distributions(
         name=isolate_dist_name,
         distDependencies=[],
         runtimeDependencies=[pom.name for pom in platform_meta_poms],
-        theLicense=sorted(licenses),
+        theLicense=licenses,
         **attrs,
     )
     register_distribution(meta_pom_dist)

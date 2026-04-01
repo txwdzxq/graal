@@ -116,7 +116,7 @@ public final class TruffleStackTrace extends Exception {
                 base = new Exception();
                 fromHostLanguage = false;
             }
-            this.materializedHostException = LanguageAccessor.ENGINE.updateHostException(throwable, base);
+            this.materializedHostException = LanguageAccessor.ISOLATE.isIsolateGuest() ? LanguageAccessor.ISOLATE.mergeHostStackTrace(throwable, base) : base;
             this.originatedInHostLanguage = fromHostLanguage;
         }
     }

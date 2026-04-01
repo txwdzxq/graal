@@ -1778,7 +1778,6 @@ suite = {
         "uses" : [
           "com.oracle.truffle.api.impl.TruffleLocator",
           "com.oracle.truffle.runtime.TruffleTypes",
-          "com.oracle.truffle.runtime.EngineCacheSupport",
           "com.oracle.truffle.runtime.jfr.EventFactory.Provider",
           "com.oracle.truffle.runtime.FloodControlHandler",
           "org.graalvm.home.HomeFinder",
@@ -1906,6 +1905,7 @@ suite = {
       ],
       "distDependencies" : [
         "sdk:COLLECTIONS",
+        "sdk:JNIUTILS",
         "sdk:NATIVEBRIDGE",
         "sdk:POLYGLOT"
       ],

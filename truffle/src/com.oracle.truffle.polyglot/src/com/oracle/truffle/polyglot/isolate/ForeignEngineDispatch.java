@@ -43,6 +43,7 @@ package com.oracle.truffle.polyglot.isolate;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.ref.Reference;
+import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.time.ZoneId;
 import java.util.Collections;
@@ -153,7 +154,8 @@ abstract class ForeignEngineDispatch extends AbstractEngineDispatch {
         Context localContext = dispatch.createContext(engineReceiver, localEngine, sandboxPolicy, out, err, in, allowHostAccess, hostAccess, apiAccess.getPolyglotAccessAll(), allowNativeAccess,
                         allowCreateThread,
                         allowHostClassLoading,
-                        allowInnerContextOptions, allowExperimentalOptions, classFilter, PolyglotIsolateAccessor.ENGINE.hostOptions(engineReceiver, options), Collections.emptyMap(), EMPTY_LANGUAGES,
+                        allowInnerContextOptions, allowExperimentalOptions, classFilter, PolyglotIsolateAccessor.ENGINE.filterHostOptions(engineReceiver, options), Collections.emptyMap(),
+                        EMPTY_LANGUAGES,
                         ioAccess, logHandler,
                         false, null, exceptionHandler, apiAccess.getEnvironmentAccessNone(), environment, null, null, currentWorkingDirectory, tmpDir, hostClassLoader, allowValueSharing,
                         useSystemExit, false);
@@ -162,7 +164,7 @@ abstract class ForeignEngineDispatch extends AbstractEngineDispatch {
         AbstractContextDispatch localContextDispatch = apiAccess.getContextDispatch(localContext);
         LogHandler localContextLogHandler = PolyglotIsolateAccessor.ENGINE.getContextLogHandler(localContextReceiver);
         HostObjectReferences hostObjectReflection = HostObjectReferences.create();
-        ProcessHandler useProcessHandler = processHandler != null ? processHandler : impl.newDefaultProcessHandler();
+        ProcessHandler useProcessHandler = processHandler != null ? processHandler : PolyglotIsolateAccessor.ENGINE.newDefaultProcessHandler();
         long contextHandle = foreignEngine.getPolyglotIsolateServices().createContext(foreignEngine, sandboxPolicy, out, err, in,
                         allowHostAccess, polyglotAccess, ioAccess, impl.getIO().getFileSystem(ioAccess), allowNativeAccess, allowCreateThread, allowHostClassLoading,
                         allowInnerContextOptions,
@@ -389,6 +391,11 @@ abstract class ForeignEngineDispatch extends AbstractEngineDispatch {
 
     @ReceiverMethod("storeCache")
     abstract boolean storeCacheImpl(Object receiver, Path targetFile, long cancelledWord);
+
+    @Override
+    public final ByteBuffer persistCache(Object receiver, Engine.CancellationCallback callback) {
+        throw new UnsupportedOperationException("Persisting the cache of an engine is not supported with polyglot isolate isolation.");
+    }
 
     @ReceiverMethod("onEngineCollected")
     @IsolateDeathHandler(IsolateDeathHandlerSupport.KeepIsolateDeathException.class)

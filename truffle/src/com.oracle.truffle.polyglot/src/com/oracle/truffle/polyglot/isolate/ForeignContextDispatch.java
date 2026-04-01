@@ -171,7 +171,7 @@ abstract class ForeignContextDispatch extends AbstractContextDispatch {
                 }
             } finally {
                 /*
-                 * A3/B3) Remove from {@code EnterprisePolyglotImpl#isolatedContextsByLocalContext}
+                 * A3/B3) Remove from {@code isolatedContextsByHandle.Lazy#isolatedContextsByHandle}
                  * if the isolate is not active and the context is not required elsewhere
                  */
                 PolyglotIsolateHostSupport.releaseContextRegisteredRequirement(foreignContext, !isolate.isActive() && foreignCloseSuccessful);

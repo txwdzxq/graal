@@ -1978,7 +1978,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
         LIR lir = lirGenResult.getLIR();
         OptionValues options = lir.getOptions();
         AMD64MacroAssembler masm = createAssembler(options);
-        if (ConstantBlindingInstance.shouldForce4ByteDisplacements(options) && !SubstrateUtil.HOSTED) {
+        if (!SubstrateUtil.HOSTED && ConstantBlindingInstance.shouldForce4ByteDisplacements(options)) {
             masm.setForce4ByteNonZeroDisplacements(true);
         }
         PatchConsumerFactory patchConsumerFactory;
@@ -2011,7 +2011,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
 
     @Override
     protected AMD64MacroAssembler createAssembler(OptionValues options) {
-        return new AMD64SvmMacroAssembler(getTarget(), options, true);
+        return new SubstrateAMD64MacroAssembler(getTarget(), options, true);
     }
 
     protected FrameContext createFrameContext(SharedMethod method, Deoptimizer.StubType stubType, CallingConvention callingConvention) {

@@ -33,16 +33,16 @@ import jdk.vm.ci.code.Register;
 import jdk.vm.ci.code.TargetDescription;
 
 /**
- * This class is currently only needed by the {@link AMD64MemoryMaskingAndFencing} mitigation. It
- * allows fine-grained control of op codes that use memory as source operand, needed to intercept
- * addresses created after the {@link AMD64AddressLoweringAndMaskingByNodePhase} has run. It emits
- * LFENCEs on top of each memory access that is not already masked or fenced.
+ * This class was introduced for the {@link AMD64MemoryMaskingAndFencing} mitigation. It allows
+ * fine-grained control of op codes that use memory as source operand, needed to intercept addresses
+ * created after the {@link AMD64AddressLoweringAndMaskingByNodePhase} has run. It emits LFENCEs on
+ * top of each memory access that is not already masked or fenced.
  */
-public class AMD64SvmMacroAssembler extends AMD64MacroAssembler {
+public class SubstrateAMD64MacroAssembler extends AMD64MacroAssembler {
 
     private int lastMarkedPosition = -1;
 
-    public AMD64SvmMacroAssembler(TargetDescription target, OptionValues optionValues, boolean hasIntelJccErratum) {
+    public SubstrateAMD64MacroAssembler(TargetDescription target, OptionValues optionValues, boolean hasIntelJccErratum) {
         super(target, optionValues, hasIntelJccErratum);
     }
 

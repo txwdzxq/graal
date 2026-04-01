@@ -1389,16 +1389,8 @@ final class EngineAccessor extends Accessor {
         }
 
         @Override
-        public boolean isInternal(Object engineObject, FileSystem fs) {
-            AbstractPolyglotImpl polyglot;
-            if (engineObject instanceof VMObject vmObject) {
-                polyglot = vmObject.getImpl();
-            } else if (engineObject instanceof EmbedderFileSystemContext embedderContext) {
-                polyglot = embedderContext.getImpl();
-            } else {
-                throw new AssertionError("Unsupported engine object " + engineObject);
-            }
-            return polyglot.isInternalFileSystem(fs);
+        public boolean isInternal(FileSystem fs) {
+            return FileSystems.isInternalDelegatingToHost(fs);
         }
 
         @Override
@@ -1665,7 +1657,17 @@ final class EngineAccessor extends Accessor {
         @Override
         public boolean hasDefaultProcessHandler(Object polyglotLanguageContext) {
             PolyglotLanguageContext context = (PolyglotLanguageContext) polyglotLanguageContext;
-            return context.getImpl().getRootImpl().isDefaultProcessHandler(context.context.config.processHandler);
+            if (EngineAccessor.ISOLATE.isIsolateGuest()) {
+                // In polyglot isolate ask the host
+                return EngineAccessor.ISOLATE.isDefaultProcessHandler(context.context.config.processHandler);
+            } else {
+                return ProcessHandlers.isDefault(context.context.config.processHandler);
+            }
+        }
+
+        @Override
+        public boolean isDefaultProcessHandler(ProcessHandler handler) {
+            return ProcessHandlers.isDefault(handler);
         }
 
         @Override
@@ -2157,7 +2159,7 @@ final class EngineAccessor extends Accessor {
 
         @Override
         public AutoCloseable createPolyglotThreadScope() {
-            return PolyglotImpl.findInstance().getRootImpl().createThreadScope();
+            return PolyglotImpl.findInstance().createThreadScope();
         }
 
         @Override
@@ -2394,11 +2396,6 @@ final class EngineAccessor extends Accessor {
         }
 
         @Override
-        public <T extends Throwable> T updateHostException(Throwable forException, T hostException) {
-            return PolyglotImpl.findInstance().getRootImpl().mergeHostStackTrace(forException, hostException);
-        }
-
-        @Override
         public void materializePolyglotException(RuntimeException polyglotException) {
             PolyglotExceptionImpl impl = (PolyglotExceptionImpl) PolyglotImpl.findInstance().getAPIAccess().getPolyglotExceptionReceiver(polyglotException);
             impl.materialize();
@@ -2410,18 +2407,28 @@ final class EngineAccessor extends Accessor {
         }
 
         @Override
-        public AbstractPolyglotImpl getRootPolyglot() {
-            return PolyglotImpl.findInstance().getRootImpl();
+        public AbstractPolyglotImpl findPolyglot() {
+            return PolyglotImpl.findInstance();
+        }
+
+        @Override
+        public ProcessHandler newDefaultProcessHandler() {
+            return PolyglotEngineImpl.newDefaultProcessHandler();
+        }
+
+        @Override
+        public boolean isInCurrentEngineHostCallback(Object polyglotEngine) {
+            return PolyglotContextImpl.isInCurrentEngineHostCallback(polyglotEngine);
         }
 
         @Override
         public boolean isInternalFileSystem(FileSystem fileSystem) {
-            return FileSystems.isInternal(PolyglotImpl.findInstance().getRootImpl(), fileSystem);
+            return FileSystems.isInternal(fileSystem);
         }
 
         @Override
-        public Map<String, String> hostOptions(Object polyglotEngineImpl, Map<String, String> polyglotOptions) {
-            return PolyglotEngineOptions.hostOptions(((PolyglotEngineImpl) polyglotEngineImpl).getImpl().createEngineOptionDescriptors(), polyglotOptions);
+        public Map<String, String> filterHostOptions(Object polyglotEngineImpl, Map<String, String> polyglotOptions) {
+            return PolyglotEngineOptions.filterHostOptions(((PolyglotEngineImpl) polyglotEngineImpl).getImpl().createEngineOptionDescriptors(), polyglotOptions);
         }
 
         @Override

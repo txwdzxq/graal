@@ -93,11 +93,11 @@ import java.util.List;
  * The mitigation implementation is divided in two parts. The first is a phase in the low-tier,
  * {@link AMD64AddressLoweringAndMaskingByNodePhase}, responsible for lowering OffsetAddressNodes
  * into their masked (or fenced) counterpart ({@link AMD64MaskedAddressNode}). The second part is
- * implemented at the assembler level, specifically in {@link AMD64SvmMacroAssembler} which allows
- * interception of all the op codes using an AMD64Address as source operand. Thus, we can emit a
- * barrier for all the addresses that were created after the lowering phase. At this stage, we
- * cannot apply masking anymore, however the amount of addresses created during the emission phase
- * is limited, thus performance is not hindered.
+ * implemented at the assembler level, specifically in {@link SubstrateAMD64MacroAssembler} which
+ * allows interception of all the op codes using an AMD64Address as source operand. Thus, we can
+ * emit a barrier for all the addresses that were created after the lowering phase. At this stage,
+ * we cannot apply masking anymore, however the amount of addresses created during the emission
+ * phase is limited, thus performance is not hindered.
  * </p>
  */
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)

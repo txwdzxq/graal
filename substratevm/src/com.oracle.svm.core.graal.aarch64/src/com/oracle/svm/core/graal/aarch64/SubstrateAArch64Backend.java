@@ -1034,8 +1034,8 @@ public class SubstrateAArch64Backend extends SubstrateBackendWithAssembler<Subst
             if (SubstrateBackend.shouldRandomizeRuntimeCodeOffset(method)) {
                 SubstrateBackend.randomizeRuntimeCodeOffset(crb, offset -> {
                     int instructionSize = Integer.BYTES;
-                    int alignedOffset = NumUtil.roundUp(offset, instructionSize);
-                    for (int i = 0; i < alignedOffset / instructionSize; i++) {
+                    int instructionCount = NumUtil.divideAndRoundUp(offset, instructionSize);
+                    for (int i = 0; i < instructionCount; i++) {
                         masm.brk(0);
                     }
                 });

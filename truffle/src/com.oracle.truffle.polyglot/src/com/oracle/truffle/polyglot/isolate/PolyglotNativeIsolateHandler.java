@@ -40,7 +40,6 @@
  */
 package com.oracle.truffle.polyglot.isolate;
 
-import org.graalvm.jniutils.JNI;
 import org.graalvm.jniutils.JNIEntryPoint;
 import org.graalvm.nativebridge.NativeIsolateConfig;
 import org.graalvm.nativebridge.NativeIsolateHandler;
@@ -61,14 +60,12 @@ final class PolyglotNativeIsolateHandler implements NativeIsolateHandler {
     }
 
     /**
-     * Implemented by
-     * {@link PolyglotIsolateCreateSupport#createIsolate(JNI.JNIEnv, JNI.JClass, int)}.
+     * Implemented by {@code com.oracle.svm.truffle.PolyglotIsolateCreateSupport}.
      */
-    @SuppressWarnings("javadoc")
     private static native long createIsolate(int memoryProtectionDomain) throws PolyglotIsolateCreateException;
 
     /**
-     * Implemented by com.oracle.svm.enterprise.truffle.PolyglotIsolateTearDownSupport.
+     * Implemented by {@code com.oracle.svm.truffle.PolyglotIsolateTearDownSupport}.
      */
     private static native int tearDownIsolate(long isolateThread);
 }

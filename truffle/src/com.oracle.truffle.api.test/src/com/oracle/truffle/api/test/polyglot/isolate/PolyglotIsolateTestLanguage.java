@@ -58,6 +58,7 @@ import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.oracle.truffle.api.interop.InvalidArrayIndexException;
 import org.graalvm.nativeimage.ImageInfo;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Isolates;
@@ -142,11 +143,12 @@ class PolyglotIsolateTestLanguage extends TruffleLanguage<PolyglotIsolateTestLan
     private static final String KILL_ACTIVE_CHILD_PROCESS = "killActiveChildProcess";
     private static final String SPAWN_SUBPROCESS = "spawnSubProcess";
     private static final String LOOP_HOST_CALL = "loopHostCall";
+    private static final String ALLOCATE_GUEST_OBJECT = "allocateGuestObject";
     private static final Pattern CALL_PATTERN = Pattern.compile(
                     "^(" + HOST_OBJECT_CALL + "|" + SPAWN_HOST_OBJECT_CALL + "|" + SPAWN_HOST_OBJECT_CALL_NO_WAIT + "|" + SPAWN_HOST_OBJECT_CALL_VIRTUAL +
                                     "|" + THROW + "|" + CATCH + "|" + READ + "|" + WRITE + "|" + EVAL + "|" + ALLOC + "|" + ACCESS + "|" + ACCESS_BINDINGS +
                                     "|" + RETURN_WEAKLY_REACHABLE_GUEST_OBJECT + "|" + EXIT + "|" + TEST + "|" + LOG + "|" + INTERPRETERRECURSION + "|" + KILL_ACTIVE_CHILD_PROCESS +
-                                    "|" + SPAWN_SUBPROCESS + "|" + LOOP_HOST_CALL +
+                                    "|" + SPAWN_SUBPROCESS + "|" + LOOP_HOST_CALL + "|" + ALLOCATE_GUEST_OBJECT +
                                     ")\\((\\w+)\\((.*)\\),(\\d+)\\)$");
 
     @Override
@@ -224,7 +226,8 @@ class PolyglotIsolateTestLanguage extends TruffleLanguage<PolyglotIsolateTestLan
         INTERPRETERRECURSION(PolyglotIsolateTestLanguage.INTERPRETERRECURSION),
         KILL(PolyglotIsolateTestLanguage.KILL_ACTIVE_CHILD_PROCESS),
         SPAWNSUBPROCESS(PolyglotIsolateTestLanguage.SPAWN_SUBPROCESS),
-        LOOP_HOST_CALL(PolyglotIsolateTestLanguage.LOOP_HOST_CALL);
+        LOOP_HOST_CALL(PolyglotIsolateTestLanguage.LOOP_HOST_CALL),
+        ALLOCATE_GUEST_OBJECT(PolyglotIsolateTestLanguage.ALLOCATE_GUEST_OBJECT);
 
         private static final Map<String, Command> COMMAND_BY_NAME;
         static {
@@ -314,6 +317,8 @@ class PolyglotIsolateTestLanguage extends TruffleLanguage<PolyglotIsolateTestLan
                     return spawnSubProcess();
                 case LOOP_HOST_CALL:
                     return loopHostCall();
+                case ALLOCATE_GUEST_OBJECT:
+                    return allocateGuestObject();
                 default:
                     CompilerDirectives.transferToInterpreterAndInvalidate();
                     throw new IllegalArgumentException("Unknown command " + command);
@@ -588,6 +593,11 @@ class PolyglotIsolateTestLanguage extends TruffleLanguage<PolyglotIsolateTestLan
             } catch (InteropException e) {
                 throw CompilerDirectives.shouldNotReachHere(e);
             }
+        }
+
+        @TruffleBoundary
+        private Object allocateGuestObject() {
+            return new GuestArray(new byte[Integer.parseInt(argument)]);
         }
 
         @SuppressWarnings({"unchecked", "unused"})
@@ -873,6 +883,40 @@ class PolyglotIsolateTestLanguage extends TruffleLanguage<PolyglotIsolateTestLan
             } catch (UnknownIdentifierException uid) {
                 throw CompilerDirectives.shouldNotReachHere("Invalid hostMethodName " + hostMethodName);
             }
+        }
+    }
+
+    @ExportLibrary(InteropLibrary.class)
+    static final class GuestArray implements TruffleObject {
+
+        final byte[] data;
+
+        GuestArray(byte[] data) {
+            this.data = data;
+        }
+
+        @ExportMessage
+        @SuppressWarnings("static-method")
+        boolean hasArrayElements() {
+            return true;
+        }
+
+        @ExportMessage
+        long getArraySize() {
+            return data.length;
+        }
+
+        @ExportMessage
+        boolean isArrayElementReadable(long index) {
+            return index >= 0 && index < data.length;
+        }
+
+        @ExportMessage
+        Object readArrayElement(long index) throws InvalidArrayIndexException {
+            if (index < 0 || index >= data.length) {
+                throw InvalidArrayIndexException.create(index);
+            }
+            return data[(int) index];
         }
     }
 }

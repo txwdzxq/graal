@@ -48,6 +48,7 @@ import org.graalvm.nativebridge.Peer;
 import org.graalvm.polyglot.Context;
 
 import java.lang.ref.Reference;
+import java.lang.ref.WeakReference;
 
 final class ForeignContext implements ForeignObject {
 
@@ -57,6 +58,7 @@ final class ForeignContext implements ForeignObject {
     private final HostObjectReferences guestToHostReceiver;
     private final PolyglotIsolateServices polyglotIsolateServices;
     private final IsolateSourceCache sourceCache;
+    private final WeakReference<ForeignContext> weakThis;
     int registrationRequired;
     private volatile Reference<Context> weakAPI;
     private boolean disposed;
@@ -73,6 +75,7 @@ final class ForeignContext implements ForeignObject {
         this.guestToHostReceiver = guestToHostReceiver;
         this.polyglotIsolateServices = polyglotIsolateServices;
         this.sourceCache = sourceCache;
+        this.weakThis = new WeakReference<>(this);
         guestToHostReceiver.setAPI(this);
     }
 
@@ -124,6 +127,10 @@ final class ForeignContext implements ForeignObject {
 
     Pair<Isolate<?>, Long> getKey() {
         return Pair.create(peer.getIsolate(), peer.getHandle());
+    }
+
+    WeakReference<ForeignContext> asWeakReference() {
+        return weakThis;
     }
 
     /**

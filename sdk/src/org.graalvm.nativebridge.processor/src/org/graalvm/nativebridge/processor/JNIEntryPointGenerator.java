@@ -119,6 +119,17 @@ final class JNIEntryPointGenerator extends AbstractBridgeGenerator {
                 builder.classStart(EnumSet.of(Modifier.PUBLIC, Modifier.FINAL), name, null, List.of(getTypeCache().jniEntryPointProvider));
                 builder.indent();
                 String service = Utilities.getQualifiedName(getTypeCache().jniEntryPointProvider);
+                /*
+                 * Write a per-provider registration file under META-INF/jni-entry-points/ instead
+                 * of directly into META-INF/services/. Each file is named after the provider class
+                 * and contains the service interface it implements.
+                 *
+                 * During archiving, NativeBridgeArchiveParticipant (mx_sdk.py) collects all files
+                 * from META-INF/jni-entry-points/ and merges them into the canonical
+                 * META-INF/services/ entries.
+                 *
+                 * The indirection is required for correctness under incremental compilation.
+                 */
                 processor.createRegistrationFile("jni-entry-points", owner.getQualifiedName() + "." + name, service, annotatedElement);
                 return new CompilationUnit(processor, builder, annotatedElement, name);
             }

@@ -272,7 +272,10 @@ public abstract class OptimizedTruffleRuntime implements TruffleRuntime, Truffle
     }
 
     protected EngineCacheSupport loadEngineCacheSupport(List<OptionDescriptors> options) {
-        return loadGraalRuntimeServiceProvider(EngineCacheSupport.class, options, false);
+        DebugEngineCacheSupport debugEngineCacheSupport = new DebugEngineCacheSupport();
+        OptionDescriptors serviceOptions = debugEngineCacheSupport.getEngineOptions();
+        options.add(serviceOptions);
+        return debugEngineCacheSupport;
     }
 
     public abstract ThreadLocalHandshake getThreadLocalHandshake();

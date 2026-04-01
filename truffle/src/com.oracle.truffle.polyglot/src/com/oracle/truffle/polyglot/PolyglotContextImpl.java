@@ -83,6 +83,8 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 
+import com.oracle.truffle.api.RootCallTarget;
+import com.oracle.truffle.api.Truffle;
 import org.graalvm.collections.Pair;
 import org.graalvm.options.OptionValues;
 import org.graalvm.polyglot.Context;
@@ -2894,7 +2896,7 @@ final class PolyglotContextImpl implements com.oracle.truffle.polyglot.PolyglotI
         if (parent == null) {
             engine.polyglotHostService.notifyClearExplicitContextStack(this);
         }
-        if (isActive(Thread.currentThread()) && !engine.getImpl().getRootImpl().isInCurrentEngineHostCallback(engine)) {
+        if (isActive(Thread.currentThread()) && !isInCurrentEngineHostCallback(engine)) {
             PolyglotThreadInfo threadInfo = getCurrentThreadInfo();
             if (!threadInfo.explicitContextStack.isEmpty()) {
                 PolyglotContextImpl c = this;
@@ -2908,6 +2910,27 @@ final class PolyglotContextImpl implements com.oracle.truffle.polyglot.PolyglotI
                     }
                 }
             }
+        }
+    }
+
+    static boolean isInCurrentEngineHostCallback(Object engine) {
+        if (EngineAccessor.ISOLATE.isIsolateGuest()) {
+            // In polyglot isolate ask the host.
+            return EngineAccessor.ISOLATE.isInCurrentEngineHostCallback(engine);
+        }
+        RootNode topMostGuestToHostRootNode = Truffle.getRuntime().iterateFrames((f) -> {
+            RootNode root = ((RootCallTarget) f.getCallTarget()).getRootNode();
+            if (EngineAccessor.HOST.isGuestToHostRootNode(root)) {
+                return root;
+            }
+            return null;
+        });
+        if (topMostGuestToHostRootNode == null) {
+            return false;
+        } else {
+            PolyglotSharingLayer sharing = (PolyglotSharingLayer) EngineAccessor.NODES.getSharingLayer(topMostGuestToHostRootNode);
+            PolyglotEngineImpl rootEngine = sharing.engine;
+            return rootEngine == engine;
         }
     }
 

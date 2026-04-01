@@ -293,11 +293,24 @@ final class PolyglotEngineOptions {
                     "'internal' runs the isolate within the current VM, using native-image isolation, 'external' runs the isolate in a separate external process.", usageSyntax = "internal|external", sandbox = SandboxPolicy.UNTRUSTED)//
     static final OptionKey<IsolatePolicy> IsolateMode = new OptionKey<>(IsolatePolicy.INTERNAL);
 
+    /**
+     * Isolate-specific options that are invalid unless polyglot isolation is enabled
+     * ({@code engine.SpawnIsolate=true}).
+     * <p>
+     * This list intentionally excludes {@code engine.IsolateMode}, {@code engine.IsolateLibrary},
+     * and {@code engine.IsolateLauncher}, because CI jobs provide these options globally even for
+     * tests that do not run with isolation enabled.
+     */
     static final String[] ISOLATE_SPECIFIC_OPTIONS = new String[]{
                     "engine.HostCallStackHeadRoom",
+                    "engine.IsolateOption",
                     "engine.IsolateMemoryProtection",
                     "engine.UntrustedCodeMitigation",
                     "engine.MaxIsolateMemory",
+    };
+
+    static final String[] ISOLATE_SPECIFIC_MAP_OPTIONS = new String[]{
+                    "engine.IsolateOption.",
     };
 
     /*
@@ -328,19 +341,19 @@ final class PolyglotEngineOptions {
         return INTERPRETER_CALL_OVERHEAD + INTERPRETER_NODE_OVERHEAD * maxASTDepth;
     }
 
-    static Map<String, String> hostOptions(OptionDescriptors engineOptionsDescriptors, Map<String, String> options) {
+    static Map<String, String> filterHostOptions(OptionDescriptors engineOptionsDescriptors, Map<String, String> options) {
         OptionDescriptors localDescriptors = EngineAccessor.RUNTIME.getRuntimeOptionDescriptors();
         OptionDescriptors localOptions = EngineAccessor.LANGUAGE.createOptionDescriptorsUnion(localDescriptors, engineOptionsDescriptors);
         return options.entrySet().stream().filter((entry) -> filterHostOption(entry.getKey(), localOptions)).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     private static boolean filterHostOption(String optionKey, OptionDescriptors localEngineOptions) {
-        if (optionKey.startsWith("engine.") && !optionKey.equals("engine.InterpreterCallStackHeadRoom")) {
-            return localEngineOptions.get(optionKey) != null;
-        } else if (optionKey.startsWith("log.")) {
+        if (optionKey.startsWith("log.")) {
             return true;
+        } else if (optionKey.equals("engine.InterpreterCallStackHeadRoom")) {
+            return false;
         }
-        return false;
+        return localEngineOptions.get(optionKey) != null;
     }
 
     enum CloseOnGCExceptionAction {

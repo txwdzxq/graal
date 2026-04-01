@@ -739,19 +739,19 @@ final class PolyglotIsolateHostSupport {
 
         @Override
         public boolean isDefaultProcessHandler(ProcessHandler processHandler) {
-            return polyglot.isDefaultProcessHandler(processHandler);
+            return PolyglotIsolateAccessor.ENGINE.isDefaultProcessHandler(processHandler);
         }
 
         @Override
         public boolean isInternalFileSystem(FileSystem fileSystem) {
-            return polyglot.isInternalFileSystem(fileSystem);
+            return PolyglotIsolateAccessor.ENGINE.isInternalFileSystem(fileSystem);
         }
 
         @Override
         public boolean isInCurrentEngineHostCallback(Object engineReceiver) {
             ForeignEngine foreignEngine = (ForeignEngine) engineReceiver;
             Object localEngineReceiver = polyglot.getAPIAccess().getEngineReceiver(foreignEngine.getLocalEngine());
-            return polyglot.isInCurrentEngineHostCallback(localEngineReceiver);
+            return PolyglotIsolateAccessor.ENGINE.isInCurrentEngineHostCallback(localEngineReceiver);
         }
 
         @Override
