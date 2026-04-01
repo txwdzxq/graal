@@ -83,7 +83,6 @@ import com.oracle.svm.core.NeverStrengthenGraphWithConstants;
 import com.oracle.svm.core.RuntimeAssertionsSupport;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.SubstrateOptions.OptimizationLevel;
-import com.oracle.svm.core.TrackDynamicAccessEnabled;
 import com.oracle.svm.core.annotate.Delete;
 import com.oracle.svm.core.annotate.InjectAccessors;
 import com.oracle.svm.core.annotate.TargetClass;
@@ -276,7 +275,7 @@ public class SVMHost extends HostVM {
     private final ConstantExpressionRegistry constantExpressionRegistry;
 
     private final boolean trackDynamicAccess;
-    private DynamicAccessDetectionSupport dynamicAccessDetectionSupport = null;
+    private DynamicAccessMethodLookupSupport dynamicAccessMethodLookupSupport = null;
 
     @SuppressWarnings("this-escape")
     public SVMHost(OptionValues options, ImageClassLoader loader, ClassInitializationSupport classInitializationSupport, AnnotationSubstitutionProcessor annotationSubstitutions,
@@ -321,7 +320,7 @@ public class SVMHost extends HostVM {
 
         constantExpressionRegistry = StrictDynamicAccessInferenceFeature.isActive() ? ConstantExpressionRegistry.singleton() : null;
 
-        trackDynamicAccess = TrackDynamicAccessEnabled.isTrackDynamicAccessEnabled();
+        trackDynamicAccess = DynamicAccessDetectionSupport.isDynamicAccessTrackingEnabled();
     }
 
     /**
@@ -812,10 +811,10 @@ public class SVMHost extends HostVM {
             }
 
             if (trackDynamicAccess) {
-                if (dynamicAccessDetectionSupport == null) {
-                    dynamicAccessDetectionSupport = DynamicAccessDetectionSupport.instance();
+                if (dynamicAccessMethodLookupSupport == null) {
+                    dynamicAccessMethodLookupSupport = DynamicAccessMethodLookupSupport.instance();
                 }
-                if (dynamicAccessDetectionSupport.lookupDynamicAccessMethod(graph.method()) != null) {
+                if (dynamicAccessMethodLookupSupport.lookupDynamicAccessMethod(graph.method()) != null) {
                     new DynamicAccessMarkingPhase().apply(graph, bb.getProviders(method));
                 }
             }
