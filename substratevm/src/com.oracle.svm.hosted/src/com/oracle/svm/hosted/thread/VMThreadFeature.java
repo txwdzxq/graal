@@ -228,12 +228,12 @@ public class VMThreadFeature implements InternalFeature {
     @Override
     public void beforeCompilation(BeforeCompilationAccess config) {
         int nextOffset = threadLocalCollector.sortAndAssignOffsets();
-        if (!ImageLayerBuildingSupport.buildingExtensionLayer()) {
-            // Extension-layer builds restore the provider key from the loaded layer snapshot.
-            ImageSingletons.add(VMThreadLocalOffsetProvider.class, threadLocalCollector);
-        }
 
         if (ImageLayerBuildingSupport.firstImageBuild()) {
+            /*
+             * Extension-layer builds restore the provider key from the loaded layer snapshot.
+             */
+            ImageSingletons.add(VMThreadLocalOffsetProvider.class, threadLocalCollector);
             /*
              * This information is installed always in the first image. In subsequent images we only
              * need to relay to thread local accesses the previously assigned offsets
