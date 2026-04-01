@@ -164,6 +164,15 @@ public final class NativeImageHeap implements ImageHeap {
     /** A queue of objects that need to be added to the native image heap, to avoid recursion. */
     private final Deque<AddObjectData> addObjectWorklist = new ArrayDeque<>();
 
+    /**
+     * Actually adding an object to the image heap can be delayed until later, e.g., to add certain
+     * objects together to improve their access locality. In this case, the reason associated with
+     * the late constant must be added to the {@link ObjectReachabilityInfo} after the object's
+     * {@link ObjectInfo} has been added. This work list stores such pending operations. This is
+     * currently used for interned strings, which are all added late to improve locality.
+     */
+    private final List<AddLateToObjectReachabilityInfoData> addLateToObjectReachabilityInfoWorklist = new ArrayList<>();
+
     /** Objects that are known to be immutable in the native image heap. */
     private final Set<Object> knownImmutableObjects = Collections.newSetFromMap(new IdentityHashMap<>());
 
@@ -299,13 +308,20 @@ public final class NativeImageHeap implements ImageHeap {
                 aUniverse.getHeapScanner().rescanObject(obj, ImageHeapScanner.LATE_SCAN);
                 addObject(obj, true, reasonSupport.internedStringsTable());
             });
+            /*
+             * Transitively add interned strings to the image heap. Interned strings are added after
+             * their container objects to improve locality in the final heap layout, relying on the
+             * order in which they are discovered.
+             */
             processAddObjectWorklist();
         } else {
             internStringsPhase.disallow();
         }
 
+        processAddLateToObjectReachabilityInfoWorklist();
         addObjectsPhase.disallow();
-        assert addObjectWorklist.isEmpty();
+        assert addObjectWorklist.isEmpty() : "Heap model finalized with pending objects: " + addObjectWorklist.size();
+        assert addLateToObjectReachabilityInfoWorklist.isEmpty() : "Heap model finalized with pending late constants: " + addLateToObjectReachabilityInfoWorklist.size();
     }
 
     /**
@@ -431,21 +447,35 @@ public final class NativeImageHeap implements ImageHeap {
         VMError.guarantee(identityHashCode != 0, "0 is used as a marker value for 'hash code not yet computed'");
 
         /* This unwrapping of JavaConstants should be removed once GR-72922 is done. */
-        boolean isInternedString = false;
         Object objectConstant = hUniverse.getSnippetReflection().asObject(Object.class, uncompressed);
         if (objectConstant != null) {
             aUniverse.getHeapScanner().maybeForceHashCodeComputation(uncompressed);
             if (objectConstant instanceof String stringConstant) {
-                isInternedString = handleImageString(stringConstant);
-                assert !isInternedString || internStringsPhase.isAllowed() : "Interned strings cannot be added to the image heap at stage " + internStringsPhase;
+                boolean interned = handleImageString(stringConstant);
+                if (interned && !isPreviousLayerConstant(constant)) {
+                    assert internStringsPhase.isAllowed() : "Current-layer interned strings cannot be added to the image heap at stage " + internStringsPhase;
+                    addLateToObjectReachabilityInfo(constant, reason);
+                    return;
+                }
             }
         }
 
         final ObjectInfo existing = getConstantInfo(uncompressed);
         if (existing == null) {
-            Object objectReason = isInternedString ? reasonSupport.internedStringsTable() : reason;
-            addObjectToImageHeap(uncompressed, immutableFromParent, identityHashCode, objectReason);
-        } else if (objectReachabilityInfo != null) {
+            addObjectToImageHeap(uncompressed, immutableFromParent, identityHashCode, reason);
+        } else {
+            addToObjectReachabilityInfo(existing, reason);
+        }
+    }
+
+    private void addLateToObjectReachabilityInfo(JavaConstant constant, Object reason) {
+        if (objectReachabilityInfo != null) {
+            addLateToObjectReachabilityInfoWorklist.add(new AddLateToObjectReachabilityInfoData(constant, reason));
+        }
+    }
+
+    private void addToObjectReachabilityInfo(ObjectInfo existing, Object reason) {
+        if (objectReachabilityInfo != null) {
             objectReachabilityInfo.get(existing).addReason(reason);
         }
     }
@@ -743,12 +773,16 @@ public final class NativeImageHeap implements ImageHeap {
      * are reachable from regular constants in this layer.
      */
     private static boolean processBaseLayerConstant(JavaConstant constant, ObjectInfo info) {
-        if (((ImageHeapConstant) constant).isWrittenInPreviousLayer()) {
+        if (isPreviousLayerConstant(constant)) {
             info.setOffsetInPartition(HostedImageLayerBuildingSupport.singleton().getLoader().getObjectOffset(constant));
             info.setHeapPartition(BASE_LAYER_PARTITION);
             return true;
         }
         return false;
+    }
+
+    private static boolean isPreviousLayerConstant(JavaConstant constant) {
+        return ((ImageHeapConstant) constant).isWrittenInPreviousLayer();
     }
 
     private HostedType requireType(Optional<HostedType> optionalType, Object object, Object reason) {
@@ -905,6 +939,15 @@ public final class NativeImageHeap implements ImageHeap {
         }
     }
 
+    private void processAddLateToObjectReachabilityInfoWorklist() {
+        for (AddLateToObjectReachabilityInfoData data : addLateToObjectReachabilityInfoWorklist) {
+            ObjectInfo info = getConstantInfo(data.original);
+            VMError.guarantee(info != null, "Late constant must be associated with an ObjectInfo.");
+            addToObjectReachabilityInfo(info, data.reason);
+        }
+        addLateToObjectReachabilityInfoWorklist.clear();
+    }
+
     static class AddObjectData {
 
         AddObjectData(JavaConstant original, boolean immutableFromParent, Object reason) {
@@ -917,6 +960,14 @@ public final class NativeImageHeap implements ImageHeap {
         final JavaConstant original;
         final boolean immutableFromParent;
         final Object reason;
+    }
+
+    private record AddLateToObjectReachabilityInfoData(JavaConstant original, Object reason) {
+        AddLateToObjectReachabilityInfoData(JavaConstant original, Object reason) {
+            this.original = original;
+            this.reason = reason;
+            VMError.guarantee(!(original instanceof ImageHeapRelocatableConstant));
+        }
     }
 
     public final class ObjectInfo implements ImageHeapObject {
