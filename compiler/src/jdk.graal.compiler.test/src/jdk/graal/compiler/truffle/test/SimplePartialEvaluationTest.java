@@ -302,6 +302,8 @@ public class SimplePartialEvaluationTest extends PartialEvaluationTest {
 
         int addNodeconstant = 37;
 
+        UnrollingTestNode.ExecutingUnrollUntilReturnTest.interpretedInvocationCounts = 0;
+        UnrollingTestNode.ExecutingUnrollUntilReturnTest.compiledInvocationCounts = 0;
         UnrollingTestNode.ExecutingUnrollUntilReturnTest.clearSpecialEffect();
         int resBefore = t.new FullUnrollUntilReturnNestedLoopsContinueOuter06().execute(new FrameWithoutBoxing(fd, null)) + addNodeconstant;
 
