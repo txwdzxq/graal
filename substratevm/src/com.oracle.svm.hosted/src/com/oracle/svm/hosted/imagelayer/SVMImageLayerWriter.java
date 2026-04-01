@@ -139,8 +139,8 @@ import com.oracle.svm.hosted.imagelayer.SharedLayerSnapshotCapnProtoSchemaHolder
 import com.oracle.svm.hosted.imagelayer.SharedLayerSnapshotCapnProtoSchemaHolder.PrimitiveArray;
 import com.oracle.svm.hosted.imagelayer.SharedLayerSnapshotCapnProtoSchemaHolder.SharedLayerSnapshot;
 import com.oracle.svm.hosted.jni.JNIJavaCallVariantWrapperMethod;
+import com.oracle.svm.hosted.lambda.LambdaProxyRenamingSubstitutionProcessor;
 import com.oracle.svm.hosted.lambda.LambdaSubstitutionType;
-import com.oracle.svm.hosted.lambda.StableLambdaProxyNameFeature;
 import com.oracle.svm.hosted.meta.HostedField;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.hosted.meta.HostedUniverse;
@@ -556,8 +556,7 @@ public class SVMImageLayerWriter extends ImageLayerWriter {
          * switched.
          */
         if (type.getWrapped() instanceof LambdaSubstitutionType lambdaSubstitutionType) {
-            StableLambdaProxyNameFeature stableLambdaProxyNameFeature = ImageSingletons.lookup(StableLambdaProxyNameFeature.class);
-            if (!stableLambdaProxyNameFeature.getLambdaSubstitutionProcessor().isNameAlwaysStable(lambdaSubstitutionType.getName())) {
+            if (!LambdaProxyRenamingSubstitutionProcessor.singleton().isNameAlwaysStable(lambdaSubstitutionType.getName())) {
                 String message = "The lambda method " + lambdaSubstitutionType.getName() + " might not have a stable name in the extension image.";
                 handleNameConflict(message);
             }
