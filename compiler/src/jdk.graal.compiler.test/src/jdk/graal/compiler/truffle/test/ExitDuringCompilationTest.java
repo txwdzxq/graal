@@ -44,7 +44,8 @@ public class ExitDuringCompilationTest extends TestWithPolyglotOptions {
 
     @Test
     public void testExit() throws IOException, InterruptedException {
-        // Keep a deterministic pending-compilation window without making this test excessively slow.
+        // Keep a deterministic pending-compilation window without making this test excessively
+        // slow.
         SubprocessTestUtils.newBuilder(ExitDuringCompilationTest.class, () -> {
             try {
                 var cond = new NotifyCompilation();
