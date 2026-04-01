@@ -175,7 +175,7 @@ public class NeverInlineFailedTest {
 
     @Test
     public void testNeverInlineFailed2() throws IOException, InterruptedException {
-        testNeverInlineFailedImpl(Callee2::new, CollectionsUtil.mapOf("compiler.CompilationTimeout", "1"), "jdk.graal.compiler.core.common.PermanentBailoutException: Compilation exceeded");
+        testNeverInlineFailedImpl(Callee2::new, CollectionsUtil.mapOf("compiler.MaximumGraalGraphSize", "5000"), "Graph too big to safely compile");
     }
 
     private static void testNeverInlineFailedImpl(Supplier<RootNode> calleeSupplier, Map<String, String> extraOptions, String reasonContains) throws IOException, InterruptedException {
