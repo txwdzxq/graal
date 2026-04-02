@@ -269,17 +269,17 @@ public final class InspectorInstrument extends TruffleInstrument {
                 }
                 int inspectPort = port < 0 ? options.get(Inspect) : port;
                 if (host != null && !host.isEmpty() && !"127.0.0.1".equals(host)) {
-                    PrintWriter info = new PrintWriter(env.err());
-                    info.println("Only 127.0.0.1 is supported by the inspector. Requested host: " + host);
-                    info.flush();
+                    PrintWriter err = new PrintWriter(env.err());
+                    err.println("Only 127.0.0.1 is supported by the inspector. Requested host: " + host);
+                    err.flush();
                     return null;
                 }
                 try {
                     verifyPort(inspectPort);
                 } catch (IllegalArgumentException ex) {
-                    PrintWriter info = new PrintWriter(env.err());
-                    info.println(ex.getLocalizedMessage());
-                    info.flush();
+                    PrintWriter err = new PrintWriter(env.err());
+                    err.println(ex.getLocalizedMessage());
+                    err.flush();
                     return null;
                 }
                 connectionWatcher = new ConnectionWatcher();
@@ -288,9 +288,9 @@ public final class InspectorInstrument extends TruffleInstrument {
                                     options.get(Initialization), null, options.get(SourcePath),
                                     options.get(SuspensionTimeout), connectionWatcher);
                 } catch (IOException e) {
-                    PrintWriter info = new PrintWriter(env.err());
-                    info.println(new InspectorIOException(inspectPort, e).getLocalizedMessage());
-                    info.flush();
+                    PrintWriter err = new PrintWriter(env.err());
+                    err.println(new InspectorIOException(inspectPort, e).getLocalizedMessage());
+                    err.flush();
                 }
                 return server != null ? server.getConnection() : null;
             }
@@ -300,8 +300,8 @@ public final class InspectorInstrument extends TruffleInstrument {
                 if (server != null) {
                     return server.getConnection().getExecutionContext();
                 } else {
-                    PrintWriter info = new PrintWriter(env.err(), true);
-                    PrintWriter err = (options.get(HideErrors)) ? null : info;
+                    PrintWriter info = new PrintWriter(env.out(), true);
+                    PrintWriter err = (options.get(HideErrors)) ? null : new PrintWriter(env.err(), true);
                     return new InspectorExecutionContext("Main Context", options.get(Internal), options.get(Initialization), env, Collections.emptyList(), info, err, options.get(SuspensionTimeout));
                 }
             }
@@ -377,7 +377,7 @@ public final class InspectorInstrument extends TruffleInstrument {
                         final boolean inspectInternal, final boolean inspectInitialization, final String pathOrNull, final List<URI> sourcePath, final Long suspensionTimeout,
                         final ConnectionWatcher connectionWatcher) throws IOException {
             InetSocketAddress socketAddress = createLoopbackSocket(port);
-            PrintWriter info = new PrintWriter(env.err(), true);
+            PrintWriter info = new PrintWriter(env.out(), true);
             final String pathContainingToken;
             if (pathOrNull == null || pathOrNull.isEmpty()) {
                 pathContainingToken = "/" + generateRandomToken();
@@ -387,7 +387,7 @@ public final class InspectorInstrument extends TruffleInstrument {
             }
             token = Token.createHashedTokenFromString(pathContainingToken);
 
-            PrintWriter err = (hideErrors) ? null : info;
+            PrintWriter err = (hideErrors) ? null : new PrintWriter(env.err(), true);
             executionContext = new InspectorExecutionContext(contextName, inspectInternal, inspectInitialization, env, sourcePath, info, err, suspensionTimeout);
             final URI wsuri;
             try {
