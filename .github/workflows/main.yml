@@ -91,6 +91,7 @@ permissions:
 
 jobs:
   build-graalvm-linux:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository }}
     name: /${{ matrix.env.PRIMARY }} ${{ matrix.env.GATE_TAGS }} JDK${{ matrix.env.JDK_VERSION }}
     runs-on: ${{ matrix.os || 'ubuntu-22.04' }}
     timeout-minutes: 60
@@ -225,6 +226,7 @@ jobs:
       run: ${MX_PATH}/mx --primary-suite-path ${PRIMARY} --java-home=${JAVA_HOME} gate --strict-mode ${{ matrix.env.GATE_OPTS }}
       if: ${{ matrix.env.GATE_TAGS == '' }}
   build-graalvm-windows:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository }}
     name: /substratevm on Windows
     runs-on: windows-2022
     timeout-minutes: 60

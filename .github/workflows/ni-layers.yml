@@ -60,7 +60,7 @@ permissions:
 jobs:
   build-graalvm:
     uses: ./.github/workflows/build-graalvm.yml
-    if: (github.repository=='oracle/graal')
+    if: (github.repository=='oracle/graal') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository)
     with:
       native-images: 'native-image,native-image-configure,lib:native-image-agent'
       components: 'Native Image,Native Image Configure Tool'
@@ -68,7 +68,7 @@ jobs:
   populate-matrix:
     name: Populate matrix
     runs-on: ubuntu-latest
-    if: (github.repository=='oracle/graal')
+    if: (github.repository=='oracle/graal') && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository)
     outputs:
         matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
@@ -88,6 +88,7 @@ jobs:
       run: python3 ${{ env.LIBRARY_METADATA_PATH }}/build_native_image_layer.py ${{ env.LIBRARY_METADATA_PATH }}/
 
   test-native-image-layer-build:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository }}
     name: ${{ matrix.coordinates }}
     runs-on: ubuntu-latest
     env:
