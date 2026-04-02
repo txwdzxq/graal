@@ -94,6 +94,10 @@ public class VectorAPILoadMaskedNode extends VectorAPIMacroNode implements Canon
         return List.of(getArgument(M_ARG_INDEX));
     }
 
+    public ValueNode getMask() {
+        return getArgument(M_ARG_INDEX);
+    }
+
     @Override
     public SimdStamp vectorStamp() {
         return loadStamp;
@@ -142,7 +146,7 @@ public class VectorAPILoadMaskedNode extends VectorAPIMacroNode implements Canon
          * connected to the checks by guard edges or Pi nodes. Therefore, this read must not float.
          */
         StructuredGraph graph = address.graph();
-        ValueNode mask = expanded.get(getArgument(M_ARG_INDEX));
+        ValueNode mask = expanded.get(getMask());
         SimdMaskedReadNode fixedRead = graph.add(new SimdMaskedReadNode(mask, address, location, loadStamp, BarrierType.NONE, MemoryOrderMode.PLAIN));
         graph.addBeforeFixed(this, fixedRead);
         return fixedRead;

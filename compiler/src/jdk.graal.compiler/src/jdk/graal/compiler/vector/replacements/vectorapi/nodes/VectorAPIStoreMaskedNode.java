@@ -86,7 +86,7 @@ public class VectorAPIStoreMaskedNode extends VectorAPISinkNode implements Canon
         return getArgument(V_ARG_INDEX);
     }
 
-    private ValueNode getMask() {
+    public ValueNode getMask() {
         return getArgument(M_ARG_INDEX);
     }
 
