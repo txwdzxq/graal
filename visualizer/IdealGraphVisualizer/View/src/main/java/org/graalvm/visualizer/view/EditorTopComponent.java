@@ -830,6 +830,14 @@ public final class EditorTopComponent extends TopComponent implements PropertyCh
         }
     }
 
+    public void edgeWalkToPredecessor() {
+        scene.navigateControlFlow(false);
+    }
+
+    public void edgeWalkToSuccessor() {
+        scene.navigateControlFlow(true);
+    }
+
     public void setSelectedNodes(Collection<InputNode> nodes) {
         getModel().withDiagramToView((d) -> {
             setSelectedFigures(new ArrayList<>(scene.figuresForNodes(nodes)));
