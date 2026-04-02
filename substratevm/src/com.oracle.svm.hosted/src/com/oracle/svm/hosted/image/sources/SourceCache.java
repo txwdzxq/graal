@@ -45,7 +45,6 @@ import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.hosted.FeatureImpl;
-import com.oracle.svm.hosted.ImageClassLoader;
 import com.oracle.svm.shared.option.AccumulatingLocatableMultiOptionValue;
 import com.oracle.svm.shared.option.HostedOptionKey;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
@@ -519,23 +518,50 @@ class SourceCacheFeature implements InternalFeature {
                         AccumulatingLocatableMultiOptionValue.Paths.buildWithCommaDelimiter());
     }
 
-    ImageClassLoader imageClassLoader;
-
     @Override
     public void afterAnalysis(AfterAnalysisAccess access) {
-        imageClassLoader = ((FeatureImpl.AfterAnalysisAccessImpl) access).getImageClassLoader();
+        var imageClassLoader = ((FeatureImpl.AfterAnalysisAccessImpl) access).getImageClassLoader();
+        /*
+         * Capture these paths once: NativeImageClassLoaderSupport computes them from immutable
+         * build inputs, so SourceCache only needs a stable snapshot instead of the full feature or
+         * loader object.
+         */
+        ImageSingletons.add(SourceCacheSupport.class, new SourceCacheSupport(imageClassLoader.classpath(), imageClassLoader.modulepath()));
     }
 
     static List<Path> getClassPath() {
-        return ImageSingletons.lookup(SourceCacheFeature.class).imageClassLoader.classpath();
+        return SourceCacheSupport.singleton().getClassPath();
     }
 
     static List<Path> getModulePath() {
-        return ImageSingletons.lookup(SourceCacheFeature.class).imageClassLoader.modulepath();
+        return SourceCacheSupport.singleton().getModulePath();
     }
 
     static List<Path> getSourceSearchPath() {
         return Options.DebugInfoSourceSearchPath.getValue().values();
+    }
+}
+
+@SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
+final class SourceCacheSupport {
+    private final List<Path> classPath;
+    private final List<Path> modulePath;
+
+    SourceCacheSupport(List<Path> classPath, List<Path> modulePath) {
+        this.classPath = List.copyOf(classPath);
+        this.modulePath = List.copyOf(modulePath);
+    }
+
+    static SourceCacheSupport singleton() {
+        return ImageSingletons.lookup(SourceCacheSupport.class);
+    }
+
+    List<Path> getClassPath() {
+        return classPath;
+    }
+
+    List<Path> getModulePath() {
+        return modulePath;
     }
 }
 
