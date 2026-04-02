@@ -55,6 +55,7 @@ import org.openide.nodes.Children;
 import org.openide.nodes.Node;
 import org.openide.nodes.NodeAdapter;
 import org.openide.nodes.NodeMemberEvent;
+import org.openide.util.ImageUtilities;
 import org.openide.util.Lookup;
 import org.openide.util.LookupEvent;
 import org.openide.util.LookupListener;
@@ -87,6 +88,8 @@ import java.util.LinkedList;
 import java.util.Queue;
 
 public final class OutlineTopComponent extends TopComponent implements ExplorerManager.Provider, LookupListener {
+    private static final String EXPAND_ICON = "org/graalvm/visualizer/search/resources/expandTree.png";
+    private static final String COLLAPSE_ICON = "org/graalvm/visualizer/search/resources/collapseTree.png";
     private static final String SEARCH_ICON = "org/openide/awt/resources/quicksearch/find.png";
 
     public static OutlineTopComponent instance;
@@ -269,6 +272,9 @@ public final class OutlineTopComponent extends TopComponent implements ExplorerM
         // PENDING: HACK !
         toolbar.add(((Presenter.Toolbar) Actions.forID("IGV", AutoFreezeSessionsAction.ID)).getToolbarPresenter());
 
+        toolbar.add(createTreeToolbarButton(EXPAND_ICON, "Expand all Outline nodes", () -> outlineTreeView().expandAllNodes()));
+        toolbar.add(createTreeToolbarButton(COLLAPSE_ICON, "Collapse all Outline nodes", () -> outlineTreeView().collapseAllNodes()));
+
         searchToggleButton = createSearchToolbarButton();
         toolbar.add(searchToggleButton);
         updateSearchToggleButton();
@@ -303,6 +309,14 @@ public final class OutlineTopComponent extends TopComponent implements ExplorerM
 
         quickSearch = QuickSearch.attach(searchStripPanel, BorderLayout.CENTER, new OutlineQuickSearchCallback());
         installTreeQuickSearchRouting();
+    }
+
+    private JButton createTreeToolbarButton(String iconResource, String toolTipText, Runnable action) {
+        Icon icon = ImageUtilities.loadImageIcon(iconResource, true);
+        JButton button = new JButton(icon);
+        button.setToolTipText(toolTipText);
+        button.addActionListener(e -> action.run());
+        return button;
     }
 
     private JToggleButton createSearchToolbarButton() {

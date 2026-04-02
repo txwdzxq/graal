@@ -36,6 +36,18 @@ public final class OutlineTreeView extends BeanTreeView {
         return tree;
     }
 
+    public void expandAllNodes() {
+        for (int row = 0; row < tree.getRowCount(); row++) {
+            tree.expandRow(row);
+        }
+    }
+
+    public void collapseAllNodes() {
+        for (int row = tree.getRowCount() - 1; row >= 0; row--) {
+            tree.collapseRow(row);
+        }
+    }
+
     public void installSearchHighlighting(OutlineSearchController searchController) {
         TreeCellRenderer renderer = tree.getCellRenderer();
         if (renderer != null) {
