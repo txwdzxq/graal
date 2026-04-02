@@ -36,6 +36,7 @@ import com.oracle.svm.espresso.classfile.ParserMethod;
 import com.oracle.svm.espresso.classfile.attributes.Attribute;
 import com.oracle.svm.espresso.classfile.attributes.AttributedElement;
 import com.oracle.svm.espresso.classfile.attributes.CodeAttribute;
+import com.oracle.svm.espresso.classfile.attributes.MethodParametersAttribute;
 import com.oracle.svm.espresso.classfile.attributes.SignatureAttribute;
 import com.oracle.svm.espresso.classfile.descriptors.ParserSymbols;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
@@ -160,9 +161,8 @@ public final class CremaResolvedJavaMethodImpl extends InterpreterResolvedJavaMe
     }
 
     @Override
-    public byte[] getRawParameters() {
-        // (GR-74007)
-        throw VMError.unimplemented("getRawParameters");
+    public MethodParametersAttribute getParametersAttribute() {
+        return getAttribute(MethodParametersAttribute.NAME, MethodParametersAttribute.class);
     }
 
     @Override

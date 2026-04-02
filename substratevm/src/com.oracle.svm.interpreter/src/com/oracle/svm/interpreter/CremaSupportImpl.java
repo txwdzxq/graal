@@ -1738,9 +1738,10 @@ public class CremaSupportImpl implements CremaSupport {
     }
 
     @Override
-    public jdk.vm.ci.meta.ConstantPool getConstantPool(DynamicHub hub) {
+    @SuppressWarnings("unchecked")
+    public <T extends com.oracle.svm.espresso.classfile.ConstantPool & jdk.vm.ci.meta.ConstantPool> T getConstantPool(DynamicHub hub) {
         InterpreterResolvedObjectType type = (InterpreterResolvedObjectType) hub.getInterpreterType();
         assert type instanceof CremaResolvedObjectType;
-        return type.getConstantPool();
+        return (T) type.getConstantPool();
     }
 }

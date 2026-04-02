@@ -130,8 +130,7 @@ public final class RuntimeReflectionMetadata implements ReflectionMetadata {
                         resolvedJavaMethod.getRawParameterAnnotations(),
                         resolvedJavaMethod.getRawAnnotationDefault(),
                         resolvedJavaMethod.getAccessor(receiverType, parameterTypes),
-                        /* (GR-74007) resolvedJavaMethod.getRawParameters() */
-                        null,
+                        resolvedJavaMethod.getParametersAttribute(),
                         resolvedJavaMethod.getRawTypeAnnotations(),
                         declaringClass.getLayerId());
     }
@@ -162,8 +161,7 @@ public final class RuntimeReflectionMetadata implements ReflectionMetadata {
                         resolvedConstructor.getRawAnnotations(),
                         resolvedConstructor.getRawParameterAnnotations(),
                         resolvedConstructor.getAccessor(DynamicHub.toClass(declaringClass), parameterTypes),
-                        /* (GR-74007) resolvedConstructor.getRawParameters() */
-                        new byte[0],
+                        resolvedConstructor.getParametersAttribute(),
                         resolvedConstructor.getRawTypeAnnotations());
     }
 
