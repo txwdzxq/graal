@@ -30,6 +30,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Graphics;
+import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -40,6 +41,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
@@ -82,6 +84,7 @@ import org.graalvm.visualizer.view.api.DiagramViewerListener;
 import org.netbeans.api.settings.ConvertAsProperties;
 import org.openide.awt.ActionID;
 import org.openide.awt.ActionReference;
+import org.openide.awt.QuickSearch;
 import org.openide.util.Lookup;
 import org.openide.util.NbBundle.Messages;
 import org.openide.util.WeakListeners;
@@ -125,8 +128,10 @@ public final class GraphSummaryTopComponent extends TopComponent {
     private final JLabel graphNameLabel = new JLabel();
     private final JLabel totalsLabel = new JLabel();
     private final NodeTypeSummaryTableModel tableModel = new NodeTypeSummaryTableModel();
+    private final SummaryQuickSearch summaryQuickSearch = new SummaryQuickSearch();
     private final JTable table = new JTable(tableModel);
 
+    private QuickSearch quickSearch;
     private ActiveGraphSynchronizer synchronizer;
     private InputGraph currentGraph;
     private GraphContainer currentContainer;
@@ -165,8 +170,29 @@ public final class GraphSummaryTopComponent extends TopComponent {
         table.getColumnModel().getColumn(2).setMaxWidth(120);
         installTableActions();
 
+        JScrollPane scrollPane = new JScrollPane(table);
+        JPanel tablePanel = new JPanel(new BorderLayout());
+        tablePanel.add(scrollPane, BorderLayout.CENTER);
+        quickSearch = QuickSearch.attach(tablePanel, BorderLayout.NORTH, summaryQuickSearch);
+        table.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                quickSearch.processKeyEvent(e);
+            }
+
+            @Override
+            public void keyReleased(KeyEvent e) {
+                quickSearch.processKeyEvent(e);
+            }
+
+            @Override
+            public void keyTyped(KeyEvent e) {
+                quickSearch.processKeyEvent(e);
+            }
+        });
+
         add(header, BorderLayout.NORTH);
-        add(new JScrollPane(table), BorderLayout.CENTER);
+        add(tablePanel, BorderLayout.CENTER);
     }
 
     @Override
@@ -195,6 +221,7 @@ public final class GraphSummaryTopComponent extends TopComponent {
 
         InputGraph previousGraph = currentGraph;
         Set<String> selectedNodeTypes = graph != null && graph == previousGraph ? selectedNodeTypes() : Set.of();
+        summaryQuickSearch.summaryRefreshed();
 
         currentGraph = graph;
         currentContainer = container;
@@ -561,6 +588,181 @@ public final class GraphSummaryTopComponent extends TopComponent {
 
     void readProperties(Properties properties) {
         properties.getProperty("version");
+    }
+
+    private final class SummaryQuickSearch implements QuickSearch.Callback {
+        private boolean active;
+        private List<Integer> matches = List.of();
+        private int currentMatchIndex = -1;
+        private int[] originalSelection = new int[0];
+
+        void summaryRefreshed() {
+            clearState();
+        }
+
+        @Override
+        public void quickSearchUpdate(String searchText) {
+            String query = searchText == null ? "" : searchText;
+            if (!active && !query.isEmpty()) {
+                active = true;
+                originalSelection = table.getSelectedRows();
+            }
+
+            if (!active) {
+                return;
+            }
+
+            int previousMatchRow = currentMatchRow();
+            recomputeMatches(query);
+
+            if (query.isEmpty()) {
+                restoreOriginalSelection();
+                return;
+            }
+
+            if (matches.isEmpty()) {
+                return;
+            }
+
+            currentMatchIndex = indexOfMatchRow(previousMatchRow);
+            if (currentMatchIndex < 0) {
+                currentMatchIndex = firstMatchAtOrAfter(selectionAnchorRow());
+            }
+            if (currentMatchIndex < 0) {
+                currentMatchIndex = 0;
+            }
+            selectCurrentMatch();
+        }
+
+        @Override
+        public void showNextSelection(boolean forward) {
+            if (matches.isEmpty()) {
+                return;
+            }
+            int delta = forward ? 1 : -1;
+            currentMatchIndex = Math.floorMod(currentMatchIndex + delta, matches.size());
+            selectCurrentMatch();
+        }
+
+        @Override
+        public String findMaxPrefix(String prefix) {
+            if (matches.isEmpty()) {
+                return prefix;
+            }
+            String common = null;
+            for (int viewRow : matches) {
+                NodeTypeRow row = tableModel.getRow(table.convertRowIndexToModel(viewRow));
+                if (row == null) {
+                    continue;
+                }
+                common = common == null ? row.nodeType() : commonPrefix(common, row.nodeType());
+                if (common.isEmpty()) {
+                    break;
+                }
+            }
+            return common == null ? prefix : common;
+        }
+
+        @Override
+        public void quickSearchConfirmed() {
+            clearState();
+        }
+
+        @Override
+        public void quickSearchCanceled() {
+            restoreOriginalSelection();
+            clearState();
+        }
+
+        private void recomputeMatches(String query) {
+            if (query.isEmpty()) {
+                matches = List.of();
+                currentMatchIndex = -1;
+                return;
+            }
+            String needle = query.toLowerCase(Locale.ROOT);
+            List<Integer> newMatches = new ArrayList<>();
+            for (int viewRow = 0; viewRow < table.getRowCount(); viewRow++) {
+                NodeTypeRow row = tableModel.getRow(table.convertRowIndexToModel(viewRow));
+                if (row != null && row.nodeType().toLowerCase(Locale.ROOT).contains(needle)) {
+                    newMatches.add(viewRow);
+                }
+            }
+            matches = List.copyOf(newMatches);
+            if (matches.isEmpty()) {
+                currentMatchIndex = -1;
+            }
+        }
+
+        private int selectionAnchorRow() {
+            int selected = table.getSelectedRow();
+            if (selected >= 0) {
+                return selected;
+            }
+            return originalSelection.length == 0 ? 0 : originalSelection[0];
+        }
+
+        private int currentMatchRow() {
+            return currentMatchIndex >= 0 && currentMatchIndex < matches.size() ? matches.get(currentMatchIndex) : -1;
+        }
+
+        private int indexOfMatchRow(int viewRow) {
+            for (int i = 0; i < matches.size(); i++) {
+                if (matches.get(i) == viewRow) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        private int firstMatchAtOrAfter(int viewRow) {
+            for (int i = 0; i < matches.size(); i++) {
+                if (matches.get(i) >= viewRow) {
+                    return i;
+                }
+            }
+            return matches.isEmpty() ? -1 : 0;
+        }
+
+        private void selectCurrentMatch() {
+            int viewRow = currentMatchRow();
+            if (viewRow < 0) {
+                return;
+            }
+            table.getSelectionModel().setSelectionInterval(viewRow, viewRow);
+            table.scrollRectToVisible(table.getCellRect(viewRow, 1, true));
+        }
+
+        private void restoreOriginalSelection() {
+            ListSelectionModel selectionModel = table.getSelectionModel();
+            selectionModel.setValueIsAdjusting(true);
+            try {
+                table.clearSelection();
+                for (int row : originalSelection) {
+                    if (row >= 0 && row < table.getRowCount()) {
+                        selectionModel.addSelectionInterval(row, row);
+                    }
+                }
+            } finally {
+                selectionModel.setValueIsAdjusting(false);
+            }
+        }
+
+        private void clearState() {
+            active = false;
+            matches = List.of();
+            currentMatchIndex = -1;
+            originalSelection = new int[0];
+        }
+
+        private String commonPrefix(String a, String b) {
+            int len = Math.min(a.length(), b.length());
+            int i = 0;
+            while (i < len && Character.toLowerCase(a.charAt(i)) == Character.toLowerCase(b.charAt(i))) {
+                i++;
+            }
+            return a.substring(0, i);
+        }
     }
 
     private final class ActiveGraphSynchronizer implements ChangeListener, DiagramViewerListener {
