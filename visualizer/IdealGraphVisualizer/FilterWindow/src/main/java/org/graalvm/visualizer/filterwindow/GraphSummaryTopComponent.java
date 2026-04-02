@@ -34,9 +34,11 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -47,7 +49,9 @@ import javax.swing.BorderFactory;
 import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.KeyStroke;
@@ -108,7 +112,10 @@ import org.openide.windows.TopComponent;
         "LBL_UnknownNodeType=<unknown>",
         "COL_NodeType=Node Type",
         "COL_NodeCount=Count",
-        "DISPLAY_CombinedSearchValuesInProperty={0} in {1}"
+        "DISPLAY_CombinedSearchValuesInProperty={0} in {1}",
+        "ACTION_OpenSearch=Open search",
+        "ACTION_SelectNodes=Select nodes",
+        "ACTION_ExtractNodes=Extract nodes"
 })
 public final class GraphSummaryTopComponent extends TopComponent {
     private static final String ACTION_OPEN_NODE_SEARCH = "graph-summary-open-node-search";
@@ -336,6 +343,16 @@ public final class GraphSummaryTopComponent extends TopComponent {
     private void installTableActions() {
         table.addMouseListener(new MouseAdapter() {
             @Override
+            public void mousePressed(MouseEvent e) {
+                maybeShowContextMenu(e);
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                maybeShowContextMenu(e);
+            }
+
+            @Override
             public void mouseClicked(MouseEvent e) {
                 if (!SwingUtilities.isLeftMouseButton(e) || e.getClickCount() != 2) {
                     return;
@@ -363,6 +380,57 @@ public final class GraphSummaryTopComponent extends TopComponent {
         });
     }
 
+    private void maybeShowContextMenu(MouseEvent e) {
+        if (!e.isPopupTrigger()) {
+            return;
+        }
+        int viewRow = table.rowAtPoint(e.getPoint());
+        if (viewRow < 0) {
+            return;
+        }
+        if (!table.isRowSelected(viewRow)) {
+            table.setRowSelectionInterval(viewRow, viewRow);
+        }
+        showContextMenu(e.getComponent(), e.getX(), e.getY(), selectedRows());
+    }
+
+    private void showContextMenu(Component invoker, int x, int y, List<NodeTypeRow> rows) {
+        InputGraph graph = currentGraph;
+        GraphContainer container = currentContainer;
+        Criteria criteria = createSearchCriteria(rows);
+        List<InputNode> nodes = resolveInputNodes(graph, rows);
+
+        JPopupMenu menu = new JPopupMenu();
+        JMenuItem openSearchItem = new JMenuItem(new AbstractAction(Bundle.ACTION_OpenSearch()) {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                openNodeSearch(graph, container, criteria);
+            }
+        });
+        openSearchItem.setEnabled(criteria != null);
+        menu.add(openSearchItem);
+
+        JMenuItem selectNodesItem = new JMenuItem(new AbstractAction(Bundle.ACTION_SelectNodes()) {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                selectNodes(graph, nodes);
+            }
+        });
+        selectNodesItem.setEnabled(!nodes.isEmpty());
+        menu.add(selectNodesItem);
+
+        JMenuItem extractNodesItem = new JMenuItem(new AbstractAction(Bundle.ACTION_ExtractNodes()) {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                extractNodes(graph, nodes);
+            }
+        });
+        extractNodesItem.setEnabled(!nodes.isEmpty());
+        menu.add(extractNodesItem);
+
+        menu.show(invoker, x, y);
+    }
+
     private void openNodeSearchForSelectedRows() {
         openNodeSearch(selectedRows());
     }
@@ -383,19 +451,32 @@ public final class GraphSummaryTopComponent extends TopComponent {
     }
 
     private void openNodeSearch(List<NodeTypeRow> rows) {
-        if (currentGraph == null || currentContainer == null) {
+        openNodeSearch(currentGraph, currentContainer, createSearchCriteria(rows));
+    }
+
+    private void openNodeSearch(InputGraph graph, GraphContainer container, Criteria criteria) {
+        if (graph == null || container == null || criteria == null) {
             return;
         }
-        Criteria criteria = createSearchCriteria(rows);
-        if (criteria == null) {
-            return;
-        }
-        GraphSearchEngine engine = new GraphSearchEngine(currentContainer, currentGraph, new SimpleNodeProvider());
+        GraphSearchEngine engine = new GraphSearchEngine(container, graph, new SimpleNodeProvider());
         SearchResultsView.addSearchResults(engine);
         engine.newSearch(criteria, false);
     }
 
     private Criteria createSearchCriteria(List<NodeTypeRow> rows) {
+        List<NodeSearchSpec> specs = searchSpecs(rows);
+        if (specs == null || specs.isEmpty()) {
+            return null;
+        }
+        if (specs.size() == 1) {
+            NodeSearchSpec spec = specs.get(0);
+            RegexpPropertyMatcher matcher = new RegexpPropertyMatcher(spec.propertyName(), Pattern.quote(spec.propertyValue()), true, Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
+            return new Criteria().setMatcher(matcher);
+        }
+        return new CombinedNodeSearchCriteria(specs);
+    }
+
+    private List<NodeSearchSpec> searchSpecs(List<NodeTypeRow> rows) {
         if (rows.isEmpty()) {
             return null;
         }
@@ -411,15 +492,67 @@ public final class GraphSummaryTopComponent extends TopComponent {
                 specs.add(spec);
             }
         }
-        if (specs.isEmpty()) {
-            return null;
+        return specs;
+    }
+
+    private List<InputNode> resolveInputNodes(InputGraph graph, List<NodeTypeRow> rows) {
+        if (graph == null) {
+            return List.of();
         }
-        if (specs.size() == 1) {
-            NodeSearchSpec spec = specs.get(0);
-            RegexpPropertyMatcher matcher = new RegexpPropertyMatcher(spec.propertyName(), Pattern.quote(spec.propertyValue()), true, Pattern.CASE_INSENSITIVE | Pattern.MULTILINE);
-            return new Criteria().setMatcher(matcher);
+        List<NodeSearchSpec> specs = searchSpecs(rows);
+        if (specs == null || specs.isEmpty()) {
+            return List.of();
         }
-        return new CombinedNodeSearchCriteria(specs);
+        Set<InputNode> nodes = new LinkedHashSet<>();
+        for (InputNode node : graph.getNodes()) {
+            NodeSearchSpec nodeSpec = nodeTypeInfo(node).searchSpec();
+            if (nodeSpec == null) {
+                continue;
+            }
+            for (NodeSearchSpec spec : specs) {
+                if (spec.matches(nodeSpec)) {
+                    nodes.add(node);
+                    break;
+                }
+            }
+        }
+        return List.copyOf(nodes);
+    }
+
+    private void selectNodes(InputGraph graph, Collection<InputNode> nodes) {
+        if (graph == null || nodes.isEmpty()) {
+            return;
+        }
+        GraphViewer viewerService = Lookup.getDefault().lookup(GraphViewer.class);
+        if (viewerService == null) {
+            return;
+        }
+        Set<InputNode> nodeSet = new LinkedHashSet<>(nodes);
+        viewerService.view((created, provider) -> {
+            DiagramViewer viewer = provider instanceof DiagramViewer ? (DiagramViewer) provider : provider.getLookup().lookup(DiagramViewer.class);
+            if (viewer != null) {
+                viewer.getSelections().setSelectedNodes(nodeSet);
+            } else {
+                provider.setSelectedNodes(nodeSet);
+            }
+        }, graph, false, true);
+    }
+
+    private void extractNodes(InputGraph graph, Collection<InputNode> nodes) {
+        if (graph == null || nodes.isEmpty()) {
+            return;
+        }
+        GraphViewer viewerService = Lookup.getDefault().lookup(GraphViewer.class);
+        if (viewerService == null) {
+            return;
+        }
+        List<InputNode> nodeList = List.copyOf(nodes);
+        viewerService.view((created, provider) -> {
+            DiagramViewer viewer = provider instanceof DiagramViewer ? (DiagramViewer) provider : provider.getLookup().lookup(DiagramViewer.class);
+            if (viewer != null) {
+                viewer.getSelections().extractNodes(nodeList);
+            }
+        }, graph, false, true);
     }
 
     void writeProperties(Properties properties) {
