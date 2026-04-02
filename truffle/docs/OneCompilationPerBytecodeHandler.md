@@ -186,7 +186,7 @@ Escape analysis can work in both the caller and the handler, potentially keeping
 
 The automatic parameter expansion technique relies on a specialized calling convention that supports multiple return values by updating parameters in their original locations. For instance, if parameters are passed in the register sequence `rdi, rsi, rdx, rcx, r8, r9`, the updated values are returned in the same register sequence `rdi, rsi, rdx, rcx, r8, r9`.
 
-This calling convention maximizes the use of allocatable registers for parameters, avoiding stack accesses that may otherwise occur under a standard calling convention.
+This calling convention maximizes the use of allocatable registers for parameters, avoiding stack accesses that may otherwise occur under a standard calling convention. However, bytecode handler parameters still cannot consume the full register set: tail call threading needs one register to hold the next handler target, so the practical parameter budget is at most `MAX_REGISTERS - 1`. The effective budget can be lower still when the architecture-specific base pointer register (for example `rbp` on AMD64) must remain unavailable, such as when stack-pointer-modifying code requires frame-pointer preservation.
 
 ### Tail Call Threading
 

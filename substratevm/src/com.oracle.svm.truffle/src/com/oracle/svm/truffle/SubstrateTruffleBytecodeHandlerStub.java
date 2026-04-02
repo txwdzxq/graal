@@ -73,6 +73,7 @@ import jdk.graal.compiler.truffle.TruffleBytecodeHandlerCallsite;
 import jdk.graal.compiler.truffle.TruffleBytecodeHandlerCallsite.ArgumentInfo;
 import jdk.graal.compiler.truffle.TruffleBytecodeHandlerCallsite.TruffleBytecodeHandlerTypes;
 import jdk.graal.compiler.truffle.host.TruffleKnownHostTypes;
+import jdk.vm.ci.amd64.AMD64;
 import jdk.vm.ci.code.Register;
 import jdk.vm.ci.code.RegisterConfig;
 import jdk.vm.ci.meta.JavaKind;
@@ -191,6 +192,10 @@ public final class SubstrateTruffleBytecodeHandlerStub extends NonBytecodeMethod
         return returnRegister;
     }
 
+    private static boolean isBasePointerRegister(SubstrateTargetDescription target, Register register) {
+        return target.arch instanceof AMD64 && register.equals(AMD64.rbp);
+    }
+
     @Override
     public SubstrateCallingConventionType getCallingConvention() {
         SubstrateTargetDescription target = ConfigurationValues.getTarget();
@@ -208,6 +213,14 @@ public final class SubstrateTruffleBytecodeHandlerStub extends NonBytecodeMethod
                 continue;
             }
 
+            /*
+             * Bytecode handler parameters cannot consume all allocatable registers. Tail call
+             * threading needs one register to hold the next handler target, so the practical
+             * parameter budget is at most MAX_REGISTERS - 1. The effective budget can be even
+             * smaller when the architecture-specific base pointer register must stay unavailable,
+             * for example because the caller or the handler needs it for frame-pointer preservation
+             * around rsp-modifying code.
+             */
             // Find next available register
             Register registerForCurrentArgument = null;
             List<Register> filteredAllocatableRegisters = registerConfig.filterAllocatableRegisters(target.arch.getPlatformKind(argumentInfo.type().getJavaKind()),
@@ -223,6 +236,14 @@ public final class SubstrateTruffleBytecodeHandlerStub extends NonBytecodeMethod
                 }
                 if ((SubstrateControlFlowIntegrity.useSoftwareCFI() && register.equals(SubstrateControlFlowIntegrity.singleton().getCFITargetRegister()))) {
                     // register is used as software CFI register
+                    continue;
+                }
+                if (isBasePointerRegister(target, register)) {
+                    /*
+                     * Some bytecode interpreter callers keep the architecture-specific base pointer
+                     * register live across custom handler stub calls, so do not hand it out as part
+                     * of the handler stub ABI.
+                     */
                     continue;
                 }
 
