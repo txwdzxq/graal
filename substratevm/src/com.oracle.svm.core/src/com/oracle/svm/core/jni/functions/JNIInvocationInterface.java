@@ -24,6 +24,8 @@
  */
 package com.oracle.svm.core.jni.functions;
 
+import java.io.PrintStream;
+
 import org.graalvm.nativeimage.LogHandler;
 import org.graalvm.nativeimage.StackValue;
 import org.graalvm.nativeimage.VMRuntime;
@@ -72,6 +74,7 @@ import com.oracle.svm.core.jvmti.JvmtiEnvs;
 import com.oracle.svm.core.jvmti.headers.JvmtiExternalEnv;
 import com.oracle.svm.core.jvmti.headers.JvmtiVersion;
 import com.oracle.svm.core.log.FunctionPointerLogHandler;
+import com.oracle.svm.core.log.Log;
 import com.oracle.svm.core.memory.UntrackedNullableNativeMemory;
 import com.oracle.svm.core.monitor.MonitorInflationCause;
 import com.oracle.svm.core.monitor.MonitorSupport;
@@ -396,7 +399,14 @@ public final class JNIInvocationInterface {
                  * applied, so startup hooks can safely observe the final launcher configuration
                  * before any libjvm-backed Crema main dispatch begins.
                  */
-                VMRuntime.initialize();
+                try {
+                    VMRuntime.initialize();
+                } catch (Exception | Error e) {
+                    PrintStream log = Log.logStream();
+                    log.println("Error occurred during initialization of boot layer");
+                    e.printStackTrace(log);
+                    return JNIErrors.JNI_ERR();
+                }
             }
 
             JNIJavaVM javaVm = JNIFunctionTables.singleton().getGlobalJavaVM();
