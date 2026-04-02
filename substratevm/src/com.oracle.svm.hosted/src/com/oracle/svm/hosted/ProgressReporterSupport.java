@@ -109,7 +109,7 @@ public class ProgressReporterSupport {
         return List.of(// in order of appearance:
                         new UserRecommendation("FUTR", "Use '--future-defaults=all' to prepare for future releases.", ProgressReporterSupport::recommendFutureDefaults),
                         new UserRecommendation("AWT", "Use the tracing agent to collect metadata for AWT.", ProgressReporterSupport::recommendTraceAgentForAWT),
-                        new UserRecommendation("HOME", "To avoid errors, provide java.home to the app with '-Djava.home=<path>'.", AnalyzeJavaHomeAccessFeature.instance()::getJavaHomeUsed),
+                        new UserRecommendation("HOME", "To avoid errors, provide java.home to the app with '-Djava.home=<path>'.", AnalyzeJavaHomeAccessSupport.singleton()::getJavaHomeUsed),
                         new UserRecommendation("HEAP", "Set max heap for improved and more predictable memory usage.", () -> SubstrateGCOptions.MaxHeapSize.getValue() == 0),
                         new UserRecommendation("CPU", "Enable more CPU features with '-march=native' for improved performance.", ProgressReporterSupport::recommendMArchNative));
     }
