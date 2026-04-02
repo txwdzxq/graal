@@ -41,11 +41,13 @@ import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
  * Convenience annotation to automatically register a singleton instance of the annotated class in
  * {@link ImageSingletons}.
  *
- * The singleton is allocated and registered in a {@link Feature#afterRegistration} hook, and the
- * feature does not have any dependencies on other features. The order in which such features are
- * registered is not deterministic and cannot be influenced. This means that the constructor of
- * annotated class must not rely on other features being registered already, or other image
- * singletons being present already.
+ * The singleton is allocated and registered in an internal hosted registration step before feature
+ * registration begins. In particular, this happens before any feature
+ * {@link Feature#isInConfiguration}, {@link Feature#getRequiredFeatures}, or
+ * {@link Feature#afterRegistration} logic runs. The order in which automatically registered image
+ * singletons are processed is not deterministic and cannot be influenced. This means that the
+ * constructor of the annotated class and any {@link #onlyWith} predicates must not rely on feature
+ * registration having started already, or other image singletons being present already.
  *
  * If both a class and a subclass are annotated with {@link AutomaticallyRegisteredImageSingleton}
  * (and the subclass is not disabled by {@link #onlyWith}), only the subclass will be registered as

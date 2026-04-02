@@ -29,12 +29,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
 import org.graalvm.nativeimage.ImageSingletons;
-import org.graalvm.nativeimage.hosted.Feature;
 
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
@@ -73,11 +71,6 @@ public final class ProjectHeaderFile {
      * {@link ProjectHeaderFile} will be added as a dependency.
      */
     public abstract static class RegisterFallbackResolverFeature implements InternalFeature {
-
-        @Override
-        public List<Class<? extends Feature>> getRequiredFeatures() {
-            return Collections.singletonList(ProjectHeaderFileHeaderResolversRegistryFeature.class);
-        }
     }
 
     /**

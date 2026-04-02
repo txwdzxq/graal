@@ -1051,6 +1051,8 @@ public class NativeImageGenerator {
                 /* Init the BuildPhaseProvider before any features need it. */
                 BuildPhaseProvider.init();
 
+                AutomaticallyRegisteredImageSingletonHandler.registerImageSingletons(loader);
+
                 featureHandler.registerFeatures(loader, originalMetaAccess, debug);
                 BuildPhaseProvider.markFeatureRegistrationFinished();
 
