@@ -43,6 +43,12 @@ import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.util.VMError;
 
+/**
+ * Build-time state holder for hosted image-heap collections that need to be rewritten to their
+ * runtime counterparts and tracked for later rescans. The feature installs this support object as
+ * the owner of the object replacer so all collection state captured during setup, analysis, and
+ * image writing stays in one place.
+ */
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
 final class ImageHeapCollectionSupport {
     private final Set<HostedImageHeapMap<?, ?>> allMaps = ConcurrentHashMap.newKeySet();
@@ -53,6 +59,12 @@ final class ImageHeapCollectionSupport {
         return ImageSingletons.lookup(ImageHeapCollectionSupport.class);
     }
 
+    /**
+     * Rewrites hosted image-heap collections to their runtime storage objects and records the
+     * hosted collections that need later update propagation. During analysis, first reachability of
+     * a collection registers it for subsequent update/rescan handling; after analysis, encountering
+     * a collection that was never captured is treated as an invariant violation.
+     */
     Object replaceHostedWithRuntime(Object obj) {
         if (obj instanceof HostedImageHeapMap) {
             HostedImageHeapMap<?, ?> hostedImageHeapMap = (HostedImageHeapMap<?, ?>) obj;
@@ -79,8 +91,8 @@ final class ImageHeapCollectionSupport {
     /**
      * Makes sure that the content of all modified
      * {@link com.oracle.svm.core.util.ImageHeapMap.HostedImageHeapMap}s and
-     * {@link com.oracle.svm.core.util.ImageHeapList.HostedImageHeapList}s is properly propagated
-     * to their runtime counterparts. As both the number of these collections and their individual
+     * {@link com.oracle.svm.core.util.ImageHeapList.HostedImageHeapList}s is properly propagated to
+     * their runtime counterparts. As both the number of these collections and their individual
      * sizes are theoretically unbounded, this method uses <i>parallel streams</i> to divide the
      * load across all cores.
      * <p>
