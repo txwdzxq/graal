@@ -104,19 +104,16 @@ final class RuntimeLoadedExecutableParameterHelper {
     }
 
     static Parameter[] asReflectParameters(Executable executable, MethodParametersAttribute methodParameters, DynamicHub declaringClass) {
-        MethodParametersAttribute.Entry[] entries = methodParameters.getEntries();
         var constantPool = CremaSupport.singleton().getConstantPool(declaringClass);
-        Parameter[] parameters = new Parameter[entries.length];
+        int entryCount = methodParameters.entryCount();
+        Parameter[] parameters = new Parameter[entryCount];
         int constantPoolLength = constantPool.length();
-        for (int i = 0; i < entries.length; i++) {
-            MethodParametersAttribute.Entry entry = entries[i];
+        for (int i = 0; i < entryCount; i++) {
+            MethodParametersAttribute.Entry entry = methodParameters.entryAt(i);
             int nameIndex = entry.getNameIndex();
-            int modifiers = entry.getAccessFlags();
-
-            if (nameIndex < 0 || nameIndex >= constantPoolLength) {
+            if (nameIndex >= constantPoolLength) {
                 throw new IllegalArgumentException("Constant pool index out of bounds");
             }
-
             String name = null;
             if (nameIndex != 0) {
                 if (constantPool.tagAt(nameIndex) != Tag.UTF8) {
@@ -124,7 +121,7 @@ final class RuntimeLoadedExecutableParameterHelper {
                 }
                 name = constantPool.utf8At(nameIndex, "parameter name").toString();
             }
-            parameters[i] = ReflectionObjectFactory.newParameter(executable, i, name, modifiers);
+            parameters[i] = ReflectionObjectFactory.newParameter(executable, i, name, entry.getAccessFlags());
         }
         return parameters;
     }
