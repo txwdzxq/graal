@@ -96,7 +96,6 @@ import org.graalvm.nativeimage.impl.ClassLoadingSupport;
 import org.graalvm.nativeimage.impl.InternalPlatform.NATIVE_ONLY;
 
 import com.oracle.svm.configure.config.SignatureUtil;
-import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.core.BuildPhaseProvider.AfterHeapLayout;
 import com.oracle.svm.core.BuildPhaseProvider.AfterHostedUniverse;
 import com.oracle.svm.core.NeverInline;
@@ -138,6 +137,7 @@ import com.oracle.svm.core.reflect.fieldaccessor.UnsafeFieldAccessorFactory;
 import com.oracle.svm.core.reflect.serialize.SerializationSupport;
 import com.oracle.svm.core.reflect.target.Target_jdk_internal_reflect_ConstantPool;
 import com.oracle.svm.core.util.LazyFinalReference;
+import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.MultiLayeredImageSingleton;
 import com.oracle.svm.shared.util.BasedOnJDKFile;
@@ -393,7 +393,7 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
      * Indicates this Class was linked during build time. Accessing an unlinked class during run
      * time will throw an error.
      */
-    private static final int IS_LINKED_BIT = 10;
+    private static final int IS_BUILD_TIME_LINKED_BIT = 10;
     /**
      * Indicates whether the class is a proxy class according to
      * {@link java.lang.reflect.Proxy#isProxyClass}.
@@ -540,7 +540,7 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
         companion.dynamicAccess = RuntimeDynamicAccessMetadata.emptySet(false);
         /* Always allow unsafe allocation for classes that were loaded at run-time. */
         companion.canUnsafeAllocate = RuntimeDynamicAccessMetadata.emptySet(false);
-        companion.classInitializationInfo = ClassInitializationInfo.forRuntimeLoadedClass(false, hasClassInitializer);
+        companion.classInitializationInfo = ClassInitializationInfo.forRuntimeLoadedClass(componentHub != null, hasClassInitializer);
         byte additionalFlags = NumUtil.safeToUByte((companion.additionalFlags & 0xff) | makeFlag(ADDITIONAL_FLAGS_INSTANTIATED_BIT, true));
         writeByte(companion, dynamicHubOffsets.getCompanionAdditionalFlagsOffset(), additionalFlags);
 
@@ -695,7 +695,7 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
                         makeFlag(IS_SEALED_FLAG_BIT, isSealed) |
                         makeFlag(IS_VM_INTERNAL_FLAG_BIT, isVMInternal) |
                         makeFlag(IS_LAMBDA_FORM_HIDDEN_BIT, isLambdaFormHidden) |
-                        makeFlag(IS_LINKED_BIT, isLinked) |
+                        makeFlag(IS_BUILD_TIME_LINKED_BIT, isLinked) |
                         makeFlag(IS_PROXY_CLASS_BIT, isProxyClass));
     }
 
@@ -1385,8 +1385,18 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
         return isFlagSet(flags, IS_LAMBDA_FORM_HIDDEN_BIT);
     }
 
+    private boolean isBuildTimeLinked() {
+        return isFlagSet(flags, IS_BUILD_TIME_LINKED_BIT);
+    }
+
     public boolean isLinked() {
-        return isFlagSet(flags, IS_LINKED_BIT);
+        if (isBuildTimeLinked()) {
+            return true;
+        }
+        if (RuntimeClassLoading.isSupported()) {
+            return getClassInitializationInfo().isLinked();
+        }
+        return false;
     }
 
     public boolean isRegisteredForSerialization() {

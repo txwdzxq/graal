@@ -25,6 +25,7 @@
 package com.oracle.svm.core.jdk;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.net.URL;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
@@ -45,6 +46,7 @@ import com.oracle.svm.core.annotate.RecomputeFieldValue.Kind;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
 import com.oracle.svm.core.annotate.TargetElement;
+import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.PredefinedClassesSupport;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.core.hub.RuntimeClassLoading.ClassDefinitionInfo;
@@ -106,6 +108,23 @@ public final class Target_java_lang_ClassLoader {
 
     @Inject @RecomputeFieldValue(kind = Kind.Custom, declClass = ClassRegistries.ClassRegistryComputer.class)//
     public volatile AbstractClassRegistry classRegistry;
+
+    /**
+     * Used to implement
+     * {@linkplain com.oracle.svm.espresso.shared.constraints.LoadingConstraintsShared loading
+     * constraints} in Crema, in such a way that the constraints storage does not prevent collection
+     * of loader or their classes.
+     * <p>
+     * These weak references are registered to the {@link java.lang.ref.ReferenceQueue queue} in
+     * {@link ClassRegistries}{@code .collectedLoaders}, in order to get notified when such a loader
+     * is collected.
+     * <p>
+     * They are attached to the corresponding loader so that there is no need to create multiple
+     * references to a single loader.
+     */
+    @Inject @RecomputeFieldValue(kind = Kind.Custom, declClass = ClassRegistries.WeakSelfComputer.class) //
+    @TargetElement(onlyWith = RuntimeClassLoading.WithRuntimeClassLoading.class) //
+    public volatile WeakReference<Object> weakSelf;
 
     @Alias
     static native ClassLoader getBuiltinAppClassLoader();
@@ -381,7 +400,14 @@ public final class Target_java_lang_ClassLoader {
             }
             info = new ClassDefinitionInfo(pd);
         }
-        return RuntimeClassLoading.defineClass(loader, actualName, b, off, len, info);
+        Class<?> cls = RuntimeClassLoading.defineClass(loader, actualName, b, off, len, info);
+        DynamicHub hub = DynamicHub.fromClass(cls);
+        if (initialize) {
+            hub.ensureInitialized();
+        } else {
+            hub.getClassInitializationInfo().ensureLinked(hub);
+        }
+        return cls;
     }
 
     @Substitute

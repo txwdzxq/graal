@@ -258,10 +258,7 @@ public class RuntimeClassLoading {
     }
 
     public static void ensureLinked(DynamicHub dynamicHub) {
-        if (dynamicHub.isLinked()) {
-            return;
-        }
-        // GR-59739 runtime linking
+        dynamicHub.getClassInitializationInfo().ensureLinked(dynamicHub);
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)

@@ -39,6 +39,7 @@ import org.graalvm.word.impl.Word;
 import com.oracle.graal.pointsto.meta.AnalysisField;
 import com.oracle.svm.core.SubstrateMetadata;
 import com.oracle.svm.core.hub.DynamicHub;
+import com.oracle.svm.core.hub.crema.CremaSupport;
 import com.oracle.svm.core.hub.registry.SymbolsSupport;
 import com.oracle.svm.core.invoke.ResolvedMember;
 import com.oracle.svm.core.meta.SharedField;
@@ -366,8 +367,13 @@ public class InterpreterResolvedJavaField extends InterpreterAnnotated implement
     }
 
     @Override
-    public final void loadingConstraints(InterpreterResolvedJavaType accessingClass, Function<String, RuntimeException> errorHandler) {
-        throw VMError.unimplemented("loadingConstraints");
+    public final void loadingConstraints(InterpreterResolvedJavaType accessingClass) {
+        ClassLoader loader1 = accessingClass.getClassLoader();
+        ClassLoader loader2 = getDeclaringClass().getClassLoader();
+
+        if (loader1 != loader2) {
+            CremaSupport.singleton().checkLoadingConstraint(getSymbolicType(), loader1, loader2);
+        }
     }
 
     @Override

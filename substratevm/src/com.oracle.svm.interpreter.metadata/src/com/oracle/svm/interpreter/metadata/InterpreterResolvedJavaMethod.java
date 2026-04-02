@@ -32,14 +32,13 @@ import static com.oracle.svm.espresso.classfile.Constants.ACC_STATIC;
 import static com.oracle.svm.espresso.classfile.Constants.ACC_SYNTHETIC;
 import static com.oracle.svm.espresso.classfile.Constants.ACC_VARARGS;
 import static com.oracle.svm.espresso.classfile.Constants.JVM_RECOGNIZED_METHOD_MODIFIERS;
-import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 import static com.oracle.svm.interpreter.metadata.Bytecodes.BREAKPOINT;
 import static com.oracle.svm.interpreter.metadata.CremaMethodAccess.toJVMCI;
+import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Modifier;
-import java.lang.reflect.Type;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -73,11 +72,12 @@ import com.oracle.svm.espresso.classfile.descriptors.Name;
 import com.oracle.svm.espresso.classfile.descriptors.ParserSymbols;
 import com.oracle.svm.espresso.classfile.descriptors.Signature;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
+import com.oracle.svm.espresso.classfile.descriptors.Type;
 import com.oracle.svm.espresso.shared.meta.SignaturePolymorphicIntrinsic;
 import com.oracle.svm.espresso.shared.resolver.CallKind;
 import com.oracle.svm.espresso.shared.vtable.PartialMethod;
-import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.interpreter.metadata.serialization.VisibleForSerialization;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.AnnotationUtil;
@@ -842,12 +842,12 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
 
     @Override
     public final boolean shouldSkipLoadingConstraints() {
-        throw VMError.unimplemented("shouldSkipLoadingConstraints");
+        return isSignaturePolymorphicIntrinsic();
     }
 
     @Override
-    public final CodeAttribute getCodeAttribute() {
-        throw VMError.unimplemented("getCodeAttribute");
+    public CodeAttribute getCodeAttribute() {
+        throw VMError.unimplemented("code attribute unavailable for AOT methods.");
     }
 
     @Override
@@ -856,17 +856,27 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
     }
 
     @Override
-    public final void loadingConstraints(InterpreterResolvedJavaType accessingClass, Function<String, RuntimeException> errorHandler) {
-        throw VMError.unimplemented("loadingConstraints");
+    public final void loadingConstraints(InterpreterResolvedJavaType accessingClass) {
+        ClassLoader loader1 = accessingClass.getClassLoader();
+        ClassLoader loader2 = getDeclaringClass().getClassLoader();
+        checkLoadingConstraints(loader1, loader2);
+    }
+
+    public final void checkLoadingConstraints(ClassLoader loader1, ClassLoader loader2) {
+        if (loader1 != loader2) {
+            for (Symbol<Type> type : SymbolsSupport.getSignatures().parsed(getSymbolicSignature())) {
+                CremaSupport.singleton().checkLoadingConstraint(type, loader1, loader2);
+            }
+        }
     }
 
     @Override
-    public final com.oracle.svm.espresso.classfile.ExceptionHandler[] getSymbolicExceptionHandlers() {
-        throw VMError.unimplemented("getSymbolicExceptionHandlers");
+    public com.oracle.svm.espresso.classfile.ExceptionHandler[] getSymbolicExceptionHandlers() {
+        throw VMError.unimplemented("symbolic exception handlers unavailable for AOT methods.");
     }
 
     @Override
-    public final Type[] getGenericParameterTypes() {
+    public final java.lang.reflect.Type[] getGenericParameterTypes() {
         throw VMError.intentionallyUnimplemented();
     }
 

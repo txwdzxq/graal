@@ -311,9 +311,7 @@ public final class LinkResolver {
         }
         if (loadingConstraints) {
             try {
-                f.loadingConstraints(accessingKlass, m -> {
-                    throw runtime.throwError(ErrorType.LinkageError, m);
-                });
+                f.loadingConstraints(accessingKlass);
             } catch (Throwable e) {
                 if (runtime.getErrorType(e) != ErrorType.LinkageError) {
                     throw runtime.fatal(e, "Unexpected exception");
@@ -425,9 +423,7 @@ public final class LinkResolver {
         }
         if (loadingConstraints && !resolved.shouldSkipLoadingConstraints()) {
             try {
-                resolved.loadingConstraints(accessingKlass, m -> {
-                    throw runtime.throwError(ErrorType.LinkageError, m);
-                });
+                resolved.loadingConstraints(accessingKlass);
             } catch (Throwable e) {
                 if (runtime.getErrorType(e) != ErrorType.LinkageError) {
                     throw runtime.fatal(e, "Unexpected exception");

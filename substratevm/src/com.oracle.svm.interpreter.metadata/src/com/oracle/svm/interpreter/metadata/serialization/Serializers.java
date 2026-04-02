@@ -35,13 +35,13 @@ import java.util.function.ToLongFunction;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.word.Pointer;
+import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.graal.code.PreparedSignature;
-import com.oracle.svm.core.hub.registry.SymbolsSupport;
 import com.oracle.svm.core.MethodRefHolder;
-import com.oracle.svm.shared.singletons.MultiLayeredImageSingleton;
+import com.oracle.svm.core.graal.code.PreparedSignature;
+import com.oracle.svm.core.hub.DynamicHub;
+import com.oracle.svm.core.hub.registry.SymbolsSupport;
 import com.oracle.svm.core.snippets.KnownIntrinsics;
-import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.espresso.classfile.ParserConstantPool;
 import com.oracle.svm.espresso.classfile.descriptors.ModifiedUTF8;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
@@ -53,6 +53,8 @@ import com.oracle.svm.interpreter.metadata.InterpreterResolvedObjectType;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedPrimitiveType;
 import com.oracle.svm.interpreter.metadata.InterpreterUnresolvedSignature;
 import com.oracle.svm.interpreter.metadata.ReferenceConstant;
+import com.oracle.svm.shared.singletons.MultiLayeredImageSingleton;
+import com.oracle.svm.shared.util.VMError;
 
 import jdk.vm.ci.meta.ExceptionHandler;
 import jdk.vm.ci.meta.JavaConstant;
@@ -65,7 +67,6 @@ import jdk.vm.ci.meta.PrimitiveConstant;
 import jdk.vm.ci.meta.UnresolvedJavaField;
 import jdk.vm.ci.meta.UnresolvedJavaMethod;
 import jdk.vm.ci.meta.UnresolvedJavaType;
-import org.graalvm.word.impl.Word;
 
 /**
  * Serializers for types included in the interpreter metadata.
@@ -594,7 +595,11 @@ public final class Serializers {
                         if (clazzConstant.isOpaque()) {
                             return InterpreterResolvedObjectType.createWithOpaqueClass(name, modifiers, componentType, superclass, interfaces, constantPool, clazzConstant, isWordType, sourceFileName);
                         } else {
-                            return InterpreterResolvedObjectType.createForInterpreter(name, modifiers, componentType, superclass, interfaces, constantPool, clazzConstant.getReferent(), isWordType);
+                            Class<?> clazz = clazzConstant.getReferent();
+                            InterpreterResolvedObjectType forInterpreter = InterpreterResolvedObjectType.createForInterpreter(name, modifiers, componentType, superclass, interfaces, constantPool,
+                                            clazz, isWordType);
+                            DynamicHub.fromClass(clazz).setInterpreterType(forInterpreter);
+                            return forInterpreter;
                         }
                     },
                     (context, out, value) -> {

@@ -30,11 +30,14 @@ import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_
 import java.util.Arrays;
 import java.util.List;
 
+import org.graalvm.collections.EconomicSet;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.word.WordBase;
 
 import com.oracle.svm.core.StaticFieldsSupport;
+import com.oracle.svm.core.graal.meta.KnownOffsets;
+import com.oracle.svm.core.graal.snippets.OpenTypeWorldDispatchTableSnippets;
 import com.oracle.svm.core.heap.UnknownObjectField;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.registry.SymbolsSupport;
@@ -192,8 +195,8 @@ public class InterpreterResolvedObjectType extends InterpreterResolvedJavaType {
     }
 
     @Override
-    public final InterpreterResolvedJavaType resolveClassConstantInPool(int cpi) {
-        return null;
+    public InterpreterResolvedJavaType resolveClassConstantInPool(int cpi) {
+        throw VMError.unimplemented("should be unneeded for AOT types.");
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
@@ -453,7 +456,21 @@ public class InterpreterResolvedObjectType extends InterpreterResolvedJavaType {
 
     @Override
     public final InterpreterResolvedJavaType findLeastCommonAncestor(InterpreterResolvedJavaType other) {
-        throw VMError.unimplemented("findLeastCommonAncestor");
+        assert !isPrimitive() && !other.isPrimitive();
+        assert !isInterface() && !other.isInterface();
+        assert !isArray() && !other.isArray();
+        InterpreterResolvedObjectType t1 = this;
+        InterpreterResolvedObjectType t2 = (InterpreterResolvedObjectType) other;
+        while (true) {
+            if (t1.isAssignableFrom(t2)) {
+                return t1;
+            }
+            if (t2.isAssignableFrom(t1)) {
+                return t2;
+            }
+            t1 = t1.getSuperclass();
+            t2 = t2.getSuperclass();
+        }
     }
 
     /**
@@ -486,11 +503,6 @@ public class InterpreterResolvedObjectType extends InterpreterResolvedJavaType {
     }
 
     @Override
-    public final InterpreterResolvedJavaType getHostType() {
-        throw VMError.unimplemented("getHostType");
-    }
-
-    @Override
     public final Symbol<Name> getSymbolicRuntimePackage() {
         ByteSequence hostPkgName = TypeSymbols.getRuntimePackage(getSymbolicType());
         return SymbolsSupport.getNames().getOrCreate(hostPkgName);
@@ -513,6 +525,89 @@ public class InterpreterResolvedObjectType extends InterpreterResolvedJavaType {
             return getSuperclass().lookupField(name, type);
         }
         return null;
+    }
+
+    /**
+     * Not the {@linkplain CremaResolvedObjectType#getNestHost() nest host}, but the "Host type" of
+     * VM-anonymous classes, no longer in use in Java 17+, so return null. Requested by the
+     * {@link com.oracle.svm.espresso.shared.verifier.Verifier verifier}.
+     */
+    @Override
+    public final InterpreterResolvedJavaType getHostType() {
+        return null;
+    }
+
+    public final void imposeLoadingConstraints() {
+        if (!isInterface() && getSuperClass() != null) {
+            InterpreterResolvedJavaMethod[] thisTable = getVtable();
+            InterpreterResolvedJavaMethod[] superTable = getSuperClass().getVtable();
+            if (thisTable == null || superTable == null) {
+                throw VMError.shouldNotReachHere("Uninitialized interpreter VTable during loading constraints recording.");
+            }
+            int superTableEnd = getSuperClass().getClassVtableLength();
+            // Iterate our vtable to impose constraints between us and our superclass if necessary.
+            for (int i = 0; i < superTableEnd; i++) {
+                InterpreterResolvedJavaMethod entry = thisTable[i];
+                if (entry.getDeclaringClass() == this) {
+                    // If we override a method in super's table, enforce constraint to ensure we
+                    // agree on the types.
+                    entry.checkLoadingConstraints(getClassLoader(), superTable[i].getDeclaringClass().getClassLoader());
+                }
+            }
+
+            // Iterate the itables to impose constraints.
+            for (InterpreterResolvedObjectType superInterface : computeTransitiveInterfaceList()) {
+                VMError.guarantee(superInterface.getVtable() != null);
+                int start = determineITableStartingIndex(superInterface);
+                for (int i = 0; i < superInterface.getVtable().length; i++) {
+                    InterpreterResolvedJavaMethod thisMethod = thisTable[start + i];
+                    // Ensure this class and its interfaces agree on the types for their related
+                    // methods.
+                    if (thisMethod.getDeclaringClass() == this) {
+                        thisMethod.checkLoadingConstraints(getClassLoader(), superInterface.getClassLoader());
+                    } else {
+                        thisMethod.checkLoadingConstraints(superInterface.getClassLoader(), thisMethod.getDeclaringClass().getClassLoader());
+                        thisMethod.checkLoadingConstraints(getClassLoader(), thisMethod.getDeclaringClass().getClassLoader());
+                    }
+                }
+            }
+        }
+    }
+
+    public int determineITableStartingIndex(InterpreterResolvedObjectType seedInterface) {
+        /*
+         * iTableStartingOffset includes the initial offset to the vtable array and describes an
+         * offset (not index)
+         */
+        long iTableStartingOffset = OpenTypeWorldDispatchTableSnippets.determineITableStartingOffset(getHub(), seedInterface.getHub().getInterfaceID());
+
+        int vtableBaseOffset = KnownOffsets.singleton().getVTableBaseOffset();
+        int vtableEntrySize = KnownOffsets.singleton().getVTableEntrySize();
+
+        return (int) (iTableStartingOffset - vtableBaseOffset) / vtableEntrySize;
+    }
+
+    private Iterable<InterpreterResolvedObjectType> computeTransitiveInterfaceList() {
+        EconomicSet<InterpreterResolvedObjectType> set = EconomicSet.create();
+        InterpreterResolvedObjectType current = this;
+        while (current != null) {
+            for (InterpreterResolvedObjectType interfaceClass : current.getInterfaces()) {
+                collectInterfaces(interfaceClass, set);
+            }
+            current = current.getSuperclass();
+        }
+        for (InterpreterResolvedObjectType interfaceClass : getInterfaces()) {
+            collectInterfaces(interfaceClass, set);
+        }
+        return set;
+    }
+
+    private static void collectInterfaces(InterpreterResolvedObjectType interfaceClass, EconomicSet<InterpreterResolvedObjectType> result) {
+        if (result.add(interfaceClass)) {
+            for (InterpreterResolvedObjectType superInterface : interfaceClass.getInterfaces()) {
+                collectInterfaces(superInterface, result);
+            }
+        }
     }
 
 }

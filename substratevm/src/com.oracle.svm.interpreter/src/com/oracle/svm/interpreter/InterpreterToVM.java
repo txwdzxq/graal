@@ -43,8 +43,6 @@ import org.graalvm.word.impl.Word;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.classinitialization.EnsureClassInitializedNode;
 import com.oracle.svm.core.config.ConfigurationValues;
-import com.oracle.svm.core.graal.meta.KnownOffsets;
-import com.oracle.svm.core.graal.snippets.OpenTypeWorldDispatchTableSnippets;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.DynamicHubUtils;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
@@ -750,7 +748,7 @@ public final class InterpreterToVM {
         return (CFunctionPointer) codePointer;
     }
 
-    private static InterpreterResolvedJavaMethod peekAtInterpreterVTable(Class<?> seedClass, Class<?> thisClass, int vTableIndex) {
+    private static InterpreterResolvedJavaMethod peekAtInterpreterVTable(InterpreterResolvedObjectType seedType, Class<?> thisClass, int vTableIndex) {
         ResolvedJavaType thisType;
         if (RuntimeClassLoading.isSupported()) {
             thisType = DynamicHub.fromClass(thisClass).getInterpreterType();
@@ -762,32 +760,18 @@ public final class InterpreterToVM {
         VMError.guarantee(thisType != null);
         VMError.guarantee(thisType instanceof InterpreterResolvedObjectType);
 
-        InterpreterResolvedJavaMethod[] vTable = ((InterpreterResolvedObjectType) thisType).getVtable();
+        InterpreterResolvedObjectType objectType = (InterpreterResolvedObjectType) thisType;
+        InterpreterResolvedJavaMethod[] vTable = objectType.getVtable();
         VMError.guarantee(vTable != null);
 
-        DynamicHub seedHub = DynamicHub.fromClass(seedClass);
-
         int idx;
-        if (SubstrateOptions.useClosedTypeWorldHubLayout() || !seedHub.isInterface()) {
+        if (SubstrateOptions.useClosedTypeWorldHubLayout() || !seedType.isInterface()) {
             idx = vTableIndex;
         } else {
-            idx = vTableIndex + determineITableStartingIndex(DynamicHub.fromClass(thisClass), seedHub.getInterfaceID());
+            idx = vTableIndex + objectType.determineITableStartingIndex(seedType);
         }
         VMError.guarantee(idx >= 0 && idx < vTable.length);
         return vTable[idx];
-    }
-
-    private static int determineITableStartingIndex(DynamicHub thisHub, int interfaceID) {
-        /*
-         * iTableStartingOffset includes the initial offset to the vtable array and describes an
-         * offset (not index)
-         */
-        long iTableStartingOffset = OpenTypeWorldDispatchTableSnippets.determineITableStartingOffset(thisHub, interfaceID);
-
-        int vtableBaseOffset = KnownOffsets.singleton().getVTableBaseOffset();
-        int vtableEntrySize = KnownOffsets.singleton().getVTableEntrySize();
-
-        return (int) (iTableStartingOffset - vtableBaseOffset) / vtableEntrySize;
     }
 
     public static Object dispatchInvocation(InterpreterResolvedJavaMethod seedMethod, Object[] calleeArgs, CallKind callKind,
@@ -851,7 +835,7 @@ public final class InterpreterToVM {
                 // Arrays do not have a vtable
                 return seedMethod;
             } else {
-                return peekAtInterpreterVTable(seedMethod.getDeclaringClass().getJavaClass(), receiverClass, seedMethod.getVTableIndex());
+                return peekAtInterpreterVTable(seedMethod.getDeclaringClass(), receiverClass, seedMethod.getVTableIndex());
             }
         } else if (isVirtual && seedMethod.isDevirtualized()) {
             InterpreterResolvedJavaMethod target = seedMethod.devirtualizationTarget();

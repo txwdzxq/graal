@@ -103,6 +103,8 @@ public interface CremaSupport {
 
     Class<?> findLoadedClass(Symbol<Type> type, ResolvedJavaType accessingClass);
 
+    Class<?> findLoadedClass(Symbol<Type> type, ClassLoader loader);
+
     Object getStaticStorage(Class<?> cls, boolean primitives, int layerNum);
 
     ResolvedJavaMethod findMethodHandleIntrinsic(ResolvedJavaMethod signaturePolymorphicMethod, Symbol<Signature> signature);
@@ -110,6 +112,36 @@ public interface CremaSupport {
     Class<?> computeDeclaringClass(DynamicHub hub);
 
     Object[] computeEnclosingMethod(DynamicHub hub);
+
+    // region linking
+
+    /**
+     * Performs class preparation ({@code JVMS 5.4.2}) and class verification ({@code JVMS 5.4.1})
+     * for the given class.
+     * <p>
+     * Note: This method expects the caller to have already performed synchronization.
+     */
+    void prepareAndVerify(DynamicHub hub);
+
+    /**
+     * Records that the class loader {@code loader} loads the type {@code type} as {@code hub}.
+     * <p>
+     * This is used for subsequent loading constraints checks.
+     */
+    void recordLoadingConstraint(Symbol<Type> type, DynamicHub hub, ClassLoader loader);
+
+    /**
+     * Checks and ensures that both {@code loader1} and {@code loader2} load {@code type} as the
+     * same Class (w.r.t. identity).
+     */
+    void checkLoadingConstraint(Symbol<Type> type, ClassLoader loader1, ClassLoader loader2);
+
+    /**
+     * Frees the memory associated with GC'ed class loaders in the loading constraints.
+     */
+    void purgeLoadingConstraints();
+
+    // endregion linking
 
     static CremaSupport singleton() {
         return ImageSingletons.lookup(CremaSupport.class);

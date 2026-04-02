@@ -117,6 +117,16 @@ public final class CremaResolvedJavaMethodImpl extends InterpreterResolvedJavaMe
     }
 
     @Override
+    public CodeAttribute getCodeAttribute() {
+        return getAttribute(CodeAttribute.NAME, CodeAttribute.class);
+    }
+
+    @Override
+    public ExceptionHandler[] getSymbolicExceptionHandlers() {
+        return rawExceptionHandlers;
+    }
+
+    @Override
     public JavaType[] getDeclaredExceptions() {
         // (GR-69097)
         throw VMError.unimplemented("getCheckedExceptions");

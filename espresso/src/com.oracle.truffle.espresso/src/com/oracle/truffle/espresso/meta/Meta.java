@@ -385,6 +385,7 @@ public final class Meta extends ContextAccessImpl
         java_lang_ClassLoader_getSystemClassLoader = java_lang_ClassLoader.requireDeclaredMethod(Names.getSystemClassLoader, Signatures.ClassLoader);
         java_lang_ClassLoader_parent = java_lang_ClassLoader.requireDeclaredField(Names.parent, Types.java_lang_ClassLoader);
         java_lang_ClassLoader_0registry = java_lang_ClassLoader.requireHiddenField(Names.HIDDEN_registry);
+        java_lang_ClassLoader_0weakSelf = java_lang_ClassLoader.requireHiddenField(Names.HIDDEN_weakSelf);
         if (getJavaVersion().java9OrLater()) {
             java_lang_ClassLoader_unnamedModule = java_lang_ClassLoader.requireDeclaredField(Names.unnamedModule, Types.java_lang_Module);
             java_lang_ClassLoader_name = java_lang_ClassLoader.requireDeclaredField(Names.name, Types.java_lang_String);
@@ -1457,6 +1458,7 @@ public final class Meta extends ContextAccessImpl
     public final Method java_lang_ClassLoader_findNative;
     public final Method java_lang_ClassLoader_getSystemClassLoader;
     public final Field java_lang_ClassLoader_0registry;
+    public final Field java_lang_ClassLoader_0weakSelf;
     public final Method java_lang_ClassLoader_getResourceAsStream;
     public final Method java_lang_ClassLoader_loadClass;
 

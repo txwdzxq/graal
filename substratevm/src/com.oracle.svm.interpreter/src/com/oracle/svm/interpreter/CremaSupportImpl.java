@@ -100,7 +100,6 @@ import com.oracle.svm.espresso.classfile.ParserConstantPool;
 import com.oracle.svm.espresso.classfile.ParserField;
 import com.oracle.svm.espresso.classfile.ParserKlass;
 import com.oracle.svm.espresso.classfile.ParserMethod;
-import com.oracle.svm.espresso.classfile.attributes.Attribute;
 import com.oracle.svm.espresso.classfile.attributes.ConstantValueAttribute;
 import com.oracle.svm.espresso.classfile.attributes.InnerClassesAttribute;
 import com.oracle.svm.espresso.classfile.attributes.PermittedSubclassesAttribute;
@@ -114,6 +113,7 @@ import com.oracle.svm.espresso.classfile.descriptors.Signature;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.espresso.classfile.descriptors.Type;
 import com.oracle.svm.espresso.classfile.descriptors.TypeSymbols;
+import com.oracle.svm.espresso.shared.constraints.LoadingConstraintViolationException;
 import com.oracle.svm.espresso.shared.meta.MethodHandleIntrinsics;
 import com.oracle.svm.espresso.shared.meta.SignaturePolymorphicIntrinsic;
 import com.oracle.svm.espresso.shared.resolver.CallKind;
@@ -151,6 +151,7 @@ import jdk.vm.ci.meta.ResolvedJavaType;
 public class CremaSupportImpl implements CremaSupport {
     private static final int[] EMPTY_INT_ARRAY = new int[0];
     private final MethodHandleIntrinsics<InterpreterResolvedJavaType, InterpreterResolvedJavaMethod, InterpreterResolvedJavaField> methodHandleIntrinsics = new MethodHandleIntrinsics<>();
+    private final CremaLoadingConstraints loadingConstraints = new CremaLoadingConstraints();
 
     @UnknownPrimitiveField(availability = ReadyForCompilation.class) //
     private CFunctionPointer enterDirectInterpreterStubEntryPoint;
@@ -412,8 +413,6 @@ public class CremaSupportImpl implements CremaSupport {
         }
         thisType.setAfterFieldsOffset(fieldLayout.afterInstanceFieldsOffset());
         thisType.setDeclaredFields(declaredFields);
-
-        initStaticFields(thisType, parsed.getFields());
 
         // Done
         hub.setInterpreterType(thisType);
@@ -762,26 +761,15 @@ public class CremaSupportImpl implements CremaSupport {
         }
     }
 
-    private static void initStaticFields(CremaResolvedObjectType type, ParserField[] fields) {
-        // GR-61367: Currently done eagerly, but should be done during linking.
-        InterpreterResolvedJavaField[] declaredFields = type.getDeclaredFields();
+    private static void initStaticFields(CremaResolvedObjectType type) {
+        CremaResolvedJavaFieldImpl[] declaredFields = type.getDeclaredFields();
         for (int i = 0; i < declaredFields.length; i++) {
-            InterpreterResolvedJavaField resolvedField = declaredFields[i];
-            ParserField parsedField = fields[i];
-            assert resolvedField.getSymbolicName() == parsedField.getName();
-            assert resolvedField.isStatic() == parsedField.isStatic();
+            CremaResolvedJavaFieldImpl resolvedField = declaredFields[i];
             if (resolvedField.isStatic()) {
-                ConstantValueAttribute cva = null;
-                for (Attribute attribute : parsedField.getAttributes()) {
-                    if (attribute.getName() == ConstantValueAttribute.NAME) {
-                        assert attribute instanceof ConstantValueAttribute;
-                        cva = (ConstantValueAttribute) attribute;
-                        break;
-                    }
-                }
+                ConstantValueAttribute cva = resolvedField.getAttribute(ConstantValueAttribute.NAME, ConstantValueAttribute.class);
                 if (cva != null) {
                     int constantValueIndex = cva.getConstantValueIndex();
-                    switch (parsedField.getKind()) {
+                    switch (TypeSymbols.getJavaKind(resolvedField.getSymbolicType())) {
                         case Boolean: {
                             assert type.getConstantPool().tagAt(constantValueIndex) == ConstantPool.Tag.INTEGER;
                             boolean c = type.getConstantPool().intAt(constantValueIndex) != 0;
@@ -1281,6 +1269,11 @@ public class CremaSupportImpl implements CremaSupport {
 
     @Override
     public Class<?> findLoadedClass(Symbol<Type> type, ResolvedJavaType accessingClass) {
+        return findLoadedClass(type, ((InterpreterResolvedJavaType) accessingClass).getHub().getClassLoader());
+    }
+
+    @Override
+    public Class<?> findLoadedClass(Symbol<Type> type, ClassLoader loader) {
         int arrayDimensions = TypeSymbols.getArrayDimensions(type);
         Symbol<Type> elementalType;
         if (arrayDimensions == 0) {
@@ -1299,7 +1292,7 @@ public class CremaSupportImpl implements CremaSupport {
         } else {
             result = null;
             for (var singleton : ClassRegistries.layeredSingletons()) {
-                AbstractClassRegistry registry = singleton.getRegistry(((InterpreterResolvedJavaType) accessingClass).getJavaClass().getClassLoader());
+                AbstractClassRegistry registry = singleton.getRegistry(loader);
                 Class<?> newResult = registry.findLoadedClass(elementalType);
                 if (newResult != null) {
                     result = newResult;
@@ -1673,6 +1666,52 @@ public class CremaSupportImpl implements CremaSupport {
         CremaResolvedObjectType type = (CremaResolvedObjectType) hub.getInterpreterType();
         EnclosingMethodInfo info = type.getEnclosingMethodInfo();
         return info == null ? null : info.toJDKInfo();
+    }
+
+    @Override
+    public void prepareAndVerify(DynamicHub hub) {
+        if (!(hub.getInterpreterType() instanceof CremaResolvedObjectType type)) {
+            // This hub does not represent a class derived from a classfile.
+            return;
+        }
+        // Preparation involves creating the static fields for a class or interface and initializing
+        // such fields to their default values (JVMS 2.3, 2.4).
+        initStaticFields(type);
+        // During preparation of a class or interface C, the Java Virtual Machine also imposes
+        // loading constraints (JVMS 5.3.4)
+        type.imposeLoadingConstraints();
+
+        CremaVerifier.verifyClass(type);
+    }
+
+    @Override
+    public void recordLoadingConstraint(Symbol<Type> type, DynamicHub hub, ClassLoader loader) {
+        try {
+            loadingConstraints.recordConstraint(type, hub, loader);
+        } catch (LoadingConstraintViolationException e) {
+            throw new LinkageError(e.getMessage());
+        }
+    }
+
+    @Override
+    public void checkLoadingConstraint(Symbol<Type> type, ClassLoader loader1, ClassLoader loader2) {
+        if (loader1 == loader2) {
+            return;
+        }
+        Symbol<Type> elementalType = SymbolsSupport.getTypes().getElementalType(type);
+        if (TypeSymbols.isPrimitive(elementalType)) {
+            return;
+        }
+        try {
+            loadingConstraints.checkConstraint(elementalType, loader1, loader2);
+        } catch (LoadingConstraintViolationException e) {
+            throw new LinkageError(e.getMessage());
+        }
+    }
+
+    @Override
+    public void purgeLoadingConstraints() {
+        loadingConstraints.purge();
     }
 
     @Override
