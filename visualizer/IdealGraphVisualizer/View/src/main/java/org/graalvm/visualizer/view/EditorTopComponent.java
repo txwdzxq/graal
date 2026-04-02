@@ -820,6 +820,12 @@ public final class EditorTopComponent extends TopComponent implements PropertyCh
         scene.setSelection(list);
     }
 
+    public void centerSelectedNodes() {
+        if (!getModel().getSelectedNodes().isEmpty()) {
+            scene.centerSelectedFigures();
+        }
+    }
+
     public void setSelectedNodes(Collection<InputNode> nodes) {
         getModel().withDiagramToView((d) -> {
             setSelectedFigures(new ArrayList<>(scene.figuresForNodes(nodes)));
