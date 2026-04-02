@@ -57,7 +57,6 @@ import com.oracle.svm.core.meta.MethodPointer;
 import com.oracle.svm.core.meta.SharedMethod;
 import com.oracle.svm.core.meta.SubstrateMethodPointerConstant;
 import com.oracle.svm.core.snippets.SubstrateForeignCallTarget;
-import com.oracle.svm.hosted.OpenTypeWorldFeature;
 import com.oracle.svm.hosted.code.CompilationInfo;
 import com.oracle.svm.hosted.code.SubstrateCompilationDirectives;
 import com.oracle.svm.common.meta.MethodVariant;
@@ -113,7 +112,7 @@ public final class HostedMethod extends HostedElement implements SharedMethod, W
      * Note normally {@code indirectCallTarget == this}. Only for special HotSpot methods such as
      * miranda and overpass methods will the indirectCallTarget be a different method. The logic for
      * setting the indirectCallTarget can be found in
-     * {@link OpenTypeWorldFeature#calculateIndirectCallTarget}.
+     * {@link com.oracle.svm.hosted.OpenTypeWorldSupport#computeIndirectCallTargets}.
      *
      * For additional information, see {@link SharedMethod#getIndirectCallTarget}.
      */
