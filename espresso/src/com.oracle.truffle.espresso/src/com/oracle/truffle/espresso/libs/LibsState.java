@@ -229,6 +229,7 @@ public class LibsState {
      *            given amount of time.
      * @return number of events that were selected
      */
+    @TruffleBoundary
     public int doSelect(Selector selector, long timeout) {
         try {
             if (timeout == 0) {
