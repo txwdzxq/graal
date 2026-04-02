@@ -92,7 +92,7 @@ public class ProgressReporterSupport {
     }
 
     public void afterBreakdowns() {
-        String userWarning = ImageSingletons.lookup(Log4ShellFeature.class).getUserWarning();
+        String userWarning = Log4ShellSupport.singleton().getUserWarning();
         if (userWarning != null) {
             LogUtils.warning(userWarning);
         }
