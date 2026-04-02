@@ -42,9 +42,6 @@ name: Weekly Reachability Metadata Tests (--future-defaults=all)
 
 on:
   pull_request:
-    paths:
-      - '.github/workflows/reachability-metadata-template.yml'
-      - '.github/workflows/reachability-metadata-future-defaults.yml'
   schedule:
   - cron: '0 1 * * 1'
   workflow_dispatch:

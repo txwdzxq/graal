@@ -42,9 +42,6 @@ name: Weekly Micronaut Tests (--future-defaults=all)
 
 on:
   pull_request:
-    paths:
-      - '.github/workflows/micronaut-template.yml'
-      - '.github/workflows/micronaut-future-defaults.yml'
   schedule:
   - cron: '0 2 * * 1'
   workflow_dispatch:

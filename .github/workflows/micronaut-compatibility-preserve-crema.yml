@@ -42,9 +42,6 @@ name: Weekly Micronaut Tests (-H:+CompatibilityMode -H:Preserve=all -H:+RuntimeC
 
 on:
   pull_request:
-    paths:
-      - '.github/workflows/micronaut-template.yml'
-      - '.github/workflows/micronaut-compatibility-preserve.yml'
   schedule:
   - cron: '0 2 * * 1'
   workflow_dispatch:

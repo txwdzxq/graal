@@ -42,9 +42,6 @@ name: Weekly Spring Tests
 
 on:
   pull_request:
-    paths:
-      - '.github/workflows/spring-template.yml'
-      - '.github/workflows/spring.yml'
   schedule:
   - cron: '0 4 * * 1'
   workflow_dispatch:

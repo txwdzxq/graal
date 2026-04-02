@@ -42,9 +42,6 @@ name: Weekly Quarkus Tests (--future-defaults=all)
 
 on:
   pull_request:
-    paths:
-      - '.github/workflows/quarkus-future-defaults.yml'
-      - '.github/workflows/quarkus-template.yml'
   schedule:
   - cron: '0 3 * * 1'
   workflow_dispatch:
