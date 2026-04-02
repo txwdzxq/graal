@@ -72,7 +72,6 @@ import java.util.stream.Stream;
 
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.MapCursor;
-import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.hosted.Feature;
 import org.graalvm.nativeimage.impl.CEntryPointLiteralCodePointer;
 import org.graalvm.word.WordBase;
@@ -139,13 +138,13 @@ import com.oracle.svm.hosted.imagelayer.SharedLayerSnapshotCapnProtoSchemaHolder
 import com.oracle.svm.hosted.imagelayer.SharedLayerSnapshotCapnProtoSchemaHolder.PrimitiveArray;
 import com.oracle.svm.hosted.imagelayer.SharedLayerSnapshotCapnProtoSchemaHolder.SharedLayerSnapshot;
 import com.oracle.svm.hosted.jni.JNIJavaCallVariantWrapperMethod;
+import com.oracle.svm.hosted.lambda.LambdaProxyRenamingSubstitutionProcessor;
 import com.oracle.svm.hosted.lambda.LambdaSubstitutionType;
-import com.oracle.svm.hosted.lambda.StableLambdaProxyNameFeature;
 import com.oracle.svm.hosted.meta.HostedField;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.hosted.meta.HostedUniverse;
 import com.oracle.svm.hosted.meta.PatchedWordConstant;
-import com.oracle.svm.hosted.methodhandles.MethodHandleFeature;
+import com.oracle.svm.hosted.methodhandles.MethodHandleInvokerRenamingSubstitutionProcessor;
 import com.oracle.svm.hosted.methodhandles.MethodHandleInvokerSubstitutionType;
 import com.oracle.svm.hosted.reflect.ReflectionExpandSignatureMethod;
 import com.oracle.svm.hosted.reflect.proxy.ProxyRenamingSubstitutionProcessor;
@@ -556,8 +555,7 @@ public class SVMImageLayerWriter extends ImageLayerWriter {
          * switched.
          */
         if (type.getWrapped() instanceof LambdaSubstitutionType lambdaSubstitutionType) {
-            StableLambdaProxyNameFeature stableLambdaProxyNameFeature = ImageSingletons.lookup(StableLambdaProxyNameFeature.class);
-            if (!stableLambdaProxyNameFeature.getLambdaSubstitutionProcessor().isNameAlwaysStable(lambdaSubstitutionType.getName())) {
+            if (!LambdaProxyRenamingSubstitutionProcessor.singleton().isNameAlwaysStable(lambdaSubstitutionType.getName())) {
                 String message = "The lambda method " + lambdaSubstitutionType.getName() + " might not have a stable name in the extension image.";
                 handleNameConflict(message);
             }
@@ -567,8 +565,7 @@ public class SVMImageLayerWriter extends ImageLayerWriter {
          * still have a different name, but in a multi threading context, the names can be switched.
          */
         if (type.getWrapped() instanceof MethodHandleInvokerSubstitutionType methodHandleSubstitutionType) {
-            MethodHandleFeature methodHandleFeature = ImageSingletons.lookup(MethodHandleFeature.class);
-            if (!methodHandleFeature.getMethodHandleSubstitutionProcessor().isNameAlwaysStable(methodHandleSubstitutionType.getName())) {
+            if (!MethodHandleInvokerRenamingSubstitutionProcessor.singleton().isNameAlwaysStable(methodHandleSubstitutionType.getName())) {
                 String message = "The method handle " + methodHandleSubstitutionType.getName() + " might not have a stable name in the extension image.";
                 handleNameConflict(message);
             }
