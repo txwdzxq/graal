@@ -41,7 +41,7 @@ public final class CremaConstructorAccessor extends AbstractCremaAccessor implem
     }
 
     @Override
-    public Object newInstance(Object[] initialArguments) throws InvocationTargetException {
+    public Object newInstance(Object[] initialArguments) throws InstantiationException, InvocationTargetException {
         Object[] args = initialArguments == null ? NO_ARGS : initialArguments;
         verifyArguments(args);
         ensureDeclaringClassInitialized();

@@ -645,7 +645,13 @@ public final class InterpreterToVM {
             // GR-55050: Hide/remove the Unsafe#allocateInstance frame e.g. use a
             // DynamicNewInstanceNode intrinsic.
             return U.allocateInstance(clazz);
-        } catch (InstantiationException | IllegalArgumentException | MissingReflectionRegistrationError e) {
+        } catch (InstantiationException e) {
+            /*
+             * Bytecode execution reports this case as InstantiationError, so translate the
+             * allocation failure to preserve the interpreter's execution semantics.
+             */
+            throw SemanticJavaException.raise(new InstantiationError(clazz.getName()));
+        } catch (IllegalArgumentException | MissingReflectionRegistrationError e) {
             throw SemanticJavaException.raise(e);
         }
     }
