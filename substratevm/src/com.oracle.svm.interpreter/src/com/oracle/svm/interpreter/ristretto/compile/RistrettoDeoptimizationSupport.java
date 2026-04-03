@@ -376,19 +376,29 @@ public class RistrettoDeoptimizationSupport {
         }
 
         int slotIdx = sourceFrame.getNumLocals() + sourceFrame.getNumStack();
-        Object[] relockedMonitorObjects = null;
+        Object[] heldMonitorObjects = null;
         for (int lockIdx = 0; lockIdx < numLocks; lockIdx++) {
-            JavaConstant value = deoptState.readValue(slotIdx + lockIdx, sourceFrame);
+            int lockSlotIdx = slotIdx + lockIdx;
+            JavaConstant value = deoptState.readValue(lockSlotIdx, sourceFrame);
             if (value.getJavaKind().equals(JavaKind.Illegal)) {
                 continue;
             }
-            DeoptimizedFrame.RelockObjectData relockObjectData = createRelockObjectData(value, sourceFrame);
-            MonitorSupport.singleton().doRelockObject(relockObjectData.getObject(), relockObjectData.getLockData());
-            if (relockedMonitorObjects == null) {
-                relockedMonitorObjects = new Object[numLocks];
+
+            Object lockObject = SubstrateObjectConstant.asObject(value);
+            if (sourceFrame.getValueInfos()[lockSlotIdx].isEliminatedMonitor()) {
+                /*
+                 * Only eliminated monitors need an explicit relock here. Live synchronized
+                 * method/block locks are still owned at the deopt point and are registered below so
+                 * the interpreter can release them without double-counting the acquisition.
+                 */
+                DeoptimizedFrame.RelockObjectData relockObjectData = createRelockObjectData(value, sourceFrame);
+                MonitorSupport.singleton().doRelockObject(relockObjectData.getObject(), relockObjectData.getLockData());
             }
-            relockedMonitorObjects[lockIdx] = relockObjectData.getObject();
+            if (heldMonitorObjects == null) {
+                heldMonitorObjects = new Object[numLocks];
+            }
+            heldMonitorObjects[lockIdx] = lockObject;
         }
-        return relockedMonitorObjects;
+        return heldMonitorObjects;
     }
 }
