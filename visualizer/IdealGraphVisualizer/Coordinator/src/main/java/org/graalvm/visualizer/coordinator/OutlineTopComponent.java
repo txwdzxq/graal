@@ -270,8 +270,9 @@ public final class OutlineTopComponent extends TopComponent implements ExplorerM
         toolbar.add(((NodeAction) RemoveAction.get(RemoveAction.class)).createContextAwareInstance(this.getLookup()));
         toolbar.add(RemoveAllAction.get(RemoveAllAction.class));
 
-        toolbar.add(Actions.forID("IGV", FreezeSessionsAction.ID));
-        // PENDING: HACK !
+        // Add the explicit toolbar presenters so these actions keep their JToggleButton behavior.
+        // Relying on toolbar.add(action) here can lose the custom toggle presenter and its selected-state UI.
+        toolbar.add(((Presenter.Toolbar) Actions.forID("IGV", FreezeSessionsAction.ID)).getToolbarPresenter());
         toolbar.add(((Presenter.Toolbar) Actions.forID("IGV", AutoFreezeSessionsAction.ID)).getToolbarPresenter());
 
         toolbar.add(createTreeToolbarButton(EXPAND_ICON, "Expand all Outline nodes", () -> outlineTreeView().expandAllNodes()));
