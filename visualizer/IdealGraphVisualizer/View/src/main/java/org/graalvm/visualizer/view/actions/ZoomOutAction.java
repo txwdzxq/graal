@@ -33,8 +33,8 @@ import org.openide.util.actions.CallableSystemAction;
 
 import javax.swing.Action;
 import javax.swing.KeyStroke;
-import java.awt.Event;
 import java.awt.event.ActionEvent;
+import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 
 @NbBundle.Messages({
@@ -44,12 +44,14 @@ import java.awt.event.KeyEvent;
 @ActionRegistration(displayName = "#ACTION_ZoomOut",
         iconBase = "org/graalvm/visualizer/view/images/zoom_out.png", lazy = true)
 @ActionReferences({
+        @ActionReference(path = "Shortcuts", name = "C-MINUS"),
         @ActionReference(path = "NodeGraphViewer/Actions", position = 4000, separatorAfter = 4100),
         @ActionReference(path = "NodeGraphViewer/ContextActions", position = 4500, separatorAfter = 4550),
         @ActionReference(path = "Menu/View", position = 2080),
 })
 public final class ZoomOutAction extends CallableSystemAction {
     public static final String ID = "org.graalvm.visualizer.view.actions.ZoomOutAction"; // NOI18N
+    public static final KeyStroke KEY_STROKE = KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, InputEvent.CTRL_DOWN_MASK);
 
     @Override
     public void actionPerformed(ActionEvent ev) {
@@ -90,7 +92,7 @@ public final class ZoomOutAction extends CallableSystemAction {
 
     public ZoomOutAction() {
         putValue(Action.SHORT_DESCRIPTION, Bundle.ACTION_ZoomOut());
-        putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, Event.CTRL_MASK, false));
+        putValue(Action.ACCELERATOR_KEY, KEY_STROKE);
     }
 
     @Override

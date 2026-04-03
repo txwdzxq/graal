@@ -32,6 +32,9 @@ import org.openide.util.NbBundle;
 import org.openide.util.actions.CallableSystemAction;
 
 import javax.swing.Action;
+import javax.swing.KeyStroke;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
 
 @NbBundle.Messages({
         "ACTION_ZoomReset=Reset zoom (100%)",
@@ -41,13 +44,14 @@ import javax.swing.Action;
 @ActionRegistration(displayName = "#ACTION_ZoomReset",
         iconBase = "org/graalvm/visualizer/view/images/zoomReset.svg", lazy = true)
 @ActionReferences({
-        @ActionReference(path = "Shortcuts", name = "D-0"),
+        @ActionReference(path = "Shortcuts", name = "C-0"),
         @ActionReference(path = "NodeGraphViewer/Actions", position = 4050),
         @ActionReference(path = "NodeGraphViewer/ContextActions", position = 4525),
         @ActionReference(path = "Menu/View", position = 2090),
 })
 public final class ZoomResetAction extends CallableSystemAction {
     public static final String ID = "org.graalvm.visualizer.view.actions.ZoomResetAction"; // NOI18N
+    public static final KeyStroke KEY_STROKE = KeyStroke.getKeyStroke(KeyEvent.VK_0, InputEvent.CTRL_DOWN_MASK);
 
     @Override
     public void performAction() {
@@ -64,6 +68,7 @@ public final class ZoomResetAction extends CallableSystemAction {
 
     public ZoomResetAction() {
         putValue(Action.SHORT_DESCRIPTION, Bundle.DESC_ZoomReset());
+        putValue(Action.ACCELERATOR_KEY, KEY_STROKE);
     }
 
     @Override

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013, 2022, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2013, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -57,6 +57,9 @@ import org.graalvm.visualizer.settings.layout.LayoutSettings.LayoutSettingBean;
 import org.graalvm.visualizer.util.ColorIcon;
 import org.graalvm.visualizer.util.DoubleClickAction;
 import org.graalvm.visualizer.util.PropertiesSheet;
+import org.graalvm.visualizer.view.actions.ZoomInAction;
+import org.graalvm.visualizer.view.actions.ZoomOutAction;
+import org.graalvm.visualizer.view.actions.ZoomResetAction;
 import org.graalvm.visualizer.view.api.DiagramViewer;
 import org.graalvm.visualizer.view.api.DiagramViewerEvent;
 import org.graalvm.visualizer.view.api.DiagramViewerListener;
@@ -571,6 +574,8 @@ public class DiagramScene extends ObjectScene implements DiagramViewer {
         this.getActions().addAction(ActionFactory.createWheelPanAction());
         this.getActions().addAction(ActionFactory.createRectangularSelectAction(rectangularSelectDecorator, selectLayer, rectangularSelectProvider));
 
+        initializeZoomActions();
+        installZoomKeyBindings();
 
         // For initial setup of the model we need to disable undo to prevent
         // unnecessary cloning.
@@ -668,6 +673,36 @@ public class DiagramScene extends ObjectScene implements DiagramViewer {
     @Override
     public Component getComponent() {
         return scrollPane;
+    }
+
+    private void initializeZoomActions() {
+        ActionMap actionMap = topComponent.getActionMap();
+        actionMap.put(ZoomInAction.ID, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                zoomIn();
+            }
+        });
+        actionMap.put(ZoomOutAction.ID, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                zoomOut();
+            }
+        });
+        actionMap.put(ZoomResetAction.ID, new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                zoomTo(1.0);
+            }
+        });
+    }
+
+    private void installZoomKeyBindings() {
+        InputMap inputMap = topComponent.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
+        inputMap.put(ZoomInAction.KEY_STROKE, ZoomInAction.ID);
+        inputMap.put(ZoomInAction.SECONDARY_KEY_STROKE, ZoomInAction.ID);
+        inputMap.put(ZoomOutAction.KEY_STROKE, ZoomOutAction.ID);
+        inputMap.put(ZoomResetAction.KEY_STROKE, ZoomResetAction.ID);
     }
 
     TopComponent getTopComponent() {
