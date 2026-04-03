@@ -713,6 +713,10 @@ public final class EditorTopComponent extends TopComponent implements PropertyCh
         scene.zoomTo(factor);
     }
 
+    public void resetZoom() {
+        zoomTo(1.0f);
+    }
+
     public void showPrevDiagram() {
         int fp = getModel().getDiagramPeers().getFirstPosition();
         int sp = getModel().getDiagramPeers().getSecondPosition();
