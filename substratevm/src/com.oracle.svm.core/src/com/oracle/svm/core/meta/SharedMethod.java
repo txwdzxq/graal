@@ -90,7 +90,7 @@ public interface SharedMethod extends ResolvedJavaMethod {
      * Note normally in the open type world {@code indirectCallTarget == this}. Only for special
      * HotSpot-specific methods such as miranda and overpass methods will the indirectCallTarget be
      * a different method. The logic for setting the indirectCallTarget can be found in
-     * {@code OpenTypeWorldFeature#calculateIndirectCallTarget}.
+     * {@code OpenTypeWorldSupport#computeIndirectCallTargets}.
      *
      * <p>
      * In the closed type world, this method will always return {@code this}.
