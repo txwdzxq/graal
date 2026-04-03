@@ -24,16 +24,26 @@
  */
 package com.oracle.svm.hosted.pltgot;
 
-import com.oracle.objectfile.ObjectFile;
+import java.util.Map;
+import java.util.function.ObjIntConsumer;
+
 import com.oracle.svm.core.graal.code.SubstrateBackend;
 import com.oracle.svm.core.meta.SharedMethod;
-
-import jdk.vm.ci.meta.ResolvedJavaMethod;
+import com.oracle.svm.hosted.image.RelocatableBuffer;
 
 public interface PLTStubGenerator {
 
-    byte[] generatePLT(SharedMethod[] got, SubstrateBackend substrateBackend);
+    GeneratedPLT generatePLT(SharedMethod[] got, SubstrateBackend substrateBackend);
 
-    void markResolverMethodPatch(ObjectFile.ProgbitsSectionImpl pltBuffer, ResolvedJavaMethod resolverMethod);
+    record GeneratedPLT(RelocatableBuffer buffer, Map<SharedMethod, Integer> stubStartOffsets, Map<SharedMethod, Integer> resolverEntryDisplacements) {
+        void forEachStubStartOffset(ObjIntConsumer<SharedMethod> action) {
+            stubStartOffsets().forEach(action::accept);
+        }
 
+        int getResolverEntryDisplacement(SharedMethod method) {
+            Integer offset = resolverEntryDisplacements().get(method);
+            assert offset != null : "Target doesn't have a PLT stub: " + method;
+            return offset;
+        }
+    }
 }

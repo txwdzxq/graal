@@ -47,7 +47,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import com.oracle.svm.core.BuilderUtil;
 import org.graalvm.collections.EconomicSet;
 import org.graalvm.collections.Pair;
 import org.graalvm.nativeimage.ImageSingletons;
@@ -71,6 +70,7 @@ import com.oracle.objectfile.ObjectFile.Section;
 import com.oracle.objectfile.SectionName;
 import com.oracle.svm.core.BuildArtifacts;
 import com.oracle.svm.core.BuildArtifacts.ArtifactType;
+import com.oracle.svm.core.BuilderUtil;
 import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.FunctionPointerHolder;
 import com.oracle.svm.core.InvalidMethodPointerHandler;
@@ -81,7 +81,6 @@ import com.oracle.svm.core.c.CGlobalDataImpl;
 import com.oracle.svm.core.c.function.GraalIsolateHeader;
 import com.oracle.svm.core.c.libc.TemporaryBuildDirectoryProvider;
 import com.oracle.svm.core.config.ConfigurationValues;
-import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.graal.code.CGlobalDataBasePointer;
 import com.oracle.svm.core.graal.code.CGlobalDataInfo;
@@ -97,6 +96,7 @@ import com.oracle.svm.core.meta.MethodOffset;
 import com.oracle.svm.core.meta.MethodPointer;
 import com.oracle.svm.core.meta.MethodRef;
 import com.oracle.svm.core.os.ImageHeapProvider;
+import com.oracle.svm.core.pltgot.PLTGOTConfiguration;
 import com.oracle.svm.core.reflect.SubstrateAccessor;
 import com.oracle.svm.core.util.ByteFormattingUtil;
 import com.oracle.svm.core.util.UserError;
@@ -119,6 +119,9 @@ import com.oracle.svm.hosted.meta.HostedMetaAccess;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.hosted.meta.HostedType;
 import com.oracle.svm.hosted.meta.HostedUniverse;
+import com.oracle.svm.hosted.pltgot.HostedPLTGOTConfiguration;
+import com.oracle.svm.hosted.pltgot.PLTSupport;
+import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.shared.option.SubstrateOptionsParser;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
@@ -151,6 +154,7 @@ public abstract class NativeImage extends AbstractImage {
     private final int wordSize;
     private final Set<HostedMethod> uniqueEntryPoints = new HashSet<>(); // noEconomicSet(streaming)
     private final MethodPointerRelocationProvider relocationProvider;
+    private final long textSectionSize;
 
     // The sections of the native image.
     private Section textSection;
@@ -161,6 +165,14 @@ public abstract class NativeImage extends AbstractImage {
     public NativeImage(NativeImageKind k, HostedUniverse universe, HostedMetaAccess metaAccess, NativeLibraries nativeLibs, NativeImageHeap heap, ImageHeapLayoutInfo heapLayout,
                     NativeImageCodeCache codeCache, List<HostedMethod> entryPoints, ClassLoader imageClassLoader) {
         super(k, universe, metaAccess, nativeLibs, heap, heapLayout, codeCache, entryPoints, imageClassLoader);
+
+        int codeCacheSize = codeCache.getCodeCacheSize();
+        if (PLTGOTConfiguration.isEnabled()) {
+            PLTSupport pltSupport = HostedPLTGOTConfiguration.singleton().getPLTSupport();
+            textSectionSize = pltSupport.reserveTextSectionSpace(codeCacheSize);
+        } else {
+            textSectionSize = codeCacheSize;
+        }
 
         uniqueEntryPoints.addAll(entryPoints);
         relocationProvider = MethodPointerRelocationProvider.singleton();
@@ -442,7 +454,6 @@ public abstract class NativeImage extends AbstractImage {
             }
 
             // Text section (code)
-            final int textSectionSize = codeCache.getCodeCacheSize();
             final RelocatableBuffer textBuffer = new RelocatableBuffer(textSectionSize, objectFile.getByteOrder());
             final NativeTextSectionImpl textImpl = NativeTextSectionImpl.factory(textBuffer, objectFile, codeCache);
             textSection = objectFile.newProgbitsSection(SectionName.TEXT.getFormatDependentName(objectFile.getFormat()), pageSize, false, true, textImpl);
@@ -557,10 +568,7 @@ public abstract class NativeImage extends AbstractImage {
     }
 
     public void markRelocationSitesFromBuffer(RelocatableBuffer buffer, ProgbitsSectionImpl sectionImpl) {
-        for (Map.Entry<Integer, RelocatableBuffer.Info> entry : buffer.getSortedRelocations()) {
-            final int offset = entry.getKey();
-            final RelocatableBuffer.Info info = entry.getValue();
-
+        buffer.forEachRelocation((info, offset) -> {
             assert ConfigurationValues.getTarget().arch instanceof AArch64 || checkEmbeddedOffset(sectionImpl, offset, info);
 
             Object target = info.getTargetObject();
@@ -578,7 +586,7 @@ public abstract class NativeImage extends AbstractImage {
                     markHeapReferenceRelocationSite(sectionImpl, offset, info, targetObjectInfo);
                 }
             }
-        }
+        });
     }
 
     private static boolean checkEmbeddedOffset(ProgbitsSectionImpl sectionImpl, final int offset, final RelocatableBuffer.Info info) {
@@ -866,6 +874,11 @@ public abstract class NativeImage extends AbstractImage {
     }
 
     @Override
+    public long getCodeSize() {
+        return textSectionSize;
+    }
+
+    @Override
     public ObjectFile getObjectFile() {
         assert objectFile != null : "objectFile accessed before set";
         return objectFile;
@@ -990,6 +1003,10 @@ public abstract class NativeImage extends AbstractImage {
                  * our byte array.
                  */
                 codeCache.writeCode(textBuffer);
+                if (PLTGOTConfiguration.isEnabled()) {
+                    PLTSupport pltSupport = HostedPLTGOTConfiguration.singleton().getPLTSupport();
+                    pltSupport.writeToTextSection(textBuffer, objectFile, textSection);
+                }
             }
         }
 

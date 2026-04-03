@@ -30,13 +30,13 @@ import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.meta.MethodOffset;
 import com.oracle.svm.core.meta.MethodPointer;
 import com.oracle.svm.core.meta.SharedMethod;
-import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.hosted.image.MethodPointerRelocationProvider;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
+import com.oracle.svm.shared.util.VMError;
 
 /**
  * Emits method pointer relocations in the image object file that take PLT/GOT into account.
@@ -47,19 +47,19 @@ import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class, other = Disallowed.class)
 public class PLTGOTPointerRelocationProvider extends MethodPointerRelocationProvider {
 
+    private final PLTSupport pltSupport;
     private final Predicate<SharedMethod> shouldMarkRelocationToPLTStub;
-    private final PLTSectionSupport pltSectionSupport;
 
-    public PLTGOTPointerRelocationProvider(Predicate<SharedMethod> shouldMarkRelocationToPLTStub) {
+    public PLTGOTPointerRelocationProvider(PLTSupport pltSupport, Predicate<SharedMethod> shouldMarkRelocationToPLTStub) {
+        this.pltSupport = pltSupport;
         this.shouldMarkRelocationToPLTStub = shouldMarkRelocationToPLTStub;
-        this.pltSectionSupport = HostedPLTGOTConfiguration.singleton().getPLTSectionSupport();
     }
 
     @Override
     public void markMethodPointerRelocation(ObjectFile.ProgbitsSectionImpl section, int offset, ObjectFile.RelocationKind relocationKind, HostedMethod target, long addend,
                     MethodPointer methodPointer, boolean isInjectedNotCompiled) {
         if (methodPointer.permitsRewriteToPLT() && shouldMarkRelocationToPLTStub.test(target)) {
-            pltSectionSupport.markRelocationToPLTStub(section, offset, relocationKind, target, addend);
+            pltSupport.markRelocationToPLTStub(section, offset, relocationKind, target, addend);
         } else {
             super.markMethodPointerRelocation(section, offset, relocationKind, target, addend, methodPointer, isInjectedNotCompiled);
         }

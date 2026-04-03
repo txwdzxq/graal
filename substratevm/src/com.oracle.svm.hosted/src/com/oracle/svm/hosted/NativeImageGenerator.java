@@ -764,8 +764,7 @@ public class NativeImageGenerator {
 
                         createAbstractImage(k, hostedEntryPoints, heap, heapLayout, hMetaAccess, codeCache);
 
-                        FeatureImpl.AfterAbstractImageCreationAccessImpl access = new FeatureImpl.AfterAbstractImageCreationAccessImpl(featureHandler, loader, hMetaAccess, debug, image,
-                                        runtimeConfiguration.getBackendForNormalMethod());
+                        FeatureImpl.AfterAbstractImageCreationAccessImpl access = new FeatureImpl.AfterAbstractImageCreationAccessImpl(featureHandler, loader, hMetaAccess, debug, image);
                         featureHandler.forEachGraalFeature(feature -> feature.afterAbstractImageCreation(access));
 
                         image.build(imageName, debug);
@@ -827,7 +826,7 @@ public class NativeImageGenerator {
                     HostedImageLayerBuildingSupport.singleton().archiveLayer();
                 }
             }
-            reporter.printCreationEnd(image.getImageFileSize(), heap.getCurrentLayerObjectCount(), image.getImageHeapSize(), codeCache.getCodeAreaSize(), numCompilations, image.getDebugInfoSize(),
+            reporter.printCreationEnd(image.getImageFileSize(), heap.getCurrentLayerObjectCount(), image.getImageHeapSize(), image.getCodeSize(), numCompilations, image.getDebugInfoSize(),
                             imageDiskFileSize);
         }
     }

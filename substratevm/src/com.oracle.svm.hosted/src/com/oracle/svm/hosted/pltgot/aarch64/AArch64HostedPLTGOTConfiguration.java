@@ -51,7 +51,7 @@ public final class AArch64HostedPLTGOTConfiguration extends HostedPLTGOTConfigur
     }
 
     @Override
-    public PLTStubGenerator getArchSpecificPLTStubGenerator() {
+    public PLTStubGenerator createArchSpecificPLTStubGenerator() {
         return new AArch64PLTStubGenerator();
     }
 

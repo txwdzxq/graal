@@ -66,6 +66,7 @@ import com.oracle.graal.pointsto.meta.AnalysisType;
 import com.oracle.graal.pointsto.reports.ReportUtils;
 import com.oracle.graal.pointsto.util.CompletionExecutor;
 import com.oracle.objectfile.ObjectFile;
+import com.oracle.svm.common.meta.MethodVariant;
 import com.oracle.svm.core.BuildPhaseProvider;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.code.CodeInfo;
@@ -104,7 +105,6 @@ import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.hosted.meta.HostedType;
 import com.oracle.svm.hosted.meta.HostedUniverse;
 import com.oracle.svm.hosted.reflect.ReflectionHostedSupport;
-import com.oracle.svm.common.meta.MethodVariant;
 import com.oracle.svm.shared.option.HostedOptionKey;
 import com.oracle.svm.shared.option.HostedOptionValues;
 import com.oracle.svm.shared.util.ReflectionUtil;
@@ -138,7 +138,7 @@ public abstract class NativeImageCodeCache {
         public static final HostedOptionKey<Boolean> VerifyDeoptimizationEntryPoints = new HostedOptionKey<>(false);
     }
 
-    private int codeAreaSize;
+    private int codeAreaSize = -1;
 
     protected final NativeImageHeap imageHeap;
 
@@ -193,8 +193,10 @@ public abstract class NativeImageCodeCache {
         return codeAreaSize;
     }
 
-    public void setCodeAreaSize(int codeAreaSize) {
-        this.codeAreaSize = codeAreaSize;
+    public void setCodeAreaSize(int size) {
+        assert size >= 0;
+        assert codeAreaSize == -1;
+        codeAreaSize = size;
     }
 
     public Pair<HostedMethod, CompilationResult> getFirstCompilation() {
