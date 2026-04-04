@@ -100,6 +100,7 @@ import jdk.graal.compiler.graphio.parsing.model.Properties;
  */
 public class DiagramScene extends ObjectScene implements DiagramViewer {
     private static final Logger LOG = Logger.getLogger(DiagramScene.class.getName());
+    private static final int MULTI_SELECTION_MASK = getMultiSelectionMask();
 
     private final TopComponent topComponent;
     private final CustomizablePanAction panAction;
@@ -564,7 +565,7 @@ public class DiagramScene extends ObjectScene implements DiagramViewer {
         // pressed without any modifier keys, otherwise it will not consume it
         // and the selection action (below) will handle the event
         panAction = new CustomizablePanAction(~0, MouseEvent.BUTTON1_DOWN_MASK);
-        selectAction = createSelectAction();
+        selectAction = createPlatformSelectAction();
         zoomAction = ActionFactory.createMouseCenteredZoomAction(1.2);
 
         this.getActions().addAction(panAction);
@@ -703,6 +704,56 @@ public class DiagramScene extends ObjectScene implements DiagramViewer {
         inputMap.put(ZoomInAction.SECONDARY_KEY_STROKE, ZoomInAction.ID);
         inputMap.put(ZoomOutAction.KEY_STROKE, ZoomOutAction.ID);
         inputMap.put(ZoomResetAction.KEY_STROKE, ZoomResetAction.ID);
+    }
+
+    private WidgetAction createPlatformSelectAction() {
+        return new WidgetAction.Adapter() {
+            @Override
+            public WidgetAction.State mousePressed(Widget widget, WidgetAction.WidgetMouseEvent event) {
+                int button = event.getButton();
+                if (button != MouseEvent.BUTTON1 && button != MouseEvent.BUTTON2) {
+                    return WidgetAction.State.REJECTED;
+                }
+                return selectObject(widget, isMultiSelectionEvent(event)) ? WidgetAction.State.CHAIN_ONLY : WidgetAction.State.REJECTED;
+            }
+
+            @Override
+            public WidgetAction.State keyTyped(Widget widget, WidgetAction.WidgetKeyEvent event) {
+                if (event.getKeyChar() != ' ') {
+                    return WidgetAction.State.REJECTED;
+                }
+                return selectObject(widget, isMultiSelectionEvent(event)) ? WidgetAction.State.CONSUMED : WidgetAction.State.REJECTED;
+            }
+        };
+    }
+
+    private boolean selectObject(Widget widget, boolean invertSelection) {
+        Object object = findObject(widget);
+        if (object == null) {
+            return false;
+        }
+        setFocusedObject(object);
+        if (!invertSelection && getSelectedObjects().contains(object)) {
+            return true;
+        }
+        userSelectionSuggested(Collections.singleton(object), invertSelection);
+        return true;
+    }
+
+    private static boolean isMultiSelectionEvent(WidgetAction.WidgetMouseEvent event) {
+        return (event.getModifiersEx() & MULTI_SELECTION_MASK) != 0;
+    }
+
+    private static boolean isMultiSelectionEvent(WidgetAction.WidgetKeyEvent event) {
+        return (event.getModifiersEx() & MULTI_SELECTION_MASK) != 0;
+    }
+
+    private static int getMultiSelectionMask() {
+        try {
+            return Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
+        } catch (HeadlessException e) {
+            return InputEvent.CTRL_DOWN_MASK;
+        }
     }
 
     TopComponent getTopComponent() {
