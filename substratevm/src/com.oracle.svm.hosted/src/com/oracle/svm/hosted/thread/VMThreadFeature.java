@@ -70,7 +70,7 @@ import jdk.vm.ci.meta.ResolvedJavaMethod;
 @AutomaticallyRegisteredFeature
 @Platforms(InternalPlatform.NATIVE_ONLY.class)
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
-public class VMThreadFeature implements InternalFeature, VMThreadLocalOffsetProvider {
+public class VMThreadFeature implements InternalFeature {
 
     private VMThreadLocalCollector threadLocalCollector;
 
@@ -227,10 +227,13 @@ public class VMThreadFeature implements InternalFeature, VMThreadLocalOffsetProv
 
     @Override
     public void beforeCompilation(BeforeCompilationAccess config) {
-        ImageSingletons.add(VMThreadLocalOffsetProvider.class, this);
         int nextOffset = threadLocalCollector.sortAndAssignOffsets();
 
         if (ImageLayerBuildingSupport.firstImageBuild()) {
+            /*
+             * Extension-layer builds restore the provider key from the loaded layer snapshot.
+             */
+            ImageSingletons.add(VMThreadLocalOffsetProvider.class, threadLocalCollector);
             /*
              * This information is installed always in the first image. In subsequent images we only
              * need to relay to thread local accesses the previously assigned offsets
@@ -250,10 +253,5 @@ public class VMThreadFeature implements InternalFeature, VMThreadLocalOffsetProv
             /* Remember the final sorted list. */
             VMThreadLocalInfos.setInfos(threadLocalCollector.getSortedThreadLocalInfos());
         }
-    }
-
-    @Override
-    public int offsetOf(FastThreadLocal threadLocal) {
-        return threadLocalCollector.getOffset(threadLocal);
     }
 }
