@@ -66,20 +66,23 @@ public class NativeImageDebugInfoStripFeature implements InternalFeature {
     public void afterImageWrite(AfterImageWriteAccess access) {
         AfterImageWriteAccessImpl accessImpl = (AfterImageWriteAccessImpl) access;
         try (Indent _ = accessImpl.getDebugContext().logAndIndent("Stripping debuginfo")) {
+            NativeImageDebugInfoStripSupport support = NativeImageDebugInfoStripSupport.singleton();
+            boolean strippedSuccessfully;
             switch (ObjectFile.getNativeFormat()) {
                 case ELF:
-                    NativeImageDebugInfoStripSupport.singleton().setStrippedSuccessfully(stripLinux(accessImpl));
+                    strippedSuccessfully = stripLinux(accessImpl);
                     break;
                 case PECOFF:
                     // debug info is always "stripped" to a pdb file by linker
-                    NativeImageDebugInfoStripSupport.singleton().setStrippedSuccessfully(true);
+                    strippedSuccessfully = true;
                     break;
                 case MACH_O:
                     // Not supported. See warning in SubstrateOptions.validateStripDebugInfo
-                    break;
+                    return;
                 default:
                     throw UserError.abort("Unsupported object file format");
             }
+            support.setStrippedSuccessfully(strippedSuccessfully);
         }
     }
 

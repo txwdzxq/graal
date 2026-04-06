@@ -66,10 +66,10 @@ public final class HostedHeapDumpSupport {
     private final String timeStamp;
     private int iteration;
 
-    public HostedHeapDumpSupport(List<String> phases, String hostedImageName) {
+    HostedHeapDumpSupport(List<String> phases, String imageName) {
         this.phases = List.copyOf(phases);
         dumpLocation = getDumpLocation();
-        imageName = ReportUtils.extractImageName(hostedImageName);
+        this.imageName = ReportUtils.extractImageName(imageName);
         timeStamp = getTimeStamp();
     }
 
@@ -77,29 +77,29 @@ public final class HostedHeapDumpSupport {
         return ImageSingletons.lookup(HostedHeapDumpSupport.class);
     }
 
-    public void duringAnalysis() {
+    public void dumpDuringAnalysis() {
         if (phases.contains(Phases.DuringAnalysis.getName())) {
             dumpHeap(Phases.DuringAnalysis.getName() + "-" + iteration++);
         }
     }
 
-    public void onAnalysisExit() {
+    public void dumpAfterAnalysis() {
         dumpHeap(Phases.AfterAnalysis);
     }
 
-    public void beforeCompilation() {
+    public void dumpBeforeCompilation() {
         dumpHeap(Phases.BeforeCompilation);
     }
 
-    public void beforeInlining() {
+    public void dumpBeforeInlining() {
         dumpHeap(Phases.CompileQueueBeforeInlining);
     }
 
-    public void afterInlining() {
+    public void dumpAfterInlining() {
         dumpHeap(Phases.CompileQueueAfterInlining);
     }
 
-    public void compileQueueAfterCompilation() {
+    public void dumpAfterCompilation() {
         dumpHeap(Phases.CompileQueueAfterCompilation);
     }
 

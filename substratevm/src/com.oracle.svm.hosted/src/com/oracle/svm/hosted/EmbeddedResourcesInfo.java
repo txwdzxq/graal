@@ -42,7 +42,7 @@ import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 public class EmbeddedResourcesInfo {
     private final boolean collectEmbeddedResourcesInfo;
 
-    public EmbeddedResourcesInfo(boolean collectEmbeddedResourcesInfo) {
+    EmbeddedResourcesInfo(boolean collectEmbeddedResourcesInfo) {
         this.collectEmbeddedResourcesInfo = collectEmbeddedResourcesInfo;
     }
 

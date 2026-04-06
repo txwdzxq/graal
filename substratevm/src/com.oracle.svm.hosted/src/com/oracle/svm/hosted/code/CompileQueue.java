@@ -429,6 +429,7 @@ public class CompileQueue {
 
     public void finish(DebugContext debug) {
         ProgressReporter reporter = ProgressReporter.singleton();
+        HostedHeapDumpSupport hostedHeapDumpSupport = ImageSingletons.contains(HostedHeapDumpSupport.class) ? HostedHeapDumpSupport.singleton() : null;
         try {
             try (ProgressReporter.ReporterClosable _ = reporter.printParsing()) {
                 parseAll();
@@ -453,14 +454,14 @@ public class CompileQueue {
                 method.wrapped.clearAnalyzedGraph();
             }
 
-            if (ImageSingletons.contains(HostedHeapDumpSupport.class)) {
-                HostedHeapDumpSupport.singleton().beforeInlining();
+            if (hostedHeapDumpSupport != null) {
+                hostedHeapDumpSupport.dumpBeforeInlining();
             }
             try (ProgressReporter.ReporterClosable _ = reporter.printInlining()) {
                 inlineTrivialMethods(debug);
             }
-            if (ImageSingletons.contains(HostedHeapDumpSupport.class)) {
-                HostedHeapDumpSupport.singleton().afterInlining();
+            if (hostedHeapDumpSupport != null) {
+                hostedHeapDumpSupport.dumpAfterInlining();
             }
 
             assert suitesNotCreated();
@@ -478,8 +479,8 @@ public class CompileQueue {
         if (printMethodHistogram) {
             printMethodHistogram();
         }
-        if (ImageSingletons.contains(HostedHeapDumpSupport.class)) {
-            HostedHeapDumpSupport.singleton().compileQueueAfterCompilation();
+        if (hostedHeapDumpSupport != null) {
+            hostedHeapDumpSupport.dumpAfterCompilation();
         }
         if (ImageLayerBuildingSupport.buildingExtensionLayer()) {
             HostedImageLayerBuildingSupport.singleton().getLoader().cleanupAfterCompilation();

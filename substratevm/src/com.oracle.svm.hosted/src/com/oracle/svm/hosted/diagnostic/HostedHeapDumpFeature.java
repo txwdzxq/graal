@@ -26,7 +26,6 @@ package com.oracle.svm.hosted.diagnostic;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.graalvm.nativeimage.ImageSingletons;
@@ -53,7 +52,7 @@ public class HostedHeapDumpFeature implements InternalFeature {
 
     @Override
     public boolean isInConfiguration(IsInConfigurationAccess access) {
-        List<String> validPhases = Stream.of(HostedHeapDumpSupport.Phases.values()).map(HostedHeapDumpSupport.Phases::getName).collect(Collectors.toList());
+        List<String> validPhases = Stream.of(HostedHeapDumpSupport.Phases.values()).map(HostedHeapDumpSupport.Phases::getName).toList();
         List<String> values = Options.DumpHeap.getValue().values();
         phases = new ArrayList<>();
         for (String value : values) {
@@ -77,16 +76,16 @@ public class HostedHeapDumpFeature implements InternalFeature {
 
     @Override
     public void duringAnalysis(DuringAnalysisAccess access) {
-        HostedHeapDumpSupport.singleton().duringAnalysis();
+        HostedHeapDumpSupport.singleton().dumpDuringAnalysis();
     }
 
     @Override
     public void onAnalysisExit(OnAnalysisExitAccess access) {
-        HostedHeapDumpSupport.singleton().onAnalysisExit();
+        HostedHeapDumpSupport.singleton().dumpAfterAnalysis();
     }
 
     @Override
     public void beforeCompilation(BeforeCompilationAccess access) {
-        HostedHeapDumpSupport.singleton().beforeCompilation();
+        HostedHeapDumpSupport.singleton().dumpBeforeCompilation();
     }
 }
