@@ -72,7 +72,7 @@ import com.oracle.svm.hosted.FeatureHandler;
 import com.oracle.svm.hosted.NativeImageGenerator;
 import com.oracle.svm.hosted.NativeImageOptions;
 import com.oracle.svm.hosted.ProgressReporter;
-import com.oracle.svm.hosted.diagnostic.HostedHeapDumpSupport;
+import com.oracle.svm.hosted.diagnostic.HostedHeapDumpHandler;
 import com.oracle.svm.hosted.imagelayer.HostedImageLayerBuildingSupport;
 import com.oracle.svm.hosted.imagelayer.LayeredDispatchTableFeature;
 import com.oracle.svm.hosted.imagelayer.SVMImageLayerLoader;
@@ -429,7 +429,7 @@ public class CompileQueue {
 
     public void finish(DebugContext debug) {
         ProgressReporter reporter = ProgressReporter.singleton();
-        HostedHeapDumpSupport hostedHeapDumpSupport = ImageSingletons.contains(HostedHeapDumpSupport.class) ? HostedHeapDumpSupport.singleton() : null;
+        HostedHeapDumpHandler hostedHeapDumpHandler = ImageSingletons.contains(HostedHeapDumpHandler.class) ? HostedHeapDumpHandler.singleton() : null;
         try {
             try (ProgressReporter.ReporterClosable _ = reporter.printParsing()) {
                 parseAll();
@@ -454,14 +454,14 @@ public class CompileQueue {
                 method.wrapped.clearAnalyzedGraph();
             }
 
-            if (hostedHeapDumpSupport != null) {
-                hostedHeapDumpSupport.dumpBeforeInlining();
+            if (hostedHeapDumpHandler != null) {
+                hostedHeapDumpHandler.dumpBeforeInlining();
             }
             try (ProgressReporter.ReporterClosable _ = reporter.printInlining()) {
                 inlineTrivialMethods(debug);
             }
-            if (hostedHeapDumpSupport != null) {
-                hostedHeapDumpSupport.dumpAfterInlining();
+            if (hostedHeapDumpHandler != null) {
+                hostedHeapDumpHandler.dumpAfterInlining();
             }
 
             assert suitesNotCreated();
@@ -479,8 +479,8 @@ public class CompileQueue {
         if (printMethodHistogram) {
             printMethodHistogram();
         }
-        if (hostedHeapDumpSupport != null) {
-            hostedHeapDumpSupport.dumpAfterCompilation();
+        if (hostedHeapDumpHandler != null) {
+            hostedHeapDumpHandler.dumpAfterCompilation();
         }
         if (ImageLayerBuildingSupport.buildingExtensionLayer()) {
             HostedImageLayerBuildingSupport.singleton().getLoader().cleanupAfterCompilation();

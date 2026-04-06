@@ -40,7 +40,7 @@ import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
-public final class HostedHeapDumpSupport {
+public final class HostedHeapDumpHandler {
     enum Phases {
         DuringAnalysis("during-analysis"),
         AfterAnalysis("after-analysis"),
@@ -66,15 +66,15 @@ public final class HostedHeapDumpSupport {
     private final String timeStamp;
     private int iteration;
 
-    HostedHeapDumpSupport(List<String> phases, String imageName) {
+    HostedHeapDumpHandler(List<String> phases, String imageName) {
         this.phases = List.copyOf(phases);
         dumpLocation = getDumpLocation();
         this.imageName = ReportUtils.extractImageName(imageName);
         timeStamp = getTimeStamp();
     }
 
-    public static HostedHeapDumpSupport singleton() {
-        return ImageSingletons.lookup(HostedHeapDumpSupport.class);
+    public static HostedHeapDumpHandler singleton() {
+        return ImageSingletons.lookup(HostedHeapDumpHandler.class);
     }
 
     public void dumpDuringAnalysis() {

@@ -52,7 +52,7 @@ public class HostedHeapDumpFeature implements InternalFeature {
 
     @Override
     public boolean isInConfiguration(IsInConfigurationAccess access) {
-        List<String> validPhases = Stream.of(HostedHeapDumpSupport.Phases.values()).map(HostedHeapDumpSupport.Phases::getName).toList();
+        List<String> validPhases = Stream.of(HostedHeapDumpHandler.Phases.values()).map(HostedHeapDumpHandler.Phases::getName).toList();
         List<String> values = Options.DumpHeap.getValue().values();
         phases = new ArrayList<>();
         for (String value : values) {
@@ -71,21 +71,21 @@ public class HostedHeapDumpFeature implements InternalFeature {
     @Override
     public void duringSetup(DuringSetupAccess access) {
         DuringSetupAccessImpl config = (DuringSetupAccessImpl) access;
-        ImageSingletons.add(HostedHeapDumpSupport.class, new HostedHeapDumpSupport(phases, config.getHostVM().getImageName()));
+        ImageSingletons.add(HostedHeapDumpHandler.class, new HostedHeapDumpHandler(phases, config.getHostVM().getImageName()));
     }
 
     @Override
     public void duringAnalysis(DuringAnalysisAccess access) {
-        HostedHeapDumpSupport.singleton().dumpDuringAnalysis();
+        HostedHeapDumpHandler.singleton().dumpDuringAnalysis();
     }
 
     @Override
     public void onAnalysisExit(OnAnalysisExitAccess access) {
-        HostedHeapDumpSupport.singleton().dumpAfterAnalysis();
+        HostedHeapDumpHandler.singleton().dumpAfterAnalysis();
     }
 
     @Override
     public void beforeCompilation(BeforeCompilationAccess access) {
-        HostedHeapDumpSupport.singleton().dumpBeforeCompilation();
+        HostedHeapDumpHandler.singleton().dumpBeforeCompilation();
     }
 }
