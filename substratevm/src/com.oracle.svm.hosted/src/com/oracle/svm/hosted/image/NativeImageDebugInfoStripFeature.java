@@ -27,7 +27,6 @@ package com.oracle.svm.hosted.image;
 import java.io.IOException;
 import java.nio.file.Path;
 
-import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.impl.InternalPlatform;
 
@@ -40,6 +39,7 @@ import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.util.InterruptImageBuilding;
 import com.oracle.svm.core.util.UserError;
 import com.oracle.svm.hosted.FeatureImpl.AfterImageWriteAccessImpl;
+import com.oracle.svm.hosted.ProgressReporter;
 import com.oracle.svm.hosted.c.util.FileUtils;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
@@ -58,15 +58,9 @@ public class NativeImageDebugInfoStripFeature implements InternalFeature {
     }
 
     @Override
-    public void duringSetup(DuringSetupAccess access) {
-        ImageSingletons.add(NativeImageDebugInfoStripSupport.class, new NativeImageDebugInfoStripSupport());
-    }
-
-    @Override
     public void afterImageWrite(AfterImageWriteAccess access) {
         AfterImageWriteAccessImpl accessImpl = (AfterImageWriteAccessImpl) access;
         try (Indent _ = accessImpl.getDebugContext().logAndIndent("Stripping debuginfo")) {
-            NativeImageDebugInfoStripSupport support = NativeImageDebugInfoStripSupport.singleton();
             boolean strippedSuccessfully;
             switch (ObjectFile.getNativeFormat()) {
                 case ELF:
@@ -82,7 +76,7 @@ public class NativeImageDebugInfoStripFeature implements InternalFeature {
                 default:
                     throw UserError.abort("Unsupported object file format");
             }
-            support.setStrippedSuccessfully(strippedSuccessfully);
+            ProgressReporter.singleton().setStrippedDebugInfoSuccessfully(strippedSuccessfully);
         }
     }
 
