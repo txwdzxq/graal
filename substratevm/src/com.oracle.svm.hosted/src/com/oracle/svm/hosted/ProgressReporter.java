@@ -88,7 +88,6 @@ import com.oracle.svm.hosted.ProgressReporterJsonHelper.JsonMetric;
 import com.oracle.svm.hosted.ProgressReporterJsonHelper.ResourceUsageKey;
 import com.oracle.svm.hosted.c.codegen.CCompilerInvoker;
 import com.oracle.svm.hosted.image.AbstractImage.NativeImageKind;
-import com.oracle.svm.hosted.image.NativeImageDebugInfoStripFeature;
 import com.oracle.svm.hosted.reflect.ReflectionHostedSupport;
 import com.oracle.svm.hosted.util.CPUType;
 import com.oracle.svm.hosted.util.DiagnosticUtils;
@@ -148,6 +147,7 @@ public class ProgressReporter {
     private int numForeignUpcalls = -1;
     private Timer debugInfoTimer;
     private boolean creationStageEndCompleted = false;
+    private Boolean strippedDebugInfoSuccessfully;
 
     /**
      * Build stages displayed as part of the Native Image build output. Changing this enum may
@@ -217,6 +217,20 @@ public class ProgressReporter {
     public void setForeignFunctionsInfo(int numDowncallStubs, int numUpcallStubs) {
         this.numForeignDowncalls = numDowncallStubs;
         this.numForeignUpcalls = numUpcallStubs;
+    }
+
+    public void setStrippedDebugInfoSuccessfully(boolean value) {
+        strippedDebugInfoSuccessfully = value;
+    }
+
+    public boolean isDebugInfoEmbeddedInImage() {
+        if (!SubstrateOptions.StripDebugInfo.getValue()) {
+            return true;
+        }
+        if (strippedDebugInfoSuccessfully == null) {
+            throw VMError.shouldNotReachHere("strippedDebugInfoSuccessfully not available yet");
+        }
+        return !strippedDebugInfoSuccessfully;
     }
 
     public void printStart(String imageName, NativeImageKind imageKind) {
@@ -625,7 +639,7 @@ public class ProgressReporter {
                 l.a(" generated in %.1fs", ProgressReporterUtils.millisToSeconds(debugInfoTimer.getTotalTime()));
             }
             l.println();
-            if (!(ImageSingletons.contains(NativeImageDebugInfoStripFeature.class) && ImageSingletons.lookup(NativeImageDebugInfoStripFeature.class).hasStrippedSuccessfully())) {
+            if (isDebugInfoEmbeddedInImage()) {
                 // Only subtract if debug info is embedded in file (not stripped).
                 otherBytes -= debugInfoSize;
             }
