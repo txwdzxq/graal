@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2024, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -875,8 +875,13 @@ public abstract class BasicInterpreter extends DebugBytecodeRootNode implements 
         @Specialization
         public static void deoptimize(boolean condition) {
             if (condition) {
+                forceStateSplit(); // ensure deopt does not float
                 CompilerDirectives.transferToInterpreter();
             }
+        }
+
+        @TruffleBoundary(allowInlining = false)
+        private static void forceStateSplit() {
         }
     }
 

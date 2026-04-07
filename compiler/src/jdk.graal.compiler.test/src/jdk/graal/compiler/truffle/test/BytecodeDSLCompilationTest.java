@@ -1295,7 +1295,7 @@ public class BytecodeDSLCompilationTest extends TestWithSynchronousCompiling {
             b.endDeoptimize();
 
             b.beginReturn();
-            b.emitLoadArgument(1);
+            b.emitLoadConstant(42L);
             b.endReturn();
 
             b.endRoot().setName("callee");
@@ -1304,7 +1304,7 @@ public class BytecodeDSLCompilationTest extends TestWithSynchronousCompiling {
         OptimizedCallTarget calleeTarget = (OptimizedCallTarget) callee.getCallTarget();
         OptimizedCallTarget callerTarget = (OptimizedCallTarget) new ForceInlineInvokeRoot(BytecodeDSLTestLanguage.REF.get(null), calleeTarget).getCallTarget();
 
-        assertEquals(42L, callerTarget.call(false, 42L));
+        assertEquals(42L, callerTarget.call(false));
 
         callerTarget.compile(true);
         assertCompiled(callerTarget);
@@ -1314,10 +1314,10 @@ public class BytecodeDSLCompilationTest extends TestWithSynchronousCompiling {
             transitionLogs.clear();
         }
 
-        assertEquals(42L, callerTarget.call(true, 42L));
+        assertEquals(42L, callerTarget.call(true));
 
         assertTrue("Expected transferToInterpreter transition for inlined runtime-compiled method", hasTransitionLog(transitionLogs, "transferToInterpreter"));
-        assertTrue("Expected transition to reference the Deoptimize operation", hasTransitionDetail(transitionLogs, "Deoptimize"));
+        assertTrue("Expected transition to reference the Deoptimize operation", hasTransitionDetail(transitionLogs, "load.constant"));
         assertNotCompiled(calleeTarget);
     }
 
