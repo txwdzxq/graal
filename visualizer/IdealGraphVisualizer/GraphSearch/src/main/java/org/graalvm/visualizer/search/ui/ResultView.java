@@ -357,7 +357,10 @@ public final class ResultView extends TopComponent {
         @Override
         public void propertyChange(java.beans.PropertyChangeEvent evt) {
             if (TabbedPaneFactory.PROP_CLOSE.equals(evt.getPropertyName())) {
-                removePanel((JPanel) evt.getNewValue());
+                JPanel panel = (JPanel) evt.getNewValue();
+                if (panel != null) {
+                    SwingUtilities.invokeLater(() -> removePanel(panel));
+                }
             }
         }
     }
