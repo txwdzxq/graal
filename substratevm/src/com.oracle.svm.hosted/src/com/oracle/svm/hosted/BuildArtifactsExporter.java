@@ -40,9 +40,9 @@ import com.oracle.svm.core.BuildArtifacts;
 import com.oracle.svm.core.BuildArtifacts.ArtifactType;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.shared.option.HostedOptionValues;
+import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
-import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.util.LogUtils;
 import com.oracle.svm.shared.util.VMError;
 
@@ -70,9 +70,17 @@ public class BuildArtifactsExporter {
          * merges ArtifactTypes with the same JSON key.
          */
         Map<String, List<String>> jsonMap = new TreeMap<>();
+        Path absoluteBuildPath = buildPath.toAbsolutePath().normalize();
         buildArtifacts.forEach((artifactType, paths) -> {
             String key = artifactType.getJsonKey();
-            List<String> value = paths.stream().map(p -> buildPath.relativize(p.toAbsolutePath()).toString()).toList();
+            List<String> value = paths.stream().map(p -> {
+                Path absoluteArtifactPath = p.toAbsolutePath().normalize();
+                if (absoluteArtifactPath.startsWith(absoluteArtifactPath)) {
+                    return absoluteBuildPath.relativize(absoluteArtifactPath).toString();
+                } else {
+                    return absoluteArtifactPath.toString();
+                }
+            }).toList();
             jsonMap.computeIfAbsent(key, _ -> new ArrayList<>()).addAll(value);
         });
 
