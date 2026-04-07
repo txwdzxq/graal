@@ -209,7 +209,11 @@ public class ReplayCompilationRunner {
                         printGraph(reproducer.request, result.replayedProduct, REPLAY, out);
                     }
                     result.compareCompilationProducts(compareGraphs);
-                    out.println("Successfully replayed " + reproducer.request);
+                    if (result.replayedProduct() instanceof CompilationTaskProduct.CompilationTaskArtifacts artifacts) {
+                        out.printf("Successfully replayed %s (target code hash: %08x)%n", reproducer.request, artifacts.targetCodeHash());
+                    } else {
+                        out.println("Successfully replayed " + reproducer.request);
+                    }
                 } catch (ReplayParserFailure failure) {
                     out.println("Replay failed: " + failure.getMessage());
                     task.setFailureReason(failure.getMessage());
@@ -690,10 +694,11 @@ public class ReplayCompilationRunner {
         }
 
         public void addVerifiedResult(ReplayResult replayResult) {
-            CompilationResult result = ((CompilationTaskProduct.CompilationTaskArtifacts) replayResult.replayedProduct()).result();
+            CompilationTaskProduct.CompilationTaskArtifacts artifacts = (CompilationTaskProduct.CompilationTaskArtifacts) replayResult.replayedProduct();
+            CompilationResult result = artifacts.result();
             compiledBytecodes += result.getBytecodeSize();
             targetCodeSize += result.getTargetCodeSize();
-            targetCodeHash = targetCodeHash * 31 + Arrays.hashCode(result.getTargetCode());
+            targetCodeHash = targetCodeHash * 31 + artifacts.targetCodeHash();
         }
 
         public void endIteration(PrintStream out, PrintStream outStat) {
