@@ -49,6 +49,7 @@ import java.util.regex.Pattern;
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.Icon;
+import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JMenuItem;
@@ -118,10 +119,13 @@ import org.openide.windows.TopComponent;
         "DISPLAY_CombinedSearchValuesInProperty={0} in {1}",
         "ACTION_OpenSearch=Open search",
         "ACTION_SelectNodes=Select nodes",
-        "ACTION_ExtractNodes=Extract nodes"
+        "ACTION_ExtractNodes=Extract nodes",
+        "ACTION_StripPackageNames=Strip package names"
 })
 public final class GraphSummaryTopComponent extends TopComponent {
     private static final String ACTION_OPEN_NODE_SEARCH = "graph-summary-open-node-search";
+    private static final String PROPERTY_VERSION = "version";
+    private static final String PROPERTY_STRIP_PACKAGE_NAMES = "stripPackageNames";
 
     static final String PREFERRED_ID = "GraphSummaryTopComponent";
 
@@ -135,11 +139,13 @@ public final class GraphSummaryTopComponent extends TopComponent {
     private ActiveGraphSynchronizer synchronizer;
     private InputGraph currentGraph;
     private GraphContainer currentContainer;
+    private boolean stripPackageNames = true;
 
     public GraphSummaryTopComponent() {
         setName(Bundle.CTL_GraphSummaryTopComponent());
         setToolTipText(Bundle.HINT_GraphSummaryTopComponent());
         initComponents();
+        tableModel.setStripPackageNames(stripPackageNames);
         ensureSynchronizer();
         updateSummary(null, null, null);
     }
@@ -455,6 +461,16 @@ public final class GraphSummaryTopComponent extends TopComponent {
         extractNodesItem.setEnabled(!nodes.isEmpty());
         menu.add(extractNodesItem);
 
+        menu.addSeparator();
+        JCheckBoxMenuItem stripPackageNamesItem = new JCheckBoxMenuItem(new AbstractAction(Bundle.ACTION_StripPackageNames()) {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent e) {
+                setStripPackageNames(((JCheckBoxMenuItem) e.getSource()).isSelected());
+            }
+        });
+        stripPackageNamesItem.setSelected(stripPackageNames);
+        menu.add(stripPackageNamesItem);
+
         menu.show(invoker, x, y);
     }
 
@@ -583,11 +599,24 @@ public final class GraphSummaryTopComponent extends TopComponent {
     }
 
     void writeProperties(Properties properties) {
-        properties.setProperty("version", "1.0");
+        properties.setProperty(PROPERTY_VERSION, "1.0");
+        properties.setProperty(PROPERTY_STRIP_PACKAGE_NAMES, Boolean.toString(stripPackageNames));
     }
 
     void readProperties(Properties properties) {
-        properties.getProperty("version");
+        properties.getProperty(PROPERTY_VERSION);
+        setStripPackageNames(Boolean.parseBoolean(properties.getProperty(PROPERTY_STRIP_PACKAGE_NAMES, Boolean.TRUE.toString())));
+    }
+
+    private void setStripPackageNames(boolean stripPackageNames) {
+        if (this.stripPackageNames == stripPackageNames) {
+            return;
+        }
+        this.stripPackageNames = stripPackageNames;
+        Set<String> selectedNodeTypes = selectedNodeTypes();
+        tableModel.setStripPackageNames(stripPackageNames);
+        restoreSelectedNodeTypes(selectedNodeTypes);
+        summaryQuickSearch.summaryRefreshed();
     }
 
     private final class SummaryQuickSearch implements QuickSearch.Callback {
@@ -655,7 +684,8 @@ public final class GraphSummaryTopComponent extends TopComponent {
                 if (row == null) {
                     continue;
                 }
-                common = common == null ? row.nodeType() : commonPrefix(common, row.nodeType());
+                String displayNodeType = tableModel.displayNodeType(row);
+                common = common == null ? displayNodeType : commonPrefix(common, displayNodeType);
                 if (common.isEmpty()) {
                     break;
                 }
@@ -684,7 +714,7 @@ public final class GraphSummaryTopComponent extends TopComponent {
             List<Integer> newMatches = new ArrayList<>();
             for (int viewRow = 0; viewRow < table.getRowCount(); viewRow++) {
                 NodeTypeRow row = tableModel.getRow(table.convertRowIndexToModel(viewRow));
-                if (row != null && row.nodeType().toLowerCase(Locale.ROOT).contains(needle)) {
+                if (row != null && tableModel.displayNodeType(row).toLowerCase(Locale.ROOT).contains(needle)) {
                     newMatches.add(viewRow);
                 }
             }
@@ -841,6 +871,7 @@ public final class GraphSummaryTopComponent extends TopComponent {
 
     private static final class NodeTypeSummaryTableModel extends AbstractTableModel {
         private List<NodeTypeRow> rows = List.of();
+        private boolean stripPackageNames = true;
 
         @Override
         public int getRowCount() {
@@ -877,7 +908,7 @@ public final class GraphSummaryTopComponent extends TopComponent {
             return switch (columnIndex) {
                 case 0 -> row.color();
                 case 2 -> row.count();
-                default -> row.nodeType();
+                default -> displayNodeType(row);
             };
         }
 
@@ -891,6 +922,26 @@ public final class GraphSummaryTopComponent extends TopComponent {
         void setRows(List<NodeTypeRow> newRows) {
             rows = List.copyOf(newRows);
             fireTableDataChanged();
+        }
+
+        void setStripPackageNames(boolean stripPackageNames) {
+            if (this.stripPackageNames == stripPackageNames) {
+                return;
+            }
+            this.stripPackageNames = stripPackageNames;
+            fireTableDataChanged();
+        }
+
+        String displayNodeType(NodeTypeRow row) {
+            String nodeType = row.nodeType();
+            if (!stripPackageNames) {
+                return nodeType;
+            }
+            int lastDot = nodeType.lastIndexOf('.');
+            if (lastDot < 0 || lastDot == nodeType.length() - 1) {
+                return nodeType;
+            }
+            return nodeType.substring(lastDot + 1);
         }
     }
 
