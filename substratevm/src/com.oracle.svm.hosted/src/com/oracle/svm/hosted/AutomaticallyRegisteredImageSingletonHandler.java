@@ -24,22 +24,20 @@
  */
 package com.oracle.svm.hosted;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.ServiceLoader;
-import java.util.function.BooleanSupplier;
-import java.util.stream.Collectors;
-
-import org.graalvm.nativeimage.AnnotationAccess;
-import org.graalvm.nativeimage.ImageSingletons;
-
 import com.oracle.svm.core.feature.AutomaticallyRegisteredImageSingletonServiceRegistration;
 import com.oracle.svm.core.layeredimagesingleton.LoadedLayeredImageSingletonInfo;
 import com.oracle.svm.core.util.UserError;
 import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.ReflectionUtil.ReflectionUtilError;
+import org.graalvm.nativeimage.AnnotationAccess;
+import org.graalvm.nativeimage.ImageSingletons;
+
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.function.BooleanSupplier;
+import java.util.stream.Collectors;
 
 /**
  * Registers classes annotated with {@link AutomaticallyRegisteredImageSingleton} before feature
@@ -61,8 +59,9 @@ final class AutomaticallyRegisteredImageSingletonHandler {
      * registers the selected singleton for each annotated hierarchy.
      */
     static void registerImageSingletons(ImageClassLoader loader) {
-        LinkedHashSet<Class<?>> automaticSingletons = loadAutomaticSingletons(loader);
-        verifyGeneratedRegistrations(loader, automaticSingletons);
+        AutomaticallyRegisteredImageSingletonLoader automaticSingletonLoader = new AutomaticallyRegisteredImageSingletonLoader(loader);
+        LinkedHashSet<Class<?>> automaticSingletons = automaticSingletonLoader.loadRegisteredClasses();
+        automaticSingletonLoader.verifyGeneratedRegistrations(automaticSingletons);
 
         LinkedHashSet<Class<?>> enabledSingletons = new LinkedHashSet<>();
         for (Class<?> automaticSingleton : automaticSingletons) {
@@ -78,46 +77,9 @@ final class AutomaticallyRegisteredImageSingletonHandler {
          * annotated superclass from being selected as the fallback registration.
          */
         for (Class<?> rootSingleton : findHierarchyRoots(automaticSingletons)) {
-            Class<?> singletonClass = resolveSingletonForRoot(rootSingleton, enabledSingletons);
+            Class<?> singletonClass = resolveSingletonForRoot(rootSingleton, enabledSingletons, automaticSingletonLoader);
             if (singletonClass != null) {
                 registerSingleton(singletonClass, layeredSingletonInfo);
-            }
-        }
-    }
-
-    private static LinkedHashSet<Class<?>> loadAutomaticSingletons(ImageClassLoader loader) {
-        LinkedHashSet<Class<?>> automaticSingletons = new LinkedHashSet<>();
-        ClassLoader serviceLoaderClassLoader = NativeImageSystemClassLoader.singleton().defaultSystemClassLoader;
-        for (var serviceRegistration : ServiceLoader.load(AutomaticallyRegisteredImageSingletonServiceRegistration.class, serviceLoaderClassLoader)) {
-            Class<?> singletonClass = loadSingletonClass(loader, serviceRegistration.getClassName());
-            if (getSingletonAnnotation(singletonClass) == null) {
-                throw UserError.abort("Class %s was registered as an @%s service but is no longer annotated. Clean and rebuild the affected project to refresh generated annotation-processor outputs.",
-                                singletonClass.getName(), AutomaticallyRegisteredImageSingleton.class.getSimpleName());
-            }
-            if (loader.findSubclasses(singletonClass, true).contains(singletonClass)) {
-                automaticSingletons.add(singletonClass);
-            }
-        }
-        return automaticSingletons;
-    }
-
-    private static Class<?> loadSingletonClass(ImageClassLoader loader, String className) {
-        try {
-            return loader.findClass(className).getOrFail();
-        } catch (IllegalStateException ex) {
-            throw UserError.abort(ex.getCause(),
-                            "Could not load automatically registered image singleton class %s from generated service metadata. Clean and rebuild the affected project to refresh generated annotation-processor outputs.",
-                            className);
-        }
-    }
-
-    private static void verifyGeneratedRegistrations(ImageClassLoader loader, LinkedHashSet<Class<?>> automaticSingletons) {
-        for (Class<?> annotatedSingletonClass : loader.findAnnotatedClasses(AutomaticallyRegisteredImageSingleton.class, true)) {
-            if (!automaticSingletons.contains(annotatedSingletonClass)) {
-                throw UserError.abort("Image singleton %s annotated with @%s was not properly registered as a service. " +
-                                "Either the annotation processor did not run for the project containing the singleton, or the class is not on the class path of the image generator. " +
-                                "The annotation is only for internal usage. Clean and rebuild the affected project to refresh generated annotation-processor outputs.",
-                                annotatedSingletonClass, AutomaticallyRegisteredImageSingleton.class.getSimpleName());
             }
         }
     }
@@ -167,37 +129,17 @@ final class AutomaticallyRegisteredImageSingletonHandler {
      * The most specific enabled subclass wins, a disabled subclass falls back to an enabled
      * annotated superclass, and multiple enabled sibling candidates are rejected as ambiguous.
      */
-    private static Class<?> resolveSingletonForRoot(Class<?> rootSingleton, LinkedHashSet<Class<?>> enabledSingletons) {
-        List<Class<?>> mostSpecificEnabledSingletons = findMostSpecificEnabledSingletons(rootSingleton, enabledSingletons);
+    private static Class<?> resolveSingletonForRoot(Class<?> rootSingleton, LinkedHashSet<Class<?>> enabledSingletons,
+                    AutomaticallyRegisteredImageSingletonLoader automaticSingletonLoader) {
+        List<Class<?>> mostSpecificEnabledSingletons = automaticSingletonLoader.findMostSpecificClasses(rootSingleton, enabledSingletons);
         if (mostSpecificEnabledSingletons.isEmpty()) {
             return null;
         }
         if (mostSpecificEnabledSingletons.size() > 1) {
             String candidates = mostSpecificEnabledSingletons.stream().map(Class::getName).collect(Collectors.joining(" "));
-            throw UserError.abort("Ambiguous @%s extension. Conflicting candidates: %s",
-                            AutomaticallyRegisteredImageSingleton.class.getSimpleName(), candidates);
+            throw UserError.abort("Ambiguous @%s extension. Conflicting candidates: %s", AutomaticallyRegisteredImageSingleton.class.getSimpleName(), candidates);
         }
         return mostSpecificEnabledSingletons.getFirst();
-    }
-
-    private static List<Class<?>> findMostSpecificEnabledSingletons(Class<?> rootSingleton, LinkedHashSet<Class<?>> enabledSingletons) {
-        ArrayList<Class<?>> candidates = new ArrayList<>();
-        for (Class<?> enabledSingleton : enabledSingletons) {
-            if (rootSingleton.isAssignableFrom(enabledSingleton)) {
-                candidates.add(enabledSingleton);
-            }
-        }
-        candidates.removeIf(candidate -> hasMoreSpecificCandidate(candidate, candidates));
-        return candidates;
-    }
-
-    private static boolean hasMoreSpecificCandidate(Class<?> candidate, List<Class<?>> candidates) {
-        for (Class<?> other : candidates) {
-            if (candidate != other && candidate.isAssignableFrom(other)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /**
@@ -222,8 +164,7 @@ final class AutomaticallyRegisteredImageSingletonHandler {
             singleton = ReflectionUtil.newInstance(singletonClass);
         } catch (ReflectionUtilError ex) {
             throw UserError.abort(ex.getCause(), "Error instantiating automatically registered image singleton class %s. " +
-                            "Ensure the class is not abstract and has a no-argument constructor.",
-                            singletonClass.getTypeName());
+                            "Ensure the class is not abstract and has a no-argument constructor.", singletonClass.getTypeName());
         }
         for (Class<?> key : keys) {
             if (!layeredSingletonInfo.handledDuringLoading(key)) {
@@ -270,7 +211,7 @@ final class AutomaticallyRegisteredImageSingletonHandler {
      */
     private static List<Class<?>> getSingletonSuperclasses(Class<?> singletonClass) {
         ArrayList<Class<?>> superclasses = new ArrayList<>();
-        for (Class<?> current = singletonClass.getSuperclass(); current != null; current = current.getSuperclass()) {
+        for (var current = singletonClass.getSuperclass(); current != null; current = current.getSuperclass()) {
             if (getSingletonAnnotation(current) == null) {
                 break;
             }
@@ -281,5 +222,49 @@ final class AutomaticallyRegisteredImageSingletonHandler {
 
     private static AutomaticallyRegisteredImageSingleton getSingletonAnnotation(Class<?> singletonClass) {
         return AnnotationAccess.getAnnotation(singletonClass, AutomaticallyRegisteredImageSingleton.class);
+    }
+
+    private static final class AutomaticallyRegisteredImageSingletonLoader extends
+                    AutomaticallyRegisteredClassSupport<AutomaticallyRegisteredImageSingletonServiceRegistration, AutomaticallyRegisteredImageSingleton> {
+        private AutomaticallyRegisteredImageSingletonLoader(ImageClassLoader loader) {
+            super(loader);
+        }
+
+        @Override
+        protected Class<AutomaticallyRegisteredImageSingletonServiceRegistration> serviceRegistrationClass() {
+            return AutomaticallyRegisteredImageSingletonServiceRegistration.class;
+        }
+
+        @Override
+        protected String getClassName(AutomaticallyRegisteredImageSingletonServiceRegistration serviceRegistration) {
+            return serviceRegistration.getClassName();
+        }
+
+        @Override
+        protected Class<AutomaticallyRegisteredImageSingleton> annotationClass() {
+            return AutomaticallyRegisteredImageSingleton.class;
+        }
+
+        @Override
+        protected Error missingClassError(Throwable cause, String className) {
+            throw UserError.abort(cause, "Could not load automatically registered image singleton class %s from generated service metadata. " +
+                            "Clean and rebuild the affected project to refresh generated annotation-processor outputs.",
+                            className);
+        }
+
+        @Override
+        protected Error missingGeneratedRegistrationError(Class<?> annotatedClass) {
+            throw UserError.abort("Image singleton %s annotated with @%s was not properly registered as a service. " +
+                            "Either the annotation processor did not run for the project containing the singleton, or the class is not on the class path of the image generator. " +
+                            "The annotation is only for internal usage. Clean and rebuild the affected project to refresh generated annotation-processor outputs.",
+                            annotatedClass, AutomaticallyRegisteredImageSingleton.class.getSimpleName());
+        }
+
+        @Override
+        protected Error staleGeneratedRegistrationError(Class<?> registeredClass) {
+            throw UserError.abort("Class %s was registered as an @%s service but is no longer annotated. " +
+                            "Clean and rebuild the affected project to refresh generated annotation-processor outputs.",
+                            registeredClass.getName(), AutomaticallyRegisteredImageSingleton.class.getSimpleName());
+        }
     }
 }
