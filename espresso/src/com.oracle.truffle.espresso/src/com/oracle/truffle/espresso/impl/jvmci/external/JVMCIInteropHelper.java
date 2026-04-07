@@ -52,12 +52,14 @@ import com.oracle.truffle.espresso.EspressoLanguage;
 import com.oracle.truffle.espresso.classfile.JavaKind;
 import com.oracle.truffle.espresso.classfile.attributes.Attribute;
 import com.oracle.truffle.espresso.classfile.attributes.AttributedElement;
+import com.oracle.truffle.espresso.classfile.attributes.PermittedSubclassesAttribute;
 import com.oracle.truffle.espresso.classfile.descriptors.ByteSequence;
 import com.oracle.truffle.espresso.classfile.descriptors.ParserSymbols.ParserNames;
 import com.oracle.truffle.espresso.classfile.descriptors.Symbol;
 import com.oracle.truffle.espresso.classfile.descriptors.Type;
 import com.oracle.truffle.espresso.classfile.descriptors.TypeSymbols;
 import com.oracle.truffle.espresso.classfile.descriptors.Validation;
+import com.oracle.truffle.espresso.constantpool.RuntimeConstantPool;
 import com.oracle.truffle.espresso.impl.ArrayKlass;
 import com.oracle.truffle.espresso.impl.ContextAccess;
 import com.oracle.truffle.espresso.impl.Field;
@@ -125,6 +127,7 @@ public final class JVMCIInteropHelper implements ContextAccess, TruffleObject {
                         InvokeMember.GET_VM_FIELD,
                         InvokeMember.GET_VM_METHOD,
                         InvokeMember.GET_ENCLOSING_TYPE,
+                        InvokeMember.GET_PERMITTED_SUBCLASSES,
                         InvokeMember.HAS_ENCLOSING_METHOD_INFO,
                         InvokeMember.HAS_SIMPLE_BINARY_NAME,
                         InvokeMember.GET_TYPE_FOR_STATIC_BASE,
@@ -193,6 +196,7 @@ public final class JVMCIInteropHelper implements ContextAccess, TruffleObject {
         static final String GET_VM_FIELD = "getVMField";
         static final String GET_VM_METHOD = "getVMMethod";
         static final String GET_ENCLOSING_TYPE = "getEnclosingType";
+        static final String GET_PERMITTED_SUBCLASSES = "getPermittedSubclasses";
         static final String HAS_ENCLOSING_METHOD_INFO = "hasEnclosingMethodInfo";
         static final String HAS_SIMPLE_BINARY_NAME = "hasSimpleBinaryName";
         static final String GET_TYPE_FOR_STATIC_BASE = "getTypeForStaticBase";
@@ -518,6 +522,47 @@ public final class JVMCIInteropHelper implements ContextAccess, TruffleObject {
                 return StaticObject.NULL;
             }
             return enclosingType;
+        }
+
+        @Specialization(guards = "GET_PERMITTED_SUBCLASSES.equals(member)")
+        static Object getPermittedSubclasses(JVMCIInteropHelper receiver, @SuppressWarnings("unused") String member, Object[] arguments,
+                        @Bind Node node,
+                        @Cached @Shared InlinedBranchProfile typeError,
+                        @Cached @Shared InlinedBranchProfile arityError) throws ArityException, UnsupportedTypeException {
+            assert receiver != null;
+            ObjectKlass klass = getSingleKlassArgument(arguments, node, typeError, arityError);
+            if (!klass.isSealed()) {
+                return StaticObject.NULL;
+            }
+            char[] classes = klass.getAttribute(PermittedSubclassesAttribute.NAME, PermittedSubclassesAttribute.class).getClasses();
+            ObjectKlass[] permittedSubclasses = new ObjectKlass[classes.length];
+            RuntimeConstantPool pool = klass.getConstantPool();
+            int nClasses = 0;
+            for (int index : classes) {
+                Klass permitted;
+                try {
+                    permitted = pool.resolvedKlassAt(klass, index);
+                } catch (EspressoException e) {
+                    /*
+                     * Suppress and continue, matching the in-process implementation in
+                     * VM.JVM_GetPermittedSubclasses, which skips permitted-subclass entries that
+                     * fail resolution instead of failing the whole query.
+                     */
+                    continue;
+                }
+                if (permitted instanceof ObjectKlass permittedObjectKlass) {
+                    permittedSubclasses[nClasses++] = permittedObjectKlass;
+                }
+            }
+            if (nClasses == 0) {
+                return new KeysArray<>(ObjectKlass.EMPTY_ARRAY);
+            }
+            if (nClasses == permittedSubclasses.length) {
+                return new KeysArray<>(permittedSubclasses);
+            }
+            ObjectKlass[] compact = new ObjectKlass[nClasses];
+            System.arraycopy(permittedSubclasses, 0, compact, 0, nClasses);
+            return new KeysArray<>(compact);
         }
 
         @Specialization(guards = "HAS_ENCLOSING_METHOD_INFO.equals(member)")
