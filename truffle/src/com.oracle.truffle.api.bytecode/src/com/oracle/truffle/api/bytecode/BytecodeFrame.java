@@ -58,6 +58,11 @@ import com.oracle.truffle.api.frame.FrameInstance.FrameAccess;
  * invocation. Prefer using a built-in operation or {@link LocalAccessor} to access the frame
  * whenever possible.
  * <p>
+ * {@link BytecodeFrame} should be used instead of {@link TruffleStackTraceElement} or
+ * {@link FrameInstance} to access frame data because the frame captured in these abstractions is
+ * not always the actual frame used in execution (e.g., it may be different for a resumed
+ * continuation).
+ * <p>
  * There are a few ways to capture the frame:
  * <ul>
  * <li>{@link BytecodeNode#createCopiedFrame} captures a copy.</li>
