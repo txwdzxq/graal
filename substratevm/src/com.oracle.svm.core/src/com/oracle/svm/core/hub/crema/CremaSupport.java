@@ -72,8 +72,14 @@ public interface CremaSupport {
     /**
      * Creates a new instance of {@code type} without running any constructor yet. The caller should
      * make sure to run a constructor before publishing the result.
+     * <p>
+     * This entry point is used by reflection support and therefore reports instantiation failures
+     * with reflection-compatible exceptions.
+     *
+     * @throws InstantiationException if {@code type} cannot be instantiated, matching the exception
+     *             expected by reflection callers
      */
-    Object allocateInstance(ResolvedJavaType type);
+    Object allocateInstance(ResolvedJavaType type) throws InstantiationException;
 
     Object execute(ResolvedJavaMethod targetMethod, Object[] args, CallKind callKind);
 

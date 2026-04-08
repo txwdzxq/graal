@@ -1333,8 +1333,19 @@ public class CremaSupportImpl implements CremaSupport {
     }
 
     @Override
-    public Object allocateInstance(ResolvedJavaType type) {
-        return InterpreterToVM.createNewReference((InterpreterResolvedJavaType) type);
+    public Object allocateInstance(ResolvedJavaType type) throws InstantiationException {
+        try {
+            return InterpreterToVM.createNewReference((InterpreterResolvedJavaType) type);
+        } catch (SemanticJavaException e) {
+            if (e.getCause() instanceof InstantiationError error) {
+                /*
+                 * This path is used by reflection, so convert the VM-level error to the
+                 * reflection-level exception expected by callers.
+                 */
+                throw new InstantiationException(error.getMessage());
+            }
+            throw uncheckedThrow(e.getCause());
+        }
     }
 
     @Override
