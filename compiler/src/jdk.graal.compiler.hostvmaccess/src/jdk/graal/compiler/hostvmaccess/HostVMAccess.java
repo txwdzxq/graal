@@ -321,6 +321,19 @@ final class HostVMAccess implements VMAccess {
         return providers.getSnippetReflection().forObject(copy);
     }
 
+    @Override
+    public void copyArray(JavaConstant src, int srcPos, JavaConstant dest, int destPos, int length) {
+        Object srcArray = providers.getSnippetReflection().asObject(Object.class, src);
+        if (srcArray == null || !srcArray.getClass().isArray()) {
+            throw new IllegalArgumentException("Expected an array constant for src, got " + src);
+        }
+        Object destArray = providers.getSnippetReflection().asObject(Object.class, dest);
+        if (destArray == null || !destArray.getClass().isArray()) {
+            throw new IllegalArgumentException("Expected an array constant for dest, got " + dest);
+        }
+        System.arraycopy(srcArray, srcPos, destArray, destPos, length);
+    }
+
     private void doWriteArrayElement(Object array, ResolvedJavaType componentType, int index, JavaConstant element) {
         Object unwrappedValue;
         if (componentType.isPrimitive()) {

@@ -128,6 +128,8 @@ final class EspressoExternalVMAccess implements VMAccess {
     // java.security
     private final EspressoExternalResolvedJavaMethod java_security_ProtectionDomain_getCodeSource;
     private final EspressoExternalResolvedJavaMethod java_security_CodeSource_getLocation;
+    // j.l.System
+    private final EspressoExternalResolvedJavaMethod java_lang_System_arraycopy;
     // jdk.internal.misc.Unsafe
     private final EspressoExternalResolvedJavaMethod jdk_internal_misc_Unsafe_allocateInstance_Class;
 
@@ -200,6 +202,7 @@ final class EspressoExternalVMAccess implements VMAccess {
         ResolvedJavaType unsafeType = lookupBootClassLoaderType("jdk.internal.misc.Unsafe");
         jdk_internal_misc_Unsafe_allocateInstance_Class = requireMethod(unsafeType, "allocateInstance", "(Ljava/lang/Class;)Ljava/lang/Object;", providers);
         unsafe = invoke(requireMethod(unsafeType, "getUnsafe", "()Ljdk/internal/misc/Unsafe;", providers), null);
+        java_lang_System_arraycopy = requireMethod(providers.getMetaAccess().lookupJavaType(System.class), "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V", providers);
 
         ResolvedJavaType protectionDomainType = providers.getMetaAccess().lookupJavaType(ProtectionDomain.class);
         ResolvedJavaType codeSourceType = providers.getMetaAccess().lookupJavaType(CodeSource.class);
@@ -577,6 +580,30 @@ final class EspressoExternalVMAccess implements VMAccess {
     }
 
     @Override
+    public void copyArray(JavaConstant src, int srcPos, JavaConstant dest, int destPos, int length) {
+        if (!(src instanceof EspressoExternalObjectConstant srcArray)) {
+            throw new IllegalArgumentException("Expected an EspressoExternalObjectConstant for src, got " + safeGetClass(src));
+        }
+        if (!(dest instanceof EspressoExternalObjectConstant destArray)) {
+            throw new IllegalArgumentException("Expected an EspressoExternalObjectConstant for dest, got " + safeGetClass(dest));
+        }
+        if (!srcArray.getType().isArray()) {
+            throw new IllegalArgumentException("Expected an array constant for src, got " + srcArray.getType());
+        }
+        if (!destArray.getType().isArray()) {
+            throw new IllegalArgumentException("Expected an array constant for dest, got " + destArray.getType());
+        }
+        try {
+            invoke(java_lang_System_arraycopy, null, srcArray, JavaConstant.forInt(srcPos), destArray, JavaConstant.forInt(destPos), JavaConstant.forInt(length));
+        } catch (InvocationException e) {
+            if (e.getCause() instanceof PolyglotException polyglotException) {
+                throw throwHostException(polyglotException);
+            }
+            throw e;
+        }
+    }
+
+    @Override
     public void writeArrayElement(JavaConstant array, int index, JavaConstant element) {
         if (!(array instanceof EspressoExternalObjectConstant espressoArray)) {
             throw new IllegalArgumentException("Expected an EspressoExternalObjectConstant, got " + safeGetClass(array));
@@ -686,6 +713,12 @@ final class EspressoExternalVMAccess implements VMAccess {
      * @return the converted exception if conversion was possible, {@code e} otherwise
      */
     private static Throwable asHostException(PolyglotException e) {
+        if (e.isHostException()) {
+            Throwable hostException = e.asHostException();
+            if (hostException != null) {
+                return hostException;
+            }
+        }
         if (!e.isGuestException()) {
             return e;
         }

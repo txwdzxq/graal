@@ -311,8 +311,7 @@ public class HeapSnapshotVerifier {
                     AnalysisError.guarantee(primitiveArrayConstant.getHostedObject().equals(newValue));
                     Integer length = bb.getUniverse().getHostedValuesProvider().readArrayLength(newValue);
                     /* Since the shadowed constant didn't change, the length should match. */
-                    access.invokeStatic(GuestAccess.elements().java_lang_System_arraycopy, newValue, JavaConstant.INT_0, snapshotArray, JavaConstant.INT_0,
-                                    JavaConstant.forInt(length));
+                    access.copyArray(newValue, 0, snapshotArray, 0, length);
                     return true;
                 }
             }
