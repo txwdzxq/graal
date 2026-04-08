@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -99,8 +99,9 @@ public final class BytecodeFrame {
     BytecodeFrame(Frame frame, BytecodeNode bytecode, int bytecodeIndex) {
         assert frame.getFrameDescriptor() == bytecode.getRootNode().getFrameDescriptor();
         this.frame = Objects.requireNonNull(frame);
-        this.bytecode = bytecode;
+        this.bytecode = Objects.requireNonNull(bytecode);
         this.bytecodeIndex = bytecodeIndex;
+        assert bytecode.validateBytecodeIndex(bytecodeIndex);
     }
 
     /**
@@ -248,6 +249,7 @@ public final class BytecodeFrame {
         }
         Frame frame = bytecode.resolveFrameImpl(frameInstance, access);
         int bytecodeIndex = bytecode.findBytecodeIndex(frameInstance);
+        assert bytecodeIndex != -1;
         return new BytecodeFrame(frame, bytecode, bytecodeIndex);
     }
 
@@ -280,6 +282,7 @@ public final class BytecodeFrame {
          */
         Frame frame = bytecode.resolveFrameImpl(frameInstance, FrameAccess.READ_WRITE);
         int bytecodeIndex = bytecode.findBytecodeIndex(frameInstance);
+        assert bytecodeIndex != -1;
         return new BytecodeFrame(frame, bytecode, bytecodeIndex);
     }
 
@@ -293,6 +296,8 @@ public final class BytecodeFrame {
      * @param element the stack trace element
      * @return a bytecode frame, or null if the frame was not captured or the stack trace element is
      *         missing location information.
+     * @throws IllegalArgumentException if the element has an invalid bytecode index.
+     *
      * @since 25.1
      */
     public static BytecodeFrame get(TruffleStackTraceElement element) {
@@ -304,7 +309,11 @@ public final class BytecodeFrame {
         if (frame == null) {
             return null;
         }
-        return new BytecodeFrame(frame, bytecode, element.getBytecodeIndex());
+        int bytecodeIndex = element.getBytecodeIndex();
+        if (bytecodeIndex < 0) {
+            throw new IllegalArgumentException("Bytecode index of TruffleStackTraceElement cannot be negative.");
+        }
+        return new BytecodeFrame(frame, bytecode, bytecodeIndex);
     }
 
     /**
@@ -319,7 +328,8 @@ public final class BytecodeFrame {
      * @param element the stack trace element
      * @return a bytecode frame or null if the frame is virtual/unavailable or if the frame instance
      *         is missing location info.
-     *
+     * @throws IllegalArgumentException if the element has an invalid bytecode index.
+     * 
      * @since 25.1
      */
     public static BytecodeFrame getNonVirtual(TruffleStackTraceElement element) {
@@ -331,6 +341,10 @@ public final class BytecodeFrame {
         if (frame == null) {
             return null;
         }
-        return new BytecodeFrame(frame, bytecode, element.getBytecodeIndex());
+        int bytecodeIndex = element.getBytecodeIndex();
+        if (bytecodeIndex < 0) {
+            throw new IllegalArgumentException("Bytecode index of TruffleStackTraceElement cannot be negative.");
+        }
+        return new BytecodeFrame(frame, bytecode, bytecodeIndex);
     }
 }

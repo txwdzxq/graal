@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -54,6 +54,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import org.graalvm.polyglot.Context;
+import org.junit.Assume;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -68,7 +69,7 @@ import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.RootCallTarget;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleStackTrace;
-
+import com.oracle.truffle.api.TruffleStackTraceElement;
 import com.oracle.truffle.api.bytecode.BytecodeConfig;
 import com.oracle.truffle.api.bytecode.BytecodeFrame;
 import com.oracle.truffle.api.bytecode.BytecodeLocal;
@@ -90,8 +91,9 @@ import com.oracle.truffle.api.bytecode.Variadic;
 import com.oracle.truffle.api.dsl.Bind;
 import com.oracle.truffle.api.dsl.Cached;
 import com.oracle.truffle.api.dsl.Cached.Shared;
-import com.oracle.truffle.api.exception.AbstractTruffleException;
 import com.oracle.truffle.api.dsl.Specialization;
+import com.oracle.truffle.api.exception.AbstractTruffleException;
+import com.oracle.truffle.api.frame.Frame;
 import com.oracle.truffle.api.frame.FrameDescriptor;
 import com.oracle.truffle.api.frame.FrameInstance;
 import com.oracle.truffle.api.frame.FrameSlotKind;
@@ -1248,6 +1250,72 @@ public class LocalHelpersTest {
         }
     }
 
+    @Test
+    public void testBytecodeFrameGetTruffleStackTraceElementInvalidBytecodeIndex() {
+        Assume.assumeTrue(capturesFrameForTrace());
+
+        BytecodeNodeWithLocalIntrospection root = parseNode(b -> {
+            b.beginRoot();
+            b.beginReturn();
+            b.emitCaptureFrameState();
+            b.endReturn();
+            b.endRoot();
+        });
+
+        CapturedFrameState state = (CapturedFrameState) root.getCallTarget().call();
+        TruffleStackTraceElement invalid = TruffleStackTraceElement.create(state.bytecode(), state.target(), state.frame(), -2);
+        // Invalid bci should be rejected.
+        assertThrows(IllegalArgumentException.class, () -> BytecodeFrame.get(invalid));
+    }
+
+    @Test
+    public void testFrameInstanceHelpersInvalidBytecodeIndex() {
+        BytecodeNodeWithLocalIntrospection root = parseNode(b -> {
+            b.beginRoot();
+            b.beginBlock();
+            BytecodeLocal foo = makeLocal(b, "foo");
+            b.beginStoreLocal(foo);
+            b.emitLoadConstant(42);
+            b.endStoreLocal();
+            b.beginReturn();
+            b.emitCaptureFrameState();
+            b.endReturn();
+            b.endBlock();
+            b.endRoot();
+        });
+
+        root.getBytecodeNode().setUncachedThreshold(0);
+
+        CapturedFrameState state = (CapturedFrameState) root.getCallTarget().call();
+        FrameInstance invalid = new FrameInstance() {
+            @Override
+            public Frame getFrame(FrameAccess access) {
+                return state.frame();
+            }
+
+            @Override
+            public boolean isVirtualFrame() {
+                return false;
+            }
+
+            @Override
+            public Node getCallNode() {
+                return state.bytecode();
+            }
+
+            @Override
+            public CallTarget getCallTarget() {
+                return state.target();
+            }
+        };
+
+        assertThrows(AssertionError.class, () -> BytecodeNode.getLocalValues(invalid));
+        assertThrows(AssertionError.class, () -> BytecodeNode.getLocalNames(invalid));
+        assertThrows(AssertionError.class, () -> BytecodeNode.setLocalValues(invalid, new Object[]{43}));
+        assertThrows(AssertionError.class, () -> BytecodeFrame.get(invalid, FrameInstance.FrameAccess.READ_WRITE));
+        assertThrows(AssertionError.class, () -> BytecodeFrame.getNonVirtual(invalid));
+    }
+
     @SuppressWarnings("unused")
     private static boolean alwaysCaptured(int unused) {
         return true;
@@ -2328,9 +2396,23 @@ abstract class BytecodeNodeWithLocalIntrospection extends DebugBytecodeRootNode 
             return new Pair(left, right);
         }
     }
+
+    @Operation
+    public static final class CaptureFrameState {
+        @Specialization
+        public static CapturedFrameState doCapture(VirtualFrame frame, @Bind BytecodeNode bytecode) {
+            return new CapturedFrameState(bytecode, frame.materialize());
+        }
+    }
 }
 
 record Pair(Object left, Object right) {
+}
+
+record CapturedFrameState(BytecodeNode bytecode, MaterializedFrame frame) {
+    RootCallTarget target() {
+        return bytecode.getRootNode().getCallTarget();
+    }
 }
 
 @SuppressWarnings("serial")
