@@ -30,7 +30,6 @@ import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReader;
 import java.lang.module.ModuleReference;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URI;
@@ -147,10 +146,8 @@ public class LibJVMLauncherOptionTest {
         assumeLibJVMNativeImage();
 
         String previousMainModule = System.getProperty(RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY);
-        boolean previousInitialized = getRuntimeBootLayerInitialized();
         try {
             System.setProperty(RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY, MISSING_MODULE_NAME);
-            setRuntimeBootLayerInitialized(false);
 
             Throwable failure = Assert.assertThrows(InvocationTargetException.class, LibJVMLauncherOptionTest::invokeRuntimeBootLayerInitialize).getCause();
             Assert.assertTrue(failure instanceof FindException);
@@ -159,7 +156,6 @@ public class LibJVMLauncherOptionTest {
             Assert.assertTrue(failure.getMessage().contains("not found"));
         } finally {
             restoreSystemProperty(RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY, previousMainModule);
-            setRuntimeBootLayerInitialized(previousInitialized);
         }
     }
 
@@ -201,18 +197,6 @@ public class LibJVMLauncherOptionTest {
         Method method = RuntimeBootModuleLayerSupport.class.getDeclaredMethod("initialize");
         method.setAccessible(true);
         method.invoke(null);
-    }
-
-    private static boolean getRuntimeBootLayerInitialized() throws Exception {
-        Field field = RuntimeBootModuleLayerSupport.class.getDeclaredField("initialized");
-        field.setAccessible(true);
-        return field.getBoolean(null);
-    }
-
-    private static void setRuntimeBootLayerInitialized(boolean value) throws Exception {
-        Field field = RuntimeBootModuleLayerSupport.class.getDeclaredField("initialized");
-        field.setAccessible(true);
-        field.setBoolean(null, value);
     }
 
     @SuppressWarnings("unchecked")

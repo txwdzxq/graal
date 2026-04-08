@@ -104,8 +104,6 @@ public final class RuntimeBootModuleLayerSupport {
     public static final String ADD_MODULES_PROPERTY_PREFIX = "jdk.module.addmods.";
     public static final String ALL_MODULE_PATH = "ALL-MODULE-PATH";
 
-    private static volatile boolean initialized;
-
     private RuntimeBootModuleLayerSupport() {
     }
 
@@ -122,56 +120,43 @@ public final class RuntimeBootModuleLayerSupport {
     /// 4. Patch the real boot layer so [ModuleLayer#boot] exposes the resolved runtime
     /// modules without changing its identity.
     static void initialize() {
-        if (initialized) {
+        ModuleLayer bootLayer = RuntimeModuleSupport.singleton().getBootLayer();
+        if (bootLayer == null) {
             return;
         }
 
-        synchronized (RuntimeBootModuleLayerSupport.class) {
-            if (initialized) {
-                return;
-            }
-
-            ModuleLayer bootLayer = RuntimeModuleSupport.singleton().getBootLayer();
-            if (bootLayer == null) {
-                return;
-            }
-
-            /*
-             * Resolve the runtime launcher options against the existing boot configuration so we
-             * only add modules that were named at runtime and are not already present in the
-             * build-time boot layer.
-             */
-            String modulePath = System.getProperty(MODULE_PATH_PROPERTY, "");
-            ModuleFinder modulePathFinder = createModuleFinder(modulePath);
-            Configuration bootConfiguration = bootLayer.configuration();
-            Set<String> roots = getRootModules(modulePathFinder);
-            roots.removeIf(moduleName -> bootConfiguration.findModule(moduleName).isPresent());
-            if (roots.isEmpty()) {
-                // Boot layer is not modified by runtime launcher options
-                initialized = true;
-                return;
-            }
-
-            Configuration augmentationConfiguration = resolveAugmentationConfiguration(bootConfiguration, modulePathFinder, roots);
-            if (augmentationConfiguration.modules().isEmpty()) {
-                initialized = true;
-                return;
-            }
-
-            /*
-             * Let the application class loader learn about the newly resolved module references,
-             * then define a temporary layer so the JDK creates the corresponding Module objects.
-             */
-            ClassLoader appLoader = ClassLoader.getSystemClassLoader();
-            registerModules(appLoader, augmentationConfiguration);
-            ModuleLayer augmentationLayer = ModuleLayer.defineModules(augmentationConfiguration, List.of(bootLayer), _ -> appLoader).layer();
-            /*
-             * Fold the temporary layer back into the real boot layer so ModuleLayer.boot() keeps
-             * its original identity while reflecting the runtime-resolved modules.
-             */
-            patchBootLayer(bootLayer, bootConfiguration, augmentationConfiguration, augmentationLayer);
-            initialized = true;
+        /*
+         * Resolve the runtime launcher options against the existing boot configuration so we only
+         * add modules that were named at runtime and are not already present in the build-time boot
+         * layer.
+         */
+        String modulePath = System.getProperty(MODULE_PATH_PROPERTY, "");
+        ModuleFinder modulePathFinder = createModuleFinder(modulePath);
+        Configuration bootConfiguration = bootLayer.configuration();
+        Set<String> roots = getRootModules(modulePathFinder);
+        roots.removeIf(moduleName -> bootConfiguration.findModule(moduleName).isPresent());
+        if (roots.isEmpty()) {
+            // Boot layer is not modified by runtime launcher options
+            return;
         }
+
+        Configuration augmentationConfiguration = resolveAugmentationConfiguration(bootConfiguration, modulePathFinder, roots);
+        if (augmentationConfiguration.modules().isEmpty()) {
+            return;
+        }
+
+        /*
+         * Let the application class loader learn about the newly resolved module references, then
+         * define a temporary layer so the JDK creates the corresponding Module objects.
+         */
+        ClassLoader appLoader = ClassLoader.getSystemClassLoader();
+        registerModules(appLoader, augmentationConfiguration);
+        ModuleLayer augmentationLayer = ModuleLayer.defineModules(augmentationConfiguration, List.of(bootLayer), _ -> appLoader).layer();
+        /*
+         * Fold the temporary layer back into the real boot layer so ModuleLayer.boot() keeps its
+         * original identity while reflecting the runtime-resolved modules.
+         */
+        patchBootLayer(bootLayer, bootConfiguration, augmentationConfiguration, augmentationLayer);
     }
 
     /// Resolves the runtime module-path roots against the existing boot configuration.
