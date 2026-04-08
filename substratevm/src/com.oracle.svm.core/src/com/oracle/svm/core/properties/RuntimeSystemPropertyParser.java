@@ -100,23 +100,6 @@ public final class RuntimeSystemPropertyParser {
         }
 
         String arg = args[index];
-        if (RuntimeBootModuleLayerSupport.MAIN_MODULE_OPTION.equals(arg) || RuntimeBootModuleLayerSupport.MAIN_MODULE_SHORT_OPTION.equals(arg)) {
-            if (index + 1 >= args.length) {
-                throw new IllegalArgumentException(arg + " requires module name");
-            }
-            properties.put(RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY, getModuleName(args[index + 1]));
-            return 2;
-        }
-        if (arg.startsWith(RuntimeBootModuleLayerSupport.MAIN_MODULE_OPTION + "=")) {
-            properties.put(RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY,
-                            getModuleName(arg.substring(RuntimeBootModuleLayerSupport.MAIN_MODULE_OPTION.length() + 1)));
-            return 1;
-        }
-        if (arg.startsWith(RuntimeBootModuleLayerSupport.MAIN_MODULE_SHORT_OPTION + "=")) {
-            properties.put(RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY,
-                            getModuleName(arg.substring(RuntimeBootModuleLayerSupport.MAIN_MODULE_SHORT_OPTION.length() + 1)));
-            return 1;
-        }
         if (RuntimeBootModuleLayerSupport.MODULE_PATH_OPTION.equals(arg) || RuntimeBootModuleLayerSupport.MODULE_PATH_SHORT_OPTION.equals(arg)) {
             if (index + 1 >= args.length) {
                 throw new IllegalArgumentException(arg + " requires module path specification");
@@ -153,10 +136,5 @@ public final class RuntimeSystemPropertyParser {
             index++;
         }
         properties.put(prefix + index, value);
-    }
-
-    private static String getModuleName(String moduleSpecifier) {
-        int separatorIndex = moduleSpecifier.indexOf('/');
-        return separatorIndex == -1 ? moduleSpecifier : moduleSpecifier.substring(0, separatorIndex);
     }
 }

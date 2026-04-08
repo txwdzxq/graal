@@ -71,26 +71,23 @@ public class LibJVMLauncherOptionTest {
         }
     }
 
-    /// Verifies that missing operands for `-m`, `-p`, and `--add-modules` are rejected during
+    /// Verifies that missing operands for `-p` and `--add-modules` are rejected during
     /// runtime launcher parsing instead of being silently forwarded to user code.
     @Test
     public void malformedModuleOptionsRequireOperands() {
         assumeLibJVMNativeImage();
 
-        assertMissingOperandRejected("-m");
         assertMissingOperandRejected("-p");
         assertMissingOperandRejected("--add-modules");
     }
 
-    /// Verifies that the operand-taking launcher forms remove module options from the user-visible
-    /// argument list and preserve the expected `jdk.module.*` properties for later boot-layer
-    /// initialization.
+    /// Verifies that runtime parsing still preserves module-path and add-modules settings for
+    /// later boot-layer initialization.
     @Test
-    public void launcherModuleOptionsPopulateRuntimeProperties() {
+    public void launcherModulePathOptionsPopulateRuntimeProperties() {
         assumeLibJVMNativeImage();
 
         Map<String, String> previousValues = rememberProperties(
-                        RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY,
                         RuntimeBootModuleLayerSupport.MODULE_PATH_PROPERTY,
                         RuntimeBootModuleLayerSupport.ADD_MODULES_PROPERTY_PREFIX + "0",
                         RuntimeBootModuleLayerSupport.ADD_MODULES_PROPERTY_PREFIX + "1",
@@ -100,7 +97,6 @@ public class LibJVMLauncherOptionTest {
 
             String[] remainingArgs = RuntimeSystemPropertyParser.parse(
                             new String[]{
-                                            "--module", "app.main/com.example.Main",
                                             "-p", "mods-dir",
                                             "--add-modules", "alpha,beta",
                                             "--add-modules=gamma",
@@ -110,7 +106,6 @@ public class LibJVMLauncherOptionTest {
                             "-XX:", "-G:");
 
             Assert.assertArrayEquals(new String[]{"user-arg"}, remainingArgs);
-            Assert.assertEquals("app.main", System.getProperty(RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY));
             Assert.assertEquals("mods-dir", System.getProperty(RuntimeBootModuleLayerSupport.MODULE_PATH_PROPERTY));
             Assert.assertEquals("alpha,beta", System.getProperty(RuntimeBootModuleLayerSupport.ADD_MODULES_PROPERTY_PREFIX + "0"));
             Assert.assertEquals("gamma", System.getProperty(RuntimeBootModuleLayerSupport.ADD_MODULES_PROPERTY_PREFIX + "1"));
@@ -120,33 +115,28 @@ public class LibJVMLauncherOptionTest {
         }
     }
 
-    /// Verifies that both long and short `=` forms are parsed consistently, with later launcher
-    /// options overriding earlier values for the same preserved property.
+    /// Verifies that `--module` and `-m` are left for the Java launcher instead of being consumed
+    /// by runtime system-property parsing.
     @Test
-    public void equalsStyleModuleOptionsPopulateRuntimeProperties() {
+    public void launcherMainModuleOptionsPassThrough() {
         assumeLibJVMNativeImage();
 
-        Map<String, String> previousValues = rememberProperties(
-                        RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY,
-                        RuntimeBootModuleLayerSupport.MODULE_PATH_PROPERTY);
+        String previousMainModule = System.getProperty(RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY);
         try {
-            clearProperties(previousValues.keySet());
+            System.clearProperty(RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY);
 
             String[] remainingArgs = RuntimeSystemPropertyParser.parse(
                             new String[]{
                                             "--module=app.long/com.example.LongMain",
                                             "-m=app.short/com.example.ShortMain",
-                                            "--module-path=long-mods",
-                                            "-p=short-mods",
                                             "user-arg"
                             },
                             "-XX:", "-G:");
 
-            Assert.assertArrayEquals(new String[]{"user-arg"}, remainingArgs);
-            Assert.assertEquals("app.short", System.getProperty(RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY));
-            Assert.assertEquals("short-mods", System.getProperty(RuntimeBootModuleLayerSupport.MODULE_PATH_PROPERTY));
+            Assert.assertArrayEquals(new String[]{"--module=app.long/com.example.LongMain", "-m=app.short/com.example.ShortMain", "user-arg"}, remainingArgs);
+            Assert.assertNull(System.getProperty(RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY));
         } finally {
-            restoreProperties(previousValues);
+            restoreSystemProperty(RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY, previousMainModule);
         }
     }
 

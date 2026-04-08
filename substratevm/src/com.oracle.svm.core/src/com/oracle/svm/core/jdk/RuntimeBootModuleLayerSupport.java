@@ -96,8 +96,6 @@ final class RuntimeBootModuleLayerStartupHook implements RuntimeSupport.Hook {
 /// - Grafts those modules back onto the real boot layer, and
 /// - Rebuilds the boot-layer configuration and caches to match the augmented contents.
 public final class RuntimeBootModuleLayerSupport {
-    public static final String MAIN_MODULE_OPTION = "--module";
-    public static final String MAIN_MODULE_SHORT_OPTION = "-m";
     public static final String MODULE_PATH_OPTION = "--module-path";
     public static final String MODULE_PATH_SHORT_OPTION = "-p";
     public static final String ADD_MODULES_OPTION = "--add-modules";
@@ -116,8 +114,8 @@ public final class RuntimeBootModuleLayerSupport {
     ///
     /// The flow is:
     ///
-    /// 1. Read the preserved `jdk.module.*` properties for `--module`, `--module-path`, and
-    /// `--add-modules`.
+    /// 1. Read the preserved `jdk.module.*` properties for the launcher-selected main module,
+    /// `--module-path`, and `--add-modules`.
     /// 2. Resolve only those roots that are not already part of the build-time boot layer.
     /// 3. Create the corresponding [Module] objects in a temporary layer using the application
     /// class loader.
@@ -258,7 +256,7 @@ public final class RuntimeBootModuleLayerSupport {
     ///
     /// This combines:
     ///
-    /// - The main module from `--module` / `-m`, and
+    /// - The main module from the launcher-populated `jdk.module.main` property, and
     /// - Additional roots from repeated `--add-modules` occurrences, including
     /// `ALL-MODULE-PATH`.
     private static Set<String> getRootModules(ModuleFinder moduleFinder) {
