@@ -1222,6 +1222,12 @@ public class EspressoInterop extends BaseInterop {
                 receiver.<double[]> unwrap(language)[(int) index] = doubleValue;
             }
 
+            /**
+             * Preserve already-materialized Espresso strings when storing into {@code String[]},
+             * while still accepting foreign string-like inputs through interop string semantics.
+             * This keeps direct guest {@code java.lang.String} objects identity-preserving instead
+             * of re-encoding them through {@link InteropLibrary#asString(Object)}.
+             */
             @Specialization(guards = {"isStringArray(receiver)", "receiver.isEspressoObject()"})
             static void doString(StaticObject receiver, long index, Object value,
                             @CachedLibrary(limit = "1") InteropLibrary receiverLib,
@@ -1231,6 +1237,16 @@ public class EspressoInterop extends BaseInterop {
                 if (index < 0 || receiver.length(language) <= index) {
                     error.enter();
                     throw InvalidArrayIndexException.create(index);
+                }
+                if (value instanceof StaticObject staticValue) {
+                    Klass componentType = ((ArrayKlass) receiver.getKlass()).getComponentType();
+                    if (StaticObject.isNull(staticValue) || instanceOf(staticValue, componentType)) {
+                        receiver.<StaticObject[]> unwrap(language)[(int) index] = staticValue;
+                    } else {
+                        error.enter();
+                        throw UnsupportedTypeException.create(new Object[]{value}, "Incompatible types");
+                    }
+                    return;
                 }
                 StaticObject stringValue;
                 try {
