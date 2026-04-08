@@ -109,6 +109,9 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
                 return url;
             }
         }
+
+        // TODO GR-73221: Also look into the modules defined to this loader
+
         return ucp == null ? null : ucp.findResource(name);
     }
 
@@ -125,6 +128,9 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
             // Workaround for GR-73221: Only retrieve image resources for boot loader
             resources.addAll(ResourcesHelper.nameToResourceListURLs(name));
         }
+
+        // TODO GR-73221: Also look into the modules defined to this loader
+
         if (ucp != null) {
             Enumeration<URL> e = ucp.findResources(name);
             if (resources.isEmpty()) {
