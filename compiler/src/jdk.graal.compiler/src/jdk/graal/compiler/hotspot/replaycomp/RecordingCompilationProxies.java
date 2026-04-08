@@ -44,9 +44,10 @@ import jdk.vm.ci.meta.ResolvedJavaMethod;
  * <p>
  * A proxy created by this class delegates method invocation to an original object (one obtained
  * from the host VM). The proxy may also record the result of the invocation, which can be later
- * serialized into a JSON file ({@link RecordedOperationPersistence}). The behavior of the proxy for
- * individual methods is configured in {@link CompilerInterfaceDeclarations}. All subsequent method
- * invocations with equal arguments produce the result computed initially.
+ * serialized into a replay file by {@link JsonReplayCodec} or {@link BinaryReplayCodec}. The
+ * behavior of the proxy for individual methods is configured in
+ * {@link CompilerInterfaceDeclarations}. All subsequent method invocations with equal arguments
+ * produce the result computed initially.
  * <p>
  * The result of an operation is either a return value or a thrown exception.
  *
@@ -87,7 +88,7 @@ class RecordingCompilationProxies implements CompilationProxies {
      * objects that have operations to record of their own, this method uses a worklist to compute a
      * transitive closure.
      *
-     * @return a list of recorded compilation
+     * @return the recorded operations for the current compilation unit
      */
     public List<OperationRecorder.RecordedOperation> collectOperationsForSerialization() {
         List<Object> worklist = new ArrayList<>();

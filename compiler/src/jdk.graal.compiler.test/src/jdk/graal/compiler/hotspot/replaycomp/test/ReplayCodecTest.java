@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2025, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -26,17 +26,21 @@ package jdk.graal.compiler.hotspot.replaycomp.test;
 
 import static jdk.vm.ci.runtime.JVMCICompiler.INVOCATION_ENTRY_BCI;
 
-import java.io.IOException;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.BitSet;
 import java.util.List;
 import java.util.Objects;
 
+import jdk.graal.compiler.hotspot.replaycomp.CompilationProxies;
+import jdk.graal.compiler.hotspot.replaycomp.JsonReplayCodec;
 import org.graalvm.collections.EconomicMap;
 import org.junit.Assert;
 import org.junit.Test;
 
+import jdk.graal.compiler.hotspot.replaycomp.BinaryReplayCodec;
 import jdk.graal.compiler.core.test.GraalCompilerTest;
 import jdk.graal.compiler.hotspot.Platform;
 import jdk.graal.compiler.hotspot.replaycomp.CompilationProxyMapper;
@@ -44,7 +48,7 @@ import jdk.graal.compiler.hotspot.replaycomp.CompilationTaskProduct;
 import jdk.graal.compiler.hotspot.replaycomp.CompilerInterfaceDeclarations;
 import jdk.graal.compiler.hotspot.replaycomp.OperationRecorder;
 import jdk.graal.compiler.hotspot.replaycomp.RecordedForeignCallLinkages;
-import jdk.graal.compiler.hotspot.replaycomp.RecordedOperationPersistence;
+import jdk.graal.compiler.hotspot.replaycomp.RecordedCompilationUnit;
 import jdk.graal.compiler.hotspot.replaycomp.SpecialResultMarker;
 import jdk.graal.compiler.hotspot.replaycomp.proxy.CompilationProxy;
 import jdk.graal.compiler.hotspot.replaycomp.proxy.CompilationProxyBase;
@@ -60,30 +64,58 @@ import jdk.vm.ci.meta.ConstantReflectionProvider;
 import jdk.vm.ci.meta.JavaConstant;
 
 /**
- * Tests the JSON serialization and deserialization performed by
- * {@link RecordedOperationPersistence}.
+ * Tests replay-file serialization and deserialization for JSON and binary codecs.
  */
-public class RecordedOperationPersistenceTest extends GraalCompilerTest {
+public class ReplayCodecTest extends GraalCompilerTest {
     @Test
-    public void dumpsAndLoads() throws IOException, RecordedOperationPersistence.DeserializationException {
+    public void dumpsAndLoadsJson() throws Exception {
+        assertRoundTrip((jsonCodec, ignored, compilationUnit, proxyFactory) -> {
+            String json;
+            try (StringWriter stringWriter = new StringWriter(); JsonWriter jsonWriter = new JsonWriter(stringWriter)) {
+                jsonCodec.dump(compilationUnit, jsonWriter);
+                json = stringWriter.toString();
+            }
+            try (StringReader reader = new StringReader(json)) {
+                return jsonCodec.load(reader, proxyFactory);
+            }
+        });
+    }
+
+    @Test
+    public void dumpsAndLoadsBinary() throws Exception {
+        assertRoundTrip((ignored, binaryCodec, compilationUnit, proxyFactory) -> {
+            byte[] binary;
+            try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                binaryCodec.write(compilationUnit, output);
+                binary = output.toByteArray();
+            }
+            try (ByteArrayInputStream input = new ByteArrayInputStream(binary)) {
+                return binaryCodec.read(input, proxyFactory);
+            }
+        });
+    }
+
+    private void assertRoundTrip(RoundTrip roundTrip) throws Exception {
         CompilerInterfaceDeclarations declarations = CompilerInterfaceDeclarations.build();
-        RecordedOperationPersistence persistence = new RecordedOperationPersistence(declarations, Platform.ofCurrentHost(),
-                        HotSpotJVMCIRuntime.runtime().getHostJVMCIBackend().getTarget());
+        Platform hostPlatform = Platform.ofCurrentHost();
+        var hostTarget = HotSpotJVMCIRuntime.runtime().getHostJVMCIBackend().getTarget();
+        JsonReplayCodec jsonCodec = new JsonReplayCodec(declarations, hostPlatform, hostTarget);
+        BinaryReplayCodec binaryCodec = new BinaryReplayCodec(declarations, hostPlatform, hostTarget);
         var compilationUnit = createRecordedCompilationUnit();
-        ProxyFactory proxyFactory = new ProxyFactory(declarations);
+        TestProxyFactory proxyFactory = new TestProxyFactory(declarations);
         CompilationProxyMapper proxyMapper = new CompilationProxyMapper(declarations, proxyFactory::proxify);
         List<OperationRecorder.RecordedOperation> proxifiedOperations = compilationUnit.operations().stream().map(
                         (operation) -> new OperationRecorder.RecordedOperation(proxyMapper.proxifyRecursive(operation.receiver()), operation.method(),
                                         (Object[]) proxyMapper.proxifyRecursive(operation.args()), proxyMapper.proxifyRecursive(operation.resultOrMarker()))).toList();
-        String json;
-        try (StringWriter stringWriter = new StringWriter(); JsonWriter jsonWriter = new JsonWriter(stringWriter)) {
-            persistence.dump(compilationUnit, jsonWriter);
-            json = stringWriter.toString();
-        }
-        RecordedOperationPersistence.RecordedCompilationUnit parsedCompilationUnit;
-        try (StringReader reader = new StringReader(json)) {
-            parsedCompilationUnit = persistence.load(reader, proxyFactory);
-        }
+        RecordedCompilationUnit parsedCompilationUnit = roundTrip.roundTrip(jsonCodec, binaryCodec, compilationUnit, proxyFactory);
+        Assert.assertSame(parsedCompilationUnit.operations().get(2).receiver(), parsedCompilationUnit.operations().get(3).receiver());
+        Assert.assertSame(parsedCompilationUnit.operations().get(0).receiver(), parsedCompilationUnit.operations().get(1).args()[0]);
+        var assumptionResult = (Assumptions.AssumptionResult<?>) parsedCompilationUnit.operations().get(0).resultOrMarker();
+        Assumptions assumptions = new Assumptions();
+        assumptionResult.recordTo(assumptions);
+        var callSiteTargetValue = (Assumptions.CallSiteTargetValue) assumptions.iterator().next();
+        Assert.assertSame(parsedCompilationUnit.operations().get(0).receiver(), callSiteTargetValue.callSite);
+        Assert.assertSame(assumptionResult.getResult(), callSiteTargetValue.methodHandle);
         for (var pair : CollectionsUtil.zipLongest(proxifiedOperations, parsedCompilationUnit.operations())) {
             Assert.assertEquals(pair.getLeft().receiver(), pair.getRight().receiver());
             Assert.assertTrue(Objects.deepEquals(pair.getLeft().args(), pair.getRight().args()));
@@ -108,6 +140,12 @@ public class RecordedOperationPersistenceTest extends GraalCompilerTest {
         }
     }
 
+    @FunctionalInterface
+    private interface RoundTrip {
+        RecordedCompilationUnit roundTrip(JsonReplayCodec persistence, BinaryReplayCodec binaryReplayCodec,
+                        RecordedCompilationUnit compilationUnit, CompilationProxies.ProxyFactory proxyFactory) throws Exception;
+    }
+
     public static Object dummyMethod() {
         try {
             throw new Exception();
@@ -116,7 +154,7 @@ public class RecordedOperationPersistenceTest extends GraalCompilerTest {
         }
     }
 
-    private RecordedOperationPersistence.RecordedCompilationUnit createRecordedCompilationUnit() {
+    private RecordedCompilationUnit createRecordedCompilationUnit() {
         HotSpotResolvedJavaMethod dummyMethod = (HotSpotResolvedJavaMethod) getResolvedJavaMethod("dummyMethod");
 
         CompilationProxy.SymbolicMethod constantGetCallSiteTarget = new CompilationProxy.SymbolicMethod(HotSpotObjectConstant.class, "getCallSiteTarget");
@@ -138,7 +176,7 @@ public class RecordedOperationPersistenceTest extends GraalCompilerTest {
                         new OperationRecorder.RecordedOperation(dummyMethod, symbolicGetHandlers, null, dummyMethod.getExceptionHandlers()),
                         new OperationRecorder.RecordedOperation(dummyMethod, symbolicGetOopMap, new Object[]{0}, bitSet));
 
-        return new RecordedOperationPersistence.RecordedCompilationUnit(
+        return new RecordedCompilationUnit(
                         new HotSpotCompilationRequest(dummyMethod, INVOCATION_ENTRY_BCI, 0L, 1),
                         "test configuration",
                         false,
@@ -149,10 +187,10 @@ public class RecordedOperationPersistenceTest extends GraalCompilerTest {
                         operations);
     }
 
-    private static final class ProxyFactory implements RecordedOperationPersistence.ProxyFactory {
+    private static final class TestProxyFactory implements CompilationProxies.ProxyFactory {
         private final CompilerInterfaceDeclarations declarations;
 
-        private ProxyFactory(CompilerInterfaceDeclarations declarations) {
+        private TestProxyFactory(CompilerInterfaceDeclarations declarations) {
             this.declarations = declarations;
         }
 
