@@ -359,14 +359,12 @@ public class AMD64InterpreterStubs {
             AMD64MacroAssembler masm = (AMD64MacroAssembler) crb.asm;
             List<Register> gps = getRegisterConfig().getJavaGeneralParameterRegs();
 
-            /* sp points to four reserved stack slots for this stub */
+            /* sp points to a reserved stack slot for this stub */
 
             /* arg0 is untouched by this extra prolog */
 
-            /* arg1: Pointer to InterpreterData struct */
-            masm.movq(new AMD64Address(rsp, 0), gps.get(1));
-            /* arg2: Variable stack size */
-            masm.movq(new AMD64Address(rsp, 8), gps.get(2));
+            /* arg3: true if the result of the function is in a floating-point register */
+            masm.movq(new AMD64Address(rsp, 0), gps.get(3));
 
             masm.subq(rsp, gps.get(2) /* variable stack size */);
         }
@@ -387,11 +385,6 @@ public class AMD64InterpreterStubs {
             Register stackSize = AMD64.r11;
             masm.movq(stackSize, gps.get(2));
 
-            Label regsHandling = new Label();
-            /* if stackSize == 0 */
-            masm.testq(stackSize, stackSize);
-            masm.jccb(AMD64Assembler.ConditionFlag.Zero, regsHandling);
-
             /* Copy prepared outgoing args to the stack where the ABI expects it */
             Register calleeSpArgs = AMD64.r12;
             Register interpDataSp = AMD64.r9;
@@ -410,8 +403,6 @@ public class AMD64InterpreterStubs {
 
             masm.testq(stackSize, stackSize);
             masm.jccb(AMD64Assembler.ConditionFlag.NotZero, spCopyBegin);
-
-            masm.bind(regsHandling);
 
             /* Set fp argument registers */
             masm.movq(fps.get(0), new AMD64Address(rax, offsetAbiFpArg0()));
@@ -437,9 +428,6 @@ public class AMD64InterpreterStubs {
             /* Call into target method */
             masm.call(callTarget);
 
-            Register resultCopy = AMD64.r10;
-            masm.movq(resultCopy, rax);
-
             /* Obtain stack size from deopt slot */
             masm.movq(AMD64.r12, new AMD64Address(rsp, 0));
 
@@ -450,14 +438,14 @@ public class AMD64InterpreterStubs {
             /* Restore stack pointer */
             masm.addq(rsp, AMD64.r12);
 
-            /* Pointer InterpreterData struct */
-            masm.movq(rax, new AMD64Address(rsp, 0));
-
-            /* Save gp ABI register into InterpreterData struct */
-            masm.movq(new AMD64Address(rax, offsetAbiGpRet()), resultCopy);
-
-            /* Save fp ABI register into InterpreterData struct */
-            masm.movq(new AMD64Address(rax, offsetAbiFpRet()), xmm0);
+            Label gpResult = new Label();
+            /* The leave stub returns a long, so check whether the actual call returned in xmm0. */
+            masm.movq(AMD64.r10, new AMD64Address(rsp, 0));
+            masm.testq(AMD64.r10, AMD64.r10);
+            masm.jccb(AMD64Assembler.ConditionFlag.Zero, gpResult);
+            /* Return the raw float/double bits in rax. */
+            masm.movdq(rax, xmm0);
+            masm.bind(gpResult);
 
             super.leave(crb);
         }
@@ -475,9 +463,8 @@ public class AMD64InterpreterStubs {
     }
 
     public static int additionalFrameSizeLeaveStub() {
-        int wordSize = 8;
-        // reserve two slots for: base address of outgoing stack args and variable stack size.
-        return 2 * wordSize;
+        /* Reserve one extra word to remember whether the actual call returns in the FP register. */
+        return 8;
     }
 
     @RawStructure
@@ -691,7 +678,7 @@ public class AMD64InterpreterStubs {
 
         @Override
         @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-        public void setSp(Pointer data, int stackSize, Pointer stackBuffer) {
+        public void setSpAndStoreStackSizeInDeoptSlot(Pointer data, int stackSize, Pointer stackBuffer) {
             VMError.guarantee(stackBuffer.isNonNull());
 
             InterpreterDataAMD64 p = (InterpreterDataAMD64) data;

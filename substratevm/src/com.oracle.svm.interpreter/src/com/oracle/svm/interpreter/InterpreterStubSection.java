@@ -458,13 +458,23 @@ public abstract class InterpreterStubSection {
         return accessHelper.getGpArgumentAt(cArgType, enterData, gpIdx);
     }
 
-    /* reserve two slots for: 1. base address of outgoing stack args, and 2. variable stack size. */
+    /**
+     * Leaves interpreter execution, invokes {@code entryPoint}, and returns the raw ABI result of
+     * that call. For general-purpose returns this is the value from the integer return register;
+     * for floating-point returns the leave-stub backend moves the raw bits from the floating-point
+     * return register into the integer return register before returning to Java.
+     */
     @Deoptimizer.DeoptStub(stubType = Deoptimizer.StubType.InterpreterLeaveStub)
     @NeverInline("needs ABI boundary")
     @Uninterruptible(reason = REASON_REFERENCES_ON_STACK)
     @SuppressWarnings("unused")
-    public static Pointer leaveInterpreterStub(CFunctionPointer entryPoint, Pointer leaveData, long stackSize) {
-        return (Pointer) entryPoint;
+    public static long leaveInterpreterStub(CFunctionPointer entryPoint, Pointer leaveData, long stackSize, boolean returnInFpRegister) {
+        /*
+         * The backend overwrites this value and makes the stub return the raw result of invoking
+         * entryPoint instead. Nevertheless, it relies on entryPoint.rawValue() being in the integer
+         * return register, so this Java method must not return a different value.
+         */
+        return entryPoint.rawValue();
     }
 
     @Uninterruptible(reason = REASON_DEOPT_INSTALLED_CODE)
@@ -478,12 +488,10 @@ public abstract class InterpreterStubSection {
 
         int stackSize = UninterruptibleUtils.NumUtil.roundUp(compiledSignature.getStackSize(), stubSection.target.stackAlignment);
 
-        Pointer stackBuffer = Word.nullPointer();
-        if (stackSize > 0) {
-            stackBuffer = NullableNativeMemory.malloc(Word.unsigned(stackSize), NmtCategory.Interpreter);
-            VMError.guarantee(stackBuffer.isNonNull(), "Out-of-memory while allocating interpreter-internal data.");
-            accessHelper.setSp(leaveData, stackSize, stackBuffer);
-        }
+        assert stackSize > 0 : "Stack size should include deopt slot.";
+        Pointer stackBuffer = NullableNativeMemory.malloc(Word.unsigned(stackSize), NmtCategory.Interpreter);
+        VMError.guarantee(stackBuffer.isNonNull(), "Out-of-memory while allocating interpreter-internal data.");
+        accessHelper.setSpAndStoreStackSizeInDeoptSlot(leaveData, stackSize, stackBuffer);
         try {
             // GR-55022: Stack overflow check should be done here
             return leaveInterpreter0(compiledEntryPoint, args, compiledSignature, accessHelper, leaveData, stackSize);
@@ -553,19 +561,21 @@ public abstract class InterpreterStubSection {
         }
 
         VMError.guarantee(compiledEntryPoint.isNonNull());
-        leaveInterpreterStub(compiledEntryPoint, leaveData, stackSize);
+        JavaKind returnKind = compiledSignature.getReturnKind();
+        boolean returnInFpRegister = returnKind == JavaKind.Float || returnKind == JavaKind.Double;
+        long rawReturnValue = leaveInterpreterStub(compiledEntryPoint, leaveData, stackSize, returnInFpRegister);
 
         // @formatter:off
         return switch (compiledSignature.getReturnKind()) {
-            case Boolean -> (accessHelper.getGpReturn(leaveData) & 0xff) != 0;
-            case Byte    -> (byte) accessHelper.getGpReturn(leaveData);
-            case Short   -> (short) accessHelper.getGpReturn(leaveData);
-            case Char    -> (char) accessHelper.getGpReturn(leaveData);
-            case Int     -> (int) accessHelper.getGpReturn(leaveData);
-            case Long    -> accessHelper.getGpReturn(leaveData);
-            case Float   -> Float.intBitsToFloat((int) accessHelper.getFpReturn(leaveData));
-            case Double  -> Double.longBitsToDouble(accessHelper.getFpReturn(leaveData));
-            case Object  -> ((Pointer) Word.pointer(accessHelper.getGpReturn(leaveData))).toObject();
+            case Boolean -> (rawReturnValue & 0xff) != 0;
+            case Byte    -> (byte) rawReturnValue;
+            case Short   -> (short) rawReturnValue;
+            case Char    -> (char) rawReturnValue;
+            case Int     -> (int) rawReturnValue;
+            case Long    -> rawReturnValue;
+            case Float   -> Float.intBitsToFloat((int) rawReturnValue);
+            case Double  -> Double.longBitsToDouble(rawReturnValue);
+            case Object  -> ((Pointer) Word.pointer(rawReturnValue)).toObject();
             case Void    -> null;
             default      -> throw VMError.shouldNotReachHereAtRuntime();
         };
