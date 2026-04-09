@@ -46,7 +46,7 @@ import com.oracle.svm.shared.util.VMError;
 
 @AutomaticallyRegisteredFeature
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
-class RegisterSVMTestingResolverFeature extends ProjectHeaderFile.RegisterFallbackResolverFeature {
+class RegisterSVMTestingResolverFeature implements InternalFeature {
 
     @Override
     public boolean isInConfiguration(IsInConfigurationAccess access) {
@@ -65,14 +65,6 @@ class RegisterSVMTestingResolverFeature extends ProjectHeaderFile.RegisterFallba
 }
 
 public final class ProjectHeaderFile {
-
-    /**
-     * Base class for fall back resolvers registration. Extending this class will ensure that the
-     * {@link ProjectHeaderFile} will be added as a dependency.
-     */
-    public abstract static class RegisterFallbackResolverFeature implements InternalFeature {
-    }
-
     /**
      * Resolves the path to a C header file that is located in a Substrate VM project.
      */
