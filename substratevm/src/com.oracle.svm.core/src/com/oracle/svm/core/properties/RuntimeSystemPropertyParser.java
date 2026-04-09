@@ -94,27 +94,10 @@ public final class RuntimeSystemPropertyParser {
 
     private static int parseModuleOption(String[] args, int index, EconomicMap<String, String> properties) {
         String arg = args[index];
-        if (RuntimeBootModuleLayerSupport.MODULE_PATH_OPTION.equals(arg) || RuntimeBootModuleLayerSupport.MODULE_PATH_SHORT_OPTION.equals(arg)) {
-            if (index + 1 >= args.length) {
-                throw new IllegalArgumentException(arg + " requires module path specification");
-            }
-            properties.put(RuntimeBootModuleLayerSupport.MODULE_PATH_PROPERTY, args[index + 1]);
-            return 2;
-        }
+        // The JVM only sees the long "=" forms after launcher/libjli normalization.
         if (arg.startsWith(RuntimeBootModuleLayerSupport.MODULE_PATH_OPTION + "=")) {
             properties.put(RuntimeBootModuleLayerSupport.MODULE_PATH_PROPERTY, arg.substring(RuntimeBootModuleLayerSupport.MODULE_PATH_OPTION.length() + 1));
             return 1;
-        }
-        if (arg.startsWith(RuntimeBootModuleLayerSupport.MODULE_PATH_SHORT_OPTION + "=")) {
-            properties.put(RuntimeBootModuleLayerSupport.MODULE_PATH_PROPERTY, arg.substring(RuntimeBootModuleLayerSupport.MODULE_PATH_SHORT_OPTION.length() + 1));
-            return 1;
-        }
-        if (RuntimeBootModuleLayerSupport.ADD_MODULES_OPTION.equals(arg)) {
-            if (index + 1 >= args.length) {
-                throw new IllegalArgumentException(arg + " equires modules to be specified");
-            }
-            addNumberedProperty(RuntimeBootModuleLayerSupport.ADD_MODULES_PROPERTY_PREFIX, args[index + 1], properties);
-            return 2;
         }
         if (arg.startsWith(RuntimeBootModuleLayerSupport.ADD_MODULES_OPTION + "=")) {
             addNumberedProperty(RuntimeBootModuleLayerSupport.ADD_MODULES_PROPERTY_PREFIX,

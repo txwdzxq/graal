@@ -92,7 +92,6 @@ final class RuntimeBootModuleLayerStartupHook implements RuntimeSupport.Hook {
 /// - Rebuilds the boot-layer configuration and caches to match the augmented contents.
 public final class RuntimeBootModuleLayerSupport {
     public static final String MODULE_PATH_OPTION = "--module-path";
-    public static final String MODULE_PATH_SHORT_OPTION = "-p";
     public static final String ADD_MODULES_OPTION = "--add-modules";
     public static final String MODULE_PATH_PROPERTY = "jdk.module.path";
     public static final String MAIN_MODULE_PROPERTY = "jdk.module.main";

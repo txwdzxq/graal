@@ -54,7 +54,7 @@ import com.oracle.svm.core.properties.RuntimeSystemPropertyParser;
 ///
 /// This class covers two failure modes:
 ///
-/// - malformed module-related launcher options must fail parsing immediately, and
+/// - runtime system-property parsing must only consume JVM-level module options, and
 /// - boot-layer module resolution failures must remain ordinary launcher/user errors instead of
 /// internal VM errors.
 public class LibJVMLauncherOptionTest {
@@ -70,20 +70,10 @@ public class LibJVMLauncherOptionTest {
         }
     }
 
-    /// Verifies that missing operands for `-p` and `--add-modules` are rejected during
-    /// runtime launcher parsing instead of being silently forwarded to user code.
+    /// Verifies that runtime parsing consumes only the JVM-level `--module-path=...` and
+    /// `--add-modules=...` forms, leaving launcher-handled variants untouched.
     @Test
-    public void malformedModuleOptionsRequireOperands() {
-        assumeLibJVMNativeImage();
-
-        assertMissingOperandRejected("-p");
-        assertMissingOperandRejected("--add-modules");
-    }
-
-    /// Verifies that runtime parsing still preserves module-path and add-modules settings for
-    /// later boot-layer initialization.
-    @Test
-    public void launcherModulePathOptionsPopulateRuntimeProperties() {
+    public void launcherModuleOptionsOnlyParseJvmForms() {
         assumeLibJVMNativeImage();
 
         Map<String, String> previousValues = rememberProperties(
@@ -96,18 +86,25 @@ public class LibJVMLauncherOptionTest {
 
             String[] remainingArgs = RuntimeSystemPropertyParser.parse(
                             new String[]{
-                                            "-p", "mods-dir",
-                                            "--add-modules", "alpha,beta",
+                                            "--module-path=mods-dir",
+                                            "-p", "short-mods-dir",
+                                            "--module-path", "long-mods-dir",
                                             "--add-modules=gamma",
+                                            "--add-modules", "alpha,beta",
                                             "-Dlibjvm.launcher.option.test=value",
                                             "user-arg"
                             },
                             "-XX:", "-G:");
 
-            Assert.assertArrayEquals(new String[]{"user-arg"}, remainingArgs);
+            Assert.assertArrayEquals(new String[]{
+                            "-p", "short-mods-dir",
+                            "--module-path", "long-mods-dir",
+                            "--add-modules", "alpha,beta",
+                            "user-arg"
+            }, remainingArgs);
             Assert.assertEquals("mods-dir", System.getProperty(RuntimeBootModuleLayerSupport.MODULE_PATH_PROPERTY));
-            Assert.assertEquals("alpha,beta", System.getProperty(RuntimeBootModuleLayerSupport.ADD_MODULES_PROPERTY_PREFIX + "0"));
-            Assert.assertEquals("gamma", System.getProperty(RuntimeBootModuleLayerSupport.ADD_MODULES_PROPERTY_PREFIX + "1"));
+            Assert.assertEquals("gamma", System.getProperty(RuntimeBootModuleLayerSupport.ADD_MODULES_PROPERTY_PREFIX + "0"));
+            Assert.assertNull(System.getProperty(RuntimeBootModuleLayerSupport.ADD_MODULES_PROPERTY_PREFIX + "1"));
             Assert.assertEquals("value", System.getProperty("libjvm.launcher.option.test"));
         } finally {
             restoreProperties(previousValues);
@@ -187,12 +184,6 @@ public class LibJVMLauncherOptionTest {
         Assume.assumeTrue(ImageSingletons.contains(LibJVMMainMethodWrappers.class));
     }
 
-    private static void assertMissingOperandRejected(String option) {
-        IllegalArgumentException exception = Assert.assertThrows(IllegalArgumentException.class,
-                        () -> RuntimeSystemPropertyParser.parse(new String[]{option}, "-XX:", "-G:"));
-        Assert.assertTrue(exception.getMessage().startsWith(option));
-    }
-
     private static void invokeRuntimeBootLayerInitialize() throws Exception {
         Method method = RuntimeBootModuleLayerSupport.class.getDeclaredMethod("initialize");
         method.setAccessible(true);
@@ -207,7 +198,11 @@ public class LibJVMLauncherOptionTest {
     }
 
     private static Map<String, String> rememberProperties(String... keys) {
-        return Arrays.stream(keys).collect(java.util.stream.Collectors.toMap(key -> key, System::getProperty));
+        Map<String, String> properties = new java.util.LinkedHashMap<>();
+        for (String key : keys) {
+            properties.put(key, System.getProperty(key));
+        }
+        return properties;
     }
 
     private static void clearProperties(Iterable<String> keys) {
