@@ -176,7 +176,7 @@ public final class RuntimeBootModuleLayerSupport {
         }
 
         Configuration mergedConfiguration = createAugmentedBootConfiguration(bootConfiguration, augmentationConfiguration);
-        ModuleLayerSubstitutionsSupport.patchBootLayer(bootLayer, mergedConfiguration, Map.copyOf(mergedNameToModule));
+        ModuleLayerSubstitutionsSupport.patchLayer(bootLayer, mergedConfiguration, Map.copyOf(mergedNameToModule));
         /* Recompute lazy caches against the augmented module map. */
         bootLayer.modules();
     }
