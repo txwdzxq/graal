@@ -214,14 +214,6 @@ public abstract class HotSpotBackend extends Backend implements FrameMap.Referen
     public static final HotSpotForeignCallDescriptor BIGINTEGER_RIGHT_SHIFT_WORKER = new HotSpotForeignCallDescriptor(LEAF, HAS_SIDE_EFFECT, any(), "bigIntegerRightShiftWorker", void.class,
                     WordBase.class, WordBase.class, int.class, int.class, int.class);
 
-    public static final HotSpotForeignCallDescriptor ELECTRONIC_CODEBOOK_ENCRYPT_AESCRYPT = new HotSpotForeignCallDescriptor(LEAF, HAS_SIDE_EFFECT, any(),
-                    "_electronicCodeBook_encryptAESCrypt", int.class,
-                    WordBase.class, WordBase.class, WordBase.class, int.class);
-
-    public static final HotSpotForeignCallDescriptor ELECTRONIC_CODEBOOK_DECRYPT_AESCRYPT = new HotSpotForeignCallDescriptor(LEAF, HAS_SIDE_EFFECT, any(),
-                    "_electronicCodeBook_decryptAESCrypt", int.class,
-                    WordBase.class, WordBase.class, WordBase.class, int.class);
-
     public static final HotSpotForeignCallDescriptor GALOIS_COUNTER_MODE_CRYPT = new HotSpotForeignCallDescriptor(LEAF, HAS_SIDE_EFFECT, any(), "_galoisCounterMode_AESCrypt", int.class,
                     WordBase.class, int.class, WordBase.class, WordBase.class, WordBase.class, WordBase.class, WordBase.class, WordBase.class);
 

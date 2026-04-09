@@ -203,6 +203,7 @@ import jdk.graal.compiler.replacements.nodes.CountLeadingZerosNode;
 import jdk.graal.compiler.replacements.nodes.CountPositivesNode;
 import jdk.graal.compiler.replacements.nodes.CountTrailingZerosNode;
 import jdk.graal.compiler.replacements.nodes.CounterModeAESNode;
+import jdk.graal.compiler.replacements.nodes.ElectronicCodeBookAESNode;
 import jdk.graal.compiler.replacements.nodes.EncodeArrayNode;
 import jdk.graal.compiler.replacements.nodes.GHASHProcessBlocksNode;
 import jdk.graal.compiler.replacements.nodes.LogNode;
@@ -2438,6 +2439,43 @@ public class StandardGraphBuilderPlugins {
         @Override
         public final boolean isApplicable(Architecture arch) {
             return CipherBlockChainingAESNode.isSupported(arch);
+        }
+    }
+
+    public abstract static class ElectronicCodeBookCryptPlugin extends AESCryptDelegatePlugin {
+
+        public ElectronicCodeBookCryptPlugin(CryptMode mode) {
+            super(mode, mode.isEncrypt() ? "implECBEncrypt" : "implECBDecrypt",
+                            Receiver.class, byte[].class, int.class, int.class, byte[].class, int.class);
+        }
+
+        protected abstract boolean canApply(GraphBuilderContext b);
+
+        @Override
+        public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode in, ValueNode inOffset, ValueNode len, ValueNode out, ValueNode outOffset) {
+            if (!canApply(b)) {
+                return false;
+            }
+            try (InvocationPluginHelper helper = new InvocationPluginHelper(b, targetMethod)) {
+                ResolvedJavaType receiverType = targetMethod.getDeclaringClass();
+                ResolvedJavaType typeAESCrypt;
+                try {
+                    typeAESCrypt = getTypeAESCrypt(b.getMetaAccess(), receiverType);
+                } catch (ClassNotFoundException e) {
+                    return false;
+                }
+                ValueNode nonNullReceiver = receiver.get(true);
+                ValueNode inAddr = helper.arrayElementPointer(in, JavaKind.Byte, inOffset);
+                ValueNode outAddr = helper.arrayElementPointer(out, JavaKind.Byte, outOffset);
+                ValueNode kAddr = readEmbeddedAESCryptKArrayStart(b, helper, receiverType, typeAESCrypt, nonNullReceiver);
+                helper.emitFinalReturn(JavaKind.Int, new ElectronicCodeBookAESNode(inAddr, outAddr, kAddr, len, mode));
+                return true;
+            }
+        }
+
+        @Override
+        public final boolean isApplicable(Architecture arch) {
+            return ElectronicCodeBookAESNode.isSupported(arch);
         }
     }
 

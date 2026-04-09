@@ -1317,6 +1317,10 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
         AVX512F_DQ_512(null, null, EnumSet.of(AVX512F, AVX512DQ)),
         AVX512F_512(null, null, EnumSet.of(AVX512F)),
         AVX512_VBMI_VL(EnumSet.of(CPUFeature.AVX512_VBMI, CPUFeature.AVX512VL), EnumSet.of(CPUFeature.AVX512_VBMI, CPUFeature.AVX512VL), EnumSet.of(CPUFeature.AVX512_VBMI)),
+        AVX512F_VAES_VL(
+                        EnumSet.of(CPUFeature.AVX512F, CPUFeature.AVX512VL, CPUFeature.AVX512_VAES),
+                        EnumSet.of(CPUFeature.AVX512F, CPUFeature.AVX512VL, CPUFeature.AVX512_VAES),
+                        EnumSet.of(CPUFeature.AVX512F, CPUFeature.AVX512_VAES)),
         AVX512_VBMI2_VL(EnumSet.of(CPUFeature.AVX512_VBMI2, CPUFeature.AVX512VL), EnumSet.of(CPUFeature.AVX512_VBMI2, CPUFeature.AVX512VL), EnumSet.of(CPUFeature.AVX512_VBMI2)),
         CLMUL_AVX512F_VL(EnumSet.of(CPUFeature.AVX512VL, CPUFeature.CLMUL), EnumSet.of(CPUFeature.AVX512VL, CPUFeature.CLMUL), EnumSet.of(CPUFeature.AVX512F, CPUFeature.CLMUL)),
         GFNI_AVX512F_VL(EnumSet.of(CPUFeature.AVX512VL, CPUFeature.GFNI), EnumSet.of(CPUFeature.AVX512VL, CPUFeature.GFNI), EnumSet.of(CPUFeature.AVX512F, CPUFeature.GFNI));
@@ -1440,6 +1444,7 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
 
         CLMUL_AVX1_AVX512F_VL(VEXFeatureAssertion.CLMUL_AVX1, EVEXFeatureAssertion.CLMUL_AVX512F_VL, XMM, XMM, XMM),
         AES_AVX1_128ONLY(VEXFeatureAssertion.AVX1_AES_128, null, XMM, XMM, XMM),
+        AES_AVX1_AVX512F_VAES_VL(VEXFeatureAssertion.AVX1_AES_128, EVEXFeatureAssertion.AVX512F_VAES_VL, XMM, XMM, XMM),
         GFNI_AVX1_AVX512F_VL(VEXFeatureAssertion.GFNI_AVX1, EVEXFeatureAssertion.GFNI_AVX512F_VL, XMM, XMM, XMM),
         F16C_AVX512F_VL(VEXFeatureAssertion.F16C, EVEXFeatureAssertion.AVX512F_VL, XMM, XMM, XMM);
 
@@ -2835,11 +2840,20 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
         public static final VexAESOp VAESENCLAST = new VexAESOp("VAESENCLAST", 0xDD, VEXOpAssertion.AES_AVX1_128ONLY);
         public static final VexAESOp VAESDEC     = new VexAESOp("VAESDEC",     0xDE, VEXOpAssertion.AES_AVX1_128ONLY);
         public static final VexAESOp VAESDECLAST = new VexAESOp("VAESDECLAST", 0xDF, VEXOpAssertion.AES_AVX1_128ONLY);
+
+        public static final VexAESOp EVAESENC     = new VexAESOp("EVAESENC",     0xDC, VEXOpAssertion.AES_AVX1_AVX512F_VAES_VL, EVEXTuple.FVM, VEXPrefixConfig.W0, true);
+        public static final VexAESOp EVAESENCLAST = new VexAESOp("EVAESENCLAST", 0xDD, VEXOpAssertion.AES_AVX1_AVX512F_VAES_VL, EVEXTuple.FVM, VEXPrefixConfig.W0, true);
+        public static final VexAESOp EVAESDEC     = new VexAESOp("EVAESDEC",     0xDE, VEXOpAssertion.AES_AVX1_AVX512F_VAES_VL, EVEXTuple.FVM, VEXPrefixConfig.W0, true);
+        public static final VexAESOp EVAESDECLAST = new VexAESOp("EVAESDECLAST", 0xDF, VEXOpAssertion.AES_AVX1_AVX512F_VAES_VL, EVEXTuple.FVM, VEXPrefixConfig.W0, true);
         // @formatter:on
 
         private VexAESOp(String opcode, int op, VEXOpAssertion assertion) {
             // VEX.NDS.128.66.0F38.WIG - w not specified, so ignored.
             super(opcode, VEXPrefixConfig.P_66, VEXPrefixConfig.M_0F38, VEXPrefixConfig.WIG, op, assertion);
+        }
+
+        private VexAESOp(String opcode, int op, VEXOpAssertion assertion, EVEXTuple evexTuple, int wEvex, boolean isEvex) {
+            super(opcode, VEXPrefixConfig.P_66, VEXPrefixConfig.M_0F38, VEXPrefixConfig.WIG, op, assertion, evexTuple, wEvex, isEvex);
         }
 
         @Override

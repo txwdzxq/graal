@@ -45,6 +45,7 @@ import jdk.graal.compiler.replacements.nodes.CalcStringAttributesNode;
 import jdk.graal.compiler.replacements.nodes.CipherBlockChainingAESNode;
 import jdk.graal.compiler.replacements.nodes.CountPositivesNode;
 import jdk.graal.compiler.replacements.nodes.CounterModeAESNode;
+import jdk.graal.compiler.replacements.nodes.ElectronicCodeBookAESNode;
 import jdk.graal.compiler.replacements.nodes.EncodeArrayNode;
 import jdk.graal.compiler.replacements.nodes.GHASHProcessBlocksNode;
 import jdk.graal.compiler.replacements.nodes.IndexOfZeroNode;
@@ -78,6 +79,7 @@ import jdk.graal.compiler.replacements.nodes.VectorizedMismatchNode;
                 AESNode.class,
                 CounterModeAESNode.class,
                 CipherBlockChainingAESNode.class,
+                ElectronicCodeBookAESNode.class,
                 GHASHProcessBlocksNode.class,
                 BigIntegerMultiplyToLenNode.class,
                 BigIntegerMulAddNode.class,

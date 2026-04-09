@@ -41,8 +41,6 @@ import static jdk.graal.compiler.hotspot.HotSpotBackend.DILITHIUM_MONT_MUL_BY_CO
 import static jdk.graal.compiler.hotspot.HotSpotBackend.DILITHIUM_NTT_MULT;
 import static jdk.graal.compiler.hotspot.HotSpotBackend.DOUBLE_KECCAK;
 import static jdk.graal.compiler.hotspot.HotSpotBackend.DYNAMIC_NEW_INSTANCE_OR_NULL;
-import static jdk.graal.compiler.hotspot.HotSpotBackend.ELECTRONIC_CODEBOOK_DECRYPT_AESCRYPT;
-import static jdk.graal.compiler.hotspot.HotSpotBackend.ELECTRONIC_CODEBOOK_ENCRYPT_AESCRYPT;
 import static jdk.graal.compiler.hotspot.HotSpotBackend.EXCEPTION_HANDLER;
 import static jdk.graal.compiler.hotspot.HotSpotBackend.GALOIS_COUNTER_MODE_CRYPT;
 import static jdk.graal.compiler.hotspot.HotSpotBackend.IC_MISS_HANDLER;
@@ -168,6 +166,7 @@ import jdk.graal.compiler.replacements.nodes.CalcStringAttributesForeignCalls;
 import jdk.graal.compiler.replacements.nodes.CipherBlockChainingAESNode;
 import jdk.graal.compiler.replacements.nodes.CountPositivesNode;
 import jdk.graal.compiler.replacements.nodes.CounterModeAESNode;
+import jdk.graal.compiler.replacements.nodes.ElectronicCodeBookAESNode;
 import jdk.graal.compiler.replacements.nodes.EncodeArrayNode;
 import jdk.graal.compiler.replacements.nodes.GHASHProcessBlocksNode;
 import jdk.graal.compiler.replacements.nodes.IndexOfZeroForeignCalls;
@@ -656,12 +655,6 @@ public abstract class HotSpotHostForeignCallsProvider extends HotSpotForeignCall
         if (c.bigIntegerRightShiftWorker != 0L) {
             registerForeignCall(BIGINTEGER_RIGHT_SHIFT_WORKER, c.bigIntegerRightShiftWorker, NativeCall);
         }
-        if (c.electronicCodeBookEncrypt != 0L) {
-            registerForeignCall(ELECTRONIC_CODEBOOK_ENCRYPT_AESCRYPT, c.electronicCodeBookEncrypt, NativeCall);
-        }
-        if (c.electronicCodeBookDecrypt != 0L) {
-            registerForeignCall(ELECTRONIC_CODEBOOK_DECRYPT_AESCRYPT, c.electronicCodeBookDecrypt, NativeCall);
-        }
         if (c.galoisCounterModeCrypt != 0L) {
             registerForeignCall(GALOIS_COUNTER_MODE_CRYPT, c.galoisCounterModeCrypt, NativeCall);
         }
@@ -768,6 +761,7 @@ public abstract class HotSpotHostForeignCallsProvider extends HotSpotForeignCall
         linkSnippetStubs(providers, options, IntrinsicStubsGen::new, AESNode.STUBS);
         linkSnippetStubs(providers, options, IntrinsicStubsGen::new, CounterModeAESNode.STUB);
         linkSnippetStubs(providers, options, IntrinsicStubsGen::new, CipherBlockChainingAESNode.STUBS);
+        linkSnippetStubs(providers, options, IntrinsicStubsGen::new, ElectronicCodeBookAESNode.STUBS);
         linkSnippetStubs(providers, options, IntrinsicStubsGen::new, GHASHProcessBlocksNode.STUB);
         linkSnippetStubs(providers, options, IntrinsicStubsGen::new, MessageDigestNode.SHA1Node.STUB);
         linkSnippetStubs(providers, options, IntrinsicStubsGen::new, MessageDigestNode.SHA256Node.STUB);
