@@ -28,11 +28,9 @@ import java.util.Arrays;
 
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.MapCursor;
-import org.graalvm.nativeimage.ImageSingletons;
 
 import com.oracle.svm.core.jdk.RuntimeBootModuleLayerSupport;
 import com.oracle.svm.core.jdk.SystemPropertiesSupport;
-import com.oracle.svm.core.libjvm.LibJVMMainMethodWrappers;
 
 public final class RuntimeSystemPropertyParser {
 
@@ -95,10 +93,6 @@ public final class RuntimeSystemPropertyParser {
     }
 
     private static int parseModuleOption(String[] args, int index, EconomicMap<String, String> properties) {
-        if (!ImageSingletons.contains(LibJVMMainMethodWrappers.class)) {
-            return 0;
-        }
-
         String arg = args[index];
         if (RuntimeBootModuleLayerSupport.MODULE_PATH_OPTION.equals(arg) || RuntimeBootModuleLayerSupport.MODULE_PATH_SHORT_OPTION.equals(arg)) {
             if (index + 1 >= args.length) {
