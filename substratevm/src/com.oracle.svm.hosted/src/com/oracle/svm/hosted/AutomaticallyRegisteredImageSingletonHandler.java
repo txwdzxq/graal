@@ -136,8 +136,9 @@ final class AutomaticallyRegisteredImageSingletonHandler {
             return null;
         }
         if (mostSpecificEnabledSingletons.size() > 1) {
-            String candidates = mostSpecificEnabledSingletons.stream().map(Class::getName).collect(Collectors.joining(" "));
-            throw UserError.abort("Ambiguous @%s extension. Conflicting candidates: %s", AutomaticallyRegisteredImageSingleton.class.getSimpleName(), candidates);
+            String candidates = mostSpecificEnabledSingletons.stream().map(Class::getName).collect(Collectors.joining(", "));
+            throw UserError.abort("Ambiguous @%s extension for %s. Expected one most-specific annotated class, but found %s.",
+                            AutomaticallyRegisteredImageSingleton.class.getSimpleName(), rootSingleton.getName(), candidates);
         }
         return mostSpecificEnabledSingletons.getFirst();
     }

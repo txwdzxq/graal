@@ -118,8 +118,9 @@ public class FeatureHandler {
         for (Class<?> automaticFeature : automaticFeatures) {
             List<Class<?>> mostSpecificFeatures = automaticFeatureLoader.findMostSpecificClasses(automaticFeature, automaticFeatures);
             if (mostSpecificFeatures.size() > 1) {
-                String candidates = mostSpecificFeatures.stream().map(Class::getName).collect(Collectors.joining(" "));
-                throw UserError.abort("Ambiguous @%s extension. Conflicting candidates: ", AutomaticallyRegisteredFeature.class.getSimpleName(), candidates);
+                String candidates = mostSpecificFeatures.stream().map(Class::getName).collect(Collectors.joining(", "));
+                throw UserError.abort("Ambiguous @%s extension for %s. Expected one most-specific annotated class, but found %s.",
+                                AutomaticallyRegisteredFeature.class.getSimpleName(), automaticFeature.getName(), candidates);
             }
             Class<?> mostSpecificFeature = mostSpecificFeatures.getFirst();
             if (mostSpecificFeature != automaticFeature) {
