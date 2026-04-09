@@ -24,7 +24,6 @@
  */
 package jdk.graal.compiler.util;
 
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Array;
@@ -57,11 +56,7 @@ public class ObjectCopierInputStream extends InputStream {
     }
 
     public byte readByteValue() throws IOException {
-        int value = read();
-        if (value < 0) {
-            throw new EOFException();
-        }
-        return (byte) value;
+        return in.readByte();
     }
 
     protected Object readUntypedValue(int type) throws IOException {

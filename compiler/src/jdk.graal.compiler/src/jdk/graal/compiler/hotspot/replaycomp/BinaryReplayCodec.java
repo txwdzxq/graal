@@ -361,6 +361,7 @@ public final class BinaryReplayCodec {
 
     private static void writeStringReference(ObjectCopierOutputStream out, String value, WriteState state) throws IOException {
         if (value == null) {
+            // String table index 0 is reserved for null.
             out.writePackedUnsignedInt(0);
             return;
         }

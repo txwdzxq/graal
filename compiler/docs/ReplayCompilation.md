@@ -20,10 +20,10 @@ The directories are created if they do not exist. To use the legacy JSON format 
 mx benchmark renaissance:scrabble -- -Djdk.graal.RecordForReplay='*' -Djdk.graal.DumpPath=$PWD/replay-files -- -r 1
 ```
 
-It is recommended to select specific methods rather than `*` to avoid slowing the compiler down and producing gigabytes
-of data. The compile speed overhead for recorded methods can be on the order of 10x. The size of a typical compilation
-unit is between 1 and 10 MB but compression saves 95% of space. Note that if the VM exits during an ongoing compilation,
-some of the replay files may be incomplete.
+It is recommended to select specific methods rather than `*` to avoid slowing the compiler down. The compile speed
+overhead for the methods in the binary format can be around 5x. The size of a typical compilation unit is around 300 kB
+and compression reduces it by 75%. Note that if the VM exits during an ongoing compilation, some of the replay files may
+be incomplete.
 
 The `mx replaycomp` command finds all replay files found in a given directory (and subdirectories) and invokes the
 replay compiler on each. It supports the default binary `.replay` format and the legacy `.json` format. The command
