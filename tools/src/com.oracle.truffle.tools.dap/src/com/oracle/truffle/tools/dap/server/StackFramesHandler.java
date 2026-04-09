@@ -143,7 +143,7 @@ public final class StackFramesHandler {
             while (dscope != null) {
                 if (dscope.isFunctionScope() || dscope.getDeclaredValues().iterator().hasNext()) {
                     // provide only scopes that have some variables
-                    scopes.add(Scope.create("Global", info.getId(dscope), true));
+                    scopes.add(Scope.create(topScopeDapName(dscope), info.getId(dscope), true));
                 }
                 dscope = getParent(dscope);
             }
@@ -152,7 +152,24 @@ public final class StackFramesHandler {
         return null;
     }
 
-    public static Variable evaluateOnStackFrame(ThreadsHandler.SuspendedThreadInfo info, int frameId, String expression) throws DebugException {
+    /**
+     * Label for the guest language top scope in the DAP variables view. Prefer
+     * {@link DebugScope#getName()} (guest {@code toDisplayString}) so languages can surface a
+     * meaningful name; fall back to {@code "Global"} if the name is unavailable or empty.
+     */
+    private static String topScopeDapName(DebugScope dscope) {
+        try {
+            String name = dscope.getName();
+            if (name != null && !name.isEmpty()) {
+                return name;
+            }
+        } catch (DebugException ignored) {
+            // Unusable guest scope name — keep the previous fixed label behavior.
+        }
+        return "Global";
+    }
+
+    public static Variable evaluateOnStackFrame(ThreadsHandler.SuspendedThreadInfo info, int frameId, String expression) {
         FrameWrapper frameWrapper = info.getById(FrameWrapper.class, frameId);
         DebugStackFrame frame = frameWrapper != null ? frameWrapper.getFrame() : null;
         if (frame != null) {
