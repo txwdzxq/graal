@@ -24,6 +24,8 @@
  */
 package com.oracle.svm.core.jdk;
 
+import static com.oracle.svm.core.annotate.RecomputeFieldValue.Kind.None;
+
 import java.lang.module.Configuration;
 import java.util.List;
 import java.util.Map;
@@ -43,17 +45,17 @@ import jdk.internal.module.ServicesCatalog;
 @SuppressWarnings("unused")
 @TargetClass(value = java.lang.ModuleLayer.class)
 final class Target_java_lang_ModuleLayer {
-    @Alias //
-    @RecomputeFieldValue(isFinal = false, kind = RecomputeFieldValue.Kind.None) Configuration cf;
+    /// [ModuleLayer] declares this field as `final`, but
+    /// [ModuleLayerSubstitutionsSupport#patchBootLayer] updates it. Applying [RecomputeFieldValue]
+    /// preserves the hosted value while ensuring the alias is not treated as final during analysis.
+    @Alias @RecomputeFieldValue(isFinal = false, kind = None) Configuration cf;
 
-    @Alias //
-    @RecomputeFieldValue(isFinal = false, kind = RecomputeFieldValue.Kind.None) Map<String, Module> nameToModule;
+    /// See [#nameToModule] for [RecomputeFieldValue] explanation.
+    @Alias @RecomputeFieldValue(isFinal = false, kind = None) Map<String, Module> nameToModule;
 
-    @Alias //
-    volatile Set<Module> modules;
+    @Alias volatile Set<Module> modules;
 
-    @Alias //
-    volatile ServicesCatalog servicesCatalog;
+    @Alias volatile ServicesCatalog servicesCatalog;
 
     @Substitute
     public static ModuleLayer boot() {
@@ -77,12 +79,16 @@ final class ModuleLayerSubstitutionsSupport {
     /// This is used when runtime boot-layer augmentation must preserve the original
     /// [ModuleLayer#boot] identity while replacing the underlying configuration, name-to-module
     /// map, and their lazy caches.
-    static void patchBootLayer(Configuration configuration, Map<String, Module> augmentedNameToModule) {
+    static void patchBootLayer(Configuration configuration, Map<String, Module> augmentedNameToModule, Set<Module> newModules) {
         Target_java_lang_ModuleLayer target = SubstrateUtil.cast(ModuleLayer.boot(), Target_java_lang_ModuleLayer.class);
         target.cf = configuration;
         target.nameToModule = augmentedNameToModule;
         target.modules = null;
-        target.servicesCatalog = null;
+        if (target.servicesCatalog != null) {
+            for (Module module : newModules) {
+                target.servicesCatalog.register(module);
+            }
+        }
     }
 }
 
