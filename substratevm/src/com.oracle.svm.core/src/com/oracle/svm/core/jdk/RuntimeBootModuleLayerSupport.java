@@ -115,7 +115,7 @@ public final class RuntimeBootModuleLayerSupport {
     /// 4. Patch the real boot layer so [ModuleLayer#boot] exposes the resolved runtime
     /// modules without changing its identity.
     static void initialize() {
-        ModuleLayer bootLayer = RuntimeModuleSupport.singleton().getBootLayer();
+        ModuleLayer bootLayer = ModuleLayer.boot();
         if (bootLayer == null) {
             return;
         }
@@ -176,7 +176,7 @@ public final class RuntimeBootModuleLayerSupport {
         }
 
         Configuration mergedConfiguration = createAugmentedBootConfiguration(bootConfiguration, augmentationConfiguration);
-        ModuleLayerSubstitutionsSupport.patchLayer(bootLayer, mergedConfiguration, Map.copyOf(mergedNameToModule));
+        ModuleLayerSubstitutionsSupport.patchBootLayer(mergedConfiguration, Map.copyOf(mergedNameToModule));
         /* Recompute lazy caches against the augmented module map. */
         bootLayer.modules();
     }

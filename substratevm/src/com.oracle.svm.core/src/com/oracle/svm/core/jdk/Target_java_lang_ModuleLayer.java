@@ -72,13 +72,13 @@ final class ModuleLayerSubstitutionsSupport {
         return SubstrateUtil.cast(layer, Target_java_lang_ModuleLayer.class).nameToModule;
     }
 
-    /// Patches an existing [ModuleLayer] in place with a rebuilt [Configuration] and module map.
+    /// Patches the boot [ModuleLayer] in place with a rebuilt [Configuration] and module map.
     ///
     /// This is used when runtime boot-layer augmentation must preserve the original
     /// [ModuleLayer#boot] identity while replacing the underlying configuration, name-to-module
     /// map, and their lazy caches.
-    static void patchLayer(ModuleLayer layer, Configuration configuration, Map<String, Module> augmentedNameToModule) {
-        Target_java_lang_ModuleLayer target = SubstrateUtil.cast(layer, Target_java_lang_ModuleLayer.class);
+    static void patchBootLayer(Configuration configuration, Map<String, Module> augmentedNameToModule) {
+        Target_java_lang_ModuleLayer target = SubstrateUtil.cast(ModuleLayer.boot(), Target_java_lang_ModuleLayer.class);
         target.cf = configuration;
         target.nameToModule = augmentedNameToModule;
         target.modules = null;
