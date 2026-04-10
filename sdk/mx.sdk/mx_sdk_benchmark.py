@@ -798,7 +798,15 @@ class StageAwareGraalVm(GraalVm):
 
         self.stages_info = self.bmSuite.stages_info
         assert not self.stages_info.failed, "In case of a failed benchmark, no further calls into the VM should be made"
-        assert self.stages_info.vm_used_for_stages == self, f"VM used to prepare stages ({self.stages_info.vm_used_for_stages}) cannot be different from the VM used to run the suite ({self})!"
+        vm_used_for_stages = self.stages_info.vm_used_for_stages
+        same_vm = vm_used_for_stages == self
+        host_and_guest_used = (
+            isinstance(vm_used_for_stages, mx_benchmark.GuestVm)
+            and vm_used_for_stages.host_vm() == self
+        )
+        assert same_vm or host_and_guest_used, (
+            f"VM used to prepare stages ({vm_used_for_stages}) cannot be different from the VM used to run the suite ({self})!"
+        )
 
     def get_required_benchmark_suite_mixin_class(self):
         return StageAwareBenchmarkMixin
@@ -2062,6 +2070,120 @@ class PolyBenchStagingVm(StageAwareGraalVm):
         return SimpleStageRunner(self.stages_info, self.bmSuite, self.stages_context)
 
 
+class PolyBenchEmscriptenHostVm(PolyBenchStagingVm):
+    """Host VM that implements Emscripten used for running staged PolyBench programs through a guest-provided launcher."""
+    def run_stage_run(self):
+        vm = bm_exec_context().get("vm")
+        if not isinstance(vm, PolyBenchEmscriptenGuestVm):
+            mx.abort(f"{self.__class__.__name__} expects a PolyBenchEmscriptenGuestVm guest VM in the execution context.")
+        if vm.host_vm() != self:
+            mx.abort(f"Guest VM '{vm.name()}:{vm.config_name()}' is not hosted by '{self.name()}:{self.config_name()}'.")
+
+        guest_launcher = vm.guest_launcher(self)
+        if not Path(guest_launcher).is_file():
+            raise ValueError(f"Guest launcher '{guest_launcher}' does not resolve to a file!")
+        with self.get_stage_runner() as s:
+            cmd = [self.launcher, guest_launcher, str(self.staged_program_file_path)]
+            s.execute_command(self, cmd)
+
+
+class PolyBenchEmscriptenGuestVm(mx_benchmark.GuestVm):
+    """Abstract PolyBench Guest VM entry for running on an Emscripten host VM."""
+    def __init__(self, host_vm=None):
+        super().__init__(host_vm)
+        self._guest_run_on_java_home_value = None
+        self._guest_run_on_java_home_set = False
+
+    def guest_launcher(self, host_vm: PolyBenchEmscriptenHostVm) -> str:
+        """
+        Return the launcher executable that the Emscripten host should invoke for this guest.
+        The returned path must resolve to a file and is used as the first command element.
+        """
+        raise NotImplementedError()
+
+    def set_run_on_java_home(self, value):
+        self._guest_run_on_java_home_value = value
+        self._guest_run_on_java_home_set = True
+        host = self.host_vm()
+        if host is not None and hasattr(host, "set_run_on_java_home"):
+            host.set_run_on_java_home(value)
+
+    def run_on_java_home(self):
+        if self._guest_run_on_java_home_set:
+            return self._guest_run_on_java_home_value
+        host = self.host_vm()
+        if host is not None and hasattr(host, "run_on_java_home"):
+            return host.run_on_java_home()
+        return None
+
+
+class PolyBenchPyodideGuestVm(PolyBenchEmscriptenGuestVm):
+    """
+    Guest VM entry for Pyodide running on an Emscripten host VM.
+    Relies on the PYODIDE_BOOTSTRAP env var to point to the Pyodide bootstrap module.
+    """
+    HOSTED_INSTANCE = "PolyBenchPyodideGuestVm.hosted="
+    BOOTSTRAP_LAUNCHER = "$PYODIDE_BOOTSTRAP"
+
+    def __init__(self, config_name, extra_java_args=None, extra_launcher_args=None, host_vm=None):
+        super().__init__(host_vm)
+        self._config_name = self.canonical_config_name(config_name)
+
+    def name(self):
+        return "pyodide"
+
+    def config_name(self):
+        return self._config_name
+
+    def with_host_vm(self, host_vm):
+        hosted_name = f"{self.HOSTED_INSTANCE}{self.name()}:{self.config_name()}@{host_vm.name()}:{host_vm.config_name()}"
+        if not bm_exec_context().has(hosted_name):
+            # Ensure the selected host VM is actually attached to the guest VM instance
+            hosted_instance = self.__class__(self.config_name(), host_vm=host_vm)
+            bm_exec_context().add_context_value(hosted_name, ConstantContextValue(hosted_instance))
+        hosted_instance = bm_exec_context().get(hosted_name)
+        if self._guest_run_on_java_home_set:
+            hosted_instance.set_run_on_java_home(self._guest_run_on_java_home_value)
+        return hosted_instance
+
+    @staticmethod
+    def canonical_config_name(config_name):
+        return config_name if config_name else "default"
+
+    def hosting_registry(self):
+        return mx_benchmark.java_vm_registry
+
+    def guest_launcher(self, host_vm: PolyBenchEmscriptenHostVm) -> str:
+        """
+        Return the custom bootstrap script that starts a JavaScript module inside the
+        selected Emscripten host and forwards the staged Python benchmark into Pyodide.
+        Pyodide is embedded in that Emscripten environment rather than exposed as a
+        standalone terminal launcher, so the benchmark needs this adapter entry point.
+        """
+        return PolyBenchStagingVm._resolve_possible_env_var(self.BOOTSTRAP_LAUNCHER)
+
+    def _host_vm_for_execution(self) -> PolyBenchEmscriptenHostVm:
+        host = self.host_vm()
+        if host is None:
+            mx.abort("Pyodide guest VM requires a host VM; none was provided.")
+        if not isinstance(host, PolyBenchEmscriptenHostVm):
+            mx.abort(f"Pyodide guest VM requires PolyBenchEmscriptenHostVm host; got {host.__class__.__name__}.")
+        return host
+
+    def run(self, cwd, args):
+        host = self._host_vm_for_execution()
+        return host.runWithSuite(self.bmSuite, cwd, args)
+
+    def prepare_stages(self, bm_suite: NativeImageBenchmarkMixin, bm_suite_args):
+        host = self._host_vm_for_execution()
+        effective_stages, complete_stage_list = host.prepare_stages(bm_suite, bm_suite_args)
+        return effective_stages, complete_stage_list
+
+    def runWithSuite(self, bmSuite, cwd, args):
+        host = self._host_vm_for_execution()
+        return host.runWithSuite(bmSuite, cwd, args)
+
+
 class GraalHostPolyBenchStagingVm(PolyBenchStagingVm):
     """
     Stages a PolyBench benchmark and configures a GraalHost boot script that runs the benchmark.
@@ -2207,6 +2329,8 @@ def register_graalvm_vms():
     mx_benchmark.add_java_vm(PolyBenchStagingVm('cpython', 'default', "Python", "python", "py"), _suite, 2)
     mx_benchmark.add_java_vm(PolyBenchStagingVm('cpython', 'graalos-ee', "Python", "$GRAALOS_CPYTHON", "py"), _suite, 2)
     mx_benchmark.add_java_vm(GraalHostPolyBenchStagingVm('cpython', 'graalhost-graalos-ee', "Python", "$GRAALOS_CPYTHON", "py"), _suite, 2)
+    mx_benchmark.add_java_vm(PolyBenchEmscriptenHostVm('nodejs', 'default', "Python", "node", "py"), _suite, 2)
+    mx_benchmark.add_java_vm(PolyBenchPyodideGuestVm('default'), _suite, 2)
 
 
 class ObjdumpSectionRule(mx_benchmark.StdOutRule):
