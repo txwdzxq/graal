@@ -27,3 +27,6 @@ Do not run `mx` commands concurrently; parallel runs can produce misleading fail
 
 - If you touch documented behavior, update `docs/`.
 - Do not commit generated output from `mxbuild/`, `svmbuild/`, `graal_dumps/`, or `sources/`.
+- Be careful when changing `mx native-unittest` / `svmjunit` feature registration. Features added to the shared native test image affect unrelated tests too.
+- Do not register production ImageSingletons or other global runtime markers from shared `svmjunit` test features. In particular, avoid making the shared test image look like a different product or launch mode, such as a `libjvm` image.
+- If a test needs product-specific global state, prefer a targeted image or test-specific setup over adding that state to the global native-unit-test feature list in `mx.substratevm/mx_substratevm.py`.

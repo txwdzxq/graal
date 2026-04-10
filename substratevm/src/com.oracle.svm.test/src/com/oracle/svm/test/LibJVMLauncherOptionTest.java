@@ -40,14 +40,11 @@ import java.util.Optional;
 import java.util.Set;
 
 import org.graalvm.nativeimage.ImageInfo;
-import org.graalvm.nativeimage.ImageSingletons;
-import org.graalvm.nativeimage.hosted.Feature;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.Test;
 
 import com.oracle.svm.core.jdk.RuntimeBootModuleLayerSupport;
-import com.oracle.svm.core.libjvm.LibJVMMainMethodWrappers;
 import com.oracle.svm.core.properties.RuntimeSystemPropertyParser;
 
 /// Regression tests for `libjvm` launcher option handling in native unit tests.
@@ -60,15 +57,6 @@ import com.oracle.svm.core.properties.RuntimeSystemPropertyParser;
 public class LibJVMLauncherOptionTest {
 
     private static final String MISSING_MODULE_NAME = "com.oracle.svm.test.missing.module";
-
-    public static class TestFeature implements Feature {
-        @Override
-        public void afterRegistration(AfterRegistrationAccess access) {
-            if (!ImageSingletons.contains(LibJVMMainMethodWrappers.class)) {
-                ImageSingletons.add(LibJVMMainMethodWrappers.class, new LibJVMMainMethodWrappers());
-            }
-        }
-    }
 
     /// Verifies that runtime parsing consumes only the JVM-level `--module-path=...` and
     /// `--add-modules=...` forms, leaving launcher-handled variants untouched.
@@ -181,7 +169,6 @@ public class LibJVMLauncherOptionTest {
 
     private static void assumeLibJVMNativeImage() {
         Assume.assumeTrue(ImageInfo.inImageCode());
-        Assume.assumeTrue(ImageSingletons.contains(LibJVMMainMethodWrappers.class));
     }
 
     private static void invokeRuntimeBootLayerInitialize() throws Exception {

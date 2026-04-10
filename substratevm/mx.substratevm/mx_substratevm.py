@@ -392,8 +392,11 @@ def native_image_context(common_args=None, hosted_assertions=True, native_image_
     yield native_image_func
 
 native_image_context.hosted_assertions = ['-J-ea', '-J-esa']
+# Features added here are loaded into the shared `svmjunit` image used by unrelated native unit
+# tests as well. Keep them limited to generic test support; do not register product-specific global
+# state or ImageSingleton markers here (for example anything that makes `svmjunit` look like a
+# `libjvm` image).
 _native_unittest_features = '--features=' + ','.join(('com.oracle.svm.test.ImageInfoTest$TestFeature',
-                                                      'com.oracle.svm.test.LibJVMLauncherOptionTest$TestFeature',
                                                       'com.oracle.svm.test.services.ServiceLoaderTest$TestFeature',
                                                       'com.oracle.svm.test.services.SecurityServiceTest$TestFeature',
                                                       'com.oracle.svm.test.ReflectionRegistrationTest$TestFeature',
