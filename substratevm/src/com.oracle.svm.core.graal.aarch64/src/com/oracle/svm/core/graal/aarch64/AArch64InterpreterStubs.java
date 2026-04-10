@@ -61,7 +61,6 @@ import org.graalvm.word.impl.Word;
 import com.oracle.svm.core.ReservedRegisters;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.c.struct.OffsetOf;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.deopt.DeoptimizationSlotPacking;
 import com.oracle.svm.core.graal.code.InterpreterAccessStubData;
@@ -133,13 +132,13 @@ public class AArch64InterpreterStubs {
 
         private static void loadObjectObjectField(AArch64MacroAssembler masm, Register dst, Register obj, int offset, boolean compressedBase, int compressionShift, Register addressScratch) {
             materializeFieldAddress(masm, obj, offset, compressedBase, compressionShift, addressScratch);
-            masm.ldr(ConfigurationValues.getObjectLayout().getReferenceSize() * Byte.SIZE, dst,
-                            createBaseRegisterOnlyAddress(ConfigurationValues.getObjectLayout().getReferenceSize() * Byte.SIZE, addressScratch));
+            int refSize = ObjectLayout.singleton().getReferenceSize();
+            masm.ldr(refSize * Byte.SIZE, dst, createBaseRegisterOnlyAddress(refSize * Byte.SIZE, addressScratch));
         }
 
         private static void loadObjectObjectFieldAcquire(AArch64MacroAssembler masm, Register dst, Register obj, int offset, boolean compressedBase, int compressionShift, Register addressScratch) {
             materializeFieldAddress(masm, obj, offset, compressedBase, compressionShift, addressScratch);
-            masm.ldar(ConfigurationValues.getObjectLayout().getReferenceSize() * Byte.SIZE, dst, addressScratch);
+            masm.ldar(ObjectLayout.singleton().getReferenceSize() * Byte.SIZE, dst, addressScratch);
         }
 
         private static void loadObjectWordField(AArch64MacroAssembler masm, Register dst, Register obj, int offset, boolean compressedBase, int compressionShift, Register addressScratch) {
@@ -151,7 +150,7 @@ public class AArch64InterpreterStubs {
          * See {@code SubstrateBasicLoweringProvider#createReadHub}.
          */
         private static void loadHub(AArch64MacroAssembler masm, Register obj, Register hub, Register scratch) {
-            ObjectLayout ol = ConfigurationValues.getObjectLayout();
+            ObjectLayout ol = ObjectLayout.singleton();
             long reservedHubBitsMask = Heap.getHeap().getObjectHeader().getReservedHubBitsMask();
             int compressionShift = ReferenceAccess.singleton().getCompressionShift();
             int alignmentBits = CodeUtil.log2(ol.getAlignment());
@@ -241,7 +240,7 @@ public class AArch64InterpreterStubs {
          * back to the slow path.
          */
         private static void emitVTableInstalledCodeFastPath(AArch64MacroAssembler masm, Register receiver, Register vtableIndex, Register scratch1, Register scratch2) {
-            ObjectLayout ol = ConfigurationValues.getObjectLayout();
+            ObjectLayout ol = ObjectLayout.singleton();
             boolean compression = ReferenceAccess.singleton().haveCompressedReferences();
             int compressionShift = ReferenceAccess.singleton().getCompressionShift();
 

@@ -45,11 +45,6 @@ public final class ConfigurationValues {
     }
 
     @Fold
-    public static ObjectLayout getObjectLayout() {
-        return ImageSingletons.lookup(ObjectLayout.class);
-    }
-
-    @Fold
     public static JavaKind getWordKind() {
         return getTarget().wordJavaKind;
     }

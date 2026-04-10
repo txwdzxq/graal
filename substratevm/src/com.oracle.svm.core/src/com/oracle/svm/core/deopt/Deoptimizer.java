@@ -34,6 +34,7 @@ import java.lang.annotation.Target;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.CurrentIsolate;
 import org.graalvm.nativeimage.IsolateThread;
 import org.graalvm.nativeimage.Platform;
@@ -1545,7 +1546,7 @@ public final class Deoptimizer {
                             if (targetValue.getKind().isObject() && !targetValue.isCompressedReference()) {
                                 size = FrameAccess.uncompressedReferenceSize();
                             } else {
-                                size = ConfigurationValues.getObjectLayout().sizeInBytes(con.getJavaKind());
+                                size = ObjectLayout.singleton().sizeInBytes(con.getJavaKind());
                             }
                             int endOffset = totalOffset + size;
                             if (endOffset > newEndOfParams) {
@@ -1735,9 +1736,9 @@ public final class Deoptimizer {
         private static final int sizeofInt = JavaKind.Int.getByteCount();
         private static final int sizeofLong = JavaKind.Long.getByteCount();
         /** All references in deopt frames are compressed when compressed references are enabled. */
-        private final int sizeofCompressedReference = ConfigurationValues.getObjectLayout().getReferenceSize();
+        private final int sizeofCompressedReference = ObjectLayout.singleton().getReferenceSize();
         private final int sizeofUncompressedReference = FrameAccess.uncompressedReferenceSize();
-        private final int arrayBaseOffset = ConfigurationValues.getObjectLayout().getArrayBaseOffset(JavaKind.Byte);
+        private final int arrayBaseOffset = ObjectLayout.singleton().getArrayBaseOffset(JavaKind.Byte);
 
         private static final ArrayIndexOutOfBoundsException arrayIndexOutOfBoundsException = new ArrayIndexOutOfBoundsException("TargetContent.offsetCheck");
 

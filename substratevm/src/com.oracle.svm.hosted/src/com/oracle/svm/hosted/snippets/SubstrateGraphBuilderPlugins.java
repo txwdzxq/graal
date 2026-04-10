@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.stream.Stream;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.ImageInfo;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
@@ -1251,7 +1252,7 @@ public class SubstrateGraphBuilderPlugins {
                 receiver.get(true);
                 if (ReferenceAccess.singleton().haveCompressedReferences()) {
                     ValueNode compressedObj = SubstrateCompressionNode.compress(b.getGraph(), objectNode, ImageSingletons.lookup(CompressEncoding.class));
-                    JavaKind compressedIntKind = JavaKind.fromWordSize(ConfigurationValues.getObjectLayout().getReferenceSize());
+                    JavaKind compressedIntKind = JavaKind.fromWordSize(ObjectLayout.singleton().getReferenceSize());
                     ValueNode compressedValue = b.add(WordCastNode.narrowOopToUntrackedWord(compressedObj, compressedIntKind));
                     b.addPush(JavaKind.Object, ZeroExtendNode.convertUnsigned(compressedValue, FrameAccess.getWordStamp(), NodeView.DEFAULT));
                 } else {
@@ -1266,7 +1267,7 @@ public class SubstrateGraphBuilderPlugins {
                 receiver.get(true);
                 if (ReferenceAccess.singleton().haveCompressedReferences()) {
                     CompressEncoding encoding = ImageSingletons.lookup(CompressEncoding.class);
-                    JavaKind compressedIntKind = JavaKind.fromWordSize(ConfigurationValues.getObjectLayout().getReferenceSize());
+                    JavaKind compressedIntKind = JavaKind.fromWordSize(ObjectLayout.singleton().getReferenceSize());
                     NarrowOopStamp compressedStamp = (NarrowOopStamp) SubstrateNarrowOopStamp.compressed((AbstractObjectStamp) StampFactory.object(), encoding);
                     ValueNode narrowNode = b.add(NarrowNode.convertUnsigned(wordNode, StampFactory.forKind(compressedIntKind), NodeView.DEFAULT));
                     WordCastNode compressedObj = b.add(WordCastNode.wordToNarrowObject(narrowNode, compressedStamp));

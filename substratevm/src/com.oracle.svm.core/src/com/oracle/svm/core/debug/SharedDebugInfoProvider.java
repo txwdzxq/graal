@@ -1225,7 +1225,7 @@ public abstract class SharedDebugInfoProvider implements DebugInfoProvider {
 
     /* Other helper functions. */
     protected static ObjectLayout getObjectLayout() {
-        return ConfigurationValues.getObjectLayout();
+        return ObjectLayout.singleton();
     }
 
     protected static Path fullFilePathFromClassName(ResolvedJavaType type) {

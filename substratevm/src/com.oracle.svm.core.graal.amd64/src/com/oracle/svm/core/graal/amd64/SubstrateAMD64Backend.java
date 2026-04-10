@@ -46,7 +46,6 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-import jdk.graal.compiler.phases.PreLIRGraphVerifier;
 import org.graalvm.nativeimage.ImageSingletons;
 
 import com.oracle.svm.core.CPUFeatureAccess;
@@ -54,9 +53,9 @@ import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.ReservedRegisters;
 import com.oracle.svm.core.SubstrateControlFlowIntegrity;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.core.amd64.AMD64CPUFeatureAccess;
 import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.cpufeature.Stubs;
 import com.oracle.svm.core.deopt.DeoptimizationRuntime;
 import com.oracle.svm.core.deopt.DeoptimizationSupport;
@@ -101,6 +100,7 @@ import com.oracle.svm.core.nodes.SubstrateIndirectCallTargetNode;
 import com.oracle.svm.core.pltgot.GOTAccess;
 import com.oracle.svm.core.pltgot.PLTGOTConfiguration;
 import com.oracle.svm.core.thread.VMThreads.StatusSupport;
+import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.asm.BranchTargetOutOfBoundsException;
@@ -191,8 +191,9 @@ import jdk.graal.compiler.nodes.spi.NodeLIRBuilderTool;
 import jdk.graal.compiler.nodes.spi.NodeValueMap;
 import jdk.graal.compiler.options.OptionValues;
 import jdk.graal.compiler.phases.BasePhase;
-import jdk.graal.compiler.phases.constantblinding.ConstantBlindingInstance;
+import jdk.graal.compiler.phases.PreLIRGraphVerifier;
 import jdk.graal.compiler.phases.common.AddressLoweringByNodePhase;
+import jdk.graal.compiler.phases.constantblinding.ConstantBlindingInstance;
 import jdk.graal.compiler.phases.util.Providers;
 import jdk.graal.compiler.replacements.amd64.AMD64IntrinsicStubs;
 import jdk.graal.compiler.vector.lir.amd64.AMD64SimdLIRKindTool;
@@ -882,7 +883,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
 
         @Override
         public int getArrayLengthOffset() {
-            return ConfigurationValues.getObjectLayout().getArrayLengthOffset();
+            return ObjectLayout.singleton().getArrayLengthOffset();
         }
 
         @Override
@@ -1668,7 +1669,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
                  * WARNING: must NOT have side effects. Preserve the flags register!
                  */
                 Register resultReg = getResultRegister();
-                int referenceSize = ConfigurationValues.getObjectLayout().getReferenceSize();
+                int referenceSize = ObjectLayout.singleton().getReferenceSize();
                 Constant inputConstant = asConstantValue(getInput()).getConstant();
                 if (masm.inlineObjects()) {
                     crb.recordInlineDataInCode(inputConstant);

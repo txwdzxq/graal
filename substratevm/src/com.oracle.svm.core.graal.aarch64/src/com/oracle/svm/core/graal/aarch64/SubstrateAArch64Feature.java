@@ -24,6 +24,7 @@
  */
 package com.oracle.svm.core.graal.aarch64;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
@@ -114,8 +115,8 @@ class SubstrateAArch64LoweringProviderFactory extends SubstrateVectorArchitectur
     public DefaultJavaLoweringProvider newLoweringProvider(MetaAccessProvider metaAccess, ForeignCallsProvider foreignCalls, PlatformConfigurationProvider platformConfig,
                     MetaAccessExtensionProvider metaAccessExtensionProvider, TargetDescription target) {
         VectorArchitecture vectorArchitecture = getSingletonVectorArchitecture(VectorAArch64::new, (AArch64) ConfigurationValues.getTarget().arch, !SubstrateOptions.useLLVMBackend(),
-                        ConfigurationValues.getObjectLayout().getReferenceSize(), ReferenceAccess.singleton().haveCompressedReferences(),
-                        ConfigurationValues.getObjectLayout().getAlignment());
+                        ObjectLayout.singleton().getReferenceSize(), ReferenceAccess.singleton().haveCompressedReferences(),
+                        ObjectLayout.singleton().getAlignment());
         return new SubstrateAArch64LoweringProvider(metaAccess, foreignCalls, platformConfig, metaAccessExtensionProvider, target, vectorArchitecture);
     }
 }

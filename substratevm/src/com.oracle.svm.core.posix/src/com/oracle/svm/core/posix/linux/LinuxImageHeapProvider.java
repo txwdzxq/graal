@@ -52,6 +52,7 @@ import static org.graalvm.word.impl.Word.unsigned;
 
 import java.util.concurrent.ThreadLocalRandom;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.StackValue;
 import org.graalvm.nativeimage.c.type.CCharPointer;
 import org.graalvm.nativeimage.c.type.WordPointer;
@@ -211,7 +212,7 @@ public class LinuxImageHeapProvider extends AbstractImageHeapProvider {
         Pointer initialLayerImageHeap = layerSection.readWord(ImageLayerSection.getEntryOffset(HEAP_BEGIN));
         Pointer codeBase = layerSection.readWord(ImageLayerSection.getEntryOffset(CODE_START));
 
-        int referenceSize = ConfigurationValues.getObjectLayout().getReferenceSize();
+        int referenceSize = ObjectLayout.singleton().getReferenceSize();
         while (layerSection.isNonNull()) {
             Pointer data = layerSection.add(ImageLayerSection.getEntryOffset(VARIABLY_SIZED_DATA));
             int offset = 0;
@@ -295,7 +296,7 @@ public class LinuxImageHeapProvider extends AbstractImageHeapProvider {
      */
     @Uninterruptible(reason = "Thread state not yet set up.")
     private static int applyLayerImageHeapRefPatches(Pointer patches, int startOffset, Pointer layerImageHeap) {
-        int referenceSize = ConfigurationValues.getObjectLayout().getReferenceSize();
+        int referenceSize = ObjectLayout.singleton().getReferenceSize();
         int offset = startOffset;
         long countAsLong = patches.readLong(offset);
         int count = UninterruptibleUtils.NumUtil.safeToInt(countAsLong);

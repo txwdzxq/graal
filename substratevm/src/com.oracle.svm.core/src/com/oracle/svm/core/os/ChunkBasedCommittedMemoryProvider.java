@@ -26,6 +26,7 @@ package com.oracle.svm.core.os;
 
 import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.PointerBase;
@@ -104,7 +105,7 @@ public abstract class ChunkBasedCommittedMemoryProvider extends AbstractCommitte
      */
     @Fold
     protected static UnsignedWord getAlignmentForUnalignedChunks() {
-        int alignment = Math.max(ConfigurationValues.getWordSize(), ConfigurationValues.getObjectLayout().getAlignment());
+        int alignment = Math.max(ConfigurationValues.getWordSize(), ObjectLayout.singleton().getAlignment());
         return Word.unsigned(alignment);
     }
 

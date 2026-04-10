@@ -28,6 +28,7 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.collections.EconomicSet;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.c.type.CTypeConversion;
@@ -156,7 +157,7 @@ public class RuntimeCodeInstaller extends AbstractRuntimeCodeInstaller {
 
         ObjectConstantsHolder(CompilationResult compilation) {
             /* Conservative estimate on the maximum number of object constants we might have. */
-            int maxDataRefs = compilation.getDataSection().getSectionSize() / ConfigurationValues.getObjectLayout().getReferenceSize();
+            int maxDataRefs = compilation.getDataSection().getSectionSize() / ObjectLayout.singleton().getReferenceSize();
             int maxCodeRefs = compilation.getDataPatches().size();
             int maxTotalRefs = maxDataRefs + maxCodeRefs;
             offsets = new int[maxTotalRefs];
@@ -223,7 +224,7 @@ public class RuntimeCodeInstaller extends AbstractRuntimeCodeInstaller {
         ByteBuffer dataBuffer = CTypeConversion.asByteBuffer(code.add(dataOffset), compilation.getDataSection().getSectionSize());
         compilation.getDataSection().buildDataSection(dataBuffer, (position, constant) -> {
             objectConstants.add(dataOffset + position,
-                            ConfigurationValues.getObjectLayout().getReferenceSize(),
+                            ObjectLayout.singleton().getReferenceSize(),
                             (SubstrateObjectConstant) constant);
         });
 

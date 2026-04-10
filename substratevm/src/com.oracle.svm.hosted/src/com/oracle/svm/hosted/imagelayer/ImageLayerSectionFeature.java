@@ -33,6 +33,7 @@ import java.util.BitSet;
 import java.util.List;
 import java.util.Map;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.c.type.WordPointer;
 import org.graalvm.nativeimage.hosted.Feature;
@@ -198,7 +199,7 @@ public final class ImageLayerSectionFeature implements InternalFeature {
         int sectionMaxSize = VARIABLY_SIZED_DATA_OFFSET;
 
         int numSingletonSlots = ImageSingletons.lookup(LoadImageSingletonFeature.class).getConstantToTableSlotMap().size();
-        int referenceSize = ConfigurationValues.getObjectLayout().getReferenceSize();
+        int referenceSize = ObjectLayout.singleton().getReferenceSize();
         int singletonsTableSize = NumUtil.roundUp(numSingletonSlots * referenceSize, Long.BYTES);
         sectionMaxSize += Long.BYTES + singletonsTableSize;
 
@@ -283,7 +284,7 @@ public final class ImageLayerSectionFeature implements InternalFeature {
 
         ByteBuffer buffer = ByteBuffer.wrap(layeredSectionData.getContent()).order(ByteOrder.LITTLE_ENDIAN);
 
-        int referenceSize = ConfigurationValues.getObjectLayout().getReferenceSize();
+        int referenceSize = ObjectLayout.singleton().getReferenceSize();
         buffer.position(VARIABLY_SIZED_DATA_OFFSET);
         buffer.putLong(singletonTableInfo.length);
         for (long imageSingletonOffset : singletonTableInfo) {

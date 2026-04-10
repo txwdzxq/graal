@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.collections.EconomicSet;
 import org.graalvm.collections.Pair;
 import org.graalvm.nativeimage.ImageSingletons;
@@ -443,7 +444,7 @@ public abstract class NativeImage extends AbstractImage {
             final CGlobalDataFeature cGlobals = CGlobalDataFeature.singleton();
 
             long roSectionSize = codeCache.getAlignedConstantsSize();
-            long rwSectionSize = ConfigurationValues.getObjectLayout().alignUp(cGlobals.getSize());
+            long rwSectionSize = ObjectLayout.singleton().alignUp(cGlobals.getSize());
             int pageSize = objectFile.getPageSize();
 
             if (ImageLayerBuildingSupport.buildingImageLayer()) {

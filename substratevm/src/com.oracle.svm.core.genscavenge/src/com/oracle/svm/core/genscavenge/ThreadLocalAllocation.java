@@ -29,6 +29,7 @@ import static com.oracle.svm.core.graal.snippets.SubstrateAllocationSnippets.TLA
 import static com.oracle.svm.core.graal.snippets.SubstrateAllocationSnippets.TLAB_TOP_IDENTITY;
 import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.IsolateThread;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
@@ -455,7 +456,7 @@ public final class ThreadLocalAllocation {
         assert allocationStart.belowThan(allocationEnd) || (allocationStart.equal(0) && allocationEnd.equal(0));
         UnsignedWord tlabSize = allocationEnd.subtract(allocationStart);
 
-        assert UnsignedUtils.isAMultiple(tlabSize, Word.unsigned(ConfigurationValues.getObjectLayout().getAlignment()));
+        assert UnsignedUtils.isAMultiple(tlabSize, Word.unsigned(ObjectLayout.singleton().getAlignment()));
         return tlabSize;
     }
 }

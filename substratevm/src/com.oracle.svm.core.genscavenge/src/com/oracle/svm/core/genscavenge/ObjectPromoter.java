@@ -29,6 +29,7 @@ import static jdk.graal.compiler.nodes.extended.BranchProbabilityNode.SLOW_PATH_
 import static jdk.graal.compiler.nodes.extended.BranchProbabilityNode.VERY_SLOW_PATH_PROBABILITY;
 import static jdk.graal.compiler.nodes.extended.BranchProbabilityNode.probability;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.ObjectAccess;
@@ -36,7 +37,6 @@ import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.core.UnmanagedMemoryUtil;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.genscavenge.remset.RememberedSet;
 import com.oracle.svm.core.heap.Heap;
 import com.oracle.svm.core.heap.ObjectHeader;
@@ -71,7 +71,7 @@ public class ObjectPromoter {
         UnsignedWord originalSize = LayoutEncoding.getSizeFromObjectInlineInGC(originalObj, false);
         UnsignedWord copySize = originalSize;
         boolean addIdentityHashField = false;
-        if (ConfigurationValues.getObjectLayout().isIdentityHashFieldOptional()) {
+        if (ObjectLayout.singleton().isIdentityHashFieldOptional()) {
             ObjectHeader oh = Heap.getHeap().getObjectHeader();
             Word header = oh.readHeaderFromObject(originalObj);
             if (probability(SLOW_PATH_PROBABILITY, ObjectHeaderImpl.hasIdentityHashFromAddressInline(header))) {

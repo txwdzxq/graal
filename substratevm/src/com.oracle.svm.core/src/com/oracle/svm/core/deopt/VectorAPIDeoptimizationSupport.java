@@ -32,7 +32,6 @@ import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.code.FrameInfoQueryResult;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
@@ -70,7 +69,7 @@ public class VectorAPIDeoptimizationSupport {
          */
         JavaKind elementKind = JavaKind.fromJavaClass(layout.elementType);
         Object array = Array.newInstance(layout.elementType, layout.vectorLength);
-        ObjectLayout objectLayout = ConfigurationValues.getObjectLayout();
+        ObjectLayout objectLayout = ObjectLayout.singleton();
         UnsignedWord curOffset = Word.unsigned(objectLayout.getArrayBaseOffset(elementKind));
         for (int i = 0; i < layout.vectorLength; i++) {
             FrameInfoQueryResult.ValueInfo elementEncoding = vectorEncoding.copyForElement(elementKind, i * elementKind.getByteCount());

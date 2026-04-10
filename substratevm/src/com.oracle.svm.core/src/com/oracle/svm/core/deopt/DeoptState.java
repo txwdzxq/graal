@@ -175,7 +175,7 @@ public class DeoptState {
         DeoptimizationCounters.counters().virtualObjectsCount.inc();
 
         FrameInfoQueryResult.ValueInfo[] encodings = sourceFrame.getVirtualObjects()[virtualObjectId];
-        ObjectLayout objectLayout = ConfigurationValues.getObjectLayout();
+        ObjectLayout objectLayout = ObjectLayout.singleton();
 
         /* The first encoded value is always the hub. */
         DynamicHub hub = (DynamicHub) SubstrateObjectConstant.asObject(readValue(encodings[0], sourceFrame));

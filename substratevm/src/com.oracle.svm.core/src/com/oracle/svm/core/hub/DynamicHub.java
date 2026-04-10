@@ -111,7 +111,6 @@ import com.oracle.svm.core.annotate.TargetClass;
 import com.oracle.svm.core.classinitialization.ClassInitializationInfo;
 import com.oracle.svm.core.classinitialization.EnsureClassInitializedNode;
 import com.oracle.svm.core.code.RuntimeMetadataDecoderImpl;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.configure.RuntimeDynamicAccessMetadata;
 import com.oracle.svm.core.graal.meta.DynamicHubOffsets;
@@ -550,7 +549,7 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
         int identityHashOffset = 0;
 
         // See also similar logic in UniverseBuilder.buildHubs
-        ObjectLayout ol = ConfigurationValues.getObjectLayout();
+        ObjectLayout ol = ObjectLayout.singleton();
         if (componentHub != null) {
             // array
             JavaKind componentKind = JavaKind.fromJavaClass(DynamicHub.toClass(componentHub));
@@ -1016,7 +1015,7 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
      */
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
     public int getIdentityHashOffset() {
-        ObjectLayout ol = ConfigurationValues.getObjectLayout();
+        ObjectLayout ol = ObjectLayout.singleton();
         if (ol.isIdentityHashFieldInObjectHeader()) { // enable elimination of our field
             return ol.getObjectHeaderIdentityHashOffset();
         }

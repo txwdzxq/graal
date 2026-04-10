@@ -113,7 +113,8 @@ public class AMD64InterpreterStubs {
         }
 
         private static AMD64BaseAssembler.OperandSize referenceOperandSize() {
-            return ConfigurationValues.getObjectLayout().getReferenceSize() == Integer.BYTES ? AMD64BaseAssembler.OperandSize.DWORD : AMD64BaseAssembler.OperandSize.QWORD;
+            int refSize = ObjectLayout.singleton().getReferenceSize();
+            return refSize == Integer.BYTES ? AMD64BaseAssembler.OperandSize.DWORD : AMD64BaseAssembler.OperandSize.QWORD;
         }
 
         private static AMD64Address heapObjectAddress(Register base, int offset, boolean compressedBase, int compressionShift) {
@@ -135,7 +136,7 @@ public class AMD64InterpreterStubs {
          * See {@code SubstrateBasicLoweringProvider#createReadHub}.
          */
         private static void loadHub(AMD64MacroAssembler masm, Register obj, Register hub, Register scratch2) {
-            ObjectLayout ol = ConfigurationValues.getObjectLayout();
+            ObjectLayout ol = ObjectLayout.singleton();
             long reservedHubBitsMask = Heap.getHeap().getObjectHeader().getReservedHubBitsMask();
             int compressionShift = ReferenceAccess.singleton().getCompressionShift();
             int alignmentBits = CodeUtil.log2(ol.getAlignment());
@@ -229,7 +230,7 @@ public class AMD64InterpreterStubs {
          * back to the slow path.
          */
         private static void emitVTableInstalledCodeFastPath(AMD64MacroAssembler masm, Register receiver, Register vtableIndex, Register scratch1, Register scratch2) {
-            ObjectLayout ol = ConfigurationValues.getObjectLayout();
+            ObjectLayout ol = ObjectLayout.singleton();
             boolean compression = ReferenceAccess.singleton().haveCompressedReferences();
             int compressionShift = ReferenceAccess.singleton().getCompressionShift();
 

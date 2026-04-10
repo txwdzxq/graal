@@ -192,7 +192,7 @@ public class HostedConfiguration {
     private static DynamicHubLayout createDynamicHubLayout(HostedMetaAccess hMetaAccess) {
         var dynamicHubType = hMetaAccess.lookupJavaType(Class.class);
 
-        ObjectLayout layout = ConfigurationValues.getObjectLayout();
+        ObjectLayout layout = ObjectLayout.singleton();
         var vtableField = hMetaAccess.lookupJavaField(ReflectionUtil.lookupField(DynamicHub.class, "vtable"));
         JavaKind vTableSlotStorageKind = vtableField.getType().getComponentType().getStorageKind();
         int vTableSlotSize = layout.sizeInBytes(vTableSlotStorageKind);

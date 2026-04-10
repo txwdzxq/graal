@@ -31,7 +31,6 @@ import org.graalvm.nativeimage.IsolateThread;
 import org.graalvm.nativeimage.Platforms;
 
 import com.oracle.svm.core.ParsingReason;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
@@ -212,7 +211,7 @@ public class WebImageWasmLMVMThreadSTFeature implements InternalFeature {
     public void beforeCompilation(BeforeCompilationAccess config) {
         threadLocalCollector.sortThreadLocals();
         List<VMThreadLocalInfo> sortedThreadLocalInfos = threadLocalCollector.getSortedThreadLocalInfos();
-        ObjectLayout layout = ConfigurationValues.getObjectLayout();
+        ObjectLayout layout = ObjectLayout.singleton();
         int nextObject = 0;
         int nextPrimitive = 0;
         for (VMThreadLocalInfo info : sortedThreadLocalInfos) {

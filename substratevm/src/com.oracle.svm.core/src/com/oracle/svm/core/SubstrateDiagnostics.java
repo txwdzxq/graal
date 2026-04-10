@@ -28,6 +28,7 @@ import static com.oracle.svm.core.option.RuntimeOptionKey.RuntimeOptionKeyFlag.R
 
 import java.util.Arrays;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.CurrentIsolate;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.IsolateThread;
@@ -876,7 +877,7 @@ public class SubstrateDiagnostics {
                 log.string("Supports isolated compilation: ").bool(SubstrateOptions.supportCompileInIsolates()).newline();
             }
             log.string("Container support: ").bool(Container.isSupported()).newline();
-            log.string("Object reference size: ").signed(ConfigurationValues.getObjectLayout().getReferenceSize()).newline();
+            log.string("Object reference size: ").signed(ObjectLayout.singleton().getReferenceSize()).newline();
             log.string("CPU features used for AOT compiled code: ").string(getBuildTimeCpuFeatures()).newline();
             log.indent(false);
         }

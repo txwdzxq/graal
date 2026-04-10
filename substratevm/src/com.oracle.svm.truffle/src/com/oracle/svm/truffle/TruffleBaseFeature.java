@@ -67,6 +67,7 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.EconomicSet;
 import org.graalvm.collections.Pair;
@@ -1143,8 +1144,8 @@ public final class TruffleBaseFeature implements InternalFeature {
                 // correct for the base JDK but might differ from those of Native Image. When this
                 // happens, we allocate a larger byte[] and copy over the contents of the original
                 // one at a base offset that keeps the other offsets long-aligned.
-                int longIndexScale = ConfigurationValues.getObjectLayout().getArrayIndexScale(JavaKind.Long);
-                int misalignment = ConfigurationValues.getObjectLayout().getArrayBaseOffset(JavaKind.Byte) % longIndexScale;
+                int longIndexScale = ObjectLayout.singleton().getArrayIndexScale(JavaKind.Long);
+                int misalignment = ObjectLayout.singleton().getArrayBaseOffset(JavaKind.Byte) % longIndexScale;
                 ALIGNMENT_CORRECTION = misalignment == 0 ? 0 : longIndexScale - misalignment;
 
                 if (ALIGNMENT_CORRECTION != 0) {
@@ -1566,8 +1567,8 @@ final class StaticPropertyOffsetTransformer implements FieldValueTransformerWith
         /*
          * Find SVM array base offset and array index scale for this JavaKind
          */
-        long svmArrayBaseOffset = ConfigurationValues.getObjectLayout().getArrayBaseOffset(javaKind);
-        long svmArrayIndexScaleOffset = ConfigurationValues.getObjectLayout().getArrayIndexScale(javaKind);
+        long svmArrayBaseOffset = ObjectLayout.singleton().getArrayBaseOffset(javaKind);
+        long svmArrayIndexScaleOffset = ObjectLayout.singleton().getArrayIndexScale(javaKind);
 
         /*
          * Redo the offset computation with the SVM array base offset and array index scale

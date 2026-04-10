@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
 
+import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.c.constant.CEnum;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.WordBase;
@@ -84,6 +85,11 @@ import jdk.vm.ci.meta.UnresolvedJavaType;
  */
 @SingletonTraits(access = AllAccess.class, layeredCallbacks = ObjectLayout.LayeredCallbacks.class, layeredInstallationKind = Duplicable.class)
 public final class ObjectLayout {
+
+    @Fold
+    public static ObjectLayout singleton() {
+        return ImageSingletons.lookup(ObjectLayout.class);
+    }
 
     private final SubstrateTargetDescription target;
     private final int referenceSize;

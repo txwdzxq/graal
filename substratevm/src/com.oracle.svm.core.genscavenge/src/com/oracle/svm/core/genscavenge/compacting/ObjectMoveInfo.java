@@ -27,12 +27,12 @@ package com.oracle.svm.core.genscavenge.compacting;
 import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 import static com.oracle.svm.shared.Uninterruptible.CORE_GC_CODE;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.shared.AlwaysInline;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.genscavenge.AlignedHeapChunk;
 import com.oracle.svm.core.genscavenge.HeapChunk;
 import com.oracle.svm.core.genscavenge.ObjectHeaderImpl;
@@ -88,7 +88,7 @@ public final class ObjectMoveInfo {
     static void setNewAddress(Pointer objSeqStart, Pointer newAddress) {
         if (useCompressedLayout()) {
             long offset = newAddress.subtract(objSeqStart).rawValue();
-            offset /= ConfigurationValues.getObjectLayout().getAlignment();
+            offset /= ObjectLayout.singleton().getAlignment();
             objSeqStart.writeInt(-8, (int) offset);
         } else {
             objSeqStart.writeWord(-16, newAddress);
@@ -100,7 +100,7 @@ public final class ObjectMoveInfo {
     static Pointer getNewAddress(Pointer objSeqStart) {
         if (useCompressedLayout()) {
             long offset = objSeqStart.readInt(-8);
-            offset *= ConfigurationValues.getObjectLayout().getAlignment();
+            offset *= ObjectLayout.singleton().getAlignment();
             return objSeqStart.add(Word.signed(offset));
         } else {
             return objSeqStart.readWord(-16);
@@ -110,7 +110,7 @@ public final class ObjectMoveInfo {
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     static void setObjectSeqSize(Pointer objSeqStart, UnsignedWord nbytes) {
         if (useCompressedLayout()) {
-            UnsignedWord value = nbytes.unsignedDivide(ConfigurationValues.getObjectLayout().getAlignment());
+            UnsignedWord value = nbytes.unsignedDivide(ObjectLayout.singleton().getAlignment());
             objSeqStart.writeShort(-4, (short) value.rawValue());
         } else {
             objSeqStart.writeInt(-8, (int) nbytes.rawValue());
@@ -122,7 +122,7 @@ public final class ObjectMoveInfo {
     static UnsignedWord getObjectSeqSize(Pointer objSeqStart) {
         if (useCompressedLayout()) {
             UnsignedWord value = Word.unsigned(objSeqStart.readShort(-4) & 0xffff);
-            return value.multiply(ConfigurationValues.getObjectLayout().getAlignment());
+            return value.multiply(ObjectLayout.singleton().getAlignment());
         } else {
             return Word.unsigned(objSeqStart.readInt(-8));
         }
@@ -131,7 +131,7 @@ public final class ObjectMoveInfo {
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     static void setNextObjectSeqOffset(Pointer objSeqStart, UnsignedWord offset) {
         if (useCompressedLayout()) {
-            UnsignedWord value = offset.unsignedDivide(ConfigurationValues.getObjectLayout().getAlignment());
+            UnsignedWord value = offset.unsignedDivide(ObjectLayout.singleton().getAlignment());
             objSeqStart.writeShort(-2, (short) value.rawValue());
         } else {
             objSeqStart.writeInt(-4, (int) offset.rawValue());
@@ -143,7 +143,7 @@ public final class ObjectMoveInfo {
     static UnsignedWord getNextObjectSeqOffset(Pointer objSeqStart) {
         if (useCompressedLayout()) {
             UnsignedWord value = Word.unsigned(objSeqStart.readShort(-2) & 0xffff);
-            return value.multiply(ConfigurationValues.getObjectLayout().getAlignment());
+            return value.multiply(ObjectLayout.singleton().getAlignment());
         } else {
             return Word.unsigned(objSeqStart.readInt(-4));
         }
@@ -160,7 +160,7 @@ public final class ObjectMoveInfo {
 
     @Fold
     static boolean useCompressedLayout() {
-        return ConfigurationValues.getObjectLayout().getReferenceSize() == Integer.BYTES;
+        return ObjectLayout.singleton().getReferenceSize() == Integer.BYTES;
     }
 
     /**
