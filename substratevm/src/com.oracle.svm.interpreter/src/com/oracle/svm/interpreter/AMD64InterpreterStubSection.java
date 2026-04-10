@@ -34,7 +34,7 @@ import org.graalvm.nativeimage.Platforms;
 
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.SubstrateControlFlowIntegrity;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.graal.amd64.SubstrateAMD64Backend;
 import com.oracle.svm.core.graal.amd64.SubstrateAMD64RegisterConfig;
 import com.oracle.svm.core.graal.meta.SubstrateRegisterConfig;
@@ -57,7 +57,7 @@ import jdk.graal.compiler.core.common.NumUtil;
 @SingletonTraits(access = AllAccess.class, layeredCallbacks = NoLayeredCallbacks.class, other = Disallowed.class)
 public class AMD64InterpreterStubSection extends InterpreterStubSection {
     public AMD64InterpreterStubSection() {
-        this.target = ConfigurationValues.getTarget();
+        this.target = SubstrateTargetDescription.singleton();
         this.registerConfig = new SubstrateAMD64RegisterConfig(SubstrateRegisterConfig.ConfigKind.NATIVE_TO_JAVA, null, target, true);
         this.valueKindFactory = javaKind -> LIRKind.fromJavaKind(target.arch, javaKind);
     }
@@ -93,7 +93,7 @@ public class AMD64InterpreterStubSection extends InterpreterStubSection {
 
     @Override
     public int getVTableStubSize() {
-        int branchTargetAlignment = ConfigurationValues.getWordSize() * 2;
+        int branchTargetAlignment = SubstrateTargetDescription.getWordSize() * 2;
         int stubSize = 10;
 
         return NumUtil.roundUp(stubSize, branchTargetAlignment);

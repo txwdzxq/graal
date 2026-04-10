@@ -51,7 +51,6 @@ import org.graalvm.nativeimage.impl.InternalPlatform;
 
 import com.oracle.svm.core.c.libc.LibCBase;
 import com.oracle.svm.core.c.libc.MuslLibC;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.graal.RuntimeCompilation;
 import com.oracle.svm.core.heap.ReferenceHandler;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
@@ -1041,7 +1040,7 @@ public class SubstrateOptions {
     }
 
     private static int defaultCodeAlignment() {
-        return ConfigurationValues.getTarget().arch instanceof AMD64 ? 32 : 16;
+        return SubstrateTargetDescription.singleton().arch instanceof AMD64 ? 32 : 16;
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)

@@ -40,7 +40,7 @@ import com.oracle.graal.pointsto.reports.ReportUtils;
 import com.oracle.objectfile.BasicProgbitsSectionImpl;
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.graal.RuntimeCompilation;
 import com.oracle.svm.core.meta.MethodPointer;
@@ -214,7 +214,7 @@ public class PLTGOTFeature implements InternalFeature {
     }
 
     private void createGOTSection(SharedMethod[] got, ObjectFile objectFile, PLTSupport pltSupport) {
-        int wordSize = ConfigurationValues.getWordSize();
+        int wordSize = SubstrateTargetDescription.getWordSize();
         int gotSectionSize = got.length * wordSize;
         gotBuffer = new RelocatableBuffer(gotSectionSize, objectFile.getByteOrder());
         gotBufferImpl = new BasicProgbitsSectionImpl(gotBuffer.getBackingArray());

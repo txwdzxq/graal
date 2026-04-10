@@ -28,8 +28,8 @@ import org.graalvm.nativeimage.c.type.WordPointer;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.impl.Word;
 
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.UnmanagedMemoryUtil;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.memory.NullableNativeMemory;
 import com.oracle.svm.core.nmt.NmtCategory;
 
@@ -106,7 +106,7 @@ public class GrowableWordArrayAccess {
 
     @Fold
     static int wordSize() {
-        return ConfigurationValues.getWordSize();
+        return SubstrateTargetDescription.getWordSize();
     }
 
     public static void qsort(GrowableWordArray array, int low, int high, Comparator c) {

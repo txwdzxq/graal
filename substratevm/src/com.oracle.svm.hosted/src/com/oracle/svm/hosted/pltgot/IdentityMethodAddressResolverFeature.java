@@ -27,20 +27,20 @@ package com.oracle.svm.hosted.pltgot;
 import java.util.Collections;
 import java.util.List;
 
-import com.oracle.svm.hosted.image.AbstractImage;
 import org.graalvm.nativeimage.hosted.Feature;
 
 import com.oracle.objectfile.BasicProgbitsSectionImpl;
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.objectfile.SectionName;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.meta.MethodPointer;
 import com.oracle.svm.core.meta.SharedMethod;
 import com.oracle.svm.core.pltgot.IdentityMethodAddressResolver;
 import com.oracle.svm.core.pltgot.MethodAddressResolver;
 import com.oracle.svm.hosted.FeatureImpl;
+import com.oracle.svm.hosted.image.AbstractImage;
 import com.oracle.svm.hosted.image.NativeImage;
 import com.oracle.svm.hosted.image.RelocatableBuffer;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
@@ -87,7 +87,7 @@ public class IdentityMethodAddressResolverFeature implements InternalFeature {
             GOTEntryAllocator gotEntryAllocator = HostedPLTGOTConfiguration.singleton().getGOTEntryAllocator();
             SharedMethod[] got = gotEntryAllocator.getGOT();
             long methodCount = got.length;
-            int wordSize = ConfigurationValues.getWordSize();
+            int wordSize = SubstrateTargetDescription.getWordSize();
             long gotSectionSize = methodCount * wordSize;
             offsetsSectionBuffer = new RelocatableBuffer(gotSectionSize, imageObjectFile.getByteOrder());
             offsetsSectionBufferImpl = new BasicProgbitsSectionImpl(offsetsSectionBuffer.getBackingArray());

@@ -53,8 +53,8 @@ import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.ReservedRegisters;
 import com.oracle.svm.core.SubstrateControlFlowIntegrity;
 import com.oracle.svm.core.SubstrateOptions;
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.amd64.AMD64CPUFeatureAccess;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.cpufeature.Stubs;
 import com.oracle.svm.core.deopt.DeoptimizationRuntime;
@@ -1328,7 +1328,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
             if (SubstrateBackend.shouldRandomizeRuntimeCodeOffset(method)) {
                 SubstrateBackend.randomizeRuntimeCodeOffset(crb, offset -> {
                     /* The actual code start should be word aligned to avoid slow execution. */
-                    int alignedOffset = NumUtil.roundUp(offset, ConfigurationValues.getWordSize());
+                    int alignedOffset = NumUtil.roundUp(offset, SubstrateTargetDescription.getWordSize());
                     for (int i = 0; i < alignedOffset; i++) {
                         asm.int3();
                     }
@@ -1849,12 +1849,12 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
     }
 
     protected static boolean isVectorizationTarget() {
-        return ((AMD64) ConfigurationValues.getTarget().arch).getFeatures().contains(AMD64.CPUFeature.AVX);
+        return ((AMD64) SubstrateTargetDescription.singleton().arch).getFeatures().contains(AMD64.CPUFeature.AVX);
     }
 
     protected AMD64ArithmeticLIRGenerator createArithmeticLIRGen(RegisterValue nullRegisterValue) {
         if (isVectorizationTarget()) {
-            return AMD64VectorArithmeticLIRGenerator.create(nullRegisterValue, ConfigurationValues.getTarget().arch);
+            return AMD64VectorArithmeticLIRGenerator.create(nullRegisterValue, SubstrateTargetDescription.singleton().arch);
         } else {
             return new AMD64ArithmeticLIRGenerator(nullRegisterValue);
         }
@@ -1864,7 +1864,8 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
         SharedMethod method = ((SubstrateLIRGenerationResult) lirGenRes).getMethod();
         AMD64MoveFactoryBase factory = new SubstrateAMD64MoveFactory(backupSlotProvider, method, createLirKindTool());
         if (isVectorizationTarget()) {
-            factory = new AMD64VectorMoveFactory(factory, backupSlotProvider, AMD64Assembler.AMD64SIMDInstructionEncoding.forFeatures(((AMD64) ConfigurationValues.getTarget().arch).getFeatures()));
+            factory = new AMD64VectorMoveFactory(factory, backupSlotProvider,
+                            AMD64Assembler.AMD64SIMDInstructionEncoding.forFeatures(((AMD64) SubstrateTargetDescription.singleton().arch).getFeatures()));
         }
         return factory;
     }

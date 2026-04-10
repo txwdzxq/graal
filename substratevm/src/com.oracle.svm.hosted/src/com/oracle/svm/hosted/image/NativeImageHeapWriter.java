@@ -44,7 +44,7 @@ import com.oracle.graal.pointsto.util.AnalysisError;
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.StaticFieldsSupport;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.graal.code.CGlobalDataBasePointer;
 import com.oracle.svm.core.heap.Heap;
@@ -98,7 +98,7 @@ public final class NativeImageHeapWriter {
     private final LayeredFieldValueTransformerSupport layeredFieldSupport = imageLayer ? LayeredFieldValueTransformerSupport.singleton() : null;
     private final CrossLayerConstantRegistryFeature layerConstantRegistry = imageLayer ? CrossLayerConstantRegistryFeature.singleton() : null;
     private final ImageHeapReasonSupport reasonSupport;
-    private final JavaKind wordKind = ConfigurationValues.getWordKind();
+    private final JavaKind wordKind = SubstrateTargetDescription.getWordKind();
     private long sectionOffsetOfARelocatablePointer = -1;
 
     public NativeImageHeapWriter(NativeImageHeap heap, ImageHeapLayoutInfo heapLayout) {
@@ -328,7 +328,7 @@ public final class NativeImageHeapWriter {
     private void addWordConstantRelocation(RelocatableBuffer buffer, int index, WordBase word) {
         mustBeReferenceAligned(index);
         assert word instanceof MethodRef || word instanceof CGlobalDataBasePointer : "unknown relocatable " + word;
-        int pointerSize = ConfigurationValues.getWordSize();
+        int pointerSize = SubstrateTargetDescription.getWordSize();
         addDirectRelocationWithoutAddend(buffer, index, pointerSize, word);
     }
 

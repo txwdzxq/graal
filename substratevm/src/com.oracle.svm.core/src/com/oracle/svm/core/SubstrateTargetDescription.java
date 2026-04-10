@@ -24,9 +24,11 @@
  */
 package com.oracle.svm.core;
 
+import java.nio.ByteOrder;
 import java.util.EnumSet;
 import java.util.List;
 
+import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
@@ -42,11 +44,33 @@ import com.oracle.svm.shared.singletons.traits.SingletonLayeredInstallationKind.
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.util.VMError;
 
+import jdk.graal.compiler.api.replacements.Fold;
 import jdk.vm.ci.code.Architecture;
 import jdk.vm.ci.code.TargetDescription;
+import jdk.vm.ci.meta.JavaKind;
 
 @SingletonTraits(access = AllAccess.class, layeredCallbacks = SubstrateTargetDescription.LayeredCallbacks.class, layeredInstallationKind = Duplicable.class)
 public class SubstrateTargetDescription extends TargetDescription {
+    @Fold
+    public static SubstrateTargetDescription singleton() {
+        return ImageSingletons.lookup(SubstrateTargetDescription.class);
+    }
+
+    @Fold
+    public static JavaKind getWordKind() {
+        return singleton().wordJavaKind;
+    }
+
+    @Fold
+    public static int getWordSize() {
+        return singleton().wordSize;
+    }
+
+    @Fold
+    public static ByteOrder getByteOrder() {
+        return singleton().arch.getByteOrder();
+    }
+
     private static final String RUNTIME_CHECKED_CPU_FEATURES = "runtimeCheckedCPUFeatures";
 
     @Platforms(Platform.HOSTED_ONLY.class)

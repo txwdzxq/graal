@@ -33,7 +33,6 @@ import org.graalvm.nativeimage.c.function.CodePointer;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.heap.StoredContinuation;
 import com.oracle.svm.core.heap.StoredContinuationAccess;
 import com.oracle.svm.core.snippets.KnownIntrinsics;
@@ -132,14 +131,14 @@ public abstract class FrameAccess {
 
     @Fold
     protected int getReturnAddressSize() {
-        int value = ConfigurationValues.getTarget().arch.getReturnAddressSize();
+        int value = SubstrateTargetDescription.singleton().arch.getReturnAddressSize();
         assert value > 0;
         return value;
     }
 
     @Fold
     public static int wordSize() {
-        return ConfigurationValues.getWordSize();
+        return SubstrateTargetDescription.getWordSize();
     }
 
     @Fold
@@ -148,7 +147,7 @@ public abstract class FrameAccess {
     }
 
     public static Stamp getWordStamp() {
-        return StampFactory.forKind(ConfigurationValues.getWordKind());
+        return StampFactory.forKind(SubstrateTargetDescription.getWordKind());
     }
 
     /**

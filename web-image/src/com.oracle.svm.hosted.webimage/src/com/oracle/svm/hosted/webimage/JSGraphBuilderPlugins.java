@@ -32,7 +32,7 @@ import org.graalvm.nativeimage.CurrentIsolate;
 import org.graalvm.nativeimage.IsolateThread;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.hosted.webimage.wasm.WasmLMGraphBuilderPlugins;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
@@ -403,7 +403,7 @@ public class JSGraphBuilderPlugins implements TargetGraphBuilderPlugins {
         r.register(new InvocationPlugin.RequiredInvocationPlugin("getCurrentThread") {
             @Override
             public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver) {
-                b.addPush(JavaKind.Object, ConstantNode.forIntegerKind(ConfigurationValues.getWordKind(), SINGLE_THREAD_SENTINEL.rawValue()));
+                b.addPush(JavaKind.Object, ConstantNode.forIntegerKind(SubstrateTargetDescription.getWordKind(), SINGLE_THREAD_SENTINEL.rawValue()));
                 return true;
             }
         });

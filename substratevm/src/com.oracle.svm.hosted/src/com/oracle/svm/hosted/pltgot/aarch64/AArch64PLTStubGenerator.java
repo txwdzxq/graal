@@ -35,8 +35,8 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import com.oracle.svm.core.ReservedRegisters;
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.aarch64.SubstrateAArch64MacroAssembler;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.deopt.DeoptimizationSlotPacking;
 import com.oracle.svm.core.graal.code.SubstrateBackend;
 import com.oracle.svm.core.meta.MethodPointer;
@@ -110,7 +110,7 @@ public class AArch64PLTStubGenerator implements PLTStubGenerator {
 
     @Override
     public GeneratedPLT generatePLT(SharedMethod[] got, SubstrateBackend substrateBackend) {
-        AArch64MacroAssembler masm = new SubstrateAArch64MacroAssembler(ConfigurationValues.getTarget());
+        AArch64MacroAssembler masm = new SubstrateAArch64MacroAssembler(SubstrateTargetDescription.singleton());
         Label pltStart = new Label();
         masm.bind(pltStart);
 
@@ -151,7 +151,7 @@ public class AArch64PLTStubGenerator implements PLTStubGenerator {
         }
 
         byte[] code = masm.close(true);
-        RelocatableBuffer buffer = new RelocatableBuffer(code.length, ConfigurationValues.getByteOrder());
+        RelocatableBuffer buffer = new RelocatableBuffer(code.length, SubstrateTargetDescription.getByteOrder());
         buffer.getByteBuffer().put(code);
 
         HostedMethod resolverMethod = HostedPLTGOTConfiguration.singleton().getArchSpecificResolverAsHostedMethod();

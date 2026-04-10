@@ -41,8 +41,8 @@ import org.graalvm.word.WordBase;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.SubstrateOptions;
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.classinitialization.EnsureClassInitializedNode;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.DynamicHubUtils;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
@@ -73,7 +73,7 @@ import jdk.vm.ci.meta.ResolvedJavaType;
 @InternalVMMethod
 public final class InterpreterToVM {
 
-    private static final JavaKind WORD_KIND = ConfigurationValues.getWordKind();
+    private static final JavaKind WORD_KIND = SubstrateTargetDescription.getWordKind();
 
     static {
         VMError.guarantee(WORD_KIND == JavaKind.Int || WORD_KIND == JavaKind.Long);

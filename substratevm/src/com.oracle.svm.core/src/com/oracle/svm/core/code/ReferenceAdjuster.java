@@ -26,13 +26,13 @@ package com.oracle.svm.core.code;
 
 import java.nio.ByteOrder;
 
-import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.PointerBase;
 
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.c.NonmovableArrays;
 import com.oracle.svm.core.c.NonmovableObjectArray;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.heap.ReferenceAccess;
 import com.oracle.svm.core.nmt.NmtCategory;
 import com.oracle.svm.shared.Uninterruptible;
@@ -89,6 +89,6 @@ public interface ReferenceAdjuster {
 
     @Fold
     static ByteOrder nativeByteOrder() {
-        return ConfigurationValues.getByteOrder();
+        return SubstrateTargetDescription.getByteOrder();
     }
 }

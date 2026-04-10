@@ -49,7 +49,6 @@ import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.c.CGlobalData;
 import com.oracle.svm.core.c.CGlobalDataFactory;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.deopt.Deoptimizer;
 import com.oracle.svm.core.graal.code.InterpreterAccessStubData;
 import com.oracle.svm.core.graal.code.PreparedSignature;
@@ -126,7 +125,7 @@ public abstract class InterpreterStubSection {
 
         for (InterpreterResolvedJavaMethod method : enterTrampolineOffsets.keySet()) {
             int offset = enterTrampolineOffsets.get(method);
-            objectFile.createDefinedSymbol(nameForInterpMethod(method), stubsSection, offset, ConfigurationValues.getWordSize(), true, internalSymbolsAreGlobal);
+            objectFile.createDefinedSymbol(nameForInterpMethod(method), stubsSection, offset, SubstrateTargetDescription.getWordSize(), true, internalSymbolsAreGlobal);
         }
     }
 
@@ -164,7 +163,7 @@ public abstract class InterpreterStubSection {
         for (int vTableIndex = 0; vTableIndex < MAX_VTABLE_STUBS; vTableIndex++) {
             int codeOffset = vTableStubBaseOffset + vTableIndex * getVTableStubSize();
             String symbolName = nameForVTableIndex(vTableIndex);
-            objectFile.createDefinedSymbol(symbolName, stubsSection, codeOffset, ConfigurationValues.getWordSize(), true, internalSymbolsAreGlobal);
+            objectFile.createDefinedSymbol(symbolName, stubsSection, codeOffset, SubstrateTargetDescription.getWordSize(), true, internalSymbolsAreGlobal);
         }
     }
 

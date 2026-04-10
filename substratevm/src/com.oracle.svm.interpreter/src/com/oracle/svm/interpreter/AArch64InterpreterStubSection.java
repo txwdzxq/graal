@@ -36,8 +36,8 @@ import org.graalvm.nativeimage.Platforms;
 
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.SubstrateControlFlowIntegrity;
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.aarch64.SubstrateAArch64MacroAssembler;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.graal.aarch64.SubstrateAArch64Backend;
 import com.oracle.svm.core.graal.aarch64.SubstrateAArch64RegisterConfig;
 import com.oracle.svm.core.graal.meta.SubstrateRegisterConfig;
@@ -59,7 +59,7 @@ import jdk.vm.ci.code.Register;
 @SingletonTraits(access = AllAccess.class, layeredCallbacks = NoLayeredCallbacks.class, other = Disallowed.class)
 public class AArch64InterpreterStubSection extends InterpreterStubSection {
     public AArch64InterpreterStubSection() {
-        this.target = ConfigurationValues.getTarget();
+        this.target = SubstrateTargetDescription.singleton();
         this.registerConfig = new SubstrateAArch64RegisterConfig(SubstrateRegisterConfig.ConfigKind.NATIVE_TO_JAVA, null, target, true);
         this.valueKindFactory = javaKind -> LIRKind.fromJavaKind(target.arch, javaKind);
     }

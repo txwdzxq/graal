@@ -73,9 +73,9 @@ import com.oracle.objectfile.debugentry.range.PrimaryRange;
 import com.oracle.objectfile.debugentry.range.Range;
 import com.oracle.objectfile.debuginfo.DebugInfoProvider;
 import com.oracle.svm.core.SubstrateOptions;
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.UniqueShortNameProvider;
 import com.oracle.svm.core.code.CompilationResultFrameTree;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.graal.code.SubstrateBackend;
 import com.oracle.svm.core.graal.code.SubstrateCallingConvention;
@@ -315,7 +315,7 @@ public abstract class SharedDebugInfoProvider implements DebugInfoProvider {
         // Get some information on heap layout and object/object header layout
         this.useHeapBase = ReferenceAccess.singleton().haveCompressedReferences() && ReferenceAccess.singleton().getCompressEncoding().hasBase();
         this.compressionShift = ReferenceAccess.singleton().getCompressionShift();
-        this.pointerSize = ConfigurationValues.getWordSize();
+        this.pointerSize = SubstrateTargetDescription.getWordSize();
         this.referenceSize = getObjectLayout().getReferenceSize();
         this.objectAlignment = getObjectLayout().getAlignment();
         this.reservedHubBitsMask = Heap.getHeap().getObjectHeader().getReservedHubBitsMask();
@@ -1414,7 +1414,7 @@ public abstract class SharedDebugInfoProvider implements DebugInfoProvider {
      * Size in bytes of the frame at call entry before any stack extend. Essentially this accounts
      * for any automatically pushed return address whose presence depends upon the architecture.
      */
-    static final int PRE_EXTEND_FRAME_SIZE = ConfigurationValues.getTarget().arch.getReturnAddressSize();
+    static final int PRE_EXTEND_FRAME_SIZE = SubstrateTargetDescription.singleton().arch.getReturnAddressSize();
 
     /**
      * Retrieve details of the native calling convention for a top level compiled method, including

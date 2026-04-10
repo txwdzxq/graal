@@ -50,6 +50,7 @@ import org.graalvm.word.impl.Word;
 import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.StaticFieldsSupport;
 import com.oracle.svm.core.SubstrateOptions;
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.c.NonmovableArray;
 import com.oracle.svm.core.code.CodeInfo;
 import com.oracle.svm.core.code.CodeInfoAccess;
@@ -62,7 +63,6 @@ import com.oracle.svm.core.code.RuntimeCodeInfoMemory;
 import com.oracle.svm.core.code.SimpleCodeInfoQueryResult;
 import com.oracle.svm.core.collections.GrowableWordArray;
 import com.oracle.svm.core.collections.GrowableWordArrayAccess;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.deopt.DeoptimizedFrame;
 import com.oracle.svm.core.deopt.VirtualFrame;
 import com.oracle.svm.core.heap.CodeReferenceMapDecoder;
@@ -1165,7 +1165,7 @@ public class HeapDumpWriter {
 
     @Fold
     static int wordSize() {
-        return ConfigurationValues.getWordSize();
+        return SubstrateTargetDescription.getWordSize();
     }
 
     /**

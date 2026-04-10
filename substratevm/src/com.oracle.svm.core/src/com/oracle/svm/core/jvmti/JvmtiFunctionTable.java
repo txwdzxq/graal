@@ -32,10 +32,10 @@ import org.graalvm.nativeimage.c.struct.SizeOf;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.UnmanagedMemoryUtil;
 import com.oracle.svm.core.c.NonmovableArray;
 import com.oracle.svm.core.c.NonmovableArrays;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.jvmti.headers.JvmtiInterface;
 import com.oracle.svm.core.memory.NullableNativeMemory;
 import com.oracle.svm.core.nmt.NmtCategory;
@@ -74,8 +74,8 @@ public final class JvmtiFunctionTable {
 
     @Platforms(Platform.HOSTED_ONLY.class)
     private static int bytesToWords(int bytes) {
-        assert bytes % ConfigurationValues.getWordSize() == 0;
-        return bytes / ConfigurationValues.getWordSize();
+        assert bytes % SubstrateTargetDescription.getWordSize() == 0;
+        return bytes / SubstrateTargetDescription.getWordSize();
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
@@ -88,7 +88,7 @@ public final class JvmtiFunctionTable {
         JvmtiInterface result = NullableNativeMemory.malloc(size, NmtCategory.JVMTI);
         if (result.isNonNull()) {
             NonmovableArray<?> readOnlyData = NonmovableArrays.fromImageHeap(singleton().readOnlyFunctionTable);
-            assert size.equal(NonmovableArrays.lengthOf(readOnlyData) * ConfigurationValues.getWordSize());
+            assert size.equal(NonmovableArrays.lengthOf(readOnlyData) * SubstrateTargetDescription.getWordSize());
             UnmanagedMemoryUtil.copyForward(NonmovableArrays.getArrayBase(readOnlyData), (Pointer) result, size);
         }
         return result;

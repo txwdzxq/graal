@@ -42,7 +42,6 @@ import com.oracle.svm.core.CalleeSavedRegisters;
 import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.SubstrateTargetDescription;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.graal.meta.SubstrateRegisterConfig;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
@@ -67,7 +66,7 @@ final class AArch64CalleeSavedRegisters extends CalleeSavedRegisters {
 
     @Platforms(Platform.HOSTED_ONLY.class)
     public static void createAndRegister() {
-        SubstrateTargetDescription target = ConfigurationValues.getTarget();
+        SubstrateTargetDescription target = SubstrateTargetDescription.singleton();
         SubstrateRegisterConfig registerConfig = new SubstrateAArch64RegisterConfig(SubstrateRegisterConfig.ConfigKind.NORMAL, null, target, SubstrateOptions.PreserveFramePointer.getValue());
 
         Register frameRegister = registerConfig.getFrameRegister();

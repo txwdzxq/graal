@@ -31,7 +31,7 @@ import java.util.function.Function;
 
 import com.oracle.graal.pointsto.infrastructure.UniverseMetaAccess;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.graal.GraalConfiguration;
 import com.oracle.svm.core.graal.code.SubstrateBackend;
 import com.oracle.svm.core.graal.code.SubstratePlatformConfigurationProvider;
@@ -96,11 +96,11 @@ public abstract class SharedRuntimeConfigurationBuilder {
         ConstantFieldProvider constantFieldProvider = createConstantFieldProvider();
 
         for (ConfigKind config : ConfigKind.values()) {
-            registerConfigs.put(config, SubstrateRegisterConfigFactory.singleton().newRegisterFactory(config, metaAccess, ConfigurationValues.getTarget(),
+            registerConfigs.put(config, SubstrateRegisterConfigFactory.singleton().newRegisterFactory(config, metaAccess, SubstrateTargetDescription.singleton(),
                             SubstrateOptions.PreserveFramePointer.getValue()));
         }
 
-        WordTypes wordTypes = new SubstrateWordTypes(metaAccess, ConfigurationValues.getWordKind());
+        WordTypes wordTypes = new SubstrateWordTypes(metaAccess, SubstrateTargetDescription.getWordKind());
 
         ForeignCallsProvider foreignCalls = createForeignCallsProvider(registerConfigs.get(ConfigKind.NORMAL));
 

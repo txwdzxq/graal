@@ -45,8 +45,8 @@ import org.graalvm.nativeimage.ImageSingletons;
 import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.ReservedRegisters;
 import com.oracle.svm.core.SubstrateOptions;
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.aarch64.SubstrateAArch64MacroAssembler;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.deopt.DeoptimizationRuntime;
 import com.oracle.svm.core.deopt.DeoptimizationSupport;
@@ -1441,7 +1441,7 @@ public class SubstrateAArch64Backend extends SubstrateBackendWithAssembler<Subst
     }
 
     protected static boolean isVectorizationTarget() {
-        return ((AArch64) ConfigurationValues.getTarget().arch).getFeatures().contains(AArch64.CPUFeature.ASIMD);
+        return ((AArch64) SubstrateTargetDescription.singleton().arch).getFeatures().contains(AArch64.CPUFeature.ASIMD);
     }
 
     protected AArch64ArithmeticLIRGenerator createArithmeticLIRGen(AllocatableValue nullRegisterValue) {

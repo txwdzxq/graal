@@ -34,7 +34,6 @@ import java.lang.annotation.Target;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
 
-import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.CurrentIsolate;
 import org.graalvm.nativeimage.IsolateThread;
 import org.graalvm.nativeimage.Platform;
@@ -50,6 +49,7 @@ import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.Isolates;
 import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.SubstrateOptions;
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.code.CodeInfo;
 import com.oracle.svm.core.code.CodeInfoAccess;
 import com.oracle.svm.core.code.CodeInfoQueryResult;
@@ -59,7 +59,7 @@ import com.oracle.svm.core.code.FrameInfoQueryResult;
 import com.oracle.svm.core.code.FrameInfoQueryResult.ValueInfo;
 import com.oracle.svm.core.code.UntetheredCodeInfo;
 import com.oracle.svm.core.collections.RingBuffer;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.deopt.DeoptimizedFrame.DeoptTargetTier;
 import com.oracle.svm.core.deopt.DeoptimizedFrame.RelockObjectData;
 import com.oracle.svm.core.graal.code.StubCallingConvention;
@@ -859,7 +859,7 @@ public final class Deoptimizer {
         FrameAccess.singleton().writeReturnAddress(CurrentIsolate.getCurrentThread(), originalStackPointer, returnAddress);
 
         try {
-            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(ConfigurationValues.getTarget().stackAlignment));
+            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(SubstrateTargetDescription.singleton().stackAlignment));
             assert Options.LazyDeoptimization.getValue();
             assert VMThreads.StatusSupport.isStatusJava() : "Deopt stub execution must not be visible to other threads.";
 
@@ -894,7 +894,7 @@ public final class Deoptimizer {
          * that involves returning an exception object.
          */
         try {
-            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(ConfigurationValues.getTarget().stackAlignment));
+            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(SubstrateTargetDescription.singleton().stackAlignment));
             assert Options.LazyDeoptimization.getValue();
             assert VMThreads.StatusSupport.isStatusJava() : "Deopt stub execution must not be visible to other threads.";
             assert !ExceptionUnwind.getLazyDeoptStubShouldReturnToExceptionHandler();
@@ -1025,7 +1025,7 @@ public final class Deoptimizer {
         FrameAccess.singleton().writeReturnAddress(CurrentIsolate.getCurrentThread(), originalStackPointer, returnAddress);
 
         try {
-            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(ConfigurationValues.getTarget().stackAlignment));
+            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(SubstrateTargetDescription.singleton().stackAlignment));
             VMError.guarantee(VMThreads.StatusSupport.isStatusJava(), "Deopt stub execution must not be visible to other threads.");
 
             DeoptimizedFrame frame = (DeoptimizedFrame) ReferenceAccess.singleton().readObjectAt(originalStackPointer, true);

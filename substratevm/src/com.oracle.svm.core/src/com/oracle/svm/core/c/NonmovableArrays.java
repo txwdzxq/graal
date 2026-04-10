@@ -28,21 +28,19 @@ import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.c.type.CTypeConversion;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.PointerBase;
 import org.graalvm.word.UnsignedWord;
-import org.graalvm.word.impl.Word;
 import org.graalvm.word.WordBase;
+import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.JavaMemoryUtil;
-import com.oracle.svm.shared.util.SubstrateUtil;
-import com.oracle.svm.shared.Uninterruptible;
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.UnmanagedMemoryUtil;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.heap.Heap;
 import com.oracle.svm.core.heap.ObjectHeader;
 import com.oracle.svm.core.heap.ObjectReferenceVisitor;
@@ -53,6 +51,8 @@ import com.oracle.svm.core.jdk.UninterruptibleUtils;
 import com.oracle.svm.core.memory.NullableNativeMemory;
 import com.oracle.svm.core.nmt.NmtCategory;
 import com.oracle.svm.core.snippets.KnownIntrinsics;
+import com.oracle.svm.shared.Uninterruptible;
+import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.nodes.NamedLocationIdentity;
@@ -387,7 +387,7 @@ public final class NonmovableArrays {
             hosted[index] = value;
             return;
         }
-        assert matches(array, true, ConfigurationValues.getWordSize());
+        assert matches(array, true, SubstrateTargetDescription.getWordSize());
         ((Pointer) addressOf(array, index)).writeWord(0, value);
     }
 
@@ -398,7 +398,7 @@ public final class NonmovableArrays {
             T[] hosted = getHostedArray(array);
             return hosted[index];
         }
-        assert matches(array, true, ConfigurationValues.getWordSize());
+        assert matches(array, true, SubstrateTargetDescription.getWordSize());
         return ((Pointer) addressOf(array, index)).readWord(0);
     }
 

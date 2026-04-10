@@ -39,8 +39,7 @@ import org.graalvm.word.impl.Word;
 import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.ReservedRegisters;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.shared.util.SubstrateUtil;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTargetDescription;
 import com.oracle.svm.core.graal.code.SubstrateBackend;
 import com.oracle.svm.core.graal.code.SubstrateCallingConventionKind;
 import com.oracle.svm.core.graal.meta.KnownOffsets;
@@ -62,6 +61,7 @@ import com.oracle.svm.core.nodes.SubstrateMethodCallTargetNode;
 import com.oracle.svm.core.snippets.ImplicitExceptions;
 import com.oracle.svm.core.snippets.SnippetRuntime;
 import com.oracle.svm.core.snippets.SubstrateForeignCallTarget;
+import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.core.common.memory.BarrierType;
@@ -417,7 +417,7 @@ public abstract class NonSnippetLowerings {
                             var methodLocation = dynamicImageLayerInfo.getPriorLayerMethodLocation(targetMethod);
                             AddressNode methodPointerAddress = graph.addOrUniqueWithInputs(
                                             new OffsetAddressNode(new CGlobalDataLoadAddressNode(methodLocation.base()),
-                                                            ConstantNode.forIntegerKind(ConfigurationValues.getWordKind(), methodLocation.offset())));
+                                                            ConstantNode.forIntegerKind(SubstrateTargetDescription.getWordKind(), methodLocation.offset())));
                             loweredCallTarget = createIndirectCall(graph, callTarget, parameters, method, signature, callType, invokeKind, methodPointerAddress);
                         }
                     } else if (!SubstrateBackend.shouldEmitOnlyIndirectCalls()) {
@@ -477,14 +477,14 @@ public abstract class NonSnippetLowerings {
                              */
                             JavaConstant codeInfo = SubstrateObjectConstant.forObject(targetMethod.getImageCodeInfo());
                             ValueNode codeInfoConstant = ConstantNode.forConstant(codeInfo, tool.getMetaAccess(), graph);
-                            ValueNode codeStartFieldOffset = ConstantNode.forIntegerKind(ConfigurationValues.getWordKind(), knownOffsets.getImageCodeInfoCodeStartOffset(), graph);
+                            ValueNode codeStartFieldOffset = ConstantNode.forIntegerKind(SubstrateTargetDescription.getWordKind(), knownOffsets.getImageCodeInfoCodeStartOffset(), graph);
                             AddressNode codeStartField = graph.unique(new OffsetAddressNode(codeInfoConstant, codeStartFieldOffset));
                             /*
                              * Uses ANY_LOCATION because runtime-compiled code can be persisted and
                              * loaded in a process where image code is located elsewhere.
                              */
                             ReadNode codeStart = graph.add(new ReadNode(codeStartField, LocationIdentity.ANY_LOCATION, FrameAccess.getWordStamp(), BarrierType.NONE, MemoryOrderMode.PLAIN));
-                            ValueNode offset = ConstantNode.forIntegerKind(ConfigurationValues.getWordKind(), targetMethod.getImageCodeOffset(), graph);
+                            ValueNode offset = ConstantNode.forIntegerKind(SubstrateTargetDescription.getWordKind(), targetMethod.getImageCodeOffset(), graph);
                             AddressNode address = graph.unique(new OffsetAddressNode(codeStart, offset));
 
                             loweredCallTarget = graph.add(new SubstrateIndirectCallTargetNode(
