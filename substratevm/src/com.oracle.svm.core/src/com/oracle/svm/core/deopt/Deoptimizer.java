@@ -1111,7 +1111,7 @@ public final class Deoptimizer {
     @Fold
     public static int savedBasePointerSize() {
         if (SubstrateOptions.hasFramePointer()) {
-            return FrameAccess.wordSize();
+            return SubstrateTargetDescription.getWordSize();
         } else {
             VMError.guarantee(Platform.includedIn(Platform.AMD64.class));
             return 0;
@@ -1391,9 +1391,10 @@ public final class Deoptimizer {
             deoptInfo = deoptInfo.getCaller();
         }
 
-        if (sourceChunk.getTotalFrameSize() < FrameAccess.wordSize()) {
+        int wordSize = SubstrateTargetDescription.getWordSize();
+        if (sourceChunk.getTotalFrameSize() < wordSize) {
             throw fatalDeoptimizationError(
-                            String.format("Insufficient space in frame for pointer to DeoptimizedFrame sourceChunkSize: %s, word size: %s", sourceChunk.getTotalFrameSize(), FrameAccess.wordSize()),
+                            String.format("Insufficient space in frame for pointer to DeoptimizedFrame sourceChunkSize: %s, word size: %s", sourceChunk.getTotalFrameSize(), wordSize),
                             frameInfo, frameInfo);
         }
 

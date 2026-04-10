@@ -105,7 +105,7 @@ final class AArch64CalleeSavedRegisters extends CalleeSavedRegisters {
         int calleeSavedRegistersSizeInBytes = offset;
 
         int saveAreaOffsetInFrame = -(FrameAccess.returnAddressSize() +
-                        FrameAccess.wordSize() + // slot is always reserved for frame pointer
+                        target.wordSize + // slot is always reserved for frame pointer
                         calleeSavedRegistersSizeInBytes);
 
         if (fpCalleeSaved) {

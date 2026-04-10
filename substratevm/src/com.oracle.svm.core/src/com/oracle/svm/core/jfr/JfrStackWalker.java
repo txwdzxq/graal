@@ -155,6 +155,7 @@ public final class JfrStackWalker {
                     anchor = anchor.getPreviousAnchor();
                 } else {
                     /* Both the top frame and its caller are probably Java frames. */
+                    int wordSize = SubstrateTargetDescription.getWordSize();
                     if (isSPAligned(sp)) {
                         UnsignedWord topFrameSize = Word.unsigned(CodeInfoQueryResult.getTotalFrameSize(topFrameEncodedSize));
                         if (SubstrateOptions.hasFramePointer() && !hasValidCaller(sp, topFrameSize, topFrameIsEntryPoint, anchor)) {
@@ -165,7 +166,7 @@ public final class JfrStackWalker {
                              * frame is missing). We should reach the caller if we skip the
                              * incomplete top frame (frame pointer and return address).
                              */
-                            sp = sp.add(FrameAccess.wordSize() * 2);
+                            sp = sp.add(wordSize * 2);
                         } else {
                             /*
                              * Stack looks walkable - skip the top frame as we already recorded the
@@ -180,7 +181,7 @@ public final class JfrStackWalker {
                          * likely, there is a valid return address at the top of the stack that we
                          * can just skip.
                          */
-                        sp = sp.add(FrameAccess.wordSize());
+                        sp = sp.add(wordSize);
                     }
 
                     /* Do a basic sanity check and decide if it makes sense to continue. */

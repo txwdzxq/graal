@@ -137,13 +137,8 @@ public abstract class FrameAccess {
     }
 
     @Fold
-    public static int wordSize() {
-        return SubstrateTargetDescription.getWordSize();
-    }
-
-    @Fold
     public static int uncompressedReferenceSize() {
-        return wordSize();
+        return SubstrateTargetDescription.getWordSize();
     }
 
     public static Stamp getWordStamp() {

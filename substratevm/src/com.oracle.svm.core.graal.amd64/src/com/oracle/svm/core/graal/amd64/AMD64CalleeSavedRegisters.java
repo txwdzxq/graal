@@ -162,7 +162,7 @@ final class AMD64CalleeSavedRegisters extends CalleeSavedRegisters {
         int calleeSavedRegistersSizeInBytes = offset;
 
         int saveAreaOffsetInFrame = -(FrameAccess.returnAddressSize() +
-                        FrameAccess.wordSize() + /* Space is always reserved for rbp. */
+                        target.wordSize + /* Space is always reserved for rbp. */
                         calleeSavedRegistersSizeInBytes);
 
         if (rbpCalleeSaved) {
