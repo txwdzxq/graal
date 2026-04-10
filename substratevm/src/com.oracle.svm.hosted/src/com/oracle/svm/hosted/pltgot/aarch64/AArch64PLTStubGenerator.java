@@ -35,7 +35,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import com.oracle.svm.core.ReservedRegisters;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.aarch64.SubstrateAArch64MacroAssembler;
 import com.oracle.svm.core.deopt.DeoptimizationSlotPacking;
 import com.oracle.svm.core.graal.code.SubstrateBackend;
@@ -110,7 +110,7 @@ public class AArch64PLTStubGenerator implements PLTStubGenerator {
 
     @Override
     public GeneratedPLT generatePLT(SharedMethod[] got, SubstrateBackend substrateBackend) {
-        SubstrateTargetDescription target = SubstrateTargetDescription.singleton();
+        SubstrateTarget target = SubstrateTarget.singleton();
         AArch64MacroAssembler masm = new SubstrateAArch64MacroAssembler(target);
         Label pltStart = new Label();
         masm.bind(pltStart);

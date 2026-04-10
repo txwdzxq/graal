@@ -63,7 +63,7 @@ import com.oracle.objectfile.debugentry.StructureTypeEntry;
 import com.oracle.objectfile.debugentry.TypeEntry;
 import com.oracle.svm.core.StaticFieldsSupport;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.UniqueShortNameProvider;
 import com.oracle.svm.core.debug.BFDNameProvider;
 import com.oracle.svm.core.debug.SharedDebugInfoProvider;
@@ -840,7 +840,7 @@ class NativeImageDebugInfoProvider extends SharedDebugInfoProvider {
                  * EnumInfo should not reach here because it is no word base type. Create a pointer
                  * to a generic word type or void.
                  */
-                int wordSize = SubstrateTargetDescription.getWordSize();
+                int wordSize = SubstrateTarget.getWordSize();
                 size = wordSize;
                 TypeEntry pointerToEntry = null;
 

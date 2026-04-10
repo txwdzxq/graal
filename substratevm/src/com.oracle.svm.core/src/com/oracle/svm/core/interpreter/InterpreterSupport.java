@@ -36,7 +36,7 @@ import org.graalvm.word.UnsignedWord;
 
 import com.oracle.svm.core.BuildPhaseProvider;
 import com.oracle.svm.core.FrameAccess;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.code.CodeInfoQueryResult;
 import com.oracle.svm.core.code.FrameInfoQueryResult;
 import com.oracle.svm.core.code.FrameSourceInfo;
@@ -144,7 +144,7 @@ public abstract class InterpreterSupport {
     @AlwaysInline("GC performance")
     @Uninterruptible(reason = "Called by GC walker", mayBeInlined = true)
     public static void walkInterpreterLeaveStubFrame(ObjectReferenceVisitor visitor, Pointer actualSP, Pointer sp) {
-        int wordSize = SubstrateTargetDescription.getWordSize();
+        int wordSize = SubstrateTarget.getWordSize();
         long gcReferenceMap = actualSP.readLong(2 * wordSize);
 
         /* Visit object references passed on the stack */

@@ -36,7 +36,7 @@ import org.graalvm.word.PointerBase;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.UnmanagedMemoryUtil;
 import com.oracle.svm.core.c.NonmovableArray;
 import com.oracle.svm.core.code.CodeInfo;
@@ -75,7 +75,7 @@ public final class StoredContinuationAccess {
 
     private static StoredContinuation allocate(int framesSize) {
         // Using Word[] to ensure that words are properly aligned.
-        int wordSize = SubstrateTargetDescription.getWordSize();
+        int wordSize = SubstrateTarget.getWordSize();
         int nwords = Integer.divideUnsigned(framesSize, wordSize);
         assert nwords * wordSize == framesSize;
         /*
@@ -92,7 +92,7 @@ public final class StoredContinuationAccess {
 
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
     private static int getSizeInBytes(StoredContinuation s) {
-        return arrayLength(s) * SubstrateTargetDescription.getWordSize();
+        return arrayLength(s) * SubstrateTarget.getWordSize();
     }
 
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)

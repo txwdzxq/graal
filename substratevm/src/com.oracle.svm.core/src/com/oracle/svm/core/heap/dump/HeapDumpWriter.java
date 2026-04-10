@@ -50,7 +50,7 @@ import org.graalvm.word.impl.Word;
 import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.StaticFieldsSupport;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.NonmovableArray;
 import com.oracle.svm.core.code.CodeInfo;
 import com.oracle.svm.core.code.CodeInfoAccess;
@@ -1165,7 +1165,7 @@ public class HeapDumpWriter {
 
     @Fold
     static int wordSize() {
-        return SubstrateTargetDescription.getWordSize();
+        return SubstrateTarget.getWordSize();
     }
 
     /**

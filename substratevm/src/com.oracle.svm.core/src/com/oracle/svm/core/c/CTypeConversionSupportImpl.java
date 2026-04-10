@@ -40,7 +40,7 @@ import org.graalvm.word.PointerBase;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.handles.PrimitiveArrayView;
 import com.oracle.svm.core.jdk.DirectByteBufferUtil;
 import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
@@ -192,7 +192,7 @@ class CTypeConversionSupportImpl implements CTypeConversionSupport {
     @Override
     public ByteBuffer asByteBuffer(PointerBase address, int size) {
         ByteBuffer byteBuffer = DirectByteBufferUtil.allocate(address.rawValue(), size);
-        return byteBuffer.order(SubstrateTargetDescription.getArchitecture().getByteOrder());
+        return byteBuffer.order(SubstrateTarget.getArchitecture().getByteOrder());
     }
 }
 

@@ -33,7 +33,7 @@ import org.graalvm.word.Pointer;
 
 import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.SubstrateControlFlowIntegrity;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.graal.nodes.aarch64.AArch64XPACNode;
 import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
@@ -50,7 +50,7 @@ public class AArch64FrameAccess extends FrameAccess {
     @Override
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     protected int getReturnAddressSize() {
-        return SubstrateTargetDescription.getWordSize();
+        return SubstrateTarget.getWordSize();
     }
 
     @Override

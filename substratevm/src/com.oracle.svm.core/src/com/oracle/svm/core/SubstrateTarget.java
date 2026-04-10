@@ -48,11 +48,11 @@ import jdk.vm.ci.code.Architecture;
 import jdk.vm.ci.code.TargetDescription;
 import jdk.vm.ci.meta.JavaKind;
 
-@SingletonTraits(access = AllAccess.class, layeredCallbacks = SubstrateTargetDescription.LayeredCallbacks.class, layeredInstallationKind = Duplicable.class)
-public class SubstrateTargetDescription extends TargetDescription {
+@SingletonTraits(access = AllAccess.class, layeredCallbacks = SubstrateTarget.LayeredCallbacks.class, layeredInstallationKind = Duplicable.class)
+public class SubstrateTarget extends TargetDescription {
     @Fold
-    public static SubstrateTargetDescription singleton() {
-        return ImageSingletons.lookup(SubstrateTargetDescription.class);
+    public static SubstrateTarget singleton() {
+        return ImageSingletons.lookup(SubstrateTarget.class);
     }
 
     @Fold
@@ -82,7 +82,7 @@ public class SubstrateTargetDescription extends TargetDescription {
     private final EnumSet<?> runtimeCheckedCPUFeatures;
 
     @Platforms(Platform.HOSTED_ONLY.class)
-    public SubstrateTargetDescription(Architecture arch, boolean isMP, int stackAlignment, int implicitNullCheckLimit, EnumSet<?> runtimeCheckedCPUFeatures) {
+    public SubstrateTarget(Architecture arch, boolean isMP, int stackAlignment, int implicitNullCheckLimit, EnumSet<?> runtimeCheckedCPUFeatures) {
         super(arch, isMP, stackAlignment, implicitNullCheckLimit, shouldInlineObjectsInImageCode());
         this.runtimeCheckedCPUFeatures = runtimeCheckedCPUFeatures;
     }
@@ -96,15 +96,15 @@ public class SubstrateTargetDescription extends TargetDescription {
 
         @Override
         public LayeredCallbacksSingletonTrait getLayeredCallbacksTrait() {
-            var action = new SingletonLayeredCallbacks<SubstrateTargetDescription>() {
+            var action = new SingletonLayeredCallbacks<SubstrateTarget>() {
                 @Override
-                public LayeredPersistFlags doPersist(ImageSingletonWriter writer, SubstrateTargetDescription singleton) {
+                public LayeredPersistFlags doPersist(ImageSingletonWriter writer, SubstrateTarget singleton) {
                     writer.writeStringList(RUNTIME_CHECKED_CPU_FEATURES, getCPUFeaturesList(singleton));
                     return LayeredPersistFlags.CALLBACK_ON_REGISTRATION;
                 }
 
                 @Override
-                public void onSingletonRegistration(ImageSingletonLoader loader, SubstrateTargetDescription singleton) {
+                public void onSingletonRegistration(ImageSingletonLoader loader, SubstrateTarget singleton) {
                     List<String> previousLayerRuntimeCheckedCPUFeatures = loader.readStringList(RUNTIME_CHECKED_CPU_FEATURES);
                     List<String> currentLayerRuntimeCheckedCPUFeatures = getCPUFeaturesList(singleton);
                     VMError.guarantee(previousLayerRuntimeCheckedCPUFeatures.equals(currentLayerRuntimeCheckedCPUFeatures),
@@ -116,7 +116,7 @@ public class SubstrateTargetDescription extends TargetDescription {
         }
     }
 
-    private static List<String> getCPUFeaturesList(SubstrateTargetDescription substrateTargetDescription) {
-        return substrateTargetDescription.runtimeCheckedCPUFeatures.stream().map(Enum::toString).toList();
+    private static List<String> getCPUFeaturesList(SubstrateTarget substrateTarget) {
+        return substrateTarget.runtimeCheckedCPUFeatures.stream().map(Enum::toString).toList();
     }
 }

@@ -131,18 +131,18 @@ public abstract class FrameAccess {
 
     @Fold
     protected int getReturnAddressSize() {
-        int value = SubstrateTargetDescription.getArchitecture().getReturnAddressSize();
+        int value = SubstrateTarget.getArchitecture().getReturnAddressSize();
         assert value > 0;
         return value;
     }
 
     @Fold
     public static int uncompressedReferenceSize() {
-        return SubstrateTargetDescription.getWordSize();
+        return SubstrateTarget.getWordSize();
     }
 
     public static Stamp getWordStamp() {
-        return StampFactory.forKind(SubstrateTargetDescription.getWordKind());
+        return StampFactory.forKind(SubstrateTarget.getWordKind());
     }
 
     /**

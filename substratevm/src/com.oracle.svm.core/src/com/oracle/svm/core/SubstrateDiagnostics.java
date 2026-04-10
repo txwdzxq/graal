@@ -498,7 +498,7 @@ public class SubstrateDiagnostics {
             stackBase = originalSp.add(32);
         }
 
-        int wordSize = SubstrateTargetDescription.getWordSize();
+        int wordSize = SubstrateTarget.getWordSize();
         Pointer pos = originalSp;
         while (pos.belowThan(stackBase)) {
             CodePointer possibleIp = pos.readWord(0);
@@ -628,7 +628,7 @@ public class SubstrateDiagnostics {
                 hexDump(log, ip, bytesToPrint, bytesToPrint);
             } else if (invocationCount == 4) {
                 /* Just print one word starting at the ip. */
-                hexDump(log, ip, 0, SubstrateTargetDescription.getWordSize());
+                hexDump(log, ip, 0, SubstrateTarget.getWordSize());
             }
             log.indent(false).newline();
         }
@@ -657,7 +657,7 @@ public class SubstrateDiagnostics {
             Pointer sp = context.getStackPointer();
             UnsignedWord stackEnd = VMThreads.StackEnd.get(); // low
             UnsignedWord stackBase = VMThreads.StackBase.get(); // high
-            int wordSize = SubstrateTargetDescription.getWordSize();
+            int wordSize = SubstrateTarget.getWordSize();
 
             log.string("Top of stack (sp=").zhex(sp).string("):").indent(true);
             int bytesToPrintBelowSp = 32;
@@ -1070,7 +1070,7 @@ public class SubstrateDiagnostics {
                  * If the stack pointer is not sufficiently aligned, then we might be in the middle
                  * of a call (i.e., only the arguments and the return address are on the stack).
                  */
-                SubstrateTargetDescription target = SubstrateTargetDescription.singleton();
+                SubstrateTarget target = SubstrateTarget.singleton();
                 if (sp.unsignedRemainder(target.stackAlignment).notEqual(0) && sp.unsignedRemainder(target.wordSize).equal(0)) {
                     log.newline();
                     // Checkstyle: Allow raw info or warning printing - begin

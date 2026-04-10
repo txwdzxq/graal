@@ -36,7 +36,7 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.PointerBase;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.jvmti.headers.JvmtiCapabilities;
 import com.oracle.svm.core.jvmti.headers.JvmtiError;
 import com.oracle.svm.core.jvmti.headers.JvmtiEvent;
@@ -181,17 +181,17 @@ public final class JvmtiEnvUtil {
 
     @Fold
     static int capabilitiesOffset() {
-        return NumUtil.roundUp(SizeOf.get(JvmtiEnv.class), SubstrateTargetDescription.getWordSize());
+        return NumUtil.roundUp(SizeOf.get(JvmtiEnv.class), SubstrateTarget.getWordSize());
     }
 
     @Fold
     static int eventCallbacksOffset() {
-        return NumUtil.roundUp(capabilitiesOffset() + SizeOf.get(JvmtiCapabilities.class), SubstrateTargetDescription.getWordSize());
+        return NumUtil.roundUp(capabilitiesOffset() + SizeOf.get(JvmtiCapabilities.class), SubstrateTarget.getWordSize());
     }
 
     @Fold
     static int externalEnvOffset() {
-        return NumUtil.roundUp(eventCallbacksOffset() + SizeOf.get(JvmtiEventCallbacks.class), SubstrateTargetDescription.getWordSize());
+        return NumUtil.roundUp(eventCallbacksOffset() + SizeOf.get(JvmtiEventCallbacks.class), SubstrateTarget.getWordSize());
     }
 
     @Fold

@@ -50,7 +50,7 @@ import org.graalvm.nativeimage.c.function.CEntryPoint;
 
 import com.oracle.svm.core.ReservedRegisters;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.graal.code.SubstrateCallingConvention;
 import com.oracle.svm.core.graal.code.SubstrateCallingConventionType;
 import com.oracle.svm.core.graal.code.SubstrateDataBuilder;
@@ -997,7 +997,7 @@ public class LLVMGenerator extends CoreProvidersDelegate implements LIRGenerator
             if (javaKind == JavaKind.Int) {
                 assert LLVMIRBuilder.isIntegerType(typeOf(retVal));
                 retVal = arithmetic.emitIntegerConvert(retVal, builder.intType());
-            } else if (returnsEnum && javaKind == SubstrateTargetDescription.getWordKind()) {
+            } else if (returnsEnum && javaKind == SubstrateTarget.getWordKind()) {
                 /*
                  * An enum value is represented by a long in the function body, but is returned as
                  * an object (CEnum values are returned as an int)

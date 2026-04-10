@@ -37,7 +37,7 @@ import org.graalvm.nativeimage.Platforms;
 import org.graalvm.word.WordBase;
 
 import com.oracle.svm.core.BuildPhaseProvider.AfterCompilation;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.heap.UnknownObjectField;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
@@ -123,7 +123,7 @@ public class SubstrateType implements SharedType, RuntimeAnnotated {
     @Override
     public final JavaKind getStorageKind() {
         if (isWordType()) {
-            return SubstrateTargetDescription.getWordKind();
+            return SubstrateTarget.getWordKind();
         } else {
             return getJavaKind();
         }

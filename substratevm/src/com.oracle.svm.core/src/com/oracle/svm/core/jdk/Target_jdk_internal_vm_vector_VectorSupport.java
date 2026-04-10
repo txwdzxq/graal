@@ -29,7 +29,7 @@ import java.lang.foreign.ValueLayout;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.annotate.Alias;
 import com.oracle.svm.core.annotate.AnnotateOriginal;
 import com.oracle.svm.core.annotate.Delete;
@@ -65,7 +65,7 @@ final class Target_jdk_internal_vm_vector_VectorSupport {
 final class Helper_jdk_internal_vm_vector_VectorSupport {
     @Fold
     public static String getCPUFeatures() {
-        return SubstrateTargetDescription.getArchitecture().getFeatures().stream()
+        return SubstrateTarget.getArchitecture().getFeatures().stream()
                         .map(CPUFeatureName::name)
                         .collect(Collectors.joining(","));
     }

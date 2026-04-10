@@ -29,7 +29,7 @@ import java.nio.ByteOrder;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.PointerBase;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.NonmovableArrays;
 import com.oracle.svm.core.c.NonmovableObjectArray;
 import com.oracle.svm.core.config.ObjectLayout;
@@ -90,6 +90,6 @@ public interface ReferenceAdjuster {
 
     @Fold
     static ByteOrder nativeByteOrder() {
-        return SubstrateTargetDescription.getArchitecture().getByteOrder();
+        return SubstrateTarget.getArchitecture().getByteOrder();
     }
 }

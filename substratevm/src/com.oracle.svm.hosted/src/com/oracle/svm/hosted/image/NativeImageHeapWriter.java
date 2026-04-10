@@ -44,7 +44,7 @@ import com.oracle.graal.pointsto.util.AnalysisError;
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.StaticFieldsSupport;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.graal.code.CGlobalDataBasePointer;
 import com.oracle.svm.core.heap.Heap;
@@ -98,7 +98,7 @@ public final class NativeImageHeapWriter {
     private final LayeredFieldValueTransformerSupport layeredFieldSupport = imageLayer ? LayeredFieldValueTransformerSupport.singleton() : null;
     private final CrossLayerConstantRegistryFeature layerConstantRegistry = imageLayer ? CrossLayerConstantRegistryFeature.singleton() : null;
     private final ImageHeapReasonSupport reasonSupport;
-    private final JavaKind wordKind = SubstrateTargetDescription.getWordKind();
+    private final JavaKind wordKind = SubstrateTarget.getWordKind();
     private long sectionOffsetOfARelocatablePointer = -1;
 
     public NativeImageHeapWriter(NativeImageHeap heap, ImageHeapLayoutInfo heapLayout) {

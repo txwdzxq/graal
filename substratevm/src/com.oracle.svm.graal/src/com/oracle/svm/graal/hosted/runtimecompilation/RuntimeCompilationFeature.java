@@ -66,7 +66,7 @@ import com.oracle.graal.pointsto.util.ParallelExecutionException;
 import com.oracle.svm.common.meta.MethodVariant;
 import com.oracle.svm.core.ParsingReason;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.graal.RuntimeCompilation;
 import com.oracle.svm.core.graal.RuntimeCompilationCanaryFeature;
 import com.oracle.svm.core.graal.code.SubstrateBackend;
@@ -422,7 +422,7 @@ public final class RuntimeCompilationFeature implements Feature, RuntimeCompilat
 
         DuringSetupAccessImpl config = (DuringSetupAccessImpl) c;
         AnalysisMetaAccess aMetaAccess = config.getMetaAccess();
-        SubstrateWordTypes wordTypes = new SubstrateWordTypes(aMetaAccess, SubstrateTargetDescription.getWordKind());
+        SubstrateWordTypes wordTypes = new SubstrateWordTypes(aMetaAccess, SubstrateTarget.getWordKind());
         SubstrateRuntimeProviders substrateProviders = ImageSingletons.lookup(SubstrateGraalCompilerSetup.class).getSubstrateProviders(aMetaAccess, wordTypes);
         objectReplacer = new GraalGraphObjectReplacer(config.getUniverse(), substrateProviders, universeFactory);
         config.registerObjectReplacer(objectReplacer);
@@ -450,7 +450,7 @@ public final class RuntimeCompilationFeature implements Feature, RuntimeCompilat
         FeatureHandler featureHandler = config.getFeatureHandler();
         final boolean supportsStubBasedPlugins = !SubstrateOptions.useLLVMBackend();
 
-        SubstrateTargetDescription target = SubstrateTargetDescription.singleton();
+        SubstrateTarget target = SubstrateTarget.singleton();
         NativeImageGenerator.registerGraphBuilderPlugins(featureHandler, runtimeConfig, hostedProviders, config.getMetaAccess(), config.getUniverse(), config.getNativeLibraries(),
                         config.getImageClassLoader(), ParsingReason.JITCompilation, ((Inflation) config.getBigBang()).getAnnotationSubstitutionProcessor(),
                         new SubstrateClassInitializationPlugin(config.getHostVM()), target, supportsStubBasedPlugins);
@@ -496,7 +496,7 @@ public final class RuntimeCompilationFeature implements Feature, RuntimeCompilat
 
         runtimeCompilationCandidatePredicate = RuntimeCompilationFeature::defaultAllowRuntimeCompilation;
         optimisticOpts = OptimisticOptimizations.ALL.remove(OptimisticOptimizations.Optimization.UseLoopLimitChecks);
-        graphEncoder = RuntimeCompiledMethodSupport.singleton().createGraphEncoder(SubstrateTargetDescription.getArchitecture(), config.getUniverse().getHeapScanner());
+        graphEncoder = RuntimeCompiledMethodSupport.singleton().createGraphEncoder(SubstrateTarget.getArchitecture(), config.getUniverse().getHeapScanner());
 
         /*
          * Ensure all snippet types are registered as used.

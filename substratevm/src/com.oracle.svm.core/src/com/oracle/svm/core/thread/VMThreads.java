@@ -41,7 +41,7 @@ import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.function.CEntryPointErrors;
 import com.oracle.svm.core.c.function.CFunctionOptions;
 import com.oracle.svm.core.feature.InternalFeature;
@@ -1088,7 +1088,7 @@ public abstract class VMThreads {
 
         @Fold
         static boolean isAarch64() {
-            return SubstrateTargetDescription.getArchitecture() instanceof AArch64;
+            return SubstrateTarget.getArchitecture() instanceof AArch64;
         }
     }
 

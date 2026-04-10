@@ -45,7 +45,7 @@ import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.hosted.Feature.BeforeHeapLayoutAccess;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.code.ImageCodeInfo;
 import com.oracle.svm.core.meta.SharedMethod;
 import com.oracle.svm.core.meta.SharedType;
@@ -171,7 +171,7 @@ public class SubstrateReplacements extends ReplacementsImpl {
      */
     private static boolean isImmutable(Object o) {
         boolean mutableType = o instanceof SubstrateForeignCallLinkage ||
-                        o instanceof SubstrateTargetDescription ||
+                        o instanceof SubstrateTarget ||
                         o instanceof SharedType ||
                         o instanceof ImageCodeInfo;
         return !mutableType;
@@ -236,7 +236,7 @@ public class SubstrateReplacements extends ReplacementsImpl {
                             .build();
 
             EncodedGraph encodedGraph = new EncodedGraph(snippetEncoding, startOffset, snippetObjects, snippetNodeClasses, result);
-            PEGraphDecoder graphDecoder = new PEGraphDecoder(SubstrateTargetDescription.getArchitecture(), result, providers, null, snippetPlugins, new InlineInvokePlugin[0], parameterPlugin, null,
+            PEGraphDecoder graphDecoder = new PEGraphDecoder(SubstrateTarget.getArchitecture(), result, providers, null, snippetPlugins, new InlineInvokePlugin[0], parameterPlugin, null,
                             null, null, new ConcurrentHashMap<>(), new ConcurrentHashMap<>(), true, false) {
 
                 private final IntrinsicContext intrinsic = new IntrinsicContext(method, null, providers.getReplacements().getDefaultReplacementBytecodeProvider(), INLINE_AFTER_PARSING, false);

@@ -37,7 +37,7 @@ import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.hosted.Feature;
 
 import com.oracle.svm.core.CPUFeatureAccess;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.imagelayer.ImageLayerBuildingSupport;
 import com.oracle.svm.core.jdk.RuntimeSupport;
@@ -176,7 +176,7 @@ public final class RuntimeCPUFeatureCheckImpl {
     @Platforms(Platform.HOSTED_ONLY.class)
     @SuppressWarnings("rawtypes")
     RuntimeCPUFeatureCheckImpl() {
-        Architecture arch = SubstrateTargetDescription.getArchitecture();
+        Architecture arch = SubstrateTarget.getArchitecture();
         Set<? extends Enum<?>> supportedFeatures = RuntimeCPUFeatureCheck.getSupportedFeatures(arch);
         int size = supportedFeatures.size();
         if (size == 0) {
@@ -272,7 +272,7 @@ public final class RuntimeCPUFeatureCheckImpl {
 
     private int getEncoding(Enum<?> feature) {
         if (SubstrateUtil.HOSTED) {
-            GraalError.guarantee(enumToBitIndex != null, "No features registered for run time feature check for platform %s", SubstrateTargetDescription.getArchitecture());
+            GraalError.guarantee(enumToBitIndex != null, "No features registered for run time feature check for platform %s", SubstrateTarget.getArchitecture());
         }
         byte code = getEncodingUnchecked(feature);
         if (SubstrateUtil.HOSTED) {
@@ -370,7 +370,7 @@ public final class RuntimeCPUFeatureCheckImpl {
      */
     @Fold
     public static boolean shouldCreateRuntimeFeatureCheck(EnumSet<?> features) {
-        SubstrateTargetDescription target = SubstrateTargetDescription.singleton();
+        SubstrateTarget target = SubstrateTarget.singleton();
         return containsAll(target.getRuntimeCheckedCPUFeatures(), features) && containsAll(RuntimeCPUFeatureCheck.getSupportedFeatures(target.arch), features);
     }
 
@@ -381,7 +381,7 @@ public final class RuntimeCPUFeatureCheckImpl {
 
     @Fold
     static EnumSet<?> getStaticFeatures() {
-        Architecture arch = SubstrateTargetDescription.getArchitecture();
+        Architecture arch = SubstrateTarget.getArchitecture();
         if (arch instanceof AMD64) {
             return ((AMD64) arch).getFeatures();
         } else if (arch instanceof AArch64) {

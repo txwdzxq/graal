@@ -42,7 +42,7 @@ import com.oracle.graal.pointsto.heap.ImageHeapConstant;
 import com.oracle.graal.pointsto.meta.AnalysisField;
 import com.oracle.graal.pointsto.meta.AnalysisType;
 import com.oracle.svm.core.RuntimeAssertionsSupport;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.annotate.Alias;
 import com.oracle.svm.core.annotate.InjectAccessors;
 import com.oracle.svm.core.annotate.RecomputeFieldValue;
@@ -469,7 +469,7 @@ public final class FieldValueInterceptionSupport {
      */
     private static JavaConstant interceptWordField(AnalysisField field, JavaConstant value) {
         if (value.getJavaKind() == JavaKind.Object && value.isNull() && field.getType().isWordType()) {
-            return JavaConstant.forIntegerKind(SubstrateTargetDescription.getWordKind(), 0);
+            return JavaConstant.forIntegerKind(SubstrateTarget.getWordKind(), 0);
         }
         return value;
     }

@@ -89,7 +89,7 @@ import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.ParsingReason;
 import com.oracle.svm.core.RuntimeAssertionsSupport;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.annotate.Alias;
 import com.oracle.svm.core.annotate.AnnotateOriginal;
 import com.oracle.svm.core.annotate.Delete;
@@ -705,7 +705,7 @@ public final class TruffleBaseFeature implements InternalFeature {
         GuestTypes guestTypes = config.getImageClassLoader().guestTypes;
 
         if (graalGraphObjectReplacer == null) {
-            SubstrateWordTypes wordTypes = new SubstrateWordTypes(config.getMetaAccess(), SubstrateTargetDescription.getWordKind());
+            SubstrateWordTypes wordTypes = new SubstrateWordTypes(config.getMetaAccess(), SubstrateTarget.getWordKind());
             SubstrateRuntimeProviders substrateProviders = ImageSingletons.lookup(SubstrateGraalCompilerSetup.class).getSubstrateProviders(metaAccess, wordTypes);
             graalGraphObjectReplacer = new GraalGraphObjectReplacer(config.getUniverse(), substrateProviders, new SubstrateUniverseFactory());
             graalGraphObjectReplacer.setAnalysisAccess(config);

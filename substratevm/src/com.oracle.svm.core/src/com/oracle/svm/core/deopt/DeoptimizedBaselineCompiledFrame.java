@@ -33,7 +33,7 @@ import org.graalvm.nativeimage.c.function.CodePointer;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.code.CodeInfo;
 import com.oracle.svm.core.code.CodeInfoAccess;
 import com.oracle.svm.core.code.CodeInfoQueryResult;
@@ -80,7 +80,7 @@ public final class DeoptimizedBaselineCompiledFrame extends DeoptimizedFrame {
                     RelockObjectData[] relockedObjects, CodePointer sourcePC, boolean rethrowException, boolean isEagerDeopt) {
         this.sourceEncodedFrameSize = sourceEncodedFrameSize;
         this.topFrame = topFrame;
-        this.targetContent = new Deoptimizer.TargetContent(targetContentSize, SubstrateTargetDescription.getArchitecture().getByteOrder());
+        this.targetContent = new Deoptimizer.TargetContent(targetContentSize, SubstrateTarget.getArchitecture().getByteOrder());
         this.relockedObjects = relockedObjects;
         this.sourceInstalledCode = sourceInstalledCode == null ? null : new WeakReference<>(sourceInstalledCode);
         this.sourcePC = sourcePC;

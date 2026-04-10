@@ -60,7 +60,7 @@ import com.oracle.svm.core.ParsingReason;
 import com.oracle.svm.core.RuntimeAssertionsSupport;
 import com.oracle.svm.core.StaticFieldsSupport;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.classinitialization.EnsureClassInitializedNode;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.encoder.SymbolEncoder;
@@ -1256,7 +1256,7 @@ public class SubstrateGraphBuilderPlugins {
                     ValueNode compressedValue = b.add(WordCastNode.narrowOopToUntrackedWord(compressedObj, compressedIntKind));
                     b.addPush(JavaKind.Object, ZeroExtendNode.convertUnsigned(compressedValue, FrameAccess.getWordStamp(), NodeView.DEFAULT));
                 } else {
-                    b.addPush(JavaKind.Object, WordCastNode.objectToUntrackedPointer(objectNode, SubstrateTargetDescription.getWordKind()));
+                    b.addPush(JavaKind.Object, WordCastNode.objectToUntrackedPointer(objectNode, SubstrateTarget.getWordKind()));
                 }
                 return true;
             }
@@ -1273,7 +1273,7 @@ public class SubstrateGraphBuilderPlugins {
                     WordCastNode compressedObj = b.add(WordCastNode.wordToNarrowObject(narrowNode, compressedStamp));
                     b.addPush(JavaKind.Object, SubstrateCompressionNode.uncompress(b.getGraph(), compressedObj, encoding));
                 } else {
-                    b.addPush(JavaKind.Object, WordCastNode.wordToObject(wordNode, SubstrateTargetDescription.getWordKind()));
+                    b.addPush(JavaKind.Object, WordCastNode.wordToObject(wordNode, SubstrateTarget.getWordKind()));
                 }
                 return true;
             }

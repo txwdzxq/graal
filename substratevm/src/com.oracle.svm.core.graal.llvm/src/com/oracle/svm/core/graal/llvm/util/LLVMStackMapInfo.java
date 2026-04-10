@@ -34,7 +34,7 @@ import java.util.Set;
 
 import org.graalvm.collections.EconomicSet;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.shadowed.org.bytedeco.llvm.LLVM.LLVMRelocationIteratorRef;
 import com.oracle.svm.shadowed.org.bytedeco.llvm.LLVM.LLVMSectionIteratorRef;
 import com.oracle.svm.shadowed.org.bytedeco.llvm.global.LLVM;
@@ -322,7 +322,7 @@ public class LLVMStackMapInfo {
     }
 
     private int[] getStackOffsets(long patchpointID, Location location) {
-        int wordSize = SubstrateTargetDescription.getWordSize();
+        int wordSize = SubstrateTarget.getWordSize();
         assert location.size % wordSize == 0;
         int numLocations = location.size / wordSize;
         assert numLocations > 0;

@@ -45,7 +45,7 @@ import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.SubstrateGCOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.BooleanPointer;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.genscavenge.UnalignedHeapChunk.UnalignedHeader;
@@ -429,7 +429,7 @@ public final class ThreadLocalAllocation {
 
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
     private static void guaranteeZeroed(Pointer memory, UnsignedWord size) {
-        int wordSize = SubstrateTargetDescription.getWordSize();
+        int wordSize = SubstrateTarget.getWordSize();
         VMError.guarantee(UnsignedUtils.isAMultiple(size, Word.unsigned(wordSize)));
 
         Pointer pos = memory;

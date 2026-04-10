@@ -30,7 +30,7 @@ import org.graalvm.nativeimage.Platforms;
 
 import com.oracle.svm.core.ReservedRegisters;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.graal.code.SubstrateBackend;
@@ -113,7 +113,7 @@ class SubstrateAMD64LoweringProviderFactory extends SubstrateVectorArchitectureF
     @Override
     public DefaultJavaLoweringProvider newLoweringProvider(MetaAccessProvider metaAccess, ForeignCallsProvider foreignCalls, PlatformConfigurationProvider platformConfig,
                     MetaAccessExtensionProvider metaAccessExtensionProvider, TargetDescription target) {
-        VectorArchitecture vectorArchitecture = getSingletonVectorArchitecture(VectorAMD64::new, (AMD64) SubstrateTargetDescription.getArchitecture(), !SubstrateOptions.useLLVMBackend(),
+        VectorArchitecture vectorArchitecture = getSingletonVectorArchitecture(VectorAMD64::new, (AMD64) SubstrateTarget.getArchitecture(), !SubstrateOptions.useLLVMBackend(),
                         ObjectLayout.singleton().getReferenceSize(), ReferenceAccess.singleton().haveCompressedReferences(),
                         ObjectLayout.singleton().getAlignment());
         return new SubstrateAMD64LoweringProvider(metaAccess, foreignCalls, platformConfig, metaAccessExtensionProvider, target, vectorArchitecture);

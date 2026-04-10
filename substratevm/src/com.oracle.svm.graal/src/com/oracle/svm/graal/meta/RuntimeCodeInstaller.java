@@ -35,7 +35,7 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.NonmovableArray;
 import com.oracle.svm.core.code.AbstractRuntimeCodeInstaller;
 import com.oracle.svm.core.code.CodeInfo;
@@ -119,7 +119,7 @@ public class RuntimeCodeInstaller extends AbstractRuntimeCodeInstaller {
 
     private void prepareCodeMemory() {
         try (Indent _ = debug.logAndIndent("create installed code of %s.%s", method.getDeclaringClass().getName(), method.getName())) {
-            Architecture arch = SubstrateTargetDescription.getArchitecture();
+            Architecture arch = SubstrateTarget.getArchitecture();
             if (arch.getPlatformKind(JavaKind.Object).getSizeInBytes() != 8) {
                 throw VMError.shouldNotReachHere("wrong object size");
             }

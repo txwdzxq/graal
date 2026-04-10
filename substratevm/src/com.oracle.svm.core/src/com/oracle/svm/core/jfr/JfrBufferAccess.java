@@ -29,7 +29,7 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.memory.NullableNativeMemory;
 import com.oracle.svm.core.nmt.NmtCategory;
 import com.oracle.svm.core.thread.VMOperation;
@@ -50,7 +50,7 @@ public final class JfrBufferAccess {
 
     @Fold
     public static UnsignedWord getHeaderSize() {
-        return UnsignedUtils.roundUp(SizeOf.unsigned(JfrBuffer.class), Word.unsigned(SubstrateTargetDescription.getWordSize()));
+        return UnsignedUtils.roundUp(SizeOf.unsigned(JfrBuffer.class), Word.unsigned(SubstrateTarget.getWordSize()));
     }
 
     @Uninterruptible(reason = "Accesses a native JFR buffer.")

@@ -52,7 +52,7 @@ import com.oracle.objectfile.io.AssemblyBuffer;
 import com.oracle.svm.core.BuildPhaseProvider;
 import com.oracle.svm.core.ReservedRegisters;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.UniqueShortNameProvider;
 import com.oracle.svm.core.UniqueShortNameProviderDefaultImpl;
 import com.oracle.svm.core.c.CGlobalData;
@@ -209,7 +209,7 @@ class NativeImageDebugInfoFeature implements InternalFeature {
          * GDB JIT compilation interface.
          */
         if (SubstrateDebugInfoInstaller.Options.hasRuntimeDebugInfoFormatSupport(SubstrateDebugInfoInstaller.DEBUG_INFO_OBJFILE_NAME)) {
-            Architecture arch = SubstrateTargetDescription.getArchitecture();
+            Architecture arch = SubstrateTarget.getArchitecture();
             ByteBuffer buffer = ByteBuffer.allocate(SizeOf.get(GdbJitInterface.JITDescriptor.class)).order(arch.getByteOrder());
 
             /*

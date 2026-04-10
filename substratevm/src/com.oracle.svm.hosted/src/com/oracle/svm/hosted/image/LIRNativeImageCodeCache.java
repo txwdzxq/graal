@@ -37,7 +37,7 @@ import org.graalvm.collections.Pair;
 import com.oracle.graal.pointsto.BigBang;
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.graal.code.SharedCompilationResult;
 import com.oracle.svm.hosted.DeadlockWatchdog;
 import com.oracle.svm.hosted.code.HostedDirectCallTrampolineSupport;
@@ -70,7 +70,7 @@ public class LIRNativeImageCodeCache extends NativeImageCodeCache {
     @SuppressWarnings("this-escape")
     public LIRNativeImageCodeCache(Map<HostedMethod, CompilationResult> compilations, NativeImageHeap imageHeap) {
         super(compilations, imageHeap);
-        target = SubstrateTargetDescription.singleton();
+        target = SubstrateTarget.singleton();
         trampolineMap = new HashMap<>();
         orderedTrampolineMap = new HashMap<>();
 

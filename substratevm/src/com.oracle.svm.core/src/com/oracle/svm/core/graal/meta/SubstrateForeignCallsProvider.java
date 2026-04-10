@@ -33,7 +33,7 @@ import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.word.LocationIdentity;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.snippets.SnippetRuntime.SubstrateForeignCallDescriptor;
 import com.oracle.svm.shared.util.VMError;
 
@@ -59,7 +59,7 @@ public class SubstrateForeignCallsProvider implements ArrayCopyForeignCalls {
     public SubstrateForeignCallsProvider(MetaAccessProvider metaAccess, RegisterConfig registerConfig) {
         this.metaAccess = metaAccess;
         this.registerConfig = registerConfig;
-        this.target = SubstrateTargetDescription.singleton();
+        this.target = SubstrateTarget.singleton();
         this.foreignCalls = new HashMap<>();
     }
 

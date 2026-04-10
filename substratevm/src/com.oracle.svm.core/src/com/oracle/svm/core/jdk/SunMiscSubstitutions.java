@@ -33,7 +33,7 @@ import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.impl.UnsafeMemorySupport;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.annotate.Alias;
 import com.oracle.svm.core.annotate.Delete;
 import com.oracle.svm.core.annotate.RecomputeFieldValue;
@@ -88,7 +88,7 @@ final class Target_jdk_internal_misc_Unsafe_Core {
 
     @Substitute
     private int addressSize() {
-        return SubstrateTargetDescription.getWordSize();
+        return SubstrateTarget.getWordSize();
     }
 
     @Substitute

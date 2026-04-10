@@ -24,7 +24,7 @@
  */
 package com.oracle.svm.core.util;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import jdk.graal.compiler.api.replacements.Fold;
 import jdk.graal.compiler.core.common.util.UnsafeArrayTypeReader;
 
@@ -64,6 +64,6 @@ public class ByteArrayReader {
 
     @Fold
     public static boolean supportsUnalignedMemoryAccess() {
-        return SubstrateTargetDescription.getArchitecture().supportsUnalignedMemoryAccess();
+        return SubstrateTarget.getArchitecture().supportsUnalignedMemoryAccess();
     }
 }

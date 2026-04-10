@@ -46,7 +46,7 @@ import com.oracle.objectfile.ObjectFile;
 import com.oracle.objectfile.SectionName;
 import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.CGlobalData;
 import com.oracle.svm.core.c.CGlobalDataFactory;
 import com.oracle.svm.core.deopt.Deoptimizer;
@@ -99,7 +99,7 @@ public abstract class InterpreterStubSection {
     /* '-3' to reduce padding due to alignment in .svm_interp section */
     static final int MAX_VTABLE_STUBS = 2 * 1024 - 3;
 
-    protected final SubstrateTargetDescription target;
+    protected final SubstrateTarget target;
     protected final RegisterConfig registerConfig;
     protected final ValueKindFactory<LIRKind> valueKindFactory;
 
@@ -112,7 +112,7 @@ public abstract class InterpreterStubSection {
     private int vTableStubBaseOffset = -1;
 
     protected InterpreterStubSection() {
-        this.target = SubstrateTargetDescription.singleton();
+        this.target = SubstrateTarget.singleton();
         this.registerConfig = SubstrateRegisterConfigFactory.singleton().newRegisterFactory(SubstrateRegisterConfig.ConfigKind.NATIVE_TO_JAVA, null, this.target, true);
         this.valueKindFactory = javaKind -> LIRKind.fromJavaKind(this.target.arch, javaKind);
     }

@@ -159,7 +159,7 @@ public final class UnmanagedMemoryUtil {
     @IntrinsicCandidate
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
     public static void copyWordsForward(Pointer from, Pointer to, UnsignedWord size) {
-        int wordSize = SubstrateTargetDescription.getWordSize();
+        int wordSize = SubstrateTarget.getWordSize();
         int stepSize = 4 * wordSize;
         Pointer src = from;
         Pointer dst = to;

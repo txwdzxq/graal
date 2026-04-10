@@ -39,7 +39,7 @@ import org.graalvm.word.impl.Word;
 import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.ReservedRegisters;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.graal.code.SubstrateBackend;
 import com.oracle.svm.core.graal.code.SubstrateCallingConventionKind;
 import com.oracle.svm.core.graal.meta.KnownOffsets;
@@ -403,7 +403,7 @@ public abstract class NonSnippetLowerings {
                         assert targetMethod != null : "Expecting a unique callee for target method " + method;
                     }
 
-                    JavaKind wordKind = SubstrateTargetDescription.getWordKind();
+                    JavaKind wordKind = SubstrateTarget.getWordKind();
                     if (SubstrateUtil.HOSTED && targetMethod.forceIndirectCall()) {
                         /*
                          * Lower cross layer boundary direct calls to indirect calls. First load the

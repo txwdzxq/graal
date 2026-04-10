@@ -76,7 +76,7 @@ import com.oracle.svm.core.InvalidMethodPointerHandler;
 import com.oracle.svm.core.Isolates;
 import com.oracle.svm.core.OS;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.CGlobalDataImpl;
 import com.oracle.svm.core.c.function.GraalIsolateHeader;
 import com.oracle.svm.core.c.libc.TemporaryBuildDirectoryProvider;
@@ -151,7 +151,7 @@ public abstract class NativeImage extends AbstractImage {
     public static final long RWDATA_CGLOBALS_PARTITION_OFFSET = 0;
 
     private final ObjectFile objectFile;
-    private final SubstrateTargetDescription targetDescription;
+    private final SubstrateTarget targetDescription;
     private final int wordSize;
     private final Set<HostedMethod> uniqueEntryPoints = new HashSet<>(); // noEconomicSet(streaming)
     private final MethodPointerRelocationProvider relocationProvider;
@@ -179,7 +179,7 @@ public abstract class NativeImage extends AbstractImage {
         relocationProvider = MethodPointerRelocationProvider.singleton();
 
         int pageSize = SubstrateOptions.getPageSize();
-        targetDescription = SubstrateTargetDescription.singleton();
+        targetDescription = SubstrateTarget.singleton();
         wordSize = targetDescription.wordSize;
         objectFile = ObjectFileFactory.singleton().newObjectFile(pageSize, ImageSingletons.lookup(TemporaryBuildDirectoryProvider.class).getTemporaryBuildDirectory(), universe.getBigBang());
         objectFile.setByteOrder(targetDescription.arch.getByteOrder());

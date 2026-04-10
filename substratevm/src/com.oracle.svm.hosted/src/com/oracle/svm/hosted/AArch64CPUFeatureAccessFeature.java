@@ -29,7 +29,7 @@ import java.util.EnumSet;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.aarch64.AArch64CPUFeatureAccess;
 import com.oracle.svm.core.aarch64.AArch64LibCHelper;
 import com.oracle.svm.core.feature.InternalFeature;
@@ -48,7 +48,7 @@ class AArch64CPUFeatureAccessFeature extends CPUFeatureAccessFeatureBase impleme
 
     @Override
     public void beforeAnalysis(BeforeAnalysisAccess arg) {
-        var arch = (AArch64) SubstrateTargetDescription.getArchitecture();
+        var arch = (AArch64) SubstrateTarget.getArchitecture();
         var buildtimeCPUFeatures = arch.getFeatures();
         initializeCPUFeatureAccessData(AArch64.CPUFeature.values(), buildtimeCPUFeatures, AArch64LibCHelper.CPUFeatures.class, (FeatureImpl.BeforeAnalysisAccessImpl) arg);
     }

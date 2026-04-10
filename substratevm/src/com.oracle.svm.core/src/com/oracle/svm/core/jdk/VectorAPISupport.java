@@ -31,7 +31,7 @@ import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.jdk.VectorAPISupport.LayeredCallbacks;
 import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.shared.singletons.ImageSingletonLoader;
@@ -68,7 +68,7 @@ public final class VectorAPISupport {
 
     @Platforms(Platform.HOSTED_ONLY.class) //
     protected VectorAPISupport() {
-        Architecture arch = SubstrateTargetDescription.getArchitecture();
+        Architecture arch = SubstrateTarget.getArchitecture();
         EnumSet<? extends CPUFeatureName> features = null;
         if (arch instanceof AMD64 amd64) {
             features = amd64.getFeatures();

@@ -32,7 +32,7 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.NeverInline;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.UnmanagedMemoryUtil;
 import com.oracle.svm.core.graal.nodes.WriteStackPointerNode;
 import com.oracle.svm.core.heap.StoredContinuation;
@@ -116,7 +116,7 @@ public class ContinuationSupport {
     @Uninterruptible(reason = "Copies stack frames containing references.")
     protected CodePointer copyFrames(StoredContinuation storedCont, Pointer topSP, @SuppressWarnings("unused") Object preparedData) {
         int totalSize = StoredContinuationAccess.getFramesSizeInBytes(storedCont);
-        assert totalSize % SubstrateTargetDescription.getWordSize() == 0;
+        assert totalSize % SubstrateTarget.getWordSize() == 0;
 
         Pointer frameData = StoredContinuationAccess.getFramesStart(storedCont);
         UnmanagedMemoryUtil.copyWordsForward(frameData, topSP, Word.unsigned(totalSize));

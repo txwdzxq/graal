@@ -44,7 +44,7 @@ import com.oracle.graal.pointsto.ObjectScanner.ScanReason;
 import com.oracle.graal.pointsto.meta.AnalysisType;
 import com.oracle.svm.core.CGlobalDataPointerSingleton;
 import com.oracle.svm.core.ParsingReason;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.BoxedRelocatedPointer;
 import com.oracle.svm.core.c.CGlobalData;
 import com.oracle.svm.core.c.CGlobalDataImpl;
@@ -397,7 +397,7 @@ public class CGlobalDataFeature implements InternalFeature {
 
     private void layout() {
         assert !isLaidOut() : "Already laid out";
-        final int wordSize = SubstrateTargetDescription.getWordSize();
+        final int wordSize = SubstrateTarget.getWordSize();
         /*
          * Put larger blobs at the end so that offsets are reasonable (<24bit imm) for smaller
          * entries

@@ -33,7 +33,7 @@ import com.oracle.objectfile.BasicProgbitsSectionImpl;
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.objectfile.SectionName;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.meta.MethodPointer;
 import com.oracle.svm.core.meta.SharedMethod;
@@ -87,7 +87,7 @@ public class IdentityMethodAddressResolverFeature implements InternalFeature {
             GOTEntryAllocator gotEntryAllocator = HostedPLTGOTConfiguration.singleton().getGOTEntryAllocator();
             SharedMethod[] got = gotEntryAllocator.getGOT();
             long methodCount = got.length;
-            int wordSize = SubstrateTargetDescription.getWordSize();
+            int wordSize = SubstrateTarget.getWordSize();
             long gotSectionSize = methodCount * wordSize;
             offsetsSectionBuffer = new RelocatableBuffer(gotSectionSize, imageObjectFile.getByteOrder());
             offsetsSectionBufferImpl = new BasicProgbitsSectionImpl(offsetsSectionBuffer.getBackingArray());

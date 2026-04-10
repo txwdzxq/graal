@@ -36,7 +36,7 @@ import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.WordBase;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.util.UnsignedUtils;
 import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.ImageSingletonLoader;
@@ -91,7 +91,7 @@ public final class ObjectLayout {
         return ImageSingletons.lookup(ObjectLayout.class);
     }
 
-    private final SubstrateTargetDescription target;
+    private final SubstrateTarget target;
     private final int referenceSize;
     private final int objectAlignment;
     private final int alignmentMask;
@@ -105,7 +105,7 @@ public final class ObjectLayout {
     private final int identityHashNumBits;
     private final int identityHashShift;
 
-    public ObjectLayout(SubstrateTargetDescription target, int referenceSize, int objectAlignment, int hubSize, int hubOffset, int firstFieldOffset, int arrayLengthOffset, int arrayBaseOffset,
+    public ObjectLayout(SubstrateTarget target, int referenceSize, int objectAlignment, int hubSize, int hubOffset, int firstFieldOffset, int arrayLengthOffset, int arrayBaseOffset,
                     int headerIdentityHashOffset, IdentityHashMode identityHashMode, int identityHashNumBits, int identityHashShift) {
         assert CodeUtil.isPowerOf2(referenceSize) : referenceSize;
         assert CodeUtil.isPowerOf2(objectAlignment) : objectAlignment;

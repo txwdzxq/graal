@@ -39,7 +39,7 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.FrameAccess;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.code.CodeInfo;
 import com.oracle.svm.core.code.CodeInfoAccess;
 import com.oracle.svm.core.code.CodeInfoTable;
@@ -110,7 +110,7 @@ public final class JavaStackWalker {
 
     @Fold
     static int getJavaFrameOffset() {
-        return NumUtil.roundUp(SizeOf.get(JavaStackWalkImpl.class), SubstrateTargetDescription.getWordSize());
+        return NumUtil.roundUp(SizeOf.get(JavaStackWalkImpl.class), SubstrateTarget.getWordSize());
     }
 
     @Fold

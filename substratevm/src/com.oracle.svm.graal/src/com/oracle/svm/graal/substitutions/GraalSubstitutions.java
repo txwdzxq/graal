@@ -46,7 +46,7 @@ import org.graalvm.nativeimage.hosted.FieldValueTransformer;
 
 import com.oracle.svm.core.Isolates;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.VMInspectionOptions;
 import com.oracle.svm.core.annotate.Alias;
 import com.oracle.svm.core.annotate.Delete;
@@ -420,7 +420,7 @@ final class Target_jdk_vm_ci_code_TargetDescription {
     static class InlineObjectsAccessor {
         static boolean get(Target_jdk_vm_ci_code_TargetDescription receiver) {
             if (receiver.inlineObjectsValue == null) {
-                receiver.inlineObjectsValue = SubstrateTargetDescription.shouldInlineObjectsInRuntimeCode();
+                receiver.inlineObjectsValue = SubstrateTarget.shouldInlineObjectsInRuntimeCode();
             }
             return receiver.inlineObjectsValue;
         }

@@ -39,7 +39,7 @@ import org.graalvm.word.impl.Word;
 
 import com.oracle.graal.pointsto.meta.AnalysisMethod;
 import com.oracle.graal.pointsto.meta.AnalysisType;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.InvokeJavaFunctionPointer;
 import com.oracle.svm.core.c.struct.CInterfaceLocationIdentity;
 import com.oracle.svm.core.graal.code.SubstrateCallingConventionKind;
@@ -170,7 +170,7 @@ public class CInterfaceInvocationPlugin implements NodePlugin {
 
         SizableInfo typeInC = (SizableInfo) accessorInfo.getParent();
         ValueNode base = args[AccessorInfo.baseParameterNumber(true)];
-        assert base.getStackKind() == SubstrateTargetDescription.getWordKind();
+        assert base.getStackKind() == SubstrateTarget.getWordKind();
 
         switch (accessorInfo.getAccessorKind()) {
             case ADDRESS -> replaceWithAddress(b, method, base, args, accessorInfo, displacement, typeInC);
@@ -403,7 +403,7 @@ public class CInterfaceInvocationPlugin implements NodePlugin {
     }
 
     private static ValueNode makeOffset(StructuredGraph graph, ValueNode[] args, AccessorInfo accessorInfo, int displacement, int indexScaling) {
-        JavaKind wordKind = SubstrateTargetDescription.getWordKind();
+        JavaKind wordKind = SubstrateTarget.getWordKind();
         ValueNode offset = ConstantNode.forIntegerKind(wordKind, displacement, graph);
 
         if (accessorInfo.isIndexed()) {

@@ -55,7 +55,7 @@ import com.oracle.objectfile.LayoutDecisionMap;
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.objectfile.SymbolTable;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.graal.llvm.LLVMToolchainUtils.BatchExecutor;
 import com.oracle.svm.core.graal.llvm.util.LLVMIRBuilder;
 import com.oracle.svm.core.graal.llvm.util.LLVMOptions;
@@ -142,7 +142,7 @@ public class LLVMObjectFile extends ObjectFile {
 
     @Override
     public int getWordSizeInBytes() {
-        return SubstrateTargetDescription.getWordSize();
+        return SubstrateTarget.getWordSize();
     }
 
     @Override

@@ -30,7 +30,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 
 import com.oracle.svm.core.ParsingReason;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.cpufeature.RuntimeCPUFeatureCheck;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.graal.aarch64.AArch64CPUFeatureRegionOp;
@@ -158,7 +158,7 @@ class RuntimeCPUFeatureRegionFeature implements InternalFeature {
 
         @Override
         public void generate(NodeLIRBuilderTool tool) {
-            Architecture arch = SubstrateTargetDescription.getArchitecture();
+            Architecture arch = SubstrateTarget.getArchitecture();
             if (arch instanceof AMD64) {
                 LIRGenerator generator = (LIRGenerator) tool.getLIRGeneratorTool();
                 generator.append(new AMD64CPUFeatureRegionOp.AMD64CPUFeatureRegionEnterOp(checkedCast(features, AMD64.CPUFeature.class)));
@@ -187,7 +187,7 @@ class RuntimeCPUFeatureRegionFeature implements InternalFeature {
 
         @Override
         public void generate(NodeLIRBuilderTool tool) {
-            Architecture arch = SubstrateTargetDescription.getArchitecture();
+            Architecture arch = SubstrateTarget.getArchitecture();
             if (arch instanceof AMD64) {
                 LIRGenerator generator = (LIRGenerator) tool.getLIRGeneratorTool();
                 generator.append(new AMD64CPUFeatureRegionOp.AMD64CPUFeatureRegionLeaveOp());

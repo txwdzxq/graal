@@ -40,7 +40,7 @@ import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.JavaMemoryUtil;
 import com.oracle.svm.core.NeverInline;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.UnmanagedMemoryUtil;
 import com.oracle.svm.core.genscavenge.graal.nodes.FormatArrayNode;
 import com.oracle.svm.core.genscavenge.graal.nodes.FormatObjectNode;
@@ -836,7 +836,7 @@ public final class WasmAllocation {
         /**
          * The size taken up by the two pointers for the free list.
          */
-        private static final UnsignedWord POINTERS_SIZE = Word.unsigned(2 * SubstrateTargetDescription.getWordSize());
+        private static final UnsignedWord POINTERS_SIZE = Word.unsigned(2 * SubstrateTarget.getWordSize());
 
         /**
          * The minimum size of a free block (header and space for the two pointers).
@@ -858,7 +858,7 @@ public final class WasmAllocation {
          */
         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
         static Pointer getPrevFreeBlock(Pointer freeBlock) {
-            return getInnerPointer(freeBlock).readWord(SubstrateTargetDescription.getWordSize());
+            return getInnerPointer(freeBlock).readWord(SubstrateTarget.getWordSize());
         }
 
         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
@@ -868,7 +868,7 @@ public final class WasmAllocation {
 
         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
         static void setPrev(Pointer freeBlock, Pointer prev) {
-            getInnerPointer(freeBlock).writeWord(SubstrateTargetDescription.getWordSize(), prev);
+            getInnerPointer(freeBlock).writeWord(SubstrateTarget.getWordSize(), prev);
         }
 
         /**

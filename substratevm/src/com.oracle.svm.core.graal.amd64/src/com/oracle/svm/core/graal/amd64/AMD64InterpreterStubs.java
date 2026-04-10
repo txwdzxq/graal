@@ -45,7 +45,7 @@ import org.graalvm.word.impl.Word;
 import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.ReservedRegisters;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.struct.OffsetOf;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.deopt.DeoptimizationSlotPacking;
@@ -89,7 +89,7 @@ import jdk.vm.ci.meta.JavaKind;
 public class AMD64InterpreterStubs {
 
     private static SubstrateAMD64RegisterConfig getRegisterConfig() {
-        return new SubstrateAMD64RegisterConfig(SubstrateRegisterConfig.ConfigKind.NORMAL, null, SubstrateTargetDescription.singleton(),
+        return new SubstrateAMD64RegisterConfig(SubstrateRegisterConfig.ConfigKind.NORMAL, null, SubstrateTarget.singleton(),
                         SubstrateOptions.PreserveFramePointer.getValue());
     }
 
@@ -685,7 +685,7 @@ public class AMD64InterpreterStubs {
         @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
         private static int spAdjustOnCall(int offset) {
             // offset is relative caller sp, undo side-effect of call instruction
-            int spAdjustmentOnCall = SubstrateTargetDescription.getWordSize();
+            int spAdjustmentOnCall = SubstrateTarget.getWordSize();
             return offset + spAdjustmentOnCall;
         }
 

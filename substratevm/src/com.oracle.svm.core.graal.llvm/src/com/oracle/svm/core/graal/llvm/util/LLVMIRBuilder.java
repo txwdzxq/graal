@@ -36,7 +36,7 @@ import java.util.Arrays;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.shadowed.org.bytedeco.javacpp.BytePointer;
 import com.oracle.svm.shadowed.org.bytedeco.javacpp.Pointer;
 import com.oracle.svm.shadowed.org.bytedeco.javacpp.PointerPointer;
@@ -355,11 +355,11 @@ public class LLVMIRBuilder implements AutoCloseable {
     }
 
     public LLVMTypeRef wordType() {
-        return integerType(SubstrateTargetDescription.getWordSize() * Byte.SIZE);
+        return integerType(SubstrateTarget.getWordSize() * Byte.SIZE);
     }
 
     public static boolean isWordType(LLVMTypeRef type) {
-        return isIntegerType(type) && integerTypeWidth(type) == SubstrateTargetDescription.getWordSize() * Byte.SIZE;
+        return isIntegerType(type) && integerTypeWidth(type) == SubstrateTarget.getWordSize() * Byte.SIZE;
     }
 
     public LLVMTypeRef floatType() {

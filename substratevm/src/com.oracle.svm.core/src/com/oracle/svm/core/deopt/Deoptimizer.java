@@ -49,7 +49,7 @@ import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.Isolates;
 import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.code.CodeInfo;
 import com.oracle.svm.core.code.CodeInfoAccess;
 import com.oracle.svm.core.code.CodeInfoQueryResult;
@@ -859,7 +859,7 @@ public final class Deoptimizer {
         FrameAccess.singleton().writeReturnAddress(CurrentIsolate.getCurrentThread(), originalStackPointer, returnAddress);
 
         try {
-            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(SubstrateTargetDescription.singleton().stackAlignment));
+            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(SubstrateTarget.singleton().stackAlignment));
             assert Options.LazyDeoptimization.getValue();
             assert VMThreads.StatusSupport.isStatusJava() : "Deopt stub execution must not be visible to other threads.";
 
@@ -894,7 +894,7 @@ public final class Deoptimizer {
          * that involves returning an exception object.
          */
         try {
-            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(SubstrateTargetDescription.singleton().stackAlignment));
+            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(SubstrateTarget.singleton().stackAlignment));
             assert Options.LazyDeoptimization.getValue();
             assert VMThreads.StatusSupport.isStatusJava() : "Deopt stub execution must not be visible to other threads.";
             assert !ExceptionUnwind.getLazyDeoptStubShouldReturnToExceptionHandler();
@@ -1025,7 +1025,7 @@ public final class Deoptimizer {
         FrameAccess.singleton().writeReturnAddress(CurrentIsolate.getCurrentThread(), originalStackPointer, returnAddress);
 
         try {
-            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(SubstrateTargetDescription.singleton().stackAlignment));
+            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(SubstrateTarget.singleton().stackAlignment));
             VMError.guarantee(VMThreads.StatusSupport.isStatusJava(), "Deopt stub execution must not be visible to other threads.");
 
             DeoptimizedFrame frame = (DeoptimizedFrame) ReferenceAccess.singleton().readObjectAt(originalStackPointer, true);
@@ -1111,7 +1111,7 @@ public final class Deoptimizer {
     @Fold
     public static int savedBasePointerSize() {
         if (SubstrateOptions.hasFramePointer()) {
-            return SubstrateTargetDescription.getWordSize();
+            return SubstrateTarget.getWordSize();
         } else {
             VMError.guarantee(Platform.includedIn(Platform.AMD64.class));
             return 0;
@@ -1391,7 +1391,7 @@ public final class Deoptimizer {
             deoptInfo = deoptInfo.getCaller();
         }
 
-        int wordSize = SubstrateTargetDescription.getWordSize();
+        int wordSize = SubstrateTarget.getWordSize();
         if (sourceChunk.getTotalFrameSize() < wordSize) {
             throw fatalDeoptimizationError(
                             String.format("Insufficient space in frame for pointer to DeoptimizedFrame sourceChunkSize: %s, word size: %s", sourceChunk.getTotalFrameSize(), wordSize),
@@ -1793,7 +1793,7 @@ public final class Deoptimizer {
         /** Write a word-sized constant to the frame buffer. */
         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
         protected void writeWord(int offset, WordBase value) {
-            int wordSize = SubstrateTargetDescription.getWordSize();
+            int wordSize = SubstrateTarget.getWordSize();
             if (wordSize == 8) {
                 writeLong(offset, value.rawValue());
             } else if (wordSize == 4) {

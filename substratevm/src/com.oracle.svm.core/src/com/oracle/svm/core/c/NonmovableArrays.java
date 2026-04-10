@@ -38,7 +38,7 @@ import org.graalvm.word.WordBase;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.JavaMemoryUtil;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.UnmanagedMemoryUtil;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.heap.Heap;
@@ -387,7 +387,7 @@ public final class NonmovableArrays {
             hosted[index] = value;
             return;
         }
-        assert matches(array, true, SubstrateTargetDescription.getWordSize());
+        assert matches(array, true, SubstrateTarget.getWordSize());
         ((Pointer) addressOf(array, index)).writeWord(0, value);
     }
 
@@ -398,7 +398,7 @@ public final class NonmovableArrays {
             T[] hosted = getHostedArray(array);
             return hosted[index];
         }
-        assert matches(array, true, SubstrateTargetDescription.getWordSize());
+        assert matches(array, true, SubstrateTarget.getWordSize());
         return ((Pointer) addressOf(array, index)).readWord(0);
     }
 

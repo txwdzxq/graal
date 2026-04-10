@@ -38,7 +38,7 @@ import org.graalvm.word.WordBase;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.ReservedRegisters;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.code.FrameInfoQueryResult;
 import com.oracle.svm.core.code.FrameInfoQueryResult.ValueType;
 import com.oracle.svm.core.config.ObjectLayout;
@@ -148,7 +148,7 @@ public class DeoptState {
     }
 
     private static PrimitiveConstant createWordConstant(WordBase word) {
-        return JavaConstant.forIntegerKind(SubstrateTargetDescription.getWordKind(), word.rawValue());
+        return JavaConstant.forIntegerKind(SubstrateTarget.getWordKind(), word.rawValue());
     }
 
     private Object materializeObject(FrameInfoQueryResult.ValueInfo valueInfo, FrameInfoQueryResult sourceFrame) {

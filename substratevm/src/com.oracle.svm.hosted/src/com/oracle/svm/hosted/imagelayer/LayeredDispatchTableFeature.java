@@ -47,7 +47,7 @@ import com.oracle.graal.pointsto.meta.AnalysisMethod;
 import com.oracle.graal.pointsto.meta.AnalysisType;
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.InvalidMethodPointerHandler;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.graal.snippets.OpenTypeWorldDispatchTableSnippets;
 import com.oracle.svm.core.hub.DynamicHub;
@@ -150,7 +150,7 @@ public class LayeredDispatchTableFeature implements InternalFeature {
 
     @Override
     public void beforeAnalysis(Feature.BeforeAnalysisAccess access) {
-        wordSize = SubstrateTargetDescription.getWordSize();
+        wordSize = SubstrateTarget.getWordSize();
         if (ImageLayerBuildingSupport.buildingExtensionLayer()) {
             var config = (FeatureImpl.BeforeAnalysisAccessImpl) access;
             getPriorVirtualCallTargets().forEach(aMethod -> {

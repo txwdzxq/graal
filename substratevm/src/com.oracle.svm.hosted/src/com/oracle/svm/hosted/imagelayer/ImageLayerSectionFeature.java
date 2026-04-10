@@ -45,7 +45,7 @@ import com.oracle.objectfile.BasicProgbitsSectionImpl;
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.objectfile.SectionName;
 import com.oracle.svm.core.Isolates;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.CGlobalData;
 import com.oracle.svm.core.c.CGlobalDataFactory;
 import com.oracle.svm.core.config.ObjectLayout;
@@ -164,7 +164,7 @@ public final class ImageLayerSectionFeature implements InternalFeature {
     }
 
     private static byte[] createWords(int count, WordBase initialValue) {
-        Architecture arch = SubstrateTargetDescription.getArchitecture();
+        Architecture arch = SubstrateTarget.getArchitecture();
         assert arch.getWordSize() == Long.BYTES : "currently hard-coded for 8 byte words";
         ByteBuffer buffer = ByteBuffer.allocate(count * Long.BYTES).order(arch.getByteOrder());
         for (int i = 0; i < count; i++) {

@@ -34,7 +34,7 @@ import org.graalvm.nativeimage.Platforms;
 
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.SubstrateControlFlowIntegrity;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.graal.amd64.SubstrateAMD64Backend;
 import com.oracle.svm.hosted.image.NativeImage;
 import com.oracle.svm.hosted.meta.HostedMethod;
@@ -87,7 +87,7 @@ class AMD64InterpreterStubSection extends InterpreterStubSection {
 
     @Override
     public int getVTableStubSize() {
-        int branchTargetAlignment = SubstrateTargetDescription.getWordSize() * 2;
+        int branchTargetAlignment = SubstrateTarget.getWordSize() * 2;
         int stubSize = 10;
 
         return NumUtil.roundUp(stubSize, branchTargetAlignment);

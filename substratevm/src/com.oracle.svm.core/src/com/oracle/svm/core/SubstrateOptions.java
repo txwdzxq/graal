@@ -1040,7 +1040,7 @@ public class SubstrateOptions {
     }
 
     private static int defaultCodeAlignment() {
-        return SubstrateTargetDescription.getArchitecture() instanceof AMD64 ? 32 : 16;
+        return SubstrateTarget.getArchitecture() instanceof AMD64 ? 32 : 16;
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)

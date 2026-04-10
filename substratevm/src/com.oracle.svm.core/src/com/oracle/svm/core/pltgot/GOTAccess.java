@@ -28,14 +28,14 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.shared.Uninterruptible;
 
 public class GOTAccess {
 
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
     public static int getGotEntryOffsetFromHeapRegister(int gotEntry) {
-        return -(gotEntry + 1) * SubstrateTargetDescription.getWordSize();
+        return -(gotEntry + 1) * SubstrateTarget.getWordSize();
     }
 
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)

@@ -38,7 +38,7 @@ import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.code.CodeInfo;
 import com.oracle.svm.core.code.CodeInfoAccess;
 import com.oracle.svm.core.code.CodeInfoQueryResult;
@@ -155,7 +155,7 @@ public final class JfrStackWalker {
                     anchor = anchor.getPreviousAnchor();
                 } else {
                     /* Both the top frame and its caller are probably Java frames. */
-                    int wordSize = SubstrateTargetDescription.getWordSize();
+                    int wordSize = SubstrateTarget.getWordSize();
                     if (isSPAligned(sp)) {
                         UnsignedWord topFrameSize = Word.unsigned(CodeInfoQueryResult.getTotalFrameSize(topFrameEncodedSize));
                         if (SubstrateOptions.hasFramePointer() && !hasValidCaller(sp, topFrameSize, topFrameIsEntryPoint, anchor)) {
@@ -366,7 +366,7 @@ public final class JfrStackWalker {
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     private static boolean isSPAligned(Pointer sp) {
-        return PointerUtils.isAMultiple(sp, Word.unsigned(SubstrateTargetDescription.singleton().stackAlignment));
+        return PointerUtils.isAMultiple(sp, Word.unsigned(SubstrateTarget.singleton().stackAlignment));
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)

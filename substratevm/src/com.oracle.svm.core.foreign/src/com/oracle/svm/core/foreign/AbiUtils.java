@@ -54,7 +54,7 @@ import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.BuildPhaseProvider.AfterAnalysis;
 import com.oracle.svm.core.SubstrateControlFlowIntegrity;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.aarch64.SubstrateAArch64MacroAssembler;
 import com.oracle.svm.core.foreign.AbiUtils.Adapter.Adaptation;
 import com.oracle.svm.core.graal.code.AssignedLocation;
@@ -382,7 +382,7 @@ public abstract class AbiUtils {
                  * WordCastNode.addressToWord) but NativeMemorySegmentImpls return null for
                  * `unsafeGetBase`,which seems to break the graph somewhere later.
                  */
-                var basePointer = WordCastNode.objectToUntrackedPointer(parameter, SubstrateTargetDescription.getWordKind());
+                var basePointer = WordCastNode.objectToUntrackedPointer(parameter, SubstrateTarget.getWordKind());
                 appendToGraph.accept(basePointer);
                 var absolutePointer = AddNode.add(basePointer, offsetArg);
                 appendToGraph.accept(absolutePointer);
@@ -1140,7 +1140,7 @@ class ABIs {
         protected List<Adapter.Adaptation> generateAdaptations(NativeEntryPointInfo nep) {
             List<Adapter.Adaptation> adaptations = super.generateAdaptations(nep);
 
-            AMD64 target = (AMD64) SubstrateTargetDescription.getArchitecture();
+            AMD64 target = (AMD64) SubstrateTarget.getArchitecture();
             boolean previousMatched = false;
             PlatformKind previousKind = null;
             for (int i = adaptations.size() - 1; i >= 0; --i) {

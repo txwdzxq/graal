@@ -48,7 +48,7 @@ import com.oracle.graal.pointsto.results.StrengthenGraphs;
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.MissingRegistrationSupport;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.config.ObjectLayout.IdentityHashMode;
 import com.oracle.svm.core.graal.code.SubstrateMetaAccessExtensionProvider;
@@ -149,7 +149,7 @@ public class HostedConfiguration {
      * </ul>
      */
     public static ObjectLayout createObjectLayout(JavaKind referenceKind, IdentityHashMode identityHashMode) {
-        SubstrateTargetDescription target = SubstrateTargetDescription.singleton();
+        SubstrateTarget target = SubstrateTarget.singleton();
         int referenceSize = target.arch.getPlatformKind(referenceKind).getSizeInBytes();
         int intSize = target.arch.getPlatformKind(JavaKind.Int).getSizeInBytes();
         int objectAlignment = 8;

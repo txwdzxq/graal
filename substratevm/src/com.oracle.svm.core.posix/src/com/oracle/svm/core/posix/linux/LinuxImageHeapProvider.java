@@ -64,7 +64,7 @@ import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.CGlobalData;
 import com.oracle.svm.core.c.CGlobalDataFactory;
 import com.oracle.svm.core.c.function.CEntryPointErrors;
@@ -254,7 +254,7 @@ public class LinuxImageHeapProvider extends AbstractImageHeapProvider {
 
     @Uninterruptible(reason = "Thread state not yet set up.")
     private static int applyLayerCodePointerPatches(Pointer data, int startOffset, Pointer layerHeapRelocs, Word addend) {
-        int wordSize = SubstrateTargetDescription.getWordSize();
+        int wordSize = SubstrateTarget.getWordSize();
 
         int offset = startOffset;
         long bitmapWordCountAsLong = data.readLong(offset);
@@ -753,7 +753,7 @@ public class LinuxImageHeapProvider extends AbstractImageHeapProvider {
 
         // Find the offset of the magic word in the image file. We cannot reliably compute it
         // from the image heap offset below because it might be in a different file segment.
-        int wordSize = SubstrateTargetDescription.getWordSize();
+        int wordSize = SubstrateTarget.getWordSize();
         WordPointer magicMappingStart = StackValue.get(WordPointer.class);
         WordPointer magicMappingFileOffset = StackValue.get(WordPointer.class);
         boolean found = findMapping(mapfd, buffer, bufferSize, magicAddress, magicAddress.add(wordSize), magicMappingStart, magicMappingFileOffset, false);

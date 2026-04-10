@@ -41,7 +41,7 @@ import java.util.EnumSet;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 
 import jdk.graal.compiler.api.replacements.Fold;
 import jdk.graal.compiler.debug.GraalError;
@@ -162,7 +162,7 @@ public final class Stubs {
     }
 
     public static EnumSet<?> getRequiredCPUFeatures(Class<? extends ValueNode> klass) {
-        Architecture arch = SubstrateTargetDescription.getArchitecture();
+        Architecture arch = SubstrateTarget.getArchitecture();
         if (arch instanceof AMD64) {
             return AMD64Features.getRequiredCPUFeatures(klass);
         }

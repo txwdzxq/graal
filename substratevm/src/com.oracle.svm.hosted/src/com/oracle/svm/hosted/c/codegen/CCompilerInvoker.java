@@ -45,7 +45,7 @@ import org.graalvm.nativeimage.Platform;
 import com.oracle.svm.core.JavaVersionUtil;
 import com.oracle.svm.core.OS;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.util.InterruptImageBuilding;
 import com.oracle.svm.core.util.UserError;
 import com.oracle.svm.hosted.c.libc.HostedLibCBase;
@@ -276,7 +276,7 @@ public abstract class CCompilerInvoker {
 
         @Override
         protected void verify() {
-            Class<? extends Architecture> substrateTargetArch = SubstrateTargetDescription.getArchitecture().getClass();
+            Class<? extends Architecture> substrateTargetArch = SubstrateTarget.getArchitecture().getClass();
             Class<? extends Architecture> guessed = guessArchitecture(compilerInfo.targetArch);
             if (guessed == null) {
                 UserError.abort("Linux native toolchain (%s) has no matching native-image target architecture.", compilerInfo.targetArch);
@@ -324,7 +324,7 @@ public abstract class CCompilerInvoker {
 
         @Override
         protected void verify() {
-            Class<? extends Architecture> substrateTargetArch = SubstrateTargetDescription.getArchitecture().getClass();
+            Class<? extends Architecture> substrateTargetArch = SubstrateTarget.getArchitecture().getClass();
             Class<? extends Architecture> guessed = guessArchitecture(compilerInfo.targetArch);
             if (guessed == null) {
                 UserError.abort("Darwin native toolchain (%s) has no matching native-image target architecture.", compilerInfo.targetArch);

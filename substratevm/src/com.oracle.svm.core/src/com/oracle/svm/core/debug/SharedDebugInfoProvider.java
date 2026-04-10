@@ -73,7 +73,7 @@ import com.oracle.objectfile.debugentry.range.PrimaryRange;
 import com.oracle.objectfile.debugentry.range.Range;
 import com.oracle.objectfile.debuginfo.DebugInfoProvider;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.UniqueShortNameProvider;
 import com.oracle.svm.core.code.CompilationResultFrameTree;
 import com.oracle.svm.core.config.ObjectLayout;
@@ -322,7 +322,7 @@ public abstract class SharedDebugInfoProvider implements DebugInfoProvider {
         ReferenceAccess refs = ReferenceAccess.singleton();
         this.useHeapBase = refs.haveCompressedReferences() && refs.getCompressEncoding().hasBase();
         this.compressionShift = refs.getCompressionShift();
-        SubstrateTargetDescription target = SubstrateTargetDescription.singleton();
+        SubstrateTarget target = SubstrateTarget.singleton();
         this.pointerSize = target.wordSize;
         this.referenceSize = getObjectLayout().getReferenceSize();
         this.objectAlignment = getObjectLayout().getAlignment();

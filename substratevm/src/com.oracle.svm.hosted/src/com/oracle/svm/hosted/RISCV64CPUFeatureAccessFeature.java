@@ -29,7 +29,7 @@ import java.util.EnumSet;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.riscv64.RISCV64CPUFeatureAccess;
 import com.oracle.svm.core.riscv64.RISCV64LibCHelper;
@@ -43,7 +43,7 @@ class RISCV64CPUFeatureAccessFeature extends CPUFeatureAccessFeatureBase impleme
 
     @Override
     public void beforeAnalysis(BeforeAnalysisAccess arg) {
-        var arch = (RISCV64) SubstrateTargetDescription.getArchitecture();
+        var arch = (RISCV64) SubstrateTarget.getArchitecture();
         var buildtimeCPUFeatures = arch.getFeatures();
         initializeCPUFeatureAccessData(RISCV64.CPUFeature.values(), buildtimeCPUFeatures, RISCV64LibCHelper.CPUFeatures.class, (FeatureImpl.BeforeAnalysisAccessImpl) arg);
     }

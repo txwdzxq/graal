@@ -33,7 +33,7 @@ import static jdk.vm.ci.code.ValueUtil.asRegister;
 import com.oracle.svm.core.CalleeSavedRegisters;
 import com.oracle.svm.core.SubstrateOptions;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import jdk.graal.compiler.asm.Label;
 import jdk.graal.compiler.asm.aarch64.AArch64Address;
 import jdk.graal.compiler.asm.aarch64.AArch64Assembler;
@@ -66,7 +66,7 @@ public final class AArch64FarReturnOp extends AArch64BlockEndOp {
 
     @Override
     public void emitCode(CompilationResultBuilder crb, AArch64MacroAssembler masm) {
-        int wordSize = SubstrateTargetDescription.getWordSize();
+        int wordSize = SubstrateTarget.getWordSize();
         assert sp.getPlatformKind().getSizeInBytes() == wordSize && wordSize == Long.BYTES //
                         : Assertions.errorMessage(sp.getPlatformKind().getSizeInBytes(), wordSize);
 

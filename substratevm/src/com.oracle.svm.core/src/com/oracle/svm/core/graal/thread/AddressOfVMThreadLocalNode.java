@@ -25,7 +25,7 @@
 package com.oracle.svm.core.graal.thread;
 
 import com.oracle.svm.core.FrameAccess;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.graal.nodes.FloatingWordCastNode;
 import com.oracle.svm.core.threadlocal.VMThreadLocalInfo;
 
@@ -62,7 +62,7 @@ public class AddressOfVMThreadLocalNode extends FloatingNode implements VMThread
         if (base.getStackKind() == JavaKind.Object) {
             base = graph().unique(new FloatingWordCastNode(FrameAccess.getWordStamp(), base));
         }
-        JavaKind wordKind = SubstrateTargetDescription.getWordKind();
+        JavaKind wordKind = SubstrateTarget.getWordKind();
         assert base.getStackKind() == wordKind;
 
         ConstantNode offset = ConstantNode.forIntegerKind(wordKind, threadLocalInfo.offset, graph());

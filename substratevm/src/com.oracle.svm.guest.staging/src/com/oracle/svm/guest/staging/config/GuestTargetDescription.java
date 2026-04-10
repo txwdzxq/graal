@@ -36,8 +36,8 @@ import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import jdk.vm.ci.meta.JavaKind;
 
 /**
- * Guest level replacements for select values of {@code SubstrateTargetDescription}, without
- * exposing builder internals. Instead, it stores all the values directly in the instance.
+ * Guest level replacements for select values of {@code SubstrateTarget}, without exposing builder
+ * internals. Instead, it stores all the values directly in the instance.
  */
 @SingletonTraits(access = BuiltinTraits.AllAccess.class, layeredCallbacks = BuiltinTraits.NoLayeredCallbacks.class, layeredInstallationKind = SingletonLayeredInstallationKind.Duplicable.class)
 public class GuestTargetDescription {
