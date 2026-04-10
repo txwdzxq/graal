@@ -174,9 +174,8 @@ final class AutomaticallyRegisteredImageSingletonHandler {
         }
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private static void addSingleton(Class<?> key, Object singleton) {
-        ImageSingletons.add((Class) key, singleton);
+    private static <T> void addSingleton(Class<T> key, Object singleton) {
+        ImageSingletons.add(key, key.cast(singleton));
     }
 
     /**
