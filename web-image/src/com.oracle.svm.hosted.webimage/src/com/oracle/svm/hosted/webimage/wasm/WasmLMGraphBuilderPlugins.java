@@ -520,8 +520,9 @@ public class WasmLMGraphBuilderPlugins implements TargetGraphBuilderPlugins {
 
         @Override
         public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode from, ValueNode fromOffset, ValueNode to, ValueNode toOffset, ValueNode size) {
-            WordCastNode fromUntracked = b.add(WordCastNode.objectToUntrackedPointer(from, SubstrateTargetDescription.getWordKind()));
-            WordCastNode toUntracked = b.add(WordCastNode.objectToUntrackedPointer(to, SubstrateTargetDescription.getWordKind()));
+            JavaKind wordKind = SubstrateTargetDescription.getWordKind();
+            WordCastNode fromUntracked = b.add(WordCastNode.objectToUntrackedPointer(from, wordKind));
+            WordCastNode toUntracked = b.add(WordCastNode.objectToUntrackedPointer(to, wordKind));
             ValueNode fromPointer = b.add(BinaryArithmeticNode.add(fromUntracked, fromOffset));
             ValueNode toPointer = b.add(BinaryArithmeticNode.add(toUntracked, toOffset));
 

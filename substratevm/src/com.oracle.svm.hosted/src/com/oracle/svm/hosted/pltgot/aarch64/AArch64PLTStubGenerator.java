@@ -110,7 +110,8 @@ public class AArch64PLTStubGenerator implements PLTStubGenerator {
 
     @Override
     public GeneratedPLT generatePLT(SharedMethod[] got, SubstrateBackend substrateBackend) {
-        AArch64MacroAssembler masm = new SubstrateAArch64MacroAssembler(SubstrateTargetDescription.singleton());
+        SubstrateTargetDescription target = SubstrateTargetDescription.singleton();
+        AArch64MacroAssembler masm = new SubstrateAArch64MacroAssembler(target);
         Label pltStart = new Label();
         masm.bind(pltStart);
 
@@ -151,7 +152,7 @@ public class AArch64PLTStubGenerator implements PLTStubGenerator {
         }
 
         byte[] code = masm.close(true);
-        RelocatableBuffer buffer = new RelocatableBuffer(code.length, SubstrateTargetDescription.getArchitecture().getByteOrder());
+        RelocatableBuffer buffer = new RelocatableBuffer(code.length, target.arch.getByteOrder());
         buffer.getByteBuffer().put(code);
 
         HostedMethod resolverMethod = HostedPLTGOTConfiguration.singleton().getArchSpecificResolverAsHostedMethod();

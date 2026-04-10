@@ -95,12 +95,13 @@ public abstract class SharedRuntimeConfigurationBuilder {
 
         ConstantFieldProvider constantFieldProvider = createConstantFieldProvider();
 
+        SubstrateTargetDescription target = SubstrateTargetDescription.singleton();
         for (ConfigKind config : ConfigKind.values()) {
-            registerConfigs.put(config, SubstrateRegisterConfigFactory.singleton().newRegisterFactory(config, metaAccess, SubstrateTargetDescription.singleton(),
+            registerConfigs.put(config, SubstrateRegisterConfigFactory.singleton().newRegisterFactory(config, metaAccess, target,
                             SubstrateOptions.PreserveFramePointer.getValue()));
         }
 
-        WordTypes wordTypes = new SubstrateWordTypes(metaAccess, SubstrateTargetDescription.getWordKind());
+        WordTypes wordTypes = new SubstrateWordTypes(metaAccess, target.wordJavaKind);
 
         ForeignCallsProvider foreignCalls = createForeignCallsProvider(registerConfigs.get(ConfigKind.NORMAL));
 

@@ -1070,11 +1070,11 @@ public class SubstrateDiagnostics {
                  * If the stack pointer is not sufficiently aligned, then we might be in the middle
                  * of a call (i.e., only the arguments and the return address are on the stack).
                  */
-                int expectedStackAlignment = SubstrateTargetDescription.singleton().stackAlignment;
-                if (sp.unsignedRemainder(expectedStackAlignment).notEqual(0) && sp.unsignedRemainder(SubstrateTargetDescription.getWordSize()).equal(0)) {
+                SubstrateTargetDescription target = SubstrateTargetDescription.singleton();
+                if (sp.unsignedRemainder(target.stackAlignment).notEqual(0) && sp.unsignedRemainder(target.wordSize).equal(0)) {
                     log.newline();
                     // Checkstyle: Allow raw info or warning printing - begin
-                    log.string("Warning: stack pointer is not aligned to ").signed(expectedStackAlignment).string(" bytes.").newline();
+                    log.string("Warning: stack pointer is not aligned to ").signed(target.stackAlignment).string(" bytes.").newline();
                     // Checkstyle: Allow raw info or warning printing - end
                 }
 

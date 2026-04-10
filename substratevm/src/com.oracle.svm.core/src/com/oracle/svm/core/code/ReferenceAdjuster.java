@@ -72,7 +72,8 @@ public interface ReferenceAdjuster {
 
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
     static void writeReference(Pointer address, int length, Object obj) {
-        if (length == Long.BYTES && length > ObjectLayout.singleton().getReferenceSize()) {
+        ObjectLayout ol = ObjectLayout.singleton();
+        if (length == Long.BYTES && length > ol.getReferenceSize()) {
             /*
              * For 8-byte immediates in instructions despite using narrow 4-byte references: we zero
              * all 8 bytes and patch a narrow reference at the offset, which results in the same
@@ -81,7 +82,7 @@ public interface ReferenceAdjuster {
             assert nativeByteOrder() == ByteOrder.LITTLE_ENDIAN;
             address.writeLong(0, 0L);
         } else {
-            assert length == ObjectLayout.singleton().getReferenceSize() : "Unsupported reference constant size";
+            assert length == ol.getReferenceSize() : "Unsupported reference constant size";
         }
         boolean compressed = ReferenceAccess.singleton().haveCompressedReferences();
         ReferenceAccess.singleton().writeObjectAt(address, obj, compressed);

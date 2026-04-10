@@ -450,12 +450,13 @@ public final class RuntimeCompilationFeature implements Feature, RuntimeCompilat
         FeatureHandler featureHandler = config.getFeatureHandler();
         final boolean supportsStubBasedPlugins = !SubstrateOptions.useLLVMBackend();
 
+        SubstrateTargetDescription target = SubstrateTargetDescription.singleton();
         NativeImageGenerator.registerGraphBuilderPlugins(featureHandler, runtimeConfig, hostedProviders, config.getMetaAccess(), config.getUniverse(), config.getNativeLibraries(),
                         config.getImageClassLoader(), ParsingReason.JITCompilation, ((Inflation) config.getBigBang()).getAnnotationSubstitutionProcessor(),
-                        new SubstrateClassInitializationPlugin(config.getHostVM()), SubstrateTargetDescription.singleton(), supportsStubBasedPlugins);
+                        new SubstrateClassInitializationPlugin(config.getHostVM()), target, supportsStubBasedPlugins);
 
         NativeImageGenerator.registerReplacements(DebugContext.forCurrentThread(), featureHandler, runtimeConfig, runtimeConfig.getProviders(), false, true,
-                        RuntimeCompiledMethodSupport.singleton().createGraphEncoder(SubstrateTargetDescription.getArchitecture(), config.getUniverse().getHeapScanner()));
+                        RuntimeCompiledMethodSupport.singleton().createGraphEncoder(target.arch, config.getUniverse().getHeapScanner()));
 
         featureHandler.forEachGraalFeature(feature -> feature.registerCodeObserver(runtimeConfig));
         Suites suites = NativeImageGenerator.createSuites(featureHandler, runtimeConfig, false);
@@ -464,7 +465,7 @@ public final class RuntimeCompilationFeature implements Feature, RuntimeCompilat
         LIRSuites firstTierLirSuites = NativeImageGenerator.createFirstTierLIRSuites(featureHandler, runtimeConfig.getProviders(), false);
 
         RuntimeCompilationSupport.setRuntimeConfig(runtimeConfig, suites, lirSuites, firstTierSuites, firstTierLirSuites,
-                        createRuntimeInvocationPlugins(hostedProviders.getGraphBuilderPlugins().getInvocationPlugins(), SubstrateTargetDescription.getArchitecture()));
+                        createRuntimeInvocationPlugins(hostedProviders.getGraphBuilderPlugins().getInvocationPlugins(), target.arch));
     }
 
     private static InvocationPlugins createRuntimeInvocationPlugins(InvocationPlugins hostedInvocationPlugins, Architecture arch) {

@@ -74,8 +74,9 @@ public final class JvmtiFunctionTable {
 
     @Platforms(Platform.HOSTED_ONLY.class)
     private static int bytesToWords(int bytes) {
-        assert bytes % SubstrateTargetDescription.getWordSize() == 0;
-        return bytes / SubstrateTargetDescription.getWordSize();
+        int wordSize = SubstrateTargetDescription.getWordSize();
+        assert bytes % wordSize == 0;
+        return bytes / wordSize;
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)

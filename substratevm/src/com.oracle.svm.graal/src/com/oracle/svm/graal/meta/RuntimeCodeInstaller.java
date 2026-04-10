@@ -76,7 +76,7 @@ import jdk.graal.compiler.core.common.type.CompressibleConstant;
 import jdk.graal.compiler.debug.DebugContext;
 import jdk.graal.compiler.debug.Indent;
 import jdk.graal.compiler.truffle.TruffleCompilerImpl;
-import jdk.vm.ci.code.TargetDescription;
+import jdk.vm.ci.code.Architecture;
 import jdk.vm.ci.code.site.Call;
 import jdk.vm.ci.code.site.ConstantReference;
 import jdk.vm.ci.code.site.DataPatch;
@@ -119,9 +119,8 @@ public class RuntimeCodeInstaller extends AbstractRuntimeCodeInstaller {
 
     private void prepareCodeMemory() {
         try (Indent _ = debug.logAndIndent("create installed code of %s.%s", method.getDeclaringClass().getName(), method.getName())) {
-            TargetDescription target = SubstrateTargetDescription.singleton();
-
-            if (target.arch.getPlatformKind(JavaKind.Object).getSizeInBytes() != 8) {
+            Architecture arch = SubstrateTargetDescription.getArchitecture();
+            if (arch.getPlatformKind(JavaKind.Object).getSizeInBytes() != 8) {
                 throw VMError.shouldNotReachHere("wrong object size");
             }
 

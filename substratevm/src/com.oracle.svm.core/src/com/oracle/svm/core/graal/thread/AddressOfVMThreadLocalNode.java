@@ -62,9 +62,10 @@ public class AddressOfVMThreadLocalNode extends FloatingNode implements VMThread
         if (base.getStackKind() == JavaKind.Object) {
             base = graph().unique(new FloatingWordCastNode(FrameAccess.getWordStamp(), base));
         }
-        assert base.getStackKind() == SubstrateTargetDescription.getWordKind();
+        JavaKind wordKind = SubstrateTargetDescription.getWordKind();
+        assert base.getStackKind() == wordKind;
 
-        ConstantNode offset = ConstantNode.forIntegerKind(SubstrateTargetDescription.getWordKind(), threadLocalInfo.offset, graph());
+        ConstantNode offset = ConstantNode.forIntegerKind(wordKind, threadLocalInfo.offset, graph());
         ValueNode address = graph().unique(new AddNode(base, offset));
         replaceAtUsagesAndDelete(address);
     }

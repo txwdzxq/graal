@@ -403,13 +403,14 @@ public class CInterfaceInvocationPlugin implements NodePlugin {
     }
 
     private static ValueNode makeOffset(StructuredGraph graph, ValueNode[] args, AccessorInfo accessorInfo, int displacement, int indexScaling) {
-        ValueNode offset = ConstantNode.forIntegerKind(SubstrateTargetDescription.getWordKind(), displacement, graph);
+        JavaKind wordKind = SubstrateTargetDescription.getWordKind();
+        ValueNode offset = ConstantNode.forIntegerKind(wordKind, displacement, graph);
 
         if (accessorInfo.isIndexed()) {
             ValueNode index = args[accessorInfo.indexParameterNumber(true)];
             assert index.getStackKind().isPrimitive();
-            ValueNode wordIndex = extend(graph, index, SubstrateTargetDescription.getWordKind().getBitCount(), false);
-            ValueNode scaledIndex = graph.unique(new MulNode(wordIndex, ConstantNode.forIntegerKind(SubstrateTargetDescription.getWordKind(), indexScaling, graph)));
+            ValueNode wordIndex = extend(graph, index, wordKind.getBitCount(), false);
+            ValueNode scaledIndex = graph.unique(new MulNode(wordIndex, ConstantNode.forIntegerKind(wordKind, indexScaling, graph)));
 
             offset = graph.unique(new AddNode(scaledIndex, offset));
         }

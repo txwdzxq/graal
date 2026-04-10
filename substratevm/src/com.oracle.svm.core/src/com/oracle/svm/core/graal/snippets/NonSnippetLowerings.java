@@ -403,6 +403,7 @@ public abstract class NonSnippetLowerings {
                         assert targetMethod != null : "Expecting a unique callee for target method " + method;
                     }
 
+                    JavaKind wordKind = SubstrateTargetDescription.getWordKind();
                     if (SubstrateUtil.HOSTED && targetMethod.forceIndirectCall()) {
                         /*
                          * Lower cross layer boundary direct calls to indirect calls. First load the
@@ -417,7 +418,7 @@ public abstract class NonSnippetLowerings {
                             var methodLocation = dynamicImageLayerInfo.getPriorLayerMethodLocation(targetMethod);
                             AddressNode methodPointerAddress = graph.addOrUniqueWithInputs(
                                             new OffsetAddressNode(new CGlobalDataLoadAddressNode(methodLocation.base()),
-                                                            ConstantNode.forIntegerKind(SubstrateTargetDescription.getWordKind(), methodLocation.offset())));
+                                                            ConstantNode.forIntegerKind(wordKind, methodLocation.offset())));
                             loweredCallTarget = createIndirectCall(graph, callTarget, parameters, method, signature, callType, invokeKind, methodPointerAddress);
                         }
                     } else if (!SubstrateBackend.shouldEmitOnlyIndirectCalls()) {
@@ -477,14 +478,14 @@ public abstract class NonSnippetLowerings {
                              */
                             JavaConstant codeInfo = SubstrateObjectConstant.forObject(targetMethod.getImageCodeInfo());
                             ValueNode codeInfoConstant = ConstantNode.forConstant(codeInfo, tool.getMetaAccess(), graph);
-                            ValueNode codeStartFieldOffset = ConstantNode.forIntegerKind(SubstrateTargetDescription.getWordKind(), knownOffsets.getImageCodeInfoCodeStartOffset(), graph);
+                            ValueNode codeStartFieldOffset = ConstantNode.forIntegerKind(wordKind, knownOffsets.getImageCodeInfoCodeStartOffset(), graph);
                             AddressNode codeStartField = graph.unique(new OffsetAddressNode(codeInfoConstant, codeStartFieldOffset));
                             /*
                              * Uses ANY_LOCATION because runtime-compiled code can be persisted and
                              * loaded in a process where image code is located elsewhere.
                              */
                             ReadNode codeStart = graph.add(new ReadNode(codeStartField, LocationIdentity.ANY_LOCATION, FrameAccess.getWordStamp(), BarrierType.NONE, MemoryOrderMode.PLAIN));
-                            ValueNode offset = ConstantNode.forIntegerKind(SubstrateTargetDescription.getWordKind(), targetMethod.getImageCodeOffset(), graph);
+                            ValueNode offset = ConstantNode.forIntegerKind(wordKind, targetMethod.getImageCodeOffset(), graph);
                             AddressNode address = graph.unique(new OffsetAddressNode(codeStart, offset));
 
                             loweredCallTarget = graph.add(new SubstrateIndirectCallTargetNode(

@@ -1792,12 +1792,13 @@ public final class Deoptimizer {
         /** Write a word-sized constant to the frame buffer. */
         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
         protected void writeWord(int offset, WordBase value) {
-            if (FrameAccess.wordSize() == 8) {
+            int wordSize = SubstrateTargetDescription.getWordSize();
+            if (wordSize == 8) {
                 writeLong(offset, value.rawValue());
-            } else if (FrameAccess.wordSize() == 4) {
+            } else if (wordSize == 4) {
                 writeInt(offset, (int) value.rawValue());
             } else {
-                throw VMError.shouldNotReachHere("Unexpected word size: " + FrameAccess.wordSize());
+                throw VMError.shouldNotReachHere("Unexpected word size: " + wordSize);
             }
         }
 

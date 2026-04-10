@@ -1382,9 +1382,10 @@ public class NativeImageGenerator {
         try (Indent _ = debug.logAndIndent("add initial classes/fields/methods")) {
             registerRootElements(bb);
 
+            SubstrateTargetDescription target = SubstrateTargetDescription.singleton();
             NativeImageGenerator.registerGraphBuilderPlugins(featureHandler, null, aProviders, aMetaAccess, aUniverse, nativeLibraries, loader, ParsingReason.PointsToAnalysis,
-                            bb.getAnnotationSubstitutionProcessor(), classInitializationPlugin, SubstrateTargetDescription.singleton(), supportsStubBasedPlugins);
-            registerReplacements(debug, featureHandler, null, aProviders, true, initForeignCalls, new GraphEncoder(SubstrateTargetDescription.getArchitecture()));
+                            bb.getAnnotationSubstitutionProcessor(), classInitializationPlugin, target, supportsStubBasedPlugins);
+            registerReplacements(debug, featureHandler, null, aProviders, true, initForeignCalls, new GraphEncoder(target.arch));
 
             performSnippetGraphAnalysis(bb, aReplacements, options, Function.identity());
         }

@@ -75,8 +75,9 @@ public final class StoredContinuationAccess {
 
     private static StoredContinuation allocate(int framesSize) {
         // Using Word[] to ensure that words are properly aligned.
-        int nwords = Integer.divideUnsigned(framesSize, SubstrateTargetDescription.getWordSize());
-        assert nwords * SubstrateTargetDescription.getWordSize() == framesSize;
+        int wordSize = SubstrateTargetDescription.getWordSize();
+        int nwords = Integer.divideUnsigned(framesSize, wordSize);
+        assert nwords * wordSize == framesSize;
         /*
          * There is no need to zero the array part (i.e., the stack data) of the StoredContinuation,
          * because the GC won't visit it if StoredContinuation.ip is null.

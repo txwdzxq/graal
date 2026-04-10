@@ -90,9 +90,10 @@ public class PLTSupport {
 
         objectFile.createDefinedSymbol(SVM_PLT_SYMBOL_NAME, textSection, pltTextOffset, 0, true, false);
 
+        int wordSize = SubstrateTargetDescription.getWordSize();
         generatedPLT.forEachStubStartOffset((method, offset) -> {
             int position = pltTextOffset + offset;
-            objectFile.createDefinedSymbol(pltSymbolNameForMethod(method), textSection, position, SubstrateTargetDescription.getWordSize(), true,
+            objectFile.createDefinedSymbol(pltSymbolNameForMethod(method), textSection, position, wordSize, true,
                             SubstrateOptions.InternalSymbolsAreGlobal.getValue());
         });
 
