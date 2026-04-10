@@ -176,7 +176,7 @@ import com.oracle.svm.core.util.LayeredHostedImageHeapMapCollector;
 import com.oracle.svm.core.util.LayeredImageHeapMapStore;
 import com.oracle.svm.core.util.ObservableImageHeapMapProvider;
 import com.oracle.svm.core.util.UserError;
-import com.oracle.svm.guest.staging.config.GuestConfigurationValues;
+import com.oracle.svm.guest.staging.config.GuestTargetDescription;
 import com.oracle.svm.hosted.BuildArtifactsExporter.BuildArtifactsImpl;
 import com.oracle.svm.hosted.FeatureImpl.AfterAnalysisAccessImpl;
 import com.oracle.svm.hosted.FeatureImpl.AfterCompilationAccessImpl;
@@ -1004,7 +1004,7 @@ public class NativeImageGenerator {
                 SubstrateTargetDescription target = createTarget();
                 ImageSingletons.add(Platform.class, loader.platform);
                 ImageSingletons.add(SubstrateTargetDescription.class, target);
-                setupGuestImageSingletons(target);
+                setupGuestTargetDescription(target);
 
                 ImageSingletons.add(SubstrateOptions.ReportingSupport.class, new SubstrateOptions.ReportingSupport(
                                 DiagnosticsMode.getValue() ? DiagnosticsDir.getValue().lastValue().get() : Path.of("reports")));
@@ -1233,17 +1233,16 @@ public class NativeImageGenerator {
         }
     }
 
-    private static void setupGuestImageSingletons(SubstrateTargetDescription target) {
-        // Setup GuestConfigurationValues
+    private static void setupGuestTargetDescription(SubstrateTargetDescription target) {
         GuestAccess access = GuestAccess.get();
-        ResolvedJavaMethod ctor = JVMCIReflectionUtil.getDeclaredConstructor(access.getProviders().getMetaAccess(), GuestConfigurationValues.class, JavaKind.class, int.class, ByteOrder.class);
+        ResolvedJavaMethod ctor = JVMCIReflectionUtil.getDeclaredConstructor(access.getProviders().getMetaAccess(), GuestTargetDescription.class, JavaKind.class, int.class, ByteOrder.class);
 
         JavaConstant wordKind = fromEnum(target.wordJavaKind);
         JavaConstant wordSize = JavaConstant.forInt(target.wordSize);
         JavaConstant byteOrder = JVMCIReflectionUtil.readStaticField(access.elements.java_nio_ByteOrder, target.arch.getByteOrder().toString());
-        JavaConstant guestConfigurationValues = access.invoke(ctor, null, wordKind, wordSize, byteOrder);
+        JavaConstant guestTargetDescription = access.invoke(ctor, null, wordKind, wordSize, byteOrder);
 
-        GuestImageSingletonSupport.add(GuestConfigurationValues.class, guestConfigurationValues);
+        GuestImageSingletonSupport.add(GuestTargetDescription.class, guestTargetDescription);
     }
 
     /**
