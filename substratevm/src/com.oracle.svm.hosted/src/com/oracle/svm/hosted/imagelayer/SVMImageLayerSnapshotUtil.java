@@ -36,6 +36,7 @@ import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -65,6 +66,7 @@ import com.oracle.svm.core.hub.DynamicHubCompanion;
 import com.oracle.svm.core.reflect.serialize.SerializationSupport;
 import com.oracle.svm.core.threadlocal.FastThreadLocal;
 import com.oracle.svm.core.threadlocal.VMThreadLocalInfo;
+import com.oracle.svm.hosted.ForeignHostedSupport;
 import com.oracle.svm.hosted.ImageClassLoader;
 import com.oracle.svm.hosted.VMFeature;
 import com.oracle.svm.hosted.c.AppLayerCGlobalTracking;
@@ -204,14 +206,21 @@ public class SVMImageLayerSnapshotUtil {
 
     protected Set<URI> getBuilderLocations() {
         try {
+            Set<URI> uris = new HashSet<>();
+
             Class<?> vmFeatureClass = ImageSingletons.lookup(VMFeature.class).getClass();
             GuestAccess access = GuestAccess.get();
-            URI svmURI = access.getCodeSourceLocation(access.lookupType(VMFeature.class)).toURI();
-            if (vmFeatureClass == VMFeature.class) {
-                return Set.of(svmURI);
-            } else {
-                return Set.of(svmURI, access.getCodeSourceLocation(access.lookupType(vmFeatureClass)).toURI());
+            uris.add(access.getCodeSourceLocation(access.lookupType(VMFeature.class)).toURI());
+            if (vmFeatureClass != VMFeature.class) {
+                uris.add(access.getCodeSourceLocation(access.lookupType(vmFeatureClass)).toURI());
             }
+
+            if (ForeignHostedSupport.isAvailable()) {
+                Class<?> foreignFunctionsFeature = ImageSingletons.lookup(ForeignHostedSupport.class).getClass();
+                uris.add(access.getCodeSourceLocation(access.lookupType(foreignFunctionsFeature)).toURI());
+            }
+
+            return uris;
         } catch (URISyntaxException e) {
             throw VMError.shouldNotReachHere("Error when trying to get SVM URI", e);
         }

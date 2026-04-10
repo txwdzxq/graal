@@ -118,6 +118,7 @@ import com.oracle.svm.common.meta.MethodVariant;
 import com.oracle.svm.core.BuildArtifacts;
 import com.oracle.svm.core.BuildPhaseProvider;
 import com.oracle.svm.core.ClassLoaderSupport;
+import com.oracle.svm.core.ForeignSupport;
 import com.oracle.svm.core.FutureDefaultsOptions;
 import com.oracle.svm.core.JavaMainWrapper.JavaMainSupport;
 import com.oracle.svm.core.LinkerInvocation;
@@ -308,6 +309,7 @@ import jdk.graal.compiler.nodes.gc.BarrierSet;
 import jdk.graal.compiler.nodes.graphbuilderconf.ClassInitializationPlugin;
 import jdk.graal.compiler.nodes.graphbuilderconf.GeneratedPluginFactory;
 import jdk.graal.compiler.nodes.graphbuilderconf.GraphBuilderConfiguration;
+import jdk.graal.compiler.nodes.graphbuilderconf.NodePlugin;
 import jdk.graal.compiler.nodes.spi.CoreProviders;
 import jdk.graal.compiler.nodes.spi.LoweringProvider;
 import jdk.graal.compiler.nodes.spi.StampProvider;
@@ -344,6 +346,7 @@ import jdk.vm.ci.meta.ConstantReflectionProvider;
 import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.JavaKind;
 import jdk.vm.ci.meta.MetaAccessProvider;
+import jdk.vm.ci.meta.MethodHandleAccessProvider;
 import jdk.vm.ci.meta.ResolvedJavaField;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
@@ -1600,7 +1603,14 @@ public class NativeImageGenerator {
         plugins.appendInlineInvokePlugin(replacements);
 
         if (reason.duringAnalysis()) {
-            plugins.appendNodePlugin(new SVMMethodHandleWithExceptionPlugin(providers.getConstantReflection().getMethodHandleAccess(), false));
+            MethodHandleAccessProvider methodHandleAccess = providers.getConstantReflection().getMethodHandleAccess();
+            NodePlugin methodHandlePlugin;
+            if (ForeignSupport.isAvailable()) {
+                methodHandlePlugin = ForeignHostedSupport.singleton().createHandleWithExceptionPlugin(methodHandleAccess);
+            } else {
+                methodHandlePlugin = new SVMMethodHandleWithExceptionPlugin(methodHandleAccess, false);
+            }
+            plugins.appendNodePlugin(methodHandlePlugin);
             plugins.appendNodePlugin(new DevirtualizeInterfaceCallPlugin());
         }
         plugins.appendNodePlugin(new DeletedFieldsPlugin());

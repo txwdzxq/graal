@@ -151,24 +151,18 @@ public class PolymorphicSignatureWrapperMethod implements ResolvedJavaMethod, Gr
                     ValueNode methodHandleOrMemberName;
                     AnalysisMethod unboxMethod;
                     try {
-                        String unboxMethodName = returnKind + "Unbox";
                         switch (substitutionBaseMethod.getName()) {
                             case "invokeBasic":
                             case "invokeExact":
                             case "invoke":
-                                if (RuntimeClassLoading.isSupported()) {
-                                    /*
-                                     * Crema returns a type based on the form's vmentry. See
-                                     * CremaSupportImpl.invokeBasic*
-                                     */
-                                    methodHandleOrMemberName = receiver;
-                                    unboxMethod = kit.getMetaAccess().lookupJavaMethod(
-                                                    MethodHandleUtils.class.getMethod(unboxMethodName + "Crema", Object.class, MethodHandle.class));
-                                } else {
-                                    methodHandleOrMemberName = receiver;
-                                    unboxMethod = kit.getMetaAccess().lookupJavaMethod(
-                                                    MethodHandleUtils.class.getMethod(unboxMethodName, Object.class, MethodHandle.class));
-                                }
+                                /*
+                                 * Crema returns a type based on the form's vmentry. See
+                                 * CremaSupportImpl.invokeBasic*
+                                 */
+                                boolean crema = RuntimeClassLoading.isSupported();
+                                methodHandleOrMemberName = receiver;
+                                unboxMethod = kit.getMetaAccess().lookupJavaMethod(
+                                                MethodHandleUtils.getUnboxMethod(returnKind, crema, Object.class, MethodHandle.class));
                                 break;
                             case "linkToVirtual":
                             case "linkToStatic":
@@ -184,9 +178,14 @@ public class PolymorphicSignatureWrapperMethod implements ResolvedJavaMethod, Gr
                                 } else {
                                     methodHandleOrMemberName = args.getLast();
                                     unboxMethod = kit.getMetaAccess().lookupJavaMethod(
-                                                    MethodHandleUtils.class.getMethod(unboxMethodName, Object.class, Target_java_lang_invoke_MemberName.class));
+                                                    MethodHandleUtils.getUnboxMethod(returnKind, false, Object.class, Target_java_lang_invoke_MemberName.class));
                                 }
                                 break;
+                            case "linkToNative": {
+                                methodHandleOrMemberName = args.getLast();
+                                unboxMethod = kit.getMetaAccess().lookupJavaMethod(MethodHandleUtils.getUnboxForeignMethod(returnKind));
+                                break;
+                            }
                             default:
                                 throw shouldNotReachHereUnexpectedInput(substitutionBaseMethod.getName()); // ExcludeFromJacocoGeneratedReport
                         }

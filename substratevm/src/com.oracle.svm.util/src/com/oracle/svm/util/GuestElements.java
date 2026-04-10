@@ -25,9 +25,12 @@
 package com.oracle.svm.util;
 
 import java.io.InputStream;
+import java.lang.ref.Reference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.nio.ByteOrder;
+import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Collections;
 import java.util.HashSet;
@@ -87,6 +90,9 @@ public abstract sealed class GuestElements permits GuestAccess.GuestElementsImpl
     public final ResolvedJavaType java_lang_Object = lookupType(Object.class);
     public final ResolvedJavaMethod java_lang_Object_clone = lookupMethod(java_lang_Object, "clone");
 
+    public final ResolvedJavaType java_lang_ref_Reference = lookupType(Reference.class);
+    public final ResolvedJavaMethod java_lang_ref_Reference_refersTo = lookupMethod(java_lang_ref_Reference, "refersTo", Object.class);
+
     public final ResolvedJavaType java_lang_reflect_Field = lookupType(Field.class);
     public final ResolvedJavaMethod java_lang_reflect_Field_setAccessible = lookupMethod(java_lang_reflect_Field, "setAccessible", boolean.class);
     public final ResolvedJavaMethod java_lang_reflect_Field_set = lookupMethod(java_lang_reflect_Field, "set", Object.class, Object.class);
@@ -100,10 +106,28 @@ public abstract sealed class GuestElements permits GuestAccess.GuestElementsImpl
     public final ResolvedJavaType java_io_InputStream = lookupType(InputStream.class);
     public final ResolvedJavaMethod java_io_Input_Stream_readAllBytesMethod = lookupMethod(java_io_InputStream, "readAllBytes");
 
+    public final ResolvedJavaType java_util_Collection = lookupType(Collection.class);
+    public final ResolvedJavaMethod java_util_Collection_toArray = lookupMethod(java_util_Collection, "toArray");
+    public final ResolvedJavaMethod java_util_Collection_toArray_withArray = lookupMethod(java_util_Collection, "toArray", Object[].class);
+
+    public final ResolvedJavaType java_util_Map = lookupType(Map.class);
+    public final ResolvedJavaMethod java_util_Map_entrySet = lookupMethod(java_util_Map, "entrySet");
+
+    public final ResolvedJavaType java_util_Map_Entry = lookupType("java.util.Map$Entry");
+    public final ResolvedJavaMethod java_util_Map_Entry_getKey = lookupMethod(java_util_Map_Entry, "getKey");
+    public final ResolvedJavaMethod java_util_Map_Entry_getValue = lookupMethod(java_util_Map_Entry, "getValue");
+
     public final ResolvedJavaType java_nio_ByteOrder = lookupType(ByteOrder.class);
 
     public final ResolvedJavaType java_util_Objects = lookupType(Objects.class);
     public final ResolvedJavaMethod java_util_Objects_deepEquals = lookupMethod(java_util_Objects, "deepEquals", Object.class, Object.class);
+
+    public final ResolvedJavaType jdk_internal_foreign_abi_NativeEntryPoint = lookupType("jdk.internal.foreign.abi.NativeEntryPoint");
+    public final ResolvedJavaMethod jdk_internal_foreign_abi_NativeEntryPoint_type = lookupMethod(jdk_internal_foreign_abi_NativeEntryPoint, "type");
+    public final ResolvedJavaType jdk_internal_foreign_abi_SoftReferenceCache = lookupType("jdk.internal.foreign.abi.SoftReferenceCache");
+    public final ResolvedJavaType jdk_internal_foreign_abi_NativeEntryPoint_CacheKey = lookupType("jdk.internal.foreign.abi.NativeEntryPoint$CacheKey");
+    public final ResolvedJavaType jdk_internal_foreign_abi_SoftReferenceCache_Node = lookupType("jdk.internal.foreign.abi.SoftReferenceCache$Node");
+    public final ResolvedJavaType jdk_internal_foreign_abi_VMStorage = lookupType("jdk.internal.foreign.abi.VMStorage");
 
     public final ResolvedJavaType Uninterruptible = lookupType("com.oracle.svm.shared.Uninterruptible");
     public final ResolvedJavaType CFunction = lookupType(CFunction.class);

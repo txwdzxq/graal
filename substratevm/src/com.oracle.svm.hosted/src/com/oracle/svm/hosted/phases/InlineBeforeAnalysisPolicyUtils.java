@@ -25,6 +25,7 @@
 package com.oracle.svm.hosted.phases;
 
 import java.lang.annotation.Annotation;
+import java.lang.invoke.MethodHandle;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.util.Set;
@@ -598,7 +599,11 @@ public class InlineBeforeAnalysisPolicyUtils {
                      */
                     ReflectionUtil.lookupMethod(ReflectionUtil.lookupClass(false, "java.lang.invoke.DirectMethodHandle"), "allocateInstance", Object.class),
                     ReflectionUtil.lookupMethod(ReflectionUtil.lookupClass(false, "java.lang.invoke.DirectMethodHandle$Accessor"), "checkCast", Object.class),
-                    ReflectionUtil.lookupMethod(ReflectionUtil.lookupClass(false, "java.lang.invoke.DirectMethodHandle$StaticAccessor"), "checkCast", Object.class));
+                    ReflectionUtil.lookupMethod(ReflectionUtil.lookupClass(false, "java.lang.invoke.DirectMethodHandle$StaticAccessor"), "checkCast", Object.class),
+                    ReflectionUtil.lookupMethod(ReflectionUtil.lookupClass("java.lang.invoke.Invokers"), "maybeCustomize", MethodHandle.class),
+                    ReflectionUtil.lookupMethod(MethodHandle.class, "type"),
+                    ReflectionUtil.lookupMethod(MethodHandle.class, "maybeCustomize"),
+                    ReflectionUtil.lookupMethod(ReflectionUtil.lookupClass("jdk.internal.foreign.AbstractMemorySegmentImpl"), "equals", Object.class));
 
     private boolean inlineForMethodHandleIntrinsification(AnalysisMethod method) {
         return AnnotationUtil.isAnnotationPresent(method, ForceInline.class) ||
@@ -607,8 +612,22 @@ public class InlineBeforeAnalysisPolicyUtils {
                         isManuallyListed(method.getJavaMethod());
     }
 
+    /**
+     * Class name prefix of generated hidden classes that contain a
+     * {@code java.lang.invoke.NativeMethodHandle} object.
+     */
+    private static final String INVOKE_CLASS_NAME_DOWNCALL = "jdk.internal.foreign.abi.DowncallStub";
+    private static final String INVOKE_METHOD_NAME = "invoke";
+
+    private static boolean isDowncallStub(Executable method) {
+        if (INVOKE_METHOD_NAME.equals(method.getName()) && method.getDeclaringClass().getName().startsWith(INVOKE_CLASS_NAME_DOWNCALL)) {
+            return true;
+        }
+        return false;
+    }
+
     private static boolean isManuallyListed(Executable method) {
-        return method != null && INLINE_METHOD_HANDLE_METHODS.contains(method);
+        return method != null && (INLINE_METHOD_HANDLE_METHODS.contains(method) || isDowncallStub(method));
     }
 
     /**

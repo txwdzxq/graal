@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -42,10 +42,12 @@ import java.lang.invoke.VarHandle;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -64,6 +66,7 @@ import org.graalvm.nativeimage.impl.RuntimeReflectionSupport;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 
+import com.oracle.graal.pointsto.heap.ImageHeapConstant;
 import com.oracle.graal.pointsto.meta.AnalysisMetaAccess;
 import com.oracle.graal.pointsto.meta.AnalysisMethod;
 import com.oracle.graal.pointsto.meta.AnalysisUniverse;
@@ -77,11 +80,11 @@ import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.UnmanagedMemoryUtil;
 import com.oracle.svm.core.code.FactoryMethodHolder;
 import com.oracle.svm.core.code.FactoryThrowMethodHolder;
-import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.foreign.AbiUtils;
 import com.oracle.svm.core.foreign.ForeignFunctionsRuntime;
 import com.oracle.svm.core.foreign.JavaEntryPointInfo;
+import com.oracle.svm.core.foreign.NativeEntryPointHelper;
 import com.oracle.svm.core.foreign.NativeEntryPointInfo;
 import com.oracle.svm.core.foreign.RuntimeSystemLookup;
 import com.oracle.svm.core.foreign.SubstrateForeignUtil;
@@ -100,6 +103,7 @@ import com.oracle.svm.core.util.UserError;
 import com.oracle.svm.hosted.ConditionalConfigurationRegistry;
 import com.oracle.svm.hosted.FeatureImpl;
 import com.oracle.svm.hosted.FeatureImpl.BeforeAnalysisAccessImpl;
+import com.oracle.svm.hosted.ForeignHostedSupport;
 import com.oracle.svm.hosted.ImageClassLoader;
 import com.oracle.svm.hosted.ProgressReporter;
 import com.oracle.svm.hosted.SharedArenaSupport;
@@ -108,6 +112,7 @@ import com.oracle.svm.hosted.config.ConfigurationParserUtils;
 import com.oracle.svm.hosted.jdk.VarHandleFeature;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.hosted.meta.HostedType;
+import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.PartiallyLayerAware;
@@ -137,22 +142,26 @@ import jdk.graal.compiler.phases.common.CanonicalizerPhase;
 import jdk.graal.compiler.phases.common.IterativeConditionalEliminationPhase;
 import jdk.graal.compiler.phases.tiers.MidTierContext;
 import jdk.graal.compiler.phases.util.Providers;
+import jdk.graal.compiler.replacements.MethodHandleWithExceptionPlugin;
+import jdk.graal.compiler.word.WordTypes;
 import jdk.internal.foreign.AbstractMemorySegmentImpl;
 import jdk.internal.foreign.MemorySessionImpl;
 import jdk.internal.foreign.abi.AbstractLinker;
 import jdk.internal.foreign.abi.LinkerOptions;
+import jdk.internal.foreign.abi.NativeEntryPoint;
 import jdk.internal.foreign.abi.SharedUtils;
 import jdk.internal.misc.ScopedMemoryAccess.ScopedAccessError;
 import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.JavaKind;
 import jdk.vm.ci.meta.MetaAccessProvider;
+import jdk.vm.ci.meta.MethodHandleAccessProvider;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
 
 @AutomaticallyRegisteredFeature
 @Platforms(Platform.HOSTED_ONLY.class)
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class, other = PartiallyLayerAware.class)
-public class ForeignFunctionsFeature implements InternalFeature {
+public class ForeignFunctionsFeature implements InternalFeature, ForeignHostedSupport {
 
     private static final Map<String, String[]> REQUIRES_CONCEALED = Map.of(
                     "jdk.internal.vm.ci", new String[]{"jdk.vm.ci.code", "jdk.vm.ci.meta", "jdk.vm.ci.amd64", "jdk.vm.ci.aarch64"},
@@ -183,9 +192,65 @@ public class ForeignFunctionsFeature implements InternalFeature {
     private AbiUtils abiUtils;
     private ForeignFunctionsRuntime foreignFunctionsRuntime;
 
+    private final Deque<Object> nativeEntryPointsInImageHeap = new ConcurrentLinkedDeque<>();
+
     @Fold
     public static ForeignFunctionsFeature singleton() {
         return ImageSingletons.lookup(ForeignFunctionsFeature.class);
+    }
+
+    @Override
+    public MethodHandleWithExceptionPlugin createHandleWithExceptionPlugin(MethodHandleAccessProvider methodHandleAccess) {
+        return new ForeignCapableMethodHandleWithExceptionPlugin(methodHandleAccess);
+    }
+
+    @Override
+    public ResolvedJavaMethod resolveDowncallStub(JavaConstant nativeEntryPoint) {
+        assert !nativeEntryPoint.isNull();
+        JavaConstant hostedConstant = toHostedConstant(nativeEntryPoint);
+        if (hostedConstant == null) {
+            /*
+             * The image heap constant is not be backed by a hosted object. This is usually the case
+             * when building layered native images which is currently unsupported.
+             */
+            return null;
+        }
+
+        NativeEntryPointInfo resolve = NativeEntryPointHelper.extractNativeEntryPointInfo(hostedConstant);
+        if (resolve == null) {
+            /*
+             * The NativeEntryPoint could not be found in NEP_CACHE and we cannot re-create the
+             * corresponding NativeEntryPointInfo.
+             */
+            return null;
+        }
+
+        MethodPointer downcallStubPointer = ensureDowncallStubCreated(resolve);
+        assert downcallStubPointer != null;
+        return downcallStubPointer.getMethod();
+    }
+
+    private static JavaConstant toHostedConstant(JavaConstant c) {
+        if (c instanceof ImageHeapConstant ihc) {
+            return ihc.getHostedObject(); // may be null
+        }
+        return c;
+    }
+
+    MethodPointer ensureDowncallStubCreated(NativeEntryPointInfo resolve) {
+        if (!foreignFunctionsRuntime.downcallStubExists(resolve)) {
+            DowncallStub stub = accessSupport.createStub(DowncallStubFactory.INSTANCE, resolve);
+            /*
+             * If the downcall stub was just created (i.e. 'stub != null'), we also need to ensure
+             * that a compatible downcall stub invoker exists. Downcall stub invokers exist per
+             * MethodType and may be used to invoke several downcall stubs. Hence, the invoker may
+             * already exist.
+             */
+            if (stub != null && !foreignFunctionsRuntime.downcallStubInvokerExists(stub.getMethodType())) {
+                accessSupport.createStub(DowncallStubInvokerFactory.INSTANCE, resolve.methodType());
+            }
+        }
+        return (MethodPointer) foreignFunctionsRuntime.getDowncallStubPointer(resolve);
     }
 
     /**
@@ -235,7 +300,13 @@ public class ForeignFunctionsFeature implements InternalFeature {
             try {
                 LinkerOptions linkerOptions = LinkerOptions.forDowncall(desc, options);
                 SharedDesc sharedDesc = new SharedDesc(desc, linkerOptions);
-                runConditionalTask(condition, _ -> createStub(DowncallStubFactory.INSTANCE, sharedDesc));
+                runConditionalTask(condition, _ -> {
+                    NativeEntryPointInfo nepi = abiUtils.makeNativeEntrypoint(sharedDesc.fd, sharedDesc.options);
+                    DowncallStub stub = createStub(DowncallStubFactory.INSTANCE, nepi);
+                    if (stub != null) {
+                        createStub(DowncallStubInvokerFactory.INSTANCE, nepi.methodType());
+                    }
+                });
             } catch (IllegalArgumentException e) {
                 throw UserError.abort(e, "Could not register downcall");
             }
@@ -290,7 +361,7 @@ public class ForeignFunctionsFeature implements InternalFeature {
          * @param <T> The stub descriptor type (e.g. {@link SharedDesc}).
          * @param <U> The stub type (e.g. {@link DowncallStub}).
          */
-        private <S, T, U extends ResolvedJavaMethod> void createStub(StubFactory<S, T, U> factory, T descriptor) {
+        private <S, T, U extends ResolvedJavaMethod> U createStub(StubFactory<S, T, U> factory, T descriptor) {
 
             /*
              * If foreign function calls are generally not supported on this platform, we just
@@ -298,7 +369,7 @@ public class ForeignFunctionsFeature implements InternalFeature {
              */
             if (!ForeignFunctionsRuntime.areFunctionCallsSupported()) {
                 stubsRegistered = true;
-                return;
+                return null;
             }
 
             S key = factory.createKey(abiUtils, descriptor);
@@ -310,7 +381,7 @@ public class ForeignFunctionsFeature implements InternalFeature {
              * execution.
              */
             if (factory.stubExists(foreignFunctionsRuntime, key)) {
-                return;
+                return null;
             }
 
             U stub = factory.generateStub(analysisMetaAccess.getWrapped(), universe, key);
@@ -327,7 +398,9 @@ public class ForeignFunctionsFeature implements InternalFeature {
                 if (factory.registerAsEntryPoint()) {
                     analysisStub.registerAsNativeEntryPoint(CEntryPointData.createCustomUnpublished());
                 }
+                return stub;
             }
+            return null;
         }
     }
 
@@ -404,6 +477,7 @@ public class ForeignFunctionsFeature implements InternalFeature {
         ImageSingletons.add(AbiUtils.class, abiUtils);
         ImageSingletons.add(ForeignSupport.class, foreignFunctionsRuntime);
         ImageSingletons.add(ForeignFunctionsRuntime.class, foreignFunctionsRuntime);
+        ImageSingletons.add(ForeignHostedSupport.class, this);
     }
 
     @Override
@@ -416,6 +490,7 @@ public class ForeignFunctionsFeature implements InternalFeature {
 
         ImageClassLoader imageClassLoader = access.getImageClassLoader();
         ConfigurationParserUtils.parseAndRegisterConfigurationsFromCombinedFile(getConfigurationParser(imageClassLoader), imageClassLoader, "panama foreign");
+        a.registerObjectReachabilityHandler(nativeEntryPointsInImageHeap::add, NativeEntryPoint.class);
     }
 
     @Override
@@ -428,6 +503,14 @@ public class ForeignFunctionsFeature implements InternalFeature {
             } else {
                 throw VMError.shouldNotReachHere("Support for the Foreign Function and Memory API needs a backend with an assembler, it is not available with backend %s", b.getClass());
             }
+        }
+
+        /*
+         * NativeEntryPoint objects store a relocatable pointer to the downcall stub and the
+         * invoker. Therefore, we must explicitly register them as immutable.
+         */
+        for (var nativeEntryPoint : nativeEntryPointsInImageHeap) {
+            access.registerAsImmutable(nativeEntryPoint);
         }
     }
 
@@ -455,12 +538,12 @@ public class ForeignFunctionsFeature implements InternalFeature {
         boolean registerAsEntryPoint();
     }
 
-    private record DowncallStubFactory() implements StubFactory<NativeEntryPointInfo, SharedDesc, DowncallStub> {
+    private record DowncallStubFactory() implements StubFactory<NativeEntryPointInfo, NativeEntryPointInfo, DowncallStub> {
         private static final DowncallStubFactory INSTANCE = new DowncallStubFactory();
 
         @Override
-        public NativeEntryPointInfo createKey(AbiUtils abiUtils, SharedDesc registeredDescriptor) {
-            return abiUtils.makeNativeEntrypoint(registeredDescriptor.fd, registeredDescriptor.options);
+        public NativeEntryPointInfo createKey(AbiUtils abiUtils, NativeEntryPointInfo nativeEntryPointInfo) {
+            return nativeEntryPointInfo;
         }
 
         @Override
@@ -476,6 +559,36 @@ public class ForeignFunctionsFeature implements InternalFeature {
         @Override
         public boolean stubExists(ForeignFunctionsRuntime runtime, NativeEntryPointInfo key) {
             return runtime.downcallStubExists(key);
+        }
+
+        @Override
+        public boolean registerAsEntryPoint() {
+            return false;
+        }
+    }
+
+    private record DowncallStubInvokerFactory() implements StubFactory<MethodType, MethodType, DowncallStubInvoker> {
+        private static final DowncallStubInvokerFactory INSTANCE = new DowncallStubInvokerFactory();
+
+        @Override
+        public MethodType createKey(AbiUtils abiUtils, MethodType methodType) {
+            return methodType;
+        }
+
+        @Override
+        public DowncallStubInvoker generateStub(MetaAccessProvider metaAccessProvider, AnalysisUniverse universe, MethodType methodType) {
+            WordTypes wordTypes = universe.getBigbang().getWordTypes();
+            return new DowncallStubInvoker(DowncallStub.createSignature(metaAccessProvider, methodType), metaAccessProvider, wordTypes);
+        }
+
+        @Override
+        public boolean registerStub(ForeignFunctionsRuntime runtime, MethodType methodType, CFunctionPointer stubPointer) {
+            return runtime.addDowncallStubInvokerPointer(methodType, stubPointer);
+        }
+
+        @Override
+        public boolean stubExists(ForeignFunctionsRuntime runtime, MethodType methodType) {
+            return runtime.downcallStubInvokerExists(methodType);
         }
 
         @Override
@@ -531,7 +644,7 @@ public class ForeignFunctionsFeature implements InternalFeature {
     /**
      * The DirectMethodHandle provided by the "user" is not directly called but will be wrapped into
      * other method handles that do appropriate argument and result value conversions.
-     *
+     * <p>
      * However, there is no clean way to get access to the MethodHandle that is actually executed by
      * the upcall stub. This class extracts the 'UpcallStubFactory' and then re-creates an equal
      * method handle. This one is then passed to the DirectUpcallStub and is there subject for
@@ -693,6 +806,12 @@ public class ForeignFunctionsFeature implements InternalFeature {
             Class<?> varHandleSegmentAsXClass = ReflectionUtil.lookupClass(JLI_PACKAGE + '.' + simpleName);
             access.registerSubtypeReachabilityHandler(ForeignFunctionsFeature::registerVarHandleMethodsForReflection, varHandleSegmentAsXClass);
         }
+
+        /*
+         * Allow constant folding of stable field 'MemorySessionImpl.state' to enable cut-offs for
+         * implicit/global sessions.
+         */
+        access.allowStableFieldFoldingBeforeAnalysis(ReflectionUtil.lookupField(MemorySessionImpl.class, "state"));
 
         /*
          * Specializing an adapter would define a new class at runtime, which is not allowed in
