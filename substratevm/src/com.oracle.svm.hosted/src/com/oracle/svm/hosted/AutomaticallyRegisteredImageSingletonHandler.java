@@ -24,8 +24,8 @@
  */
 package com.oracle.svm.hosted;
 
-import com.oracle.svm.core.feature.AutomaticallyRegisteredImageSingletonServiceRegistration;
 import com.oracle.svm.core.layeredimagesingleton.LoadedLayeredImageSingletonInfo;
+import com.oracle.svm.core.singleton.AutomaticallyRegisteredImageSingletonServiceRegistration;
 import com.oracle.svm.core.util.UserError;
 import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.shared.util.ReflectionUtil;
@@ -233,11 +233,6 @@ final class AutomaticallyRegisteredImageSingletonHandler {
         @Override
         protected Class<AutomaticallyRegisteredImageSingletonServiceRegistration> serviceRegistrationClass() {
             return AutomaticallyRegisteredImageSingletonServiceRegistration.class;
-        }
-
-        @Override
-        protected String getClassName(AutomaticallyRegisteredImageSingletonServiceRegistration serviceRegistration) {
-            return serviceRegistration.getClassName();
         }
 
         @Override

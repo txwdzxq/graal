@@ -24,6 +24,7 @@
  */
 package com.oracle.svm.hosted;
 
+import com.oracle.svm.core.service.AutomaticallyRegisteredServiceRegistration;
 import com.oracle.svm.util.GuestAccess;
 import org.graalvm.nativeimage.AnnotationAccess;
 
@@ -37,11 +38,13 @@ import java.util.ServiceLoader;
  * Shared support for automatic-registration handlers that reconcile generated {@link ServiceLoader}
  * metadata with classes discovered through the image builder's {@link ImageClassLoader}.
  * <p>
- * Concrete subclasses define the generated service-entry type, the source annotation that should
+ * Concrete subclasses define the generated service-entry subtype, the source annotation that should
  * still be present on registered classes, and the caller-specific diagnostics for mismatches
- * between generated metadata and scanned classes.
+ * between generated metadata and scanned classes. The shared
+ * {@link AutomaticallyRegisteredServiceRegistration#getClassName()} contract keeps the class-name
+ * lookup in this common helper, so handlers only need to supply scheme-specific behavior.
  */
-abstract class AutomaticallyRegisteredClassSupport<S, A extends Annotation> {
+abstract class AutomaticallyRegisteredClassSupport<S extends AutomaticallyRegisteredServiceRegistration, A extends Annotation> {
     protected final ImageClassLoader loader;
 
     protected AutomaticallyRegisteredClassSupport(ImageClassLoader loader) {
@@ -53,11 +56,6 @@ abstract class AutomaticallyRegisteredClassSupport<S, A extends Annotation> {
      * automatic-registration scheme.
      */
     protected abstract Class<S> serviceRegistrationClass();
-
-    /**
-     * Extracts the implementation class name recorded in one generated service-registration entry.
-     */
-    protected abstract String getClassName(S serviceRegistration);
 
     /**
      * Returns the source-level annotation that marks classes which should appear in the generated
@@ -91,7 +89,7 @@ abstract class AutomaticallyRegisteredClassSupport<S, A extends Annotation> {
         LinkedHashSet<Class<?>> registeredClasses = new LinkedHashSet<>();
         ClassLoader serviceLoaderClassLoader = NativeImageSystemClassLoader.singleton().defaultSystemClassLoader;
         for (S serviceRegistration : ServiceLoader.load(serviceRegistrationClass(), serviceLoaderClassLoader)) {
-            String className = getClassName(serviceRegistration);
+            String className = serviceRegistration.getClassName();
             Class<?> registeredClass;
             try {
                 registeredClass = loader.findClass(className).getOrFail();

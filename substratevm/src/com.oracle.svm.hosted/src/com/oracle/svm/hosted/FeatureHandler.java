@@ -274,11 +274,6 @@ public class FeatureHandler {
         }
 
         @Override
-        protected String getClassName(AutomaticallyRegisteredFeatureServiceRegistration serviceRegistration) {
-            return serviceRegistration.getClassName();
-        }
-
-        @Override
         protected Class<AutomaticallyRegisteredFeature> annotationClass() {
             return AutomaticallyRegisteredFeature.class;
         }

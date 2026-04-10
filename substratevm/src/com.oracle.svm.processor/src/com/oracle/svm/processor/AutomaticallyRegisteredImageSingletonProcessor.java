@@ -44,7 +44,7 @@ import jdk.graal.compiler.processor.AbstractProcessor;
 public class AutomaticallyRegisteredImageSingletonProcessor extends AbstractProcessor {
 
     static final String ANNOTATION_CLASS_NAME = "com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton";
-    static final String SERVICE_REGISTRATION_INTERFACE_NAME = "com.oracle.svm.core.feature.AutomaticallyRegisteredImageSingletonServiceRegistration";
+    static final String SERVICE_REGISTRATION_INTERFACE_NAME = "com.oracle.svm.core.singleton.AutomaticallyRegisteredImageSingletonServiceRegistration";
 
     private final Set<Element> processed = new HashSet<>(); // noEconomicSet(dependency)
 

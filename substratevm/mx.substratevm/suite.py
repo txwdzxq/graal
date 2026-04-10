@@ -1965,7 +1965,7 @@ suite = {
                     "com.oracle.svm.hosted.NativeImageGeneratorRunnerProvider",
                     "java.util.spi.ResourceBundleControlProvider",
                     "com.oracle.svm.core.feature.AutomaticallyRegisteredFeatureServiceRegistration",
-                    "com.oracle.svm.core.feature.AutomaticallyRegisteredImageSingletonServiceRegistration",
+                    "com.oracle.svm.core.singleton.AutomaticallyRegisteredImageSingletonServiceRegistration",
                 ],
                 "requiresConcealed": {
                     "jdk.internal.vm.ci": [
