@@ -37,6 +37,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import jdk.graal.compiler.hotspot.replaycomp.HardwarePerformanceCounters;
+import jdk.graal.compiler.hotspot.replaycomp.ReplayCompilationSupport;
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.EconomicSet;
 import org.junit.AfterClass;
@@ -183,7 +184,7 @@ public class ReplayCompilationTest extends GraalCompilerTest {
              * A replay file may not be parsable when the compiler thread exits during writing -
              * this is not an error.
              */
-            assertTrue(Path.of(temp.path.toString(), "empty.json").toFile().createNewFile());
+            assertTrue(Path.of(temp.path.toString(), "empty" + ReplayCompilationSupport.ReplayFileFormat.Binary.fileExtension()).toFile().createNewFile());
             ReplayCompilationRunner.ExitStatus status = ReplayCompilationRunner.run(new String[]{temp.path.toString()}, TTY.out().out(), new HardwarePerformanceCounters.JargraalPAPIBridge());
             assertTrue(status == ReplayCompilationRunner.ExitStatus.Success);
         });

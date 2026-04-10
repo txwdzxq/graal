@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2024, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2024, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -32,11 +32,9 @@ import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
-import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import org.graalvm.collections.EconomicMap;
 
@@ -58,24 +56,19 @@ import jdk.vm.ci.code.TargetDescription;
 import jdk.vm.ci.common.JVMCIError;
 import jdk.vm.ci.hotspot.HotSpotCompilationRequest;
 import jdk.vm.ci.hotspot.HotSpotCompressedNullConstant;
-import jdk.vm.ci.hotspot.HotSpotResolvedJavaField;
 import jdk.vm.ci.hotspot.HotSpotResolvedJavaMethod;
-import jdk.vm.ci.hotspot.HotSpotResolvedObjectType;
 import jdk.vm.ci.hotspot.HotSpotSpeculationLog;
 import jdk.vm.ci.hotspot.VMField;
 import jdk.vm.ci.hotspot.aarch64.AArch64HotSpotRegisterConfig;
 import jdk.vm.ci.hotspot.amd64.AMD64HotSpotRegisterConfig;
 import jdk.vm.ci.hotspot.riscv64.RISCV64HotSpotRegisterConfig;
-import jdk.vm.ci.meta.AllocatableValue;
 import jdk.vm.ci.meta.Assumptions;
-import jdk.vm.ci.meta.DeoptimizationReason;
 import jdk.vm.ci.meta.EncodedSpeculationReason;
 import jdk.vm.ci.meta.ExceptionHandler;
 import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.JavaKind;
 import jdk.vm.ci.meta.JavaType;
 import jdk.vm.ci.meta.JavaTypeProfile;
-import jdk.vm.ci.meta.MethodHandleAccessProvider;
 import jdk.vm.ci.meta.PrimitiveConstant;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
@@ -90,57 +83,19 @@ import jdk.vm.ci.meta.ValueKind;
 import jdk.vm.ci.riscv64.RISCV64;
 
 /**
- * Provides functionality for persisting and loading recorded compilation units.
+ * Encodes and decodes {@link RecordedCompilationUnit recorded compilation units} in the JSON replay
+ * format.
  * <p>
- * A {@link RecordedCompilationUnit} contains all data required to run a replay compilation. This
- * class can serialize these records to and from JSON files. A recorded compilation unit contains a
- * list of the recorded operations (method calls and their results during a recorded compilation),
- * foreign call linkages, and other metadata.
- * <p>
- * The operations are collected during a recorded compilation via an {@link OperationRecorder}. An
- * operation comprises a symbolic name of a method, the receiver object, argument values, and the
- * result of that operation (a return value or an exception). After a recorded compilation, this
- * class expects the raw JVMCI objects (without any proxies). It deduplicates these JVMCI objects by
- * assigning a single ID to all JVMCI objects that are {@link Object#equals equal}.
- * <p>
- * When {@link #load loading} the recorded compilation unit from JSON, the class creates proxies in
- * place of the JVMCI objects using the provided {@link ProxyFactory}.
+ * A recorded compilation unit contains the recorded JVMCI operations, foreign-call linkage data,
+ * and compilation metadata required to reproduce a compilation. This codec expects the original
+ * JVMCI objects during encoding and recreates registered compiler-interface objects as proxies
+ * during decoding via a {@link CompilationProxies.ProxyFactory}.
  *
+ * @see BinaryReplayCodec
  * @see ReplayCompilationSupport
  * @see CompilerInterfaceDeclarations
  */
-public class RecordedOperationPersistence {
-    /**
-     * A recorded compilation unit.
-     *
-     * @param request the compilation request
-     * @param compilerConfiguration the name of the compiler configuration
-     * @param isLibgraal {@code true} if the recorded compilation executed on libgraal
-     * @param platform the platform of the system
-     * @param properties the system property map
-     * @param linkages the recorded foreign call linkages
-     * @param product the product of the recorded compilation task
-     * @param operations the recorded operations and their results
-     */
-    public record RecordedCompilationUnit(HotSpotCompilationRequest request, String compilerConfiguration,
-                    boolean isLibgraal, Platform platform, Map<String, String> properties, RecordedForeignCallLinkages linkages,
-                    CompilationTaskProduct product, List<OperationRecorder.RecordedOperation> operations) {
-    }
-
-    /**
-     * Factory for creating generic proxy objects for register compiler-interface classes.
-     */
-    @FunctionalInterface
-    public interface ProxyFactory {
-        /**
-         * Creates a proxy for the given registration.
-         *
-         * @param registration the registration
-         * @return the proxy
-         */
-        CompilationProxy createProxy(CompilerInterfaceDeclarations.Registration registration);
-    }
-
+public class JsonReplayCodec {
     private interface RecursiveSerializer {
         void serialize(Object instance, JsonBuilder.ValueBuilder valueBuilder) throws IOException;
 
@@ -148,9 +103,9 @@ public class RecordedOperationPersistence {
     }
 
     private interface RecursiveDeserializer {
-        Object deserialize(Object json, ProxyFactory proxyFactory) throws DeserializationException;
+        Object deserialize(Object json, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException;
 
-        Object deserialize(Object json, ProxyFactory proxyFactory, String tag) throws DeserializationException;
+        Object deserialize(Object json, CompilationProxies.ProxyFactory proxyFactory, String tag) throws DeserializationException;
 
         /**
          * Sets the {@link Architecture} parsed by this deserializer.
@@ -178,7 +133,7 @@ public class RecordedOperationPersistence {
 
         void serialize(Object instance, JsonBuilder.ObjectBuilder objectBuilder, RecursiveSerializer serializer) throws IOException;
 
-        Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException;
+        Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException;
     }
 
     public static final class DeserializationException extends Exception {
@@ -194,43 +149,6 @@ public class RecordedOperationPersistence {
     }
 
     private static final class ClassSerializer implements ObjectSerializer {
-        /**
-         * Class constants mapped by name used during deserialization. Classes not present in this
-         * map are deserialized as {@link ClassSurrogate}.
-         */
-        private static final Map<String, Class<?>> knownClasses = createKnownClasses();
-
-        private static Map<String, Class<?>> createKnownClasses() {
-            Class<?>[] classes = {
-                            // Needed to deserialize enum constants
-                            AMD64.CPUFeature.class, AArch64.CPUFeature.class, RISCV64.CPUFeature.class,
-                            DeoptimizationReason.class, JavaKind.class, MethodHandleAccessProvider.IntrinsicMethod.class,
-                            // Needed to deserialize array component types
-                            HotSpotResolvedJavaMethod.class, HotSpotResolvedJavaField.class, HotSpotResolvedObjectType.class,
-                            Object.class, ExceptionHandler.class, TriState.class, AllocatableValue.class, Value.class,
-                            ResolvedJavaMethod.class,
-                            // Needed to deserialize Field objects
-                            String.class,
-            };
-            Map<String, Class<?>> map = new EconomicHashMap<>();
-            for (Class<?> clazz : classes) {
-                map.put(clazz.getName(), clazz);
-            }
-            return map;
-        }
-
-        /**
-         * Casts a deserialized object to a {@link Class}, providing an actionable error message if
-         * the class was deserialized as a {@link ClassSurrogate}.
-         */
-        @SuppressWarnings("unchecked")
-        public static <C> Class<C> classCast(Object clazz) {
-            if (clazz instanceof ClassSurrogate(String name)) {
-                throw new GraalError(String.format("Failed to find a Class object for %s. This can be fixed by adding %s.class to ClassSerializer#knownClasses.", name, name));
-            }
-            return (Class<C>) clazz;
-        }
-
         @Override
         public Class<?> clazz() {
             return Class.class;
@@ -247,17 +165,9 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) {
             String name = (String) json.get("name");
-            Class<?> primitiveClass = Class.forPrimitiveName(name);
-            if (primitiveClass != null) {
-                return primitiveClass;
-            }
-            Class<?> knownClass = knownClasses.get(name);
-            if (knownClass != null) {
-                return knownClass;
-            }
-            return new ClassSurrogate(name);
+            return ReplayTypeSupport.decodeClass(name);
         }
     }
 
@@ -295,7 +205,7 @@ public class RecordedOperationPersistence {
 
         @SuppressWarnings("unchecked")
         @Override
-        public OperationRecorder.RecordedOperation deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory)
+        public OperationRecorder.RecordedOperation deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory)
                         throws DeserializationException {
             Object recv = deserializer.deserialize(json.get("recv"), proxyFactory);
             List<Object> methodProp = (List<Object>) json.get("method");
@@ -351,7 +261,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) {
             if (singletonProxy == null) {
                 singletonProxy = proxyFactory.createProxy(registration);
             }
@@ -404,7 +314,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) {
             int id = ((Number) json.get("id")).intValue();
             Object proxyInstance = proxyById.get(id);
             if (proxyInstance == null) {
@@ -440,7 +350,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) {
             String loader = (String) json.get("loader");
             String module = (String) json.get("module");
             String moduleVer = (String) json.get("moduleVer");
@@ -470,7 +380,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) {
             return json.get("content");
         }
     }
@@ -493,7 +403,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) {
             return json.get("value");
         }
     }
@@ -549,7 +459,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) {
             String className = (String) json.get("class");
             String value = (String) json.get("value");
             switch (className) {
@@ -610,7 +520,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             switch ((String) json.get("type")) {
                 case "noResult" -> {
                     return SpecialResultMarker.NO_RESULT_MARKER;
@@ -651,7 +561,7 @@ public class RecordedOperationPersistence {
 
         @SuppressWarnings("unchecked")
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             Class<? extends Enum<?>> enumClass = (Class<? extends Enum<?>>) deserializer.deserialize(json.get("holder"), proxyFactory);
             String constantName = (String) json.get("constant");
             for (Enum<?> constant : enumClass.getEnumConstants()) {
@@ -704,8 +614,8 @@ public class RecordedOperationPersistence {
 
         @SuppressWarnings("unchecked")
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
-            Class<?> component = ClassSerializer.classCast(deserializer.deserialize(json.get("component"), proxyFactory));
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
+            Class<?> component = ReplayTypeSupport.classCast(deserializer.deserialize(json.get("component"), proxyFactory));
             List<Object> elements = (List<Object>) json.get("elements");
             Object[] array = (Object[]) Array.newInstance(component, elements.size());
             for (int i = 0; i < elements.size(); i++) {
@@ -745,7 +655,7 @@ public class RecordedOperationPersistence {
 
         @Override
         @SuppressWarnings("unchecked")
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             List<Object> list = new ArrayList<>();
             for (Object element : (List<Object>) json.get("elements")) {
                 list.add(deserializer.deserialize(element, proxyFactory));
@@ -777,7 +687,7 @@ public class RecordedOperationPersistence {
 
         @SuppressWarnings("unchecked")
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) {
             List<Object> byteList = (List<Object>) json.get("bytes");
             byte[] bytes = new byte[byteList.size()];
             for (int i = 0; i < bytes.length; i++) {
@@ -810,7 +720,7 @@ public class RecordedOperationPersistence {
 
         @SuppressWarnings("unchecked")
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) {
             List<Object> doubleList = (List<Object>) json.get("doubles");
             double[] doubles = new double[doubleList.size()];
             for (int i = 0; i < doubles.length; i++) {
@@ -842,7 +752,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) {
             return singleton;
         }
     }
@@ -865,7 +775,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             int number = (int) json.get("number");
             for (Register register : deserializer.getArchitecture().getRegisters()) {
                 if (register.number == number) {
@@ -896,8 +806,8 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
-            Class<?> holder = ClassSerializer.classCast(deserializer.deserialize(json.get("holder"), proxyFactory));
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
+            Class<?> holder = ReplayTypeSupport.classCast(deserializer.deserialize(json.get("holder"), proxyFactory));
             String name = (String) json.get("name");
             try {
                 if (holder == String.class) {
@@ -942,7 +852,7 @@ public class RecordedOperationPersistence {
 
         @SuppressWarnings("unchecked")
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             Object result = deserializer.deserialize(json.get("result"), proxyFactory);
             List<Assumptions.Assumption> assumptions = new ArrayList<>();
             for (Object assumption : (List<Object>) json.get("assumptions")) {
@@ -971,7 +881,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             ResolvedJavaType receiverType = (ResolvedJavaType) deserializer.deserialize(json.get("receiverType"), proxyFactory);
             return new Assumptions.NoFinalizableSubclass(receiverType);
         }
@@ -997,7 +907,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             ResolvedJavaType subtype = (ResolvedJavaType) deserializer.deserialize(json.get("subtype"), proxyFactory);
             ResolvedJavaType context = (ResolvedJavaType) deserializer.deserialize(json.get("context"), proxyFactory);
             return new DelayedDeserializationObject.ConcreteSubtypeWithDelayedDeserialization(context, subtype);
@@ -1023,7 +933,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             ResolvedJavaType context = (ResolvedJavaType) deserializer.deserialize(json.get("context"), proxyFactory);
             return new DelayedDeserializationObject.LeafTypeWithDelayedDeserialization(context);
         }
@@ -1050,10 +960,10 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             ResolvedJavaType context = (ResolvedJavaType) deserializer.deserialize(json.get("context"), proxyFactory);
             ResolvedJavaMethod method = (ResolvedJavaMethod) deserializer.deserialize(json.get("method"), proxyFactory);
-            ResolvedJavaMethod impl = (ResolvedJavaMethod) deserializer.deserialize(json.get("method"), proxyFactory);
+            ResolvedJavaMethod impl = (ResolvedJavaMethod) deserializer.deserialize(json.get("impl"), proxyFactory);
             return new Assumptions.ConcreteMethod(method, context, impl);
         }
     }
@@ -1079,7 +989,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             JavaConstant callSite = (JavaConstant) deserializer.deserialize(json.get("callSite"), proxyFactory);
             JavaConstant methodHandle = (JavaConstant) deserializer.deserialize(json.get("methodHandle"), proxyFactory);
             return new Assumptions.CallSiteTargetValue(callSite, methodHandle);
@@ -1106,7 +1016,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) {
             String name = (String) json.get("name");
             return UnresolvedJavaType.create(name);
         }
@@ -1134,7 +1044,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             String name = (String) json.get("name");
             Signature signature = (Signature) deserializer.deserialize(json.get("signature"), proxyFactory);
             JavaType holder = (JavaType) deserializer.deserialize(json.get("holder"), proxyFactory);
@@ -1164,7 +1074,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             String name = (String) json.get("name");
             JavaType type = (JavaType) deserializer.deserialize(json.get("type"), proxyFactory);
             JavaType holder = (JavaType) deserializer.deserialize(json.get("holder"), proxyFactory);
@@ -1192,7 +1102,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             Number raw = (Number) json.get("raw");
             JavaKind kind = (JavaKind) deserializer.deserialize(json.get("kind"), proxyFactory);
             return JavaConstant.forPrimitive(kind, raw.longValue());
@@ -1223,7 +1133,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) {
             return new ForeignCallDescriptorSurrogate();
         }
     }
@@ -1249,7 +1159,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             String name = (String) json.get("groupName");
             int groupId = (int) json.get("groupId");
             Object[] context = (Object[]) deserializer.deserialize(json.get("context"), proxyFactory);
@@ -1278,7 +1188,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             JavaConstant encoding = (JavaConstant) deserializer.deserialize(json.get("encoding"), proxyFactory);
             byte[] bytes = (byte[]) deserializer.deserialize(json.get("bytes"), proxyFactory);
             SpeculationLog.SpeculationReason reason = (SpeculationLog.SpeculationReason) deserializer.deserialize(json.get("reason"), proxyFactory);
@@ -1312,7 +1222,7 @@ public class RecordedOperationPersistence {
 
         @SuppressWarnings("unchecked")
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             TriState nullSeen = (TriState) deserializer.deserialize(json.get("nullSeen"), proxyFactory);
             double notRecorded = hexToDouble((String) json.get("notRecorded"));
             List<DelayedDeserializationObject.ProfiledTypeWithDelayedDeserialization> types = new ArrayList<>();
@@ -1344,7 +1254,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             double prob = hexToDouble((String) json.get("prob"));
             ResolvedJavaType type = (ResolvedJavaType) deserializer.deserialize(json.get("type"), proxyFactory);
             return new DelayedDeserializationObject.ProfiledTypeWithDelayedDeserialization(type, prob);
@@ -1375,7 +1285,7 @@ public class RecordedOperationPersistence {
 
         @SuppressWarnings("unchecked")
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) {
             List<Object> list = (List<Object>) json.get("words");
             long[] longArray = new long[list.size()];
             for (int i = 0; i < list.size(); i++) {
@@ -1408,7 +1318,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             String name = (String) json.get("name");
             String type = (String) json.get("type");
             long offset = ((Number) json.get("offset")).longValue();
@@ -1434,21 +1344,21 @@ public class RecordedOperationPersistence {
         @Override
         public void serialize(Object instance, JsonBuilder.ObjectBuilder objectBuilder, RecursiveSerializer serializer) throws IOException {
             RecordedCompilationUnit unit = (RecordedCompilationUnit) instance;
-            serializer.serialize(unit.request.getMethod(), objectBuilder.append("method"));
-            objectBuilder.append("osName", unit.platform.osName());
-            objectBuilder.append("archName", unit.platform.archName());
-            objectBuilder.append("compilerConfiguration", unit.compilerConfiguration);
-            objectBuilder.append("isLibgraal", unit.isLibgraal);
-            objectBuilder.append("properties", unit.properties);
-            objectBuilder.append("entryBCI", unit.request.getEntryBCI());
-            objectBuilder.append("compileId", unit.request.getId());
+            serializer.serialize(unit.request().getMethod(), objectBuilder.append("method"));
+            objectBuilder.append("osName", unit.platform().osName());
+            objectBuilder.append("archName", unit.platform().archName());
+            objectBuilder.append("compilerConfiguration", unit.compilerConfiguration());
+            objectBuilder.append("isLibgraal", unit.isLibgraal());
+            objectBuilder.append("properties", unit.properties());
+            objectBuilder.append("entryBCI", unit.request().getEntryBCI());
+            objectBuilder.append("compileId", unit.request().getId());
             try (JsonBuilder.ArrayBuilder arrayBuilder = objectBuilder.append("operations").array()) {
-                for (OperationRecorder.RecordedOperation operation : unit.operations) {
+                for (OperationRecorder.RecordedOperation operation : unit.operations()) {
                     serializer.serialize(operation, arrayBuilder.nextEntry(), OperationSerializer.TAG);
                 }
             }
-            serializer.serialize(unit.linkages, objectBuilder.append("linkages"), RecordedForeignCallLinkagesSerializer.TAG);
-            CompilationTaskProduct product = unit.product;
+            serializer.serialize(unit.linkages(), objectBuilder.append("linkages"), RecordedForeignCallLinkagesSerializer.TAG);
+            CompilationTaskProduct product = unit.product();
             if (product instanceof CompilationTaskProduct.CompilationTaskArtifacts artifacts) {
                 product = artifacts.asRecordedArtifacts();
             }
@@ -1457,7 +1367,7 @@ public class RecordedOperationPersistence {
 
         @SuppressWarnings("unchecked")
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             HotSpotResolvedJavaMethod method = (HotSpotResolvedJavaMethod) deserializer.deserialize(json.get("method"), proxyFactory);
             String osName = (String) json.get("osName");
             String archName = (String) json.get("archName");
@@ -1522,7 +1432,7 @@ public class RecordedOperationPersistence {
 
         @SuppressWarnings("unchecked")
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             EconomicMap<String, RecordedForeignCallLinkages.RecordedForeignCallLinkage> linkages = EconomicMap.create();
             EconomicMap<String, Object> map = (EconomicMap<String, Object>) json.get("map");
             var cursor = map.getEntries();
@@ -1557,7 +1467,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             long address = ((Number) json.get("address")).longValue();
             Value[] temporaries = (Value[]) deserializer.deserialize(json.get("temporaries"), proxyFactory);
             return new RecordedForeignCallLinkages.RecordedForeignCallLinkage(address, temporaries);
@@ -1584,7 +1494,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             Register register = (Register) deserializer.deserialize(json.get("register"), proxyFactory);
             ValueKind<?> valueKind = (ValueKind<?>) deserializer.deserialize(json.get("valueKind"), proxyFactory);
             return register.asValue(valueKind);
@@ -1614,7 +1524,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             int startBCI = ((Number) json.get("startBCI")).intValue();
             int endBCI = ((Number) json.get("endBCI")).intValue();
             int catchBCI = ((Number) json.get("catchBCI")).intValue();
@@ -1625,14 +1535,6 @@ public class RecordedOperationPersistence {
     }
 
     private static final class EnumSetSerializer implements ObjectSerializer {
-        /**
-         * Represents an unknown {@link Enum} type. Since the type system does not allow creating an
-         * {@link EnumSet} without specifying the exact enum type, we can use this type as a generic
-         * type parameter (which is erased anyway).
-         */
-        private enum UnknownEnum {
-        }
-
         @Override
         public boolean serializesSubclasses() {
             return true;
@@ -1651,19 +1553,7 @@ public class RecordedOperationPersistence {
         @Override
         public void serialize(Object instance, JsonBuilder.ObjectBuilder objectBuilder, RecursiveSerializer serializer) throws IOException {
             EnumSet<?> enumSet = (EnumSet<?>) instance;
-            Class<?> elementType;
-            Optional<?> maybeElementType = enumSet.stream().findAny();
-            if (maybeElementType.isPresent()) {
-                elementType = maybeElementType.get().getClass();
-            } else {
-                maybeElementType = EnumSet.complementOf(enumSet).stream().findAny();
-                if (maybeElementType.isPresent()) {
-                    elementType = maybeElementType.get().getClass();
-                } else {
-                    elementType = UnknownEnum.class;
-                }
-            }
-            serializer.serialize(elementType, objectBuilder.append("enum"));
+            serializer.serialize(ReplayTypeSupport.enumSetElementType(enumSet), objectBuilder.append("enum"));
             try (var array = objectBuilder.append("ordinals").array()) {
                 for (Enum<?> element : enumSet) {
                     array.append(element.ordinal());
@@ -1673,18 +1563,9 @@ public class RecordedOperationPersistence {
 
         @Override
         @SuppressWarnings("unchecked")
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
-            Class<UnknownEnum> elementType = ClassSerializer.classCast(deserializer.deserialize(json.get("enum"), proxyFactory));
-            return asEnumSet(elementType, (List<Object>) json.get("ordinals"));
-        }
-
-        private static <E extends Enum<E>> EnumSet<E> asEnumSet(Class<E> clazz, Collection<Object> ordinals) {
-            EnumSet<E> enumSet = EnumSet.noneOf(clazz);
-            E[] enumConstants = clazz.getEnumConstants();
-            for (Object ordinal : ordinals) {
-                enumSet.add(enumConstants[((Number) ordinal).intValue()]);
-            }
-            return enumSet;
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
+            Class<ReplayTypeSupport.UnknownEnum> elementType = ReplayTypeSupport.classCast(deserializer.deserialize(json.get("enum"), proxyFactory));
+            return ReplayTypeSupport.asEnumSet(elementType, (List<Object>) json.get("ordinals"));
         }
     }
 
@@ -1711,7 +1592,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             Architecture arch = (Architecture) deserializer.deserialize(json.get("architecture"), proxyFactory);
             boolean isMP = (boolean) json.get("isMP");
             int stackAlignment = ((Number) json.get("stackAlignment")).intValue();
@@ -1747,7 +1628,7 @@ public class RecordedOperationPersistence {
 
         @Override
         @SuppressWarnings("unchecked")
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             String name = (String) json.get("name");
             EnumSet<?> features = (EnumSet<?>) deserializer.deserialize(json.get("features"), proxyFactory);
             Architecture architecture = switch (name) {
@@ -1803,7 +1684,7 @@ public class RecordedOperationPersistence {
 
         @Override
         @SuppressWarnings("unchecked")
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) throws DeserializationException {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
             String name = (String) json.get("name");
             TargetDescription targetDescription = (TargetDescription) deserializer.deserialize(json.get("target"), proxyFactory);
             List<Register> allocatable = (List<Register>) deserializer.deserialize(json.get("allocatable"), proxyFactory);
@@ -1848,7 +1729,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) {
             String clazz = (String) json.get("class");
             String message = (String) json.get("message");
             if (clazz.equals(JVMCIError.class.getName())) {
@@ -1882,7 +1763,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) {
             String className = (String) json.get("className");
             String stackTrace = (String) json.get("stackTrace");
             return new CompilationTaskProduct.CompilationTaskException(className, stackTrace);
@@ -1907,7 +1788,7 @@ public class RecordedOperationPersistence {
         }
 
         @Override
-        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, ProxyFactory proxyFactory) {
+        public Object deserialize(EconomicMap<String, Object> json, RecursiveDeserializer deserializer, CompilationProxies.ProxyFactory proxyFactory) {
             String finalGraph = (String) json.get("finalGraph");
             return new CompilationTaskProduct.RecordedCompilationTaskArtifacts(finalGraph);
         }
@@ -1920,13 +1801,16 @@ public class RecordedOperationPersistence {
     private final EconomicMap<Class<?>, ObjectSerializer> interfaceSerializers;
 
     /**
-     * Constructs a serializer/deserializer for recorded compilation units.
+     * Constructs a codec for JSON replay files.
      *
-     * @param declarations the definitions of the compiler interface
-     * @param hostPlatform the platform of the current host (for serialization)
-     * @param hostTarget the target of the current host (for serialization)
+     * @param declarations the compiler-interface declarations used to encode and decode registered
+     *            JVMCI objects
+     * @param hostPlatform the current host platform, used for host-dependent values such as
+     *            register configurations
+     * @param hostTarget the current host target, used for host-dependent values such as register
+     *            configurations
      */
-    public RecordedOperationPersistence(CompilerInterfaceDeclarations declarations, Platform hostPlatform, TargetDescription hostTarget) {
+    public JsonReplayCodec(CompilerInterfaceDeclarations declarations, Platform hostPlatform, TargetDescription hostTarget) {
         this.tagSerializers = EconomicMap.create();
         this.exactClassSerializers = EconomicMap.create();
         this.interfaceSerializers = EconomicMap.create();
@@ -2039,11 +1923,11 @@ public class RecordedOperationPersistence {
     };
 
     /**
-     * Dumps the given compilation unit to the given writer.
+     * Writes a recorded compilation unit in JSON replay format.
      *
-     * @param compilationUnit the compilation unit
-     * @param writer the writer
-     * @throws IOException if dumping fails
+     * @param compilationUnit the compilation unit to encode
+     * @param writer the destination writer
+     * @throws IOException if encoding fails
      */
     public void dump(RecordedCompilationUnit compilationUnit, JsonWriter writer) throws IOException {
         recursiveSerializer.serialize(compilationUnit, writer.valueBuilder(), RecordedCompilationUnitSerializer.TAG);
@@ -2053,12 +1937,12 @@ public class RecordedOperationPersistence {
         return new RecursiveDeserializer() {
             @Override
             @SuppressWarnings("unchecked")
-            public Object deserialize(Object json, ProxyFactory proxyFactory) throws DeserializationException {
+            public Object deserialize(Object json, CompilationProxies.ProxyFactory proxyFactory) throws DeserializationException {
                 if (json instanceof EconomicMap<?, ?>) {
                     EconomicMap<String, Object> map = (EconomicMap<String, Object>) json;
                     String tag = (String) map.get("tag");
                     if (tag == null) {
-                        throw new IllegalArgumentException("The JSON map does not contain a tag: " + map);
+                        throw new IllegalArgumentException("The replay map does not contain a tag: " + map);
                     }
                     ObjectSerializer deserializer = tagSerializers.get(tag);
                     if (deserializer == null) {
@@ -2072,7 +1956,7 @@ public class RecordedOperationPersistence {
 
             @Override
             @SuppressWarnings("unchecked")
-            public Object deserialize(Object json, ProxyFactory proxyFactory, String tag) throws DeserializationException {
+            public Object deserialize(Object json, CompilationProxies.ProxyFactory proxyFactory, String tag) throws DeserializationException {
                 if (json instanceof EconomicMap<?, ?>) {
                     EconomicMap<String, Object> map = (EconomicMap<String, Object>) json;
                     ObjectSerializer deserializer = tagSerializers.get(tag);
@@ -2100,15 +1984,15 @@ public class RecordedOperationPersistence {
     }
 
     /**
-     * Loads a recorded compilation unit from the given reader.
+     * Reads a recorded compilation unit from JSON replay format.
      *
-     * @param source the reader
-     * @param proxyFactory the proxy factory
-     * @return the loaded compilation unit
-     * @throws IOException if loading fails
+     * @param source the source reader
+     * @param proxyFactory the factory used to recreate registered compiler-interface proxies
+     * @return the decoded compilation unit
+     * @throws IOException if reading fails
      * @throws DeserializationException if deserialization fails
      */
-    public RecordedCompilationUnit load(Reader source, ProxyFactory proxyFactory) throws IOException, DeserializationException {
+    public RecordedCompilationUnit load(Reader source, CompilationProxies.ProxyFactory proxyFactory) throws IOException, DeserializationException {
         JsonParser parser = new JsonParser(source);
         return (RecordedCompilationUnit) createRecursiveDeserializer().deserialize(parser.parse(), proxyFactory, RecordedCompilationUnitSerializer.TAG);
     }
