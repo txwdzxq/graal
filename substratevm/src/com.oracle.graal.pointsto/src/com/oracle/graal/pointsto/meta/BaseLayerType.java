@@ -69,12 +69,18 @@ public class BaseLayerType extends AnnotationsContainer implements ResolvedJavaT
     private final ResolvedJavaType superClass;
     private final ResolvedJavaType[] interfaces;
     private final ResolvedJavaType objectType;
+    private final ConcreteMethodResolver concreteMethodResolver;
     private ResolvedJavaField[] instanceFields;
     private ResolvedJavaField[] instanceFieldsWithSuper;
 
+    @FunctionalInterface
+    public interface ConcreteMethodResolver {
+        ResolvedJavaMethod resolve(BaseLayerType declaringType, ResolvedJavaMethod method, ResolvedJavaType callerType);
+    }
+
     public BaseLayerType(String name, int baseLayerId, int modifiers, boolean isInterface, boolean isEnum, boolean isRecord, boolean isInitialized, boolean isLinked,
                     String sourceFileName, ResolvedJavaType enclosingType, ResolvedJavaType componentType, ResolvedJavaType superClass, ResolvedJavaType[] interfaces, ResolvedJavaType objectType,
-                    AnnotationValue[] annotations) {
+                    AnnotationValue[] annotations, ConcreteMethodResolver concreteMethodResolver) {
         super(annotations);
         this.name = name.substring(0, name.length() - 1) + BASE_LAYER_SUFFIX;
         this.baseLayerId = baseLayerId;
@@ -90,6 +96,7 @@ public class BaseLayerType extends AnnotationsContainer implements ResolvedJavaT
         this.superClass = superClass;
         this.interfaces = interfaces;
         this.objectType = objectType;
+        this.concreteMethodResolver = concreteMethodResolver;
     }
 
     public void setInstanceFields(ResolvedJavaField[] instanceFields) {
@@ -260,6 +267,11 @@ public class BaseLayerType extends AnnotationsContainer implements ResolvedJavaT
          * be created and put in an AnalysisMethod in a similar way to this BaseLayerType.
          */
         return null;
+    }
+
+    @Override
+    public ResolvedJavaMethod resolveConcreteMethod(ResolvedJavaMethod method, ResolvedJavaType callerType) {
+        return concreteMethodResolver == null ? null : concreteMethodResolver.resolve(this, method, callerType);
     }
 
     @Override

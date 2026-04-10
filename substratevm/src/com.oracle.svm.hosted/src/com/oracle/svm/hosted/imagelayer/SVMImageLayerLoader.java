@@ -38,6 +38,7 @@ import static com.oracle.svm.hosted.lambda.LambdaParser.getLambdaClassFromConsta
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
+import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Arrays;
@@ -161,6 +162,7 @@ import jdk.vm.ci.meta.MethodHandleAccessProvider.IntrinsicMethod;
 import jdk.vm.ci.meta.ResolvedJavaField;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
+import jdk.vm.ci.meta.Signature;
 
 public class SVMImageLayerLoader extends ImageLayerLoader {
     private static final ResolvedJavaType SVM_IMAGE_LAYER_LOADER = GuestAccess.get().lookupType(SVMImageLayerLoader.class);
@@ -201,6 +203,8 @@ public class SVMImageLayerLoader extends ImageLayerLoader {
     private EconomicMap<String, Integer> typeDescriptorToBaseLayerId;
     /** Map from {@link SVMImageLayerSnapshotUtil#getMethodDescriptor} to base layer method ids. */
     private EconomicMap<String, Integer> methodDescriptorToBaseLayerId;
+    /** Declaring type id to persisted method ids. */
+    private Map<Integer, List<Integer>> methodIdsByDeclaringTypeId;
 
     protected AnalysisUniverse universe;
     protected AnalysisMetaAccess metaAccess;
@@ -281,9 +285,11 @@ public class SVMImageLayerLoader extends ImageLayerLoader {
 
         StructList.Reader<PersistedAnalysisMethod.Reader> methodsReader = snapshot.getMethods();
         methodDescriptorToBaseLayerId = EconomicMap.create(methodsReader.size());
+        methodIdsByDeclaringTypeId = new HashMap<>();
         for (PersistedAnalysisMethod.Reader methodData : methodsReader) {
             String descriptor = methodData.getDescriptor().toString();
             methodDescriptorToBaseLayerId.put(descriptor, methodData.getId());
+            methodIdsByDeclaringTypeId.computeIfAbsent(methodData.getDeclaringTypeId(), _ -> new java.util.ArrayList<>()).add(methodData.getId());
         }
 
         CapnProtoAdapters.forEach(snapshot.getConstantsToRelink(), id -> prepareConstantRelinking(findConstant(id)));
@@ -614,8 +620,71 @@ public class SVMImageLayerLoader extends ImageLayerLoader {
             AnnotationValue[] annotations = getAnnotations(td.getAnnotationList());
 
             return new BaseLayerType(className, tid, td.getModifiers(), td.getIsInterface(), td.getIsEnum(), td.getIsRecord(), td.getIsInitialized(), td.getIsLinked(), sourceFileName,
-                            enclosingType, componentType, superClass, interfaces, objectType, annotations);
+                            enclosingType, componentType, superClass, interfaces, objectType, annotations, this::resolveConcreteMethodInBaseLayer);
         });
+    }
+
+    private ResolvedJavaMethod resolveConcreteMethodInBaseLayer(BaseLayerType resolvingType, ResolvedJavaMethod targetMethod, ResolvedJavaType callerType) {
+        ResolvedJavaType currentType = resolvingType;
+        while (currentType != null) {
+            if (currentType instanceof BaseLayerType baseLayerType) {
+                Integer methodId = findMatchingBaseLayerMethod(baseLayerType.getBaseLayerId(), targetMethod);
+                if (methodId != null) {
+                    return getAnalysisMethodForBaseLayerId(methodId).getWrapped();
+                }
+            } else {
+                ResolvedJavaMethod resolvedMethod = currentType.resolveConcreteMethod(targetMethod, callerType);
+                if (resolvedMethod != null) {
+                    return resolvedMethod;
+                }
+            }
+            currentType = currentType.getSuperclass();
+        }
+        return null;
+    }
+
+    private Integer findMatchingBaseLayerMethod(int declaringTypeId, ResolvedJavaMethod targetMethod) {
+        List<Integer> methodIds = methodIdsByDeclaringTypeId.get(declaringTypeId);
+        if (methodIds == null) {
+            return null;
+        }
+
+        Signature signature = targetMethod.getSignature();
+        int parameterCount = signature.getParameterCount(false);
+        int[] parameterTypeIds = new int[parameterCount];
+        for (int i = 0; i < parameterCount; i++) {
+            parameterTypeIds[i] = getBaseLayerTypeId(universe.lookup(signature.getParameterType(i, targetMethod.getDeclaringClass())));
+        }
+        int returnTypeId = getBaseLayerTypeId(universe.lookup(signature.getReturnType(targetMethod.getDeclaringClass())));
+
+        String targetName = targetMethod.getName();
+        for (int methodId : methodIds) {
+            PersistedAnalysisMethod.Reader methodData = findMethod(methodId);
+            if (!methodData.getName().toString().equals(targetName)) {
+                continue;
+            }
+            if ((methodData.getModifiers() & Modifier.ABSTRACT) != 0) {
+                continue;
+            }
+            if (methodData.getReturnTypeId() != returnTypeId) {
+                continue;
+            }
+            PrimitiveList.Int.Reader argumentTypeIds = methodData.getArgumentTypeIds();
+            if (argumentTypeIds.size() != parameterTypeIds.length) {
+                continue;
+            }
+            boolean matches = true;
+            for (int i = 0; i < parameterTypeIds.length; i++) {
+                if (argumentTypeIds.get(i) != parameterTypeIds[i]) {
+                    matches = false;
+                    break;
+                }
+            }
+            if (matches) {
+                return methodId;
+            }
+        }
+        return null;
     }
 
     private AnnotationValue[] getAnnotations(StructList.Reader<SharedLayerSnapshotCapnProtoSchemaHolder.PersistedAnnotation.Reader> reader) {
