@@ -158,7 +158,7 @@ public class RuntimeCompiledMethodSupport {
 
         ImageHeapScanner imageScanner = bb.getUniverse().getHeapScanner();
 
-        GraphEncoder graphEncoder = createGraphEncoder(SubstrateTargetDescription.singleton().arch, imageScanner);
+        GraphEncoder graphEncoder = createGraphEncoder(SubstrateTargetDescription.getArchitecture(), imageScanner);
         HostedProviders runtimeCompilationProviders = hostedProviders //
                         .copyWith(constantFieldProviderWrapper.apply(new RuntimeCompilationFieldProvider(hostedProviders.getMetaAccess(), hUniverse))) //
                         .copyWith(new RuntimeCompilationReflectionProvider(bb, hUniverse.hostVM().getClassInitializationSupport()));

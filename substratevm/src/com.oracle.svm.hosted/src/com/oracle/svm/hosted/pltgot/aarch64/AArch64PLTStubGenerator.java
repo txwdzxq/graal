@@ -151,7 +151,7 @@ public class AArch64PLTStubGenerator implements PLTStubGenerator {
         }
 
         byte[] code = masm.close(true);
-        RelocatableBuffer buffer = new RelocatableBuffer(code.length, SubstrateTargetDescription.getByteOrder());
+        RelocatableBuffer buffer = new RelocatableBuffer(code.length, SubstrateTargetDescription.getArchitecture().getByteOrder());
         buffer.getByteBuffer().put(code);
 
         HostedMethod resolverMethod = HostedPLTGOTConfiguration.singleton().getArchSpecificResolverAsHostedMethod();

@@ -192,7 +192,7 @@ class CTypeConversionSupportImpl implements CTypeConversionSupport {
     @Override
     public ByteBuffer asByteBuffer(PointerBase address, int size) {
         ByteBuffer byteBuffer = DirectByteBufferUtil.allocate(address.rawValue(), size);
-        return byteBuffer.order(SubstrateTargetDescription.getByteOrder());
+        return byteBuffer.order(SubstrateTargetDescription.getArchitecture().getByteOrder());
     }
 }
 

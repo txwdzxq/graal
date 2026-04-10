@@ -1414,7 +1414,7 @@ public abstract class SharedDebugInfoProvider implements DebugInfoProvider {
      * Size in bytes of the frame at call entry before any stack extend. Essentially this accounts
      * for any automatically pushed return address whose presence depends upon the architecture.
      */
-    static final int PRE_EXTEND_FRAME_SIZE = SubstrateTargetDescription.singleton().arch.getReturnAddressSize();
+    static final int PRE_EXTEND_FRAME_SIZE = SubstrateTargetDescription.getArchitecture().getReturnAddressSize();
 
     /**
      * Retrieve details of the native calling convention for a top level compiled method, including

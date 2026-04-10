@@ -89,6 +89,6 @@ public interface ReferenceAdjuster {
 
     @Fold
     static ByteOrder nativeByteOrder() {
-        return SubstrateTargetDescription.getByteOrder();
+        return SubstrateTargetDescription.getArchitecture().getByteOrder();
     }
 }

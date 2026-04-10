@@ -1088,7 +1088,7 @@ public abstract class VMThreads {
 
         @Fold
         static boolean isAarch64() {
-            return SubstrateTargetDescription.singleton().arch instanceof AArch64;
+            return SubstrateTargetDescription.getArchitecture() instanceof AArch64;
         }
     }
 

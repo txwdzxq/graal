@@ -164,7 +164,7 @@ public final class ImageLayerSectionFeature implements InternalFeature {
     }
 
     private static byte[] createWords(int count, WordBase initialValue) {
-        Architecture arch = SubstrateTargetDescription.singleton().arch;
+        Architecture arch = SubstrateTargetDescription.getArchitecture();
         assert arch.getWordSize() == Long.BYTES : "currently hard-coded for 8 byte words";
         ByteBuffer buffer = ByteBuffer.allocate(count * Long.BYTES).order(arch.getByteOrder());
         for (int i = 0; i < count; i++) {

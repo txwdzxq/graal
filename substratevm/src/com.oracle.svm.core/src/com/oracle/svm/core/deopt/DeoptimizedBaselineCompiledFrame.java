@@ -80,7 +80,7 @@ public final class DeoptimizedBaselineCompiledFrame extends DeoptimizedFrame {
                     RelockObjectData[] relockedObjects, CodePointer sourcePC, boolean rethrowException, boolean isEagerDeopt) {
         this.sourceEncodedFrameSize = sourceEncodedFrameSize;
         this.topFrame = topFrame;
-        this.targetContent = new Deoptimizer.TargetContent(targetContentSize, SubstrateTargetDescription.getByteOrder());
+        this.targetContent = new Deoptimizer.TargetContent(targetContentSize, SubstrateTargetDescription.getArchitecture().getByteOrder());
         this.relockedObjects = relockedObjects;
         this.sourceInstalledCode = sourceInstalledCode == null ? null : new WeakReference<>(sourceInstalledCode);
         this.sourcePC = sourcePC;

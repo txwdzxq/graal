@@ -64,6 +64,6 @@ public class ByteArrayReader {
 
     @Fold
     public static boolean supportsUnalignedMemoryAccess() {
-        return SubstrateTargetDescription.singleton().arch.supportsUnalignedMemoryAccess();
+        return SubstrateTargetDescription.getArchitecture().supportsUnalignedMemoryAccess();
     }
 }

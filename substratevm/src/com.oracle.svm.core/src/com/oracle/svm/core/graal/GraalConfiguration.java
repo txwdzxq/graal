@@ -185,7 +185,7 @@ public class GraalConfiguration {
          * AMD64 machine). This ensures that Truffle runtime compilation can leverage vectorized
          * code on target machines that support it.
          */
-        final Architecture hostedArchitecture = SubstrateTargetDescription.singleton().arch;
+        final Architecture hostedArchitecture = SubstrateTargetDescription.getArchitecture();
         if (hostedArchitecture instanceof AMD64) {
             populateMatchRuleRegistry(matchRuleRegistry, AMD64NodeMatchRules.class);
             populateMatchRuleRegistry(matchRuleRegistry, AMD64VectorNodeMatchRules.class);

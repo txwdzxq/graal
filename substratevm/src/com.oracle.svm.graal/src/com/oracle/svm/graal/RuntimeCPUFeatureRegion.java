@@ -158,7 +158,7 @@ class RuntimeCPUFeatureRegionFeature implements InternalFeature {
 
         @Override
         public void generate(NodeLIRBuilderTool tool) {
-            Architecture arch = SubstrateTargetDescription.singleton().arch;
+            Architecture arch = SubstrateTargetDescription.getArchitecture();
             if (arch instanceof AMD64) {
                 LIRGenerator generator = (LIRGenerator) tool.getLIRGeneratorTool();
                 generator.append(new AMD64CPUFeatureRegionOp.AMD64CPUFeatureRegionEnterOp(checkedCast(features, AMD64.CPUFeature.class)));
@@ -187,7 +187,7 @@ class RuntimeCPUFeatureRegionFeature implements InternalFeature {
 
         @Override
         public void generate(NodeLIRBuilderTool tool) {
-            Architecture arch = SubstrateTargetDescription.singleton().arch;
+            Architecture arch = SubstrateTargetDescription.getArchitecture();
             if (arch instanceof AMD64) {
                 LIRGenerator generator = (LIRGenerator) tool.getLIRGeneratorTool();
                 generator.append(new AMD64CPUFeatureRegionOp.AMD64CPUFeatureRegionLeaveOp());

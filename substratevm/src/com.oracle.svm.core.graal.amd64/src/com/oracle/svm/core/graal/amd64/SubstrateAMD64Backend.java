@@ -1849,12 +1849,12 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
     }
 
     protected static boolean isVectorizationTarget() {
-        return ((AMD64) SubstrateTargetDescription.singleton().arch).getFeatures().contains(AMD64.CPUFeature.AVX);
+        return ((AMD64) SubstrateTargetDescription.getArchitecture()).getFeatures().contains(AMD64.CPUFeature.AVX);
     }
 
     protected AMD64ArithmeticLIRGenerator createArithmeticLIRGen(RegisterValue nullRegisterValue) {
         if (isVectorizationTarget()) {
-            return AMD64VectorArithmeticLIRGenerator.create(nullRegisterValue, SubstrateTargetDescription.singleton().arch);
+            return AMD64VectorArithmeticLIRGenerator.create(nullRegisterValue, SubstrateTargetDescription.getArchitecture());
         } else {
             return new AMD64ArithmeticLIRGenerator(nullRegisterValue);
         }
@@ -1865,7 +1865,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
         AMD64MoveFactoryBase factory = new SubstrateAMD64MoveFactory(backupSlotProvider, method, createLirKindTool());
         if (isVectorizationTarget()) {
             factory = new AMD64VectorMoveFactory(factory, backupSlotProvider,
-                            AMD64Assembler.AMD64SIMDInstructionEncoding.forFeatures(((AMD64) SubstrateTargetDescription.singleton().arch).getFeatures()));
+                            AMD64Assembler.AMD64SIMDInstructionEncoding.forFeatures(((AMD64) SubstrateTargetDescription.getArchitecture()).getFeatures()));
         }
         return factory;
     }

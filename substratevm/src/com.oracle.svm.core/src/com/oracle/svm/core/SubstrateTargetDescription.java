@@ -24,7 +24,6 @@
  */
 package com.oracle.svm.core;
 
-import java.nio.ByteOrder;
 import java.util.EnumSet;
 import java.util.List;
 
@@ -67,11 +66,9 @@ public class SubstrateTargetDescription extends TargetDescription {
     }
 
     @Fold
-    public static ByteOrder getByteOrder() {
-        return singleton().arch.getByteOrder();
+    public static Architecture getArchitecture() {
+        return singleton().arch;
     }
-
-    private static final String RUNTIME_CHECKED_CPU_FEATURES = "runtimeCheckedCPUFeatures";
 
     @Platforms(Platform.HOSTED_ONLY.class)
     public static boolean shouldInlineObjectsInImageCode() {
@@ -95,6 +92,8 @@ public class SubstrateTargetDescription extends TargetDescription {
     }
 
     static class LayeredCallbacks extends SingletonLayeredCallbacksSupplier {
+        private static final String RUNTIME_CHECKED_CPU_FEATURES = "runtimeCheckedCPUFeatures";
+
         @Override
         public LayeredCallbacksSingletonTrait getLayeredCallbacksTrait() {
             var action = new SingletonLayeredCallbacks<SubstrateTargetDescription>() {

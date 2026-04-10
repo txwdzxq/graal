@@ -131,7 +131,7 @@ public abstract class FrameAccess {
 
     @Fold
     protected int getReturnAddressSize() {
-        int value = SubstrateTargetDescription.singleton().arch.getReturnAddressSize();
+        int value = SubstrateTargetDescription.getArchitecture().getReturnAddressSize();
         assert value > 0;
         return value;
     }

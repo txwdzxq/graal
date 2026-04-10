@@ -176,7 +176,7 @@ public final class RuntimeCPUFeatureCheckImpl {
     @Platforms(Platform.HOSTED_ONLY.class)
     @SuppressWarnings("rawtypes")
     RuntimeCPUFeatureCheckImpl() {
-        Architecture arch = SubstrateTargetDescription.singleton().arch;
+        Architecture arch = SubstrateTargetDescription.getArchitecture();
         Set<? extends Enum<?>> supportedFeatures = RuntimeCPUFeatureCheck.getSupportedFeatures(arch);
         int size = supportedFeatures.size();
         if (size == 0) {
@@ -272,7 +272,7 @@ public final class RuntimeCPUFeatureCheckImpl {
 
     private int getEncoding(Enum<?> feature) {
         if (SubstrateUtil.HOSTED) {
-            GraalError.guarantee(enumToBitIndex != null, "No features registered for run time feature check for platform %s", SubstrateTargetDescription.singleton().arch);
+            GraalError.guarantee(enumToBitIndex != null, "No features registered for run time feature check for platform %s", SubstrateTargetDescription.getArchitecture());
         }
         byte code = getEncodingUnchecked(feature);
         if (SubstrateUtil.HOSTED) {
@@ -381,7 +381,7 @@ public final class RuntimeCPUFeatureCheckImpl {
 
     @Fold
     static EnumSet<?> getStaticFeatures() {
-        Architecture arch = SubstrateTargetDescription.singleton().arch;
+        Architecture arch = SubstrateTargetDescription.getArchitecture();
         if (arch instanceof AMD64) {
             return ((AMD64) arch).getFeatures();
         } else if (arch instanceof AArch64) {

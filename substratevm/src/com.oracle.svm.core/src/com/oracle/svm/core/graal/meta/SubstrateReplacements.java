@@ -236,7 +236,7 @@ public class SubstrateReplacements extends ReplacementsImpl {
                             .build();
 
             EncodedGraph encodedGraph = new EncodedGraph(snippetEncoding, startOffset, snippetObjects, snippetNodeClasses, result);
-            PEGraphDecoder graphDecoder = new PEGraphDecoder(SubstrateTargetDescription.singleton().arch, result, providers, null, snippetPlugins, new InlineInvokePlugin[0], parameterPlugin, null,
+            PEGraphDecoder graphDecoder = new PEGraphDecoder(SubstrateTargetDescription.getArchitecture(), result, providers, null, snippetPlugins, new InlineInvokePlugin[0], parameterPlugin, null,
                             null, null, new ConcurrentHashMap<>(), new ConcurrentHashMap<>(), true, false) {
 
                 private final IntrinsicContext intrinsic = new IntrinsicContext(method, null, providers.getReplacements().getDefaultReplacementBytecodeProvider(), INLINE_AFTER_PARSING, false);

@@ -1441,7 +1441,7 @@ public class SubstrateAArch64Backend extends SubstrateBackendWithAssembler<Subst
     }
 
     protected static boolean isVectorizationTarget() {
-        return ((AArch64) SubstrateTargetDescription.singleton().arch).getFeatures().contains(AArch64.CPUFeature.ASIMD);
+        return ((AArch64) SubstrateTargetDescription.getArchitecture()).getFeatures().contains(AArch64.CPUFeature.ASIMD);
     }
 
     protected AArch64ArithmeticLIRGenerator createArithmeticLIRGen(AllocatableValue nullRegisterValue) {

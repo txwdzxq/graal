@@ -424,7 +424,7 @@ public class CompileQueue {
     }
 
     protected void callForReplacements(DebugContext debug, @SuppressWarnings("hiding") RuntimeConfiguration runtimeConfig) {
-        NativeImageGenerator.registerReplacements(debug, featureHandler, runtimeConfig, runtimeConfig.getProviders(), true, true, new GraphEncoder(SubstrateTargetDescription.singleton().arch));
+        NativeImageGenerator.registerReplacements(debug, featureHandler, runtimeConfig, runtimeConfig.getProviders(), true, true, new GraphEncoder(SubstrateTargetDescription.getArchitecture()));
     }
 
     public void finish(DebugContext debug) {

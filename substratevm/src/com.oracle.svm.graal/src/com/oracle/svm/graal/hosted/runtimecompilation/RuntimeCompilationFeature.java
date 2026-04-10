@@ -455,7 +455,7 @@ public final class RuntimeCompilationFeature implements Feature, RuntimeCompilat
                         new SubstrateClassInitializationPlugin(config.getHostVM()), SubstrateTargetDescription.singleton(), supportsStubBasedPlugins);
 
         NativeImageGenerator.registerReplacements(DebugContext.forCurrentThread(), featureHandler, runtimeConfig, runtimeConfig.getProviders(), false, true,
-                        RuntimeCompiledMethodSupport.singleton().createGraphEncoder(SubstrateTargetDescription.singleton().arch, config.getUniverse().getHeapScanner()));
+                        RuntimeCompiledMethodSupport.singleton().createGraphEncoder(SubstrateTargetDescription.getArchitecture(), config.getUniverse().getHeapScanner()));
 
         featureHandler.forEachGraalFeature(feature -> feature.registerCodeObserver(runtimeConfig));
         Suites suites = NativeImageGenerator.createSuites(featureHandler, runtimeConfig, false);
@@ -464,7 +464,7 @@ public final class RuntimeCompilationFeature implements Feature, RuntimeCompilat
         LIRSuites firstTierLirSuites = NativeImageGenerator.createFirstTierLIRSuites(featureHandler, runtimeConfig.getProviders(), false);
 
         RuntimeCompilationSupport.setRuntimeConfig(runtimeConfig, suites, lirSuites, firstTierSuites, firstTierLirSuites,
-                        createRuntimeInvocationPlugins(hostedProviders.getGraphBuilderPlugins().getInvocationPlugins(), SubstrateTargetDescription.singleton().arch));
+                        createRuntimeInvocationPlugins(hostedProviders.getGraphBuilderPlugins().getInvocationPlugins(), SubstrateTargetDescription.getArchitecture()));
     }
 
     private static InvocationPlugins createRuntimeInvocationPlugins(InvocationPlugins hostedInvocationPlugins, Architecture arch) {
@@ -495,7 +495,7 @@ public final class RuntimeCompilationFeature implements Feature, RuntimeCompilat
 
         runtimeCompilationCandidatePredicate = RuntimeCompilationFeature::defaultAllowRuntimeCompilation;
         optimisticOpts = OptimisticOptimizations.ALL.remove(OptimisticOptimizations.Optimization.UseLoopLimitChecks);
-        graphEncoder = RuntimeCompiledMethodSupport.singleton().createGraphEncoder(SubstrateTargetDescription.singleton().arch, config.getUniverse().getHeapScanner());
+        graphEncoder = RuntimeCompiledMethodSupport.singleton().createGraphEncoder(SubstrateTargetDescription.getArchitecture(), config.getUniverse().getHeapScanner());
 
         /*
          * Ensure all snippet types are registered as used.

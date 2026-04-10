@@ -180,7 +180,7 @@ public abstract class NativeImage extends AbstractImage {
 
         int pageSize = SubstrateOptions.getPageSize();
         objectFile = ObjectFileFactory.singleton().newObjectFile(pageSize, ImageSingletons.lookup(TemporaryBuildDirectoryProvider.class).getTemporaryBuildDirectory(), universe.getBigBang());
-        objectFile.setByteOrder(SubstrateTargetDescription.getByteOrder());
+        objectFile.setByteOrder(SubstrateTargetDescription.getArchitecture().getByteOrder());
         wordSize = FrameAccess.wordSize();
         assert objectFile.getWordSizeInBytes() == wordSize;
         assert objectFile.getPageSize() == heapLayout.getPageSize();
@@ -570,7 +570,7 @@ public abstract class NativeImage extends AbstractImage {
 
     public void markRelocationSitesFromBuffer(RelocatableBuffer buffer, ProgbitsSectionImpl sectionImpl) {
         buffer.forEachRelocation((info, offset) -> {
-            assert SubstrateTargetDescription.singleton().arch instanceof AArch64 || checkEmbeddedOffset(sectionImpl, offset, info);
+            assert SubstrateTargetDescription.getArchitecture() instanceof AArch64 || checkEmbeddedOffset(sectionImpl, offset, info);
 
             Object target = info.getTargetObject();
             if (target instanceof CFunctionPointer || target instanceof MethodOffset) {
@@ -700,14 +700,14 @@ public abstract class NativeImage extends AbstractImage {
 
     /** Mark a relocation site for the location of an image heap object. */
     private void markHeapReferenceRelocationSite(ProgbitsSectionImpl sectionImpl, int offset, RelocatableBuffer.Info info, ObjectInfo targetObjectInfo) {
-        assert SubstrateTargetDescription.singleton().arch instanceof AArch64 || info.getRelocationSize() == 4 || info.getRelocationSize() == 8 : "AMD64 Data relocation size should be 4 or 8 bytes.";
+        assert SubstrateTargetDescription.getArchitecture() instanceof AArch64 || info.getRelocationSize() == 4 || info.getRelocationSize() == 8 : "AMD64 Data relocation size should be 4 or 8 bytes.";
         String targetSectionName = heapSection.getName();
         long relocationAddend = targetObjectInfo.getOffset() + info.getAddend();
         sectionImpl.markRelocationSite(offset, info.getRelocationKind(), targetSectionName, relocationAddend);
     }
 
     private void markDataRelocationSiteFromText(RelocatableBuffer buffer, final ProgbitsSectionImpl sectionImpl, final int offset, final Info info) {
-        Architecture arch = SubstrateTargetDescription.singleton().arch;
+        Architecture arch = SubstrateTargetDescription.getArchitecture();
         assert arch instanceof AArch64 || ((info.getRelocationSize() == 4) || (info.getRelocationSize() == 8)) : "AMD64 Data relocation size should be 4 or 8 bytes. Got size: " +
                         info.getRelocationSize();
         Object target = info.getTargetObject();

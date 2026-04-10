@@ -209,7 +209,7 @@ class NativeImageDebugInfoFeature implements InternalFeature {
          * GDB JIT compilation interface.
          */
         if (SubstrateDebugInfoInstaller.Options.hasRuntimeDebugInfoFormatSupport(SubstrateDebugInfoInstaller.DEBUG_INFO_OBJFILE_NAME)) {
-            Architecture arch = SubstrateTargetDescription.singleton().arch;
+            Architecture arch = SubstrateTargetDescription.getArchitecture();
             ByteBuffer buffer = ByteBuffer.allocate(SizeOf.get(GdbJitInterface.JITDescriptor.class)).order(arch.getByteOrder());
 
             /*

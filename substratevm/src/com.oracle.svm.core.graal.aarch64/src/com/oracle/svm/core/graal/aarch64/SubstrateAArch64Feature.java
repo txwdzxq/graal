@@ -114,7 +114,7 @@ class SubstrateAArch64LoweringProviderFactory extends SubstrateVectorArchitectur
     @Override
     public DefaultJavaLoweringProvider newLoweringProvider(MetaAccessProvider metaAccess, ForeignCallsProvider foreignCalls, PlatformConfigurationProvider platformConfig,
                     MetaAccessExtensionProvider metaAccessExtensionProvider, TargetDescription target) {
-        VectorArchitecture vectorArchitecture = getSingletonVectorArchitecture(VectorAArch64::new, (AArch64) SubstrateTargetDescription.singleton().arch, !SubstrateOptions.useLLVMBackend(),
+        VectorArchitecture vectorArchitecture = getSingletonVectorArchitecture(VectorAArch64::new, (AArch64) SubstrateTargetDescription.getArchitecture(), !SubstrateOptions.useLLVMBackend(),
                         ObjectLayout.singleton().getReferenceSize(), ReferenceAccess.singleton().haveCompressedReferences(),
                         ObjectLayout.singleton().getAlignment());
         return new SubstrateAArch64LoweringProvider(metaAccess, foreignCalls, platformConfig, metaAccessExtensionProvider, target, vectorArchitecture);

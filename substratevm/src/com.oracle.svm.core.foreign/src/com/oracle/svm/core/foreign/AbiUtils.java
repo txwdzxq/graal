@@ -1140,7 +1140,7 @@ class ABIs {
         protected List<Adapter.Adaptation> generateAdaptations(NativeEntryPointInfo nep) {
             List<Adapter.Adaptation> adaptations = super.generateAdaptations(nep);
 
-            AMD64 target = (AMD64) ImageSingletons.lookup(SubstrateTargetDescription.class).arch;
+            AMD64 target = (AMD64) SubstrateTargetDescription.getArchitecture();
             boolean previousMatched = false;
             PlatformKind previousKind = null;
             for (int i = adaptations.size() - 1; i >= 0; --i) {

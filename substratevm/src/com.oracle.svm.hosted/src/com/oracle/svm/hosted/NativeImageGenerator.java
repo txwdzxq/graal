@@ -1384,7 +1384,7 @@ public class NativeImageGenerator {
 
             NativeImageGenerator.registerGraphBuilderPlugins(featureHandler, null, aProviders, aMetaAccess, aUniverse, nativeLibraries, loader, ParsingReason.PointsToAnalysis,
                             bb.getAnnotationSubstitutionProcessor(), classInitializationPlugin, SubstrateTargetDescription.singleton(), supportsStubBasedPlugins);
-            registerReplacements(debug, featureHandler, null, aProviders, true, initForeignCalls, new GraphEncoder(SubstrateTargetDescription.singleton().arch));
+            registerReplacements(debug, featureHandler, null, aProviders, true, initForeignCalls, new GraphEncoder(SubstrateTargetDescription.getArchitecture()));
 
             performSnippetGraphAnalysis(bb, aReplacements, options, Function.identity());
         }
@@ -1719,10 +1719,10 @@ public class NativeImageGenerator {
         SubstrateBackend backend = runtimeConfig.getBackendForNormalMethod();
         Suites suites;
         if (hosted) {
-            suites = GraalConfiguration.hostedInstance().createSuites(optionsToUse == null ? HostedOptionValues.singleton().get() : optionsToUse, hosted, SubstrateTargetDescription.singleton().arch);
+            suites = GraalConfiguration.hostedInstance().createSuites(optionsToUse == null ? HostedOptionValues.singleton().get() : optionsToUse, hosted, SubstrateTargetDescription.getArchitecture());
         } else {
             suites = GraalConfiguration.runtimeInstance().createSuites(optionsToUse == null ? RuntimeOptionValues.singleton().get() : optionsToUse, hosted,
-                            SubstrateTargetDescription.singleton().arch);
+                            SubstrateTargetDescription.getArchitecture());
         }
         return modifySuites(backend, suites, featureHandler, hosted, false, false);
     }
@@ -1735,9 +1735,9 @@ public class NativeImageGenerator {
         SubstrateBackend backend = runtimeConfig.getBackendForNormalMethod();
         Suites suites;
         if (hosted) {
-            suites = GraalConfiguration.hostedInstance().createFirstTierSuites(HostedOptionValues.singleton().get(), hosted, SubstrateTargetDescription.singleton().arch);
+            suites = GraalConfiguration.hostedInstance().createFirstTierSuites(HostedOptionValues.singleton().get(), hosted, SubstrateTargetDescription.getArchitecture());
         } else {
-            suites = GraalConfiguration.runtimeInstance().createFirstTierSuites(RuntimeOptionValues.singleton().get(), hosted, SubstrateTargetDescription.singleton().arch);
+            suites = GraalConfiguration.runtimeInstance().createFirstTierSuites(RuntimeOptionValues.singleton().get(), hosted, SubstrateTargetDescription.getArchitecture());
         }
         return modifySuites(backend, suites, featureHandler, hosted, true, false);
     }
@@ -1751,9 +1751,9 @@ public class NativeImageGenerator {
         SubstrateBackend backend = runtimeConfig.getBackendForNormalMethod();
         Suites suites;
         if (hosted) {
-            suites = GraalConfiguration.hostedInstance().createFallbackSuites(HostedOptionValues.singleton().get(), hosted, SubstrateTargetDescription.singleton().arch);
+            suites = GraalConfiguration.hostedInstance().createFallbackSuites(HostedOptionValues.singleton().get(), hosted, SubstrateTargetDescription.getArchitecture());
         } else {
-            suites = GraalConfiguration.runtimeInstance().createFallbackSuites(RuntimeOptionValues.singleton().get(), hosted, SubstrateTargetDescription.singleton().arch);
+            suites = GraalConfiguration.runtimeInstance().createFallbackSuites(RuntimeOptionValues.singleton().get(), hosted, SubstrateTargetDescription.getArchitecture());
         }
         return modifySuites(backend, suites, featureHandler, hosted, false, true);
     }

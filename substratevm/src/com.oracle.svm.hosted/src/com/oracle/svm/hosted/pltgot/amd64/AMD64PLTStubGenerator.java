@@ -153,7 +153,7 @@ public class AMD64PLTStubGenerator implements PLTStubGenerator {
         }
 
         byte[] code = asm.close(true);
-        RelocatableBuffer buffer = new RelocatableBuffer(code.length, SubstrateTargetDescription.getByteOrder());
+        RelocatableBuffer buffer = new RelocatableBuffer(code.length, SubstrateTargetDescription.getArchitecture().getByteOrder());
         buffer.getByteBuffer().put(code);
 
         MethodPointer resolver = new MethodPointer(configuration.getArchSpecificResolverAsHostedMethod(), false);
