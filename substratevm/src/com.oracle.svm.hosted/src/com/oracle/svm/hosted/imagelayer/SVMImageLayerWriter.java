@@ -1116,11 +1116,7 @@ public class SVMImageLayerWriter extends ImageLayerWriter {
 
     @Override
     public void persistAnalysisParsedGraph(AnalysisMethod method, AnalysisParsedGraph analysisParsedGraph) {
-        /*
-         * A copy of the encoded graph is needed here because the nodeStartOffsets can be
-         * concurrently updated otherwise, which causes the ObjectCopier to fail.
-         */
-        String location = persistGraph(method, new EncodedGraph(analysisParsedGraph.getEncodedGraph()));
+        String location = persistGraph(method, analysisParsedGraph.getEncodedGraph());
         if (location != null) {
             /*
              * This method should only be called once for each method. This check is performed by
