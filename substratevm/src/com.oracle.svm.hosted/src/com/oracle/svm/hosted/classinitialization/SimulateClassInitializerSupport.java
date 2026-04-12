@@ -572,9 +572,14 @@ public class SimulateClassInitializerSupport {
                     if (constantValue instanceof ImageHeapConstant imageHeapConstant && field.isFinal()) {
                         imageHeapConstant.setOrigin(field);
                     }
-                    // We use the java kind here and not the storage kind since that's what the
-                    // users of (Analysis)ConstantReflectionProvider expect.
-                    clusterMember.staticFieldValues.put(field, adaptForImageHeap(constantValue, field.getJavaKind()));
+                    /*
+                     * Regular object fields must keep their Java kind because that is what users of
+                     * (Analysis)ConstantReflectionProvider expect. Word-backed pointer fields are
+                     * represented as primitive word constants, so they must use the storage kind
+                     * instead.
+                     */
+                    var kind = field.getType().isWordType() ? field.getStorageKind() : field.getJavaKind();
+                    clusterMember.staticFieldValues.put(field, adaptForImageHeap(constantValue, kind));
                     return;
                 }
             }

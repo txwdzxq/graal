@@ -30,7 +30,6 @@ import com.oracle.graal.pointsto.BigBang;
 import com.oracle.graal.pointsto.flow.AnalysisParsedGraph.Stage;
 import com.oracle.graal.pointsto.meta.AnalysisField;
 import com.oracle.graal.pointsto.meta.AnalysisMethod;
-import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.hosted.ameta.FieldValueInterceptionSupport;
 
 import jdk.graal.compiler.graph.Node;
@@ -127,11 +126,15 @@ public final class StaticFinalFieldFoldingPhase extends BasePhase<CoreProviders>
         }
 
         /*
-         * If this node is a candidate for static final field folding, the
-         * StaticFinalFieldFoldingNodePlugin already inserted a StateSplitProxyNode that we can use.
+         * The foldability decision can change after ensureGraphParsed() above parsed the defining
+         * class initializer. In that case the bytecode parser did not treat the field load as a
+         * folding candidate yet, so no StateSplitProxyNode was inserted. Without the proxy we
+         * cannot safely rewrite the load into the diamond below, so leave the original load in
+         * place.
          */
-        VMError.guarantee(loadFieldNode.next() instanceof StateSplitProxyNode, "missing StateSplitProxy");
-        StateSplitProxyNode stateSplitProxyNode = (StateSplitProxyNode) loadFieldNode.next();
+        if (!(loadFieldNode.next() instanceof StateSplitProxyNode stateSplitProxyNode)) {
+            return;
+        }
 
         /*
          * Query the folded field value for the AnalysisField. To ensure deterministic image builds,
