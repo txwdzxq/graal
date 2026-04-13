@@ -40,21 +40,21 @@ import jdk.vm.ci.meta.JavaKind;
  * internals. Instead, it stores all the values directly in the instance.
  */
 @SingletonTraits(access = BuiltinTraits.AllAccess.class, layeredCallbacks = BuiltinTraits.NoLayeredCallbacks.class, layeredInstallationKind = SingletonLayeredInstallationKind.Duplicable.class)
-public class GuestTargetDescription {
+public class SubstrateGuestTarget {
 
     private final JavaKind wordKind;
     private final int wordSize;
     private final ByteOrder byteOrder;
 
-    public GuestTargetDescription(JavaKind wordKind, int wordSize, ByteOrder byteOrder) {
+    public SubstrateGuestTarget(JavaKind wordKind, int wordSize, ByteOrder byteOrder) {
         this.wordKind = wordKind;
         this.wordSize = wordSize;
         this.byteOrder = byteOrder;
     }
 
     @GuestFold
-    private static GuestTargetDescription singleton() {
-        return ImageSingletons.lookup(GuestTargetDescription.class);
+    private static SubstrateGuestTarget singleton() {
+        return ImageSingletons.lookup(SubstrateGuestTarget.class);
     }
 
     @GuestFold
