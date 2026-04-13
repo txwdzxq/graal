@@ -58,6 +58,7 @@ import com.oracle.svm.core.heap.UnknownObjectField;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.core.hub.crema.CremaSupport;
 import com.oracle.svm.core.hub.registry.SymbolsSupport;
+import com.oracle.svm.core.interpreter.InterpreterSupport;
 import com.oracle.svm.core.invoke.ResolvedMember;
 import com.oracle.svm.core.invoke.Target_java_lang_invoke_MemberName;
 import com.oracle.svm.core.meta.MethodOffset;
@@ -166,8 +167,8 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
 
     // TODO move to crema once GR-71517 is resolved
     private volatile ResolvedJavaMethod ristrettoMethod;
-    private static final AtomicReferenceFieldUpdater<InterpreterResolvedJavaMethod, ResolvedJavaMethod> RISTRETTO_METHOD_UPDATER = AtomicReferenceFieldUpdater
-                    .newUpdater(InterpreterResolvedJavaMethod.class, ResolvedJavaMethod.class, "ristrettoMethod");
+    private static final AtomicReferenceFieldUpdater<InterpreterResolvedJavaMethod, ResolvedJavaMethod> RISTRETTO_METHOD_UPDATER = AtomicReferenceFieldUpdater.newUpdater(
+                    InterpreterResolvedJavaMethod.class, ResolvedJavaMethod.class, "ristrettoMethod");
 
     @UnknownObjectField(availability = BuildPhaseProvider.ReadyForCompilation.class) //
     private PreparedSignature preparedSignature;
@@ -248,7 +249,7 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
         this.flags = flags;
         this.declaringClass = MetadataUtil.requireNonNull(declaringClass);
         this.signature = MetadataUtil.requireNonNull(signature);
-        this.preparedSignature = preparedSignature;
+        this.preparedSignature = MetadataUtil.requireNonNull(preparedSignature);
         this.signatureSymbol = MetadataUtil.requireNonNull(signatureSymbol);
         this.interpretedCode = code;
         this.exceptionHandlers = exceptionHandlers;
@@ -266,7 +267,7 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
     // Used at run-time for signature-polymorphic instantiation
     protected InterpreterResolvedJavaMethod(Symbol<Name> name, int maxLocals, int flags,
                     InterpreterResolvedObjectType declaringClass, InterpreterUnresolvedSignature signature, Symbol<Signature> signatureSymbol,
-                    int vtableIndex, int gotOffset, int enterStubOffset, int methodId, SignaturePolymorphicIntrinsic intrinsic) {
+                    int vtableIndex, int gotOffset, int enterStubOffset, int methodId, SignaturePolymorphicIntrinsic intrinsic, PreparedSignature preparedSignature) {
         this.name = MetadataUtil.requireNonNull(name);
         this.maxLocals = maxLocals;
         this.maxStackSize = 0;
@@ -286,6 +287,7 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
         this.methodId = methodId;
         this.inlinedBy = null;
         this.intrinsic = MetadataUtil.requireNonNull(intrinsic);
+        this.preparedSignature = MetadataUtil.requireNonNull(preparedSignature);
     }
 
     // Used at run-time for the crema sub-class
@@ -318,15 +320,22 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
         this.methodId = UNKNOWN_METHOD_ID;
         this.inlinedBy = null;
         this.intrinsic = null;
+        this.preparedSignature = InterpreterSupport.singleton().prepareSignature(this.signature, !Modifier.isStatic(flags), declaringClass);
     }
 
     @VisibleForSerialization
     public static InterpreterResolvedJavaMethod createForDeserialization(String name, int maxLocals, int maxStackSize, int flags, InterpreterResolvedObjectType declaringClass,
-                    InterpreterUnresolvedSignature signature, PreparedSignature preparedSignature,
+                    InterpreterUnresolvedSignature signature, PreparedSignature maybePreparedSignature,
                     byte[] code, ExceptionHandler[] exceptionHandlers, LineNumberTable lineNumberTable, LocalVariableTable localVariableTable,
                     ReferenceConstant<MethodRefHolder> nativeEntryPoint, int vtableIndex, int gotOffset, int enterStubOffset, int methodId) {
         Symbol<Name> nameSymbol = SymbolsSupport.getNames().getOrCreate(name);
         Symbol<Signature> signatureSymbol = toSymbol(signature);
+        PreparedSignature preparedSignature;
+        if (maybePreparedSignature != null) {
+            preparedSignature = maybePreparedSignature;
+        } else {
+            preparedSignature = InterpreterSupport.singleton().prepareSignature(signature, !Modifier.isStatic(flags), declaringClass);
+        }
         return new InterpreterResolvedJavaMethod(nameSymbol, maxLocals, maxStackSize, flags, declaringClass, signature, preparedSignature, signatureSymbol, code,
                         exceptionHandlers, lineNumberTable, localVariableTable, nativeEntryPoint, vtableIndex, gotOffset, enterStubOffset, methodId);
     }
@@ -445,8 +454,9 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
         }
         assert Modifier.isNative(newModifiers);
         InterpreterUnresolvedSignature jvmciSignature = CremaMethodAccess.toJVMCI(newSignature, SymbolsSupport.getTypes());
+        PreparedSignature prepSignature = InterpreterSupport.singleton().prepareSignature(jvmciSignature, !Modifier.isStatic(newModifiers), getDeclaringClass());
         return new InterpreterResolvedJavaMethod(name, jvmciSignature.slotsForParameters(true), newModifiers, declaringClass, jvmciSignature, newSignature,
-                        vtableIndex, gotOffset, enterStubOffset, methodId, iid);
+                        vtableIndex, gotOffset, enterStubOffset, methodId, iid, prepSignature);
     }
 
     private static int getOriginalModifiers(int modifiers, boolean isSubstitutedNative) {
@@ -824,10 +834,14 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
         return this;
     }
 
+    @Platforms(Platform.HOSTED_ONLY.class)
     public void setPreparedSignature(PreparedSignature preparedSignature) {
         this.preparedSignature = preparedSignature;
     }
 
+    /**
+     * Returns the precomputed ABI-ready signature consumed by interpreter stubs.
+     */
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public PreparedSignature getPreparedSignature() {
         return preparedSignature;
