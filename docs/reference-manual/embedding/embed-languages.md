@@ -65,8 +65,8 @@ Here is an example Maven dependency setup that you can put into your project:
 > The `pom` type is a requirement for language or tool dependencies.
 
 Language and tool dependencies use the [GraalVM Free Terms and Conditions (GFTC)](https://www.oracle.com/downloads/licenses/graal-free-license.html) license.
-To use community-licensed versions instead, add the `-community` suffix to each artifact (for example, `js-community`).
-To access [polyglot isolate](#polyglot-isolates) artifacts, use the `-isolate` suffix instead (for example, `js-isolate`).
+To use community-licensed versions, add the `-community` suffix to each artifact (for example, `js-community`).
+For [polyglot isolate](#polyglot-isolates) artifacts, use `-isolate` on Oracle GraalVM and `-isolate-community` on GraalVM Community Edition 25.1 or later (for example, `js-isolate` or `js-isolate-community`).
 
 The artifacts `languages` and `tools` include all available languages and tools as dependencies.
 This artifact might grow or shrink between major releases.
@@ -667,12 +667,14 @@ To summarize, the code cache can be controlled by keeping and maintaining strong
 
 ## Polyglot Isolates
 
-On Oracle GraalVM, a polyglot engine can be configured to run in a dedicated Native Image isolate.
+On GraalVM, a polyglot engine can be configured to run in a dedicated Native Image isolate.
+This capability is available on Oracle GraalVM since version 23.1 and, starting with GraalVM 25.1, on GraalVM Community Edition.
 A polyglot engine in this mode executes within a VM-level fault domain with a dedicated garbage collector and JIT compiler.
 Polyglot isolates are useful for [sandboxing](../../security/polyglot-sandbox.md).
 Running languages in an isolate works with HotSpot and Native Image host virtual machines.
 
-Languages used as polyglot isolates can be downloaded from Maven Central using the `-isolate` suffix.
+Languages used as polyglot isolates can be downloaded from Maven Central.
+Use `-isolate` artifacts with Oracle GraalVM and `-isolate-community` artifacts with GraalVM Community Edition.
 For example, a dependency on isolated JavaScript can be configured by adding a Maven dependency like this:
 
 ```xml
@@ -689,6 +691,8 @@ For example, a dependency on isolated JavaScript can be configured by adding a M
     <type>pom</type>
 </dependency>
 ```
+
+For GraalVM Community Edition 25.1 or later, use `js-isolate-community` instead of `js-isolate`.
 
 Starting from the Polyglot API version 24.1.0, the polyglot engine supports polyglot isolates for individual platforms.
 To download a polyglot isolate for a specific platform, append the operating system and CPU architecture classifiers to the polyglot isolate Maven `artifactId`.
@@ -709,6 +713,22 @@ For example, to configure a dependency on isolated Python for Linux amd64, add t
 </dependency>
 ```
 
+For GraalVM Community Edition 25.1 or later, use the corresponding `-community` artifact:
+```xml
+<dependency>
+	<groupId>org.graalvm.polyglot</groupId>
+	<artifactId>polyglot</artifactId>
+	<version>${graalvm.polyglot.version}</version>
+	<type>jar</type>
+</dependency>
+<dependency>
+	<groupId>org.graalvm.polyglot</groupId>
+	<artifactId>python-isolate-linux-amd64-community</artifactId>
+	<version>${graalvm.polyglot.version}</version>
+	<type>pom</type>
+</dependency>
+```
+
 Supported platform classifiers are:
 * `linux-amd64`
 * `linux-aarch64`
@@ -717,8 +737,8 @@ Supported platform classifiers are:
 
 For a complete Maven POM file that adds the polyglot isolate Native Image dependency for the current platform, refer to the [Polyglot Embedding Demonstration](https://github.com/graalvm/polyglot-embedding-demo) on GitHub.
 
-To enable isolate usage with the Polyglot API, the `--engine.SpawnIsolate=true` option must be passed to `Engine` or `Context` when constructed.
-The option `engine.SpawnIsolate` may not be available if used on any JDK other than Oracle GraalVM.
+To enable isolate usage with the Polyglot API, pass the `--engine.SpawnIsolate=true` option when constructing an `Engine` or `Context`.
+The `engine.SpawnIsolate` option is available on Oracle GraalVM and on GraalVM Community Edition starting with version 25.1.
 
 ```java
 import org.graalvm.polyglot.*;
@@ -751,11 +771,11 @@ Context context = Context.newBuilder("js")
 
 Currently, the following languages are available as polyglot isolates:
 
-| Language                      | Available from |
-|-------------------------------|----------------|
-| JavaScript (`js-isolate`)     | 23.1           |
-| Python (`python-isolate`)     | 24.1           |
-| Wasm (`wasm-isolate`)         | 25.0           |
+| Language   | Oracle GraalVM artifact (available from) | GraalVM Community Edition artifact (available from) |
+|------------|------------------------------------------|------------------------------------------------------|
+| JavaScript | `js-isolate` (23.1)                      | `js-isolate-community` (25.1)                        |
+| Python     | `python-isolate` (24.1)                  | `python-isolate-community` (25.1)                    |
+| Wasm       | `wasm-isolate` (25.0)                    | `wasm-isolate-community` (25.1)                      |
 
 We plan to add support for more languages in future versions.
 

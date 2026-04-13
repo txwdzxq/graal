@@ -1728,4 +1728,12 @@ public class SubstrateOptions {
     @Option(type = Expert, help = "Support for continuations which are used by virtual threads. " +
                     "If disabled, virtual threads can be started but each of them is backed by a platform thread.") //
     public static final HostedOptionKey<Boolean> VMContinuations = new HostedOptionKey<>(true);
+
+    @Option(help = "Maximum random offset in bytes applied to entry points of runtime-installed methods, to make them less predictable. " +
+                    "The effective padding is rounded up to architecture-specific alignment.", type = Expert) //
+    public static final RuntimeOptionKey<Integer> MaxRuntimeCodeOffset = new RuntimeOptionKey<>(0, optionKey -> {
+        if (optionKey.getValue() < 0) {
+            throw UserError.invalidOptionValue(optionKey, optionKey.getValue(), "The value must be non-negative");
+        }
+    }, RelevantForCompilationIsolates);
 }

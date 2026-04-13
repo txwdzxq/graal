@@ -391,6 +391,5 @@ final class InstrumentAccessor extends Accessor {
                 listener.onLeaveThread(truffleContext);
             }
         }
-
     }
 }

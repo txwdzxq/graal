@@ -45,12 +45,17 @@ import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.graalvm.options.OptionCategory;
+import org.graalvm.options.OptionDescriptors;
 import org.graalvm.options.OptionKey;
+import org.graalvm.options.OptionMap;
 import org.graalvm.options.OptionStability;
 import org.graalvm.options.OptionType;
+import org.graalvm.options.OptionValues;
 import org.graalvm.polyglot.SandboxPolicy;
 
 import com.oracle.truffle.api.Option;
@@ -242,6 +247,115 @@ final class PolyglotEngineOptions {
     @Option(category = OptionCategory.USER, stability = OptionStability.EXPERIMENTAL, sandbox = SandboxPolicy.UNTRUSTED, usageSyntax = "Ignore|Print|Throw", help = CloseOnGCExceptionAction.HELP)//
     static final OptionKey<CloseOnGCExceptionAction> CloseOnGCFailureAction = new OptionKey<>(CloseOnGCExceptionAction.Print);
 
+    @Option(category = OptionCategory.USER, stability = OptionStability.STABLE, help = "Spawn an isolate with isolated heap for this engine. Can be set to true or false or to the set of languages that should be initialized.", //
+                    usageSyntax = "true|false|<language>,<language>,...", sandbox = SandboxPolicy.UNTRUSTED)//
+    static final OptionKey<String[]> SpawnIsolate = new OptionKey<>(null, new OptionType<>("<boolean|languages>", (s) -> {
+        if (s.equals("true")) {
+            return new String[0];
+        } else if (s.equals("false")) {
+            return null;
+        } else {
+            if (s.isEmpty()) {
+                return new String[0];
+            }
+            return s.split(",");
+        }
+    }));
+
+    @Option(category = OptionCategory.INTERNAL, stability = OptionStability.EXPERIMENTAL, help = "Path to the isolate library.", usageSyntax = "<path>", sandbox = SandboxPolicy.UNTRUSTED)//
+    static final OptionKey<String> IsolateLibrary = new OptionKey<>(null, OptionType.defaultType(String.class));
+
+    @Option(category = OptionCategory.INTERNAL, stability = OptionStability.EXPERIMENTAL, help = "Path to the external isolate launcher.", usageSyntax = "<path>", sandbox = SandboxPolicy.UNTRUSTED)//
+    static final OptionKey<String> IsolateLauncher = new OptionKey<>(null, OptionType.defaultType(String.class));
+
+    @Option(category = OptionCategory.EXPERT, stability = OptionStability.STABLE, help = "Stack space headroom for calls to the host.", usageSyntax = "[1, inf)<B>|<KB>|<MB>|<GB>", sandbox = SandboxPolicy.UNTRUSTED)//
+    static final OptionKey<Long> HostCallStackHeadRoom = new OptionKey<>(128L * 1024, createSizeInBytesType("engine.HostCallStackHeadRoom", 1));
+
+    @Option(category = OptionCategory.EXPERT, stability = OptionStability.STABLE, help = "Stack space headroom for any interpreter call. Supported only in the AOT mode.", //
+                    usageSyntax = "[0, inf)<B>|<KB>|<MB>|<GB>", sandbox = SandboxPolicy.UNTRUSTED)//
+    static final OptionKey<Long> InterpreterCallStackHeadRoom = new OptionKey<>(0L, createSizeInBytesType("engine.InterpreterCallStackHeadRoom", 0));
+
+    // TODO: Usage syntax for OptionMap
+    @Option(category = OptionCategory.EXPERT, stability = OptionStability.STABLE, help = "Isolate VM options.", sandbox = SandboxPolicy.CONSTRAINED)//
+    public static final OptionKey<OptionMap<String>> IsolateOption = OptionKey.mapOf(String.class);
+
+    @Option(category = OptionCategory.EXPERT, stability = OptionStability.EXPERIMENTAL, help = "Enable memory protection for the isolate.", usageSyntax = "true|false", sandbox = SandboxPolicy.UNTRUSTED)//
+    static final OptionKey<Boolean> IsolateMemoryProtection = new OptionKey<>(false);
+
+    @Option(category = OptionCategory.USER, stability = OptionStability.STABLE, help = "Enable untrusted code execution defenses.", usageSyntax = "none|hardware|software", sandbox = SandboxPolicy.UNTRUSTED)//
+    static final OptionKey<UntrustedCodeMitigationPolicy> UntrustedCodeMitigation = new OptionKey<>(UntrustedCodeMitigationPolicy.NONE);
+
+    @Option(category = OptionCategory.USER, stability = OptionStability.STABLE, help = "Set maximum polyglot isolate heap size. " +
+                    "This is a hard limit for the size of the isolate heap including both guest applications retained data and data allocated by the runtime.", usageSyntax = "[32MB, inf)<B>|<KB>|<MB>|<GB>", sandbox = SandboxPolicy.UNTRUSTED)//
+    static final OptionKey<Long> MaxIsolateMemory = new OptionKey<>(-1L, createSizeInBytesType("engine.MaxIsolateMemory", 32 * SizeUnit.MEGABYTE.factor));
+
+    @Option(category = OptionCategory.USER, stability = OptionStability.EXPERIMENTAL, help = "Defines how an isolated heap is implemented for isolated engines. " +
+                    "'internal' runs the isolate within the current VM, using native-image isolation, 'external' runs the isolate in a separate external process.", usageSyntax = "internal|external", sandbox = SandboxPolicy.UNTRUSTED)//
+    static final OptionKey<IsolatePolicy> IsolateMode = new OptionKey<>(IsolatePolicy.INTERNAL);
+
+    /**
+     * Isolate-specific options that are invalid unless polyglot isolation is enabled
+     * ({@code engine.SpawnIsolate=true}).
+     * <p>
+     * This list intentionally excludes {@code engine.IsolateMode}, {@code engine.IsolateLibrary},
+     * and {@code engine.IsolateLauncher}, because CI jobs provide these options globally even for
+     * tests that do not run with isolation enabled.
+     */
+    static final String[] ISOLATE_SPECIFIC_OPTIONS = new String[]{
+                    "engine.HostCallStackHeadRoom",
+                    "engine.IsolateOption",
+                    "engine.IsolateMemoryProtection",
+                    "engine.UntrustedCodeMitigation",
+                    "engine.MaxIsolateMemory",
+    };
+
+    static final String[] ISOLATE_SPECIFIC_MAP_OPTIONS = new String[]{
+                    "engine.IsolateOption.",
+    };
+
+    /*
+     * Experimentally determined maximum stack size required for an interpreter call.
+     */
+    private static final long INTERPRETER_CALL_OVERHEAD = 4096L;
+    /*
+     * Experimentally determined maximum stack size required for one AST node.
+     */
+    private static final long INTERPRETER_NODE_OVERHEAD = 128L;
+
+    /**
+     * Checks options whether memory protection of an isolate using MPK is required. The memory
+     * protection can be enabled either by {@code IsolateMemoryProtection} option or using
+     * {@code UntrustedCodeMitigation} meta-option. The {@code UntrustedCodeMitigation=hardware} is
+     * an alias for {@code IsolateMemoryProtection=true}.
+     */
+    static boolean isIsolateMemoryProtection(OptionValues optionValues) {
+        return IsolateMemoryProtection.getValue(optionValues) || UntrustedCodeMitigation.getValue(optionValues) == UntrustedCodeMitigationPolicy.HARDWARE;
+    }
+
+    static long getMinInterpreterCallStackHeadRoom(int maxASTDepth) {
+        /*
+         * The following formula was determined based on the stack space consumption of the GraalJS
+         * interpreter on a large JavaScript application. For safety the constants in the formula
+         * are approximately 3 times as high as the maximum observed values.
+         */
+        return INTERPRETER_CALL_OVERHEAD + INTERPRETER_NODE_OVERHEAD * maxASTDepth;
+    }
+
+    static Map<String, String> filterHostOptions(OptionDescriptors engineOptionsDescriptors, Map<String, String> options) {
+        OptionDescriptors localDescriptors = EngineAccessor.RUNTIME.getRuntimeOptionDescriptors();
+        OptionDescriptors localOptions = EngineAccessor.LANGUAGE.createOptionDescriptorsUnion(localDescriptors, engineOptionsDescriptors);
+        return options.entrySet().stream().filter((entry) -> filterHostOption(entry.getKey(), localOptions)).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private static boolean filterHostOption(String optionKey, OptionDescriptors localEngineOptions) {
+        if (optionKey.startsWith("log.")) {
+            return true;
+        } else if (optionKey.equals("engine.InterpreterCallStackHeadRoom")) {
+            return false;
+        }
+        return localEngineOptions.get(optionKey) != null;
+    }
+
     enum CloseOnGCExceptionAction {
         Ignore,
         Print,
@@ -380,6 +494,106 @@ final class PolyglotEngineOptions {
                                 + "'m' for minutes, " //
                                 + "'h' for hours, and " //
                                 + "'d' for days.");
+            }
+        });
+    }
+
+    enum UntrustedCodeMitigationPolicy {
+        NONE,
+        HARDWARE,
+        SOFTWARE;
+
+        @Override
+        public String toString() {
+            return name().toLowerCase();
+        }
+    }
+
+    enum IsolatePolicy {
+        INTERNAL,
+        EXTERNAL;
+
+        @Override
+        public String toString() {
+            return name().toLowerCase();
+        }
+    }
+
+    enum SizeUnit {
+        GIGABYTE("GB", 1024 * 1024 * 1024),
+        MEGABYTE("MB", 1024 * 1024),
+        KILOBYTE("KB", 1024),
+        BYTE("B", 1);
+
+        private final String symbol;
+        private final long factor;
+
+        SizeUnit(String symbol, long factor) {
+            this.symbol = symbol;
+            this.factor = factor;
+        }
+    }
+
+    private static OptionType<Long> createSizeInBytesType(String optionName, long min) {
+        return new OptionType<>("sizeinbytes", new Function<String, Long>() {
+
+            @Override
+            public Long apply(String s) {
+                try {
+                    SizeUnit foundUnit = null;
+                    for (SizeUnit unit : SizeUnit.values()) {
+                        if (s.endsWith(unit.symbol)) {
+                            foundUnit = unit;
+                            break;
+                        }
+                    }
+                    if (foundUnit == null) {
+                        throw invalidValue(s);
+                    }
+                    String subString = s.substring(0, s.length() - foundUnit.symbol.length());
+                    long value = Long.parseLong(subString);
+                    if (value < 0) {
+                        throw invalidValue(s);
+                    }
+                    value = Math.multiplyExact(value, foundUnit.factor);
+                    if (value < min) {
+                        throw invalidRange(s);
+                    }
+                    return value;
+                } catch (NumberFormatException | ArithmeticException e) {
+                    throw invalidValue(s);
+                }
+            }
+
+            private IllegalArgumentException invalidValue(String value) {
+                throw new IllegalArgumentException("Invalid size of '" + value + "' specified for the '" + optionName + "' option. " //
+                                + "A valid size consists of a positive integer value and a byte-based size unit. " //
+                                + "For example '512KB' or '100MB'. Valid size units are " //
+                                + "'B' for bytes, " //
+                                + "'KB' for kilobytes, " //
+                                + "'MB' for megabytes, and " //
+                                + "'GB' for gigabytes ");
+            }
+
+            private IllegalArgumentException invalidRange(String value) {
+                throw new IllegalArgumentException("Invalid size of '" + value + "' specified for the '" + optionName + "' option. " //
+                                + String.format("Valid size must be greater or equal to %s.", toUnitString(min)));
+            }
+
+            private String toUnitString(long value) {
+                String suffix = "B";
+                long scaledValue = value;
+                if (value > SizeUnit.GIGABYTE.factor && value % SizeUnit.GIGABYTE.factor == 0) {
+                    suffix = SizeUnit.GIGABYTE.symbol;
+                    scaledValue /= SizeUnit.GIGABYTE.factor;
+                } else if (value > SizeUnit.MEGABYTE.factor && value % SizeUnit.MEGABYTE.factor == 0) {
+                    suffix = SizeUnit.MEGABYTE.symbol;
+                    scaledValue /= SizeUnit.MEGABYTE.factor;
+                } else if (value > SizeUnit.KILOBYTE.factor && value % SizeUnit.KILOBYTE.factor == 0) {
+                    suffix = SizeUnit.KILOBYTE.symbol;
+                    scaledValue /= SizeUnit.KILOBYTE.factor;
+                }
+                return scaledValue + suffix;
             }
         });
     }

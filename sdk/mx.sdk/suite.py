@@ -604,6 +604,9 @@ suite = {
       "dependencies" : [
           "NATIVEIMAGE",
       ],
+      "annotationProcessors" : [
+        "NATIVEBRIDGE_PROCESSOR",
+      ],
       "requires" : [
       ],
       "checkstyle" : "org.graalvm.word",
@@ -614,6 +617,9 @@ suite = {
       "sourceDirs" : ["src"],
       "dependencies" : [
         "JNIUTILS"
+      ],
+      "annotationProcessors" : [
+        "NATIVEBRIDGE_PROCESSOR",
       ],
       "requires" : [
       ],

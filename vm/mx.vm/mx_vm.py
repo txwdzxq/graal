@@ -85,12 +85,12 @@ llvm_components = ['bgraalvm-native-binutil', 'bgraalvm-native-clang', 'bgraalvm
 # pylint: disable=line-too-long
 ce_unchained_components = ['bnative-image-utils', 'cmp', 'gvm', 'lg', 'ni', 'nic', 'nil', 'nr_lib_jvmcicompiler', 'sdkc', 'sdkni', 'ssvmjdwp', 'svm', 'svmjdwp', 'svmsl', 'svmt', 'tflc', 'tflsm']
 ce_unchained_components_next = ce_unchained_components + ['svmjava', 'svmjavad']
-ce_components_minimal = ['cmp', 'cov', 'dap', 'gvm', 'ins', 'insight', 'insightheap', 'lg', 'lsp', 'nfi-libffi', 'nfi', 'pro', 'sdk', 'sdkni', 'sdkc', 'sdkl', 'tfl', 'tfla', 'tflc', 'tflm', 'truffle-json']
+ce_components_minimal = ['cmp', 'cov', 'dap', 'gvm', 'ins', 'insight', 'insightheap', 'lg', 'lsp', 'nfi-libffi', 'nfi', 'pro', 'sdk', 'sdkni', 'sdkc', 'sdkl', 'tfl', 'tfla', 'tflc', 'tflm', 'tflllm', 'truffle-json']
 ce_components = ce_components_minimal + ['nr_lib_jvmcicompiler', 'bnative-image-utils', 'ni', 'nic', 'nil', 'svm', 'svmt', 'svmnfi', 'svmsl']
 ce_python_components = ['antlr4', 'sllvmvm', 'cmp', 'cov', 'dap', 'dis', 'gvm', 'icu4j', 'xz', 'ins', 'insight', 'insightheap', 'lg', 'llp', 'llrc', 'llrl', 'llrlf', 'llrn', 'lsp', 'nfi-libffi', 'nfi', 'pro', 'pyn', 'pynl', 'rgx', 'sdk',
                         'sdkni', 'sdkc', 'sdkl', 'tfl', 'tfla', 'tflc', 'tflm', 'truffle-json']
 ce_fastr_components = ce_components + llvm_components + ['antlr4', 'xz', 'sllvmvm', 'llp', 'bnative-image', 'snative-image-agent', 'R', 'sRvm', 'bnative-image-utils', 'llrc', 'snative-image-diagnostics-agent', 'llrn', 'llrl', 'llrlf']
-ce_no_native_components = ['cmp', 'cov', 'dap', 'gvm', 'ins', 'insight', 'insightheap', 'lsp', 'nfi-libffi', 'nfi', 'pro', 'sdk', 'sdkni', 'sdkc', 'sdkl', 'tfl', 'tfla', 'tflc', 'tflm', 'truffle-json']
+ce_no_native_components = ['cmp', 'cov', 'dap', 'gvm', 'ins', 'insight', 'insightheap', 'lsp', 'nfi-libffi', 'nfi', 'pro', 'sdk', 'sdkni', 'sdkc', 'sdkl', 'tfl', 'tfla', 'tflc', 'tflm', 'tflllm', 'truffle-json']
 
 # Main GraalVMs
 mx_sdk_vm.register_vm_config('community', ce_unchained_components, _suite, env_file='ce-win')

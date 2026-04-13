@@ -1746,10 +1746,24 @@ mx_sdk_vm.register_graalvm_component(mx_sdk_vm.GraalVMSvmMacro(
     dir_name='truffle',
     license_files=[],
     third_party_license_files=[],
-    dependencies=['tfl'],
+    dependencies=['tfl', 'tflllm'],
     support_distributions=['substratevm:TRUFFLE_GRAALVM_SUPPORT'],
     stability="supported",
 ))
+
+# Legacy Language Library Macro
+mx_sdk_vm.register_graalvm_component(mx_sdk_vm.GraalVMSvmMacro(
+    suite=suite,
+    name='Community Truffle Language Library Macro',
+    short_name='tflllm',
+    dir_name='truffle-language-library-community',
+    license_files=[],
+    third_party_license_files=[],
+    dependencies=[],
+    support_distributions=['substratevm:TRUFFLE_LANGUAGE_LIBRARY_COMMUNITY_GRAALVM_SUPPORT'],
+    stability="supported",
+))
+
 
 # Truffle Unchained SVM Macro
 mx_sdk_vm.register_graalvm_component(mx_sdk_vm.GraalVMSvmMacro(

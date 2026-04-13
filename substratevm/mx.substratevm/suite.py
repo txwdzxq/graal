@@ -476,7 +476,7 @@ suite = {
             "subDir": "src",
             "sourceDirs": ["src"],
             "dependencies": [
-                "com.oracle.svm.core",
+                "com.oracle.svm.core.genscavenge",
             ],
             "requiresConcealed" : {
                 "jdk.internal.vm.ci" : [
@@ -1934,6 +1934,7 @@ suite = {
                 "opens" : [
                     "com.oracle.svm.core                          to jdk.graal.compiler",
                     "com.oracle.svm.core.nodes                    to jdk.graal.compiler",
+                    "com.oracle.svm.core.graal.amd64              to jdk.graal.compiler",
                     "com.oracle.svm.core.graal.nodes              to jdk.graal.compiler",
                     "com.oracle.svm.core.graal.snippets           to jdk.graal.compiler",
                     "com.oracle.svm.hosted.fieldfolding           to jdk.graal.compiler",
@@ -2265,6 +2266,7 @@ suite = {
                 "SVM",
                 "OBJECTFILE",
                 "POINTSTO",
+                "sdk:NATIVEBRIDGE",
                 "truffle:TRUFFLE_RUNTIME",
             ],
             "moduleInfo" : {
@@ -2935,6 +2937,15 @@ suite = {
             ],
             "moduleInfo" : {
                 "name" : "com.oracle.svm.jdwp.server",
+            },
+            "maven" : False,
+        },
+
+        "TRUFFLE_LANGUAGE_LIBRARY_COMMUNITY_GRAALVM_SUPPORT" : {
+            "native" : True,
+            "description" : "Community Truffle language library support distribution for the GraalVM",
+            "layout" : {
+                "native-image.properties" : "file:mx.substratevm/macro-truffle-language-library.properties",
             },
             "maven" : False,
         },

@@ -290,6 +290,7 @@ suite = {
       "sourceDirs" : ["src"],
       "dependencies" : [
         "sdk:POLYGLOT",
+        "sdk:NATIVEBRIDGE",
         "com.oracle.truffle.api.bytecode",
         "com.oracle.truffle.api.impl.asm",
       ],
@@ -304,7 +305,10 @@ suite = {
           "jdk.internal.access",
         ],
       },
-      "annotationProcessors" : ["TRUFFLE_DSL_PROCESSOR"],
+      "annotationProcessors" : [
+        "sdk:NATIVEBRIDGE_PROCESSOR",
+        "TRUFFLE_DSL_PROCESSOR",
+      ],
       "checkstyle" : "com.oracle.truffle.api",
       "javaCompliance" : "17+",
       "workingSets" : "API,Truffle",
@@ -911,6 +915,45 @@ suite = {
       "checkstyle" : "com.oracle.truffle.api",
       "javaCompliance" : "17+",
       "workingSets" : "Truffle,Tools",
+      "graalCompilerSourceEdition": "ignore",
+    },
+    "com.oracle.truffle.sandbox": {
+      "subDir" : "src",
+      "sourceDirs" : ["src"],
+      "dependencies" : [
+        "com.oracle.truffle.api.exception",
+        "com.oracle.truffle.api.instrumentation",
+      ],
+      "requires" : [
+        "java.logging",
+        "java.management",
+        "jdk.management",
+      ],
+      "annotationProcessors" : ["TRUFFLE_DSL_PROCESSOR"],
+      "checkstyle" : "com.oracle.truffle.api",
+      "javaCompliance" : "17+",
+      "workingSets" : "Truffle,Tools",
+      "graalCompilerSourceEdition": "ignore",
+    },
+    "com.oracle.truffle.sandbox.test": {
+      "subDir" : "src",
+      "sourceDirs" : ["src"],
+      "dependencies" : [
+        "com.oracle.truffle.api.test",
+        "com.oracle.truffle.api.instrumentation.test",
+        "TRUFFLE_TCK_TESTS",
+        "TRUFFLE_API",
+        "mx:JUNIT",
+      ],
+      "requires" : [
+        "java.logging",
+        "jdk.management",
+      ],
+      "checkstyle" : "com.oracle.truffle.dsl.processor",
+      "javaCompliance" : "17+",
+      "annotationProcessors" : ["TRUFFLE_DSL_PROCESSOR"],
+      "workingSets" : "API,Truffle,Test",
+      "jacoco" : "exclude",
       "graalCompilerSourceEdition": "ignore",
     },
 
@@ -1735,7 +1778,6 @@ suite = {
         "uses" : [
           "com.oracle.truffle.api.impl.TruffleLocator",
           "com.oracle.truffle.runtime.TruffleTypes",
-          "com.oracle.truffle.runtime.EngineCacheSupport",
           "com.oracle.truffle.runtime.jfr.EventFactory.Provider",
           "com.oracle.truffle.runtime.FloodControlHandler",
           "org.graalvm.home.HomeFinder",
@@ -1755,7 +1797,6 @@ suite = {
         "com.oracle.truffle.runtime",
       ],
       "distDependencies" : [
-        "sdk:JNIUTILS",
         "TRUFFLE_API",
         "TRUFFLE_COMPILER",
       ],
@@ -1787,6 +1828,7 @@ suite = {
           "jdk.unsupported", # sun.misc.Unsafe
           "java.logging",
           "java.management",
+          "jdk.management",
           "java.sql", # java.sql.date java.sql.Time
           "org.graalvm.collections",
           "org.graalvm.nativeimage",
@@ -1821,6 +1863,7 @@ suite = {
 
           # Qualified exports
           "com.oracle.truffle.object to com.oracle.truffle.enterprise, org.graalvm.truffle.runtime, com.oracle.truffle.enterprise, org.graalvm.truffle.runtime.svm, com.oracle.truffle.enterprise.svm",
+          "com.oracle.truffle.polyglot.isolate to org.graalvm.truffle.runtime.svm",
           "com.oracle.truffle.object.enterprise to com.oracle.truffle.enterprise",
           # GR-64984: Exports to com.oracle.truffle.enterprise are only needed for jdk21.
         ],
@@ -1837,6 +1880,7 @@ suite = {
           "com.oracle.truffle.api.library.provider.EagerExportProvider",
           "com.oracle.truffle.api.instrumentation.provider.TruffleInstrumentProvider",
           "com.oracle.truffle.api.strings.provider.JCodingsProvider",
+          "org.graalvm.jniutils.JNIEntryPointProvider",
         ],
       },
 
@@ -1855,12 +1899,14 @@ suite = {
         "com.oracle.truffle.polyglot",
         "com.oracle.truffle.host",
         "com.oracle.truffle.api.staticobject",
+        "com.oracle.truffle.sandbox",
         "TRUFFLE_API_VERSION",
         "TRUFFLE_ATTACH_RESOURCES",
       ],
       "distDependencies" : [
         "sdk:COLLECTIONS",
-        "sdk:NATIVEIMAGE",
+        "sdk:JNIUTILS",
+        "sdk:NATIVEBRIDGE",
         "sdk:POLYGLOT"
       ],
       "description" : "Truffle is a multi-language framework for executing dynamic languages\nthat achieves high performance when combined with Graal.",
@@ -2286,6 +2332,7 @@ suite = {
          "com.oracle.truffle.api.bytecode.test",
          "com.oracle.truffle.api.object.test",
          "com.oracle.truffle.api.staticobject.test",
+         "com.oracle.truffle.sandbox.test",
        ],
        "exclude" : [
          "mx:HAMCREST",

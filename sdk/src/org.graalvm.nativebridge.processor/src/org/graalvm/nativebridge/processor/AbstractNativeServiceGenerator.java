@@ -61,7 +61,6 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 
-import org.graalvm.nativebridge.processor.AbstractBridgeParser.AbstractTypeCache;
 import org.graalvm.nativebridge.processor.AbstractBridgeParser.MarshallerData;
 import org.graalvm.nativebridge.processor.AbstractServiceParser.ServiceDefinitionData;
 import org.graalvm.nativebridge.processor.AbstractServiceParser.MethodData;
@@ -366,10 +365,10 @@ abstract class AbstractNativeServiceGenerator extends AbstractServiceGenerator {
 
         private final Types types;
         private final Elements elements;
-        private final AbstractTypeCache typeCache;
+        private final NativeBridgeTypeCache typeCache;
         private final Map<TypeElement, String> cachedNameByType;
 
-        private BinaryNameCache(Types types, Elements elements, AbstractTypeCache typeCache, Map<TypeElement, String> cachedNameByType) {
+        private BinaryNameCache(Types types, Elements elements, NativeBridgeTypeCache typeCache, Map<TypeElement, String> cachedNameByType) {
             this.types = types;
             this.elements = elements;
             this.typeCache = typeCache;
@@ -403,7 +402,7 @@ abstract class AbstractNativeServiceGenerator extends AbstractServiceGenerator {
             }
         }
 
-        static BinaryNameCache create(ServiceDefinitionData definitionData, boolean hostToIsolate, Types types, Elements elements, AbstractTypeCache typeCache) {
+        static BinaryNameCache create(ServiceDefinitionData definitionData, boolean hostToIsolate, Types types, Elements elements, NativeBridgeTypeCache typeCache) {
             Map<TypeElement, String> typeToCacheEntry = new HashMap<>();
             Map<String, TypeElement> simpleNameCacheEntryToType = new HashMap<>();
             for (DeclaredType type : findJObjectArrayComponentTypes(definitionData, hostToIsolate, types)) {

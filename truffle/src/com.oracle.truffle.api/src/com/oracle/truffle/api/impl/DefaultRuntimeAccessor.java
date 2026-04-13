@@ -316,6 +316,21 @@ final class DefaultRuntimeAccessor extends Accessor {
         public void setInitializedTimestamp(CallTarget target, long timestamp) {
 
         }
+
+        @Override
+        public void initializeInterpreterCallStackHeadRoom(Object engineData, long interpreterCallStackHeadRoom) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean supportsHeapMemoryLimits() {
+            return false;
+        }
+
+        @Override
+        public long getStackOverflowLimit() {
+            throw new UnsupportedOperationException();
+        }
     }
 
 }

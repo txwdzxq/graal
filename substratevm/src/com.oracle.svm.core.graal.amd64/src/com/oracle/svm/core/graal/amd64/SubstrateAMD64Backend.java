@@ -46,6 +46,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.function.BiConsumer;
 
+import jdk.graal.compiler.phases.PreLIRGraphVerifier;
 import org.graalvm.nativeimage.ImageSingletons;
 
 import com.oracle.svm.core.CPUFeatureAccess;
@@ -65,6 +66,7 @@ import com.oracle.svm.core.graal.code.AssignedLocation;
 import com.oracle.svm.core.graal.code.PatchConsumerFactory;
 import com.oracle.svm.core.graal.code.SharedCompilationResult;
 import com.oracle.svm.core.graal.code.StubCallingConvention;
+import com.oracle.svm.core.graal.code.SubstrateBackend;
 import com.oracle.svm.core.graal.code.SubstrateBackendWithAssembler;
 import com.oracle.svm.core.graal.code.SubstrateCallingConvention;
 import com.oracle.svm.core.graal.code.SubstrateCallingConventionKind;
@@ -189,6 +191,7 @@ import jdk.graal.compiler.nodes.spi.NodeLIRBuilderTool;
 import jdk.graal.compiler.nodes.spi.NodeValueMap;
 import jdk.graal.compiler.options.OptionValues;
 import jdk.graal.compiler.phases.BasePhase;
+import jdk.graal.compiler.phases.constantblinding.ConstantBlindingInstance;
 import jdk.graal.compiler.phases.common.AddressLoweringByNodePhase;
 import jdk.graal.compiler.phases.util.Providers;
 import jdk.graal.compiler.replacements.amd64.AMD64IntrinsicStubs;
@@ -1321,6 +1324,15 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
         }
 
         protected void makeFrame(CompilationResultBuilder crb, AMD64MacroAssembler asm) {
+            if (SubstrateBackend.shouldRandomizeRuntimeCodeOffset(method)) {
+                SubstrateBackend.randomizeRuntimeCodeOffset(crb, offset -> {
+                    /* The actual code start should be word aligned to avoid slow execution. */
+                    int alignedOffset = NumUtil.roundUp(offset, ConfigurationValues.getWordSize());
+                    for (int i = 0; i < alignedOffset; i++) {
+                        asm.int3();
+                    }
+                });
+            }
             asm.maybeEmitIndirectTargetMarker();
             reserveStackFrame(crb, asm);
         }
@@ -1951,6 +1963,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
 
     @Override
     public NodeLIRBuilderTool newNodeLIRBuilder(StructuredGraph graph, LIRGeneratorTool lirGen) {
+        assert PreLIRGraphVerifier.createInstance(graph.getOptions()).verify(graph) : "Graph must verify pre LIR";
         AMD64NodeMatchRules nodeMatchRules = createMatchRules(lirGen);
         return new SubstrateAMD64NodeLIRBuilder(graph, lirGen, nodeMatchRules);
     }
@@ -1965,6 +1978,9 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
         LIR lir = lirGenResult.getLIR();
         OptionValues options = lir.getOptions();
         AMD64MacroAssembler masm = createAssembler(options);
+        if (!SubstrateUtil.HOSTED && ConstantBlindingInstance.shouldForce4ByteDisplacements(options)) {
+            masm.setForce4ByteNonZeroDisplacements(true);
+        }
         PatchConsumerFactory patchConsumerFactory;
         if (SubstrateUtil.HOSTED) {
             patchConsumerFactory = PatchConsumerFactory.HostedPatchConsumerFactory.factory();
@@ -1995,7 +2011,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
 
     @Override
     protected AMD64MacroAssembler createAssembler(OptionValues options) {
-        return new AMD64MacroAssembler(getTarget(), options, true);
+        return new SubstrateAMD64MacroAssembler(getTarget(), options, true);
     }
 
     protected FrameContext createFrameContext(SharedMethod method, Deoptimizer.StubType stubType, CallingConvention callingConvention) {

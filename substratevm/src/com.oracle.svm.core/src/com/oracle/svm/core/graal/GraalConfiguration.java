@@ -35,6 +35,7 @@ import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.graal.code.SubstrateBackend;
 import com.oracle.svm.core.graal.code.SubstrateBackendFactory;
 import com.oracle.svm.core.graal.code.SubstrateLoweringProviderFactory;
+import com.oracle.svm.core.graal.code.SubstrateRuntimeConstantBlindingPhase;
 import com.oracle.svm.core.graal.code.SubstrateSuitesCreatorProvider;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
@@ -59,7 +60,12 @@ import jdk.graal.compiler.nodes.spi.PlatformConfigurationProvider;
 import jdk.graal.compiler.options.OptionValues;
 import jdk.graal.compiler.phases.BasePhase;
 import jdk.graal.compiler.phases.PhaseSuite;
+import jdk.graal.compiler.phases.common.LoweringPhase;
+import jdk.graal.compiler.phases.constantblinding.ConstantBlindingPhase;
+import jdk.graal.compiler.phases.constantblinding.ConstantPreBlindingPhase;
+import jdk.graal.compiler.phases.schedule.SchedulePhase.FinalSchedulePhase;
 import jdk.graal.compiler.phases.tiers.HighTierContext;
+import jdk.graal.compiler.phases.tiers.LowTierContext;
 import jdk.graal.compiler.phases.tiers.Suites;
 import jdk.graal.compiler.phases.util.Providers;
 import jdk.graal.compiler.vector.lir.aarch64.AArch64VectorNodeMatchRules;
@@ -121,8 +127,10 @@ public class GraalConfiguration {
                         ConfigurationValues.getTarget());
     }
 
-    public Suites createSuites(OptionValues options, @SuppressWarnings("unused") boolean hosted, Architecture arch) {
-        return ImageSingletons.lookup(SubstrateSuitesCreatorProvider.class).getSuitesCreator().createSuites(options, arch);
+    public Suites createSuites(OptionValues options, boolean hosted, Architecture arch) {
+        Suites suites = ImageSingletons.lookup(SubstrateSuitesCreatorProvider.class).getSuitesCreator().createSuites(options, arch);
+        maybeAddRuntimeConstantBlinding(options, hosted, suites);
+        return suites;
     }
 
     public Suites createFirstTierSuites(OptionValues options, @SuppressWarnings("unused") boolean hosted, Architecture arch) {
@@ -131,6 +139,23 @@ public class GraalConfiguration {
 
     public Suites createFallbackSuites(OptionValues options, @SuppressWarnings("unused") boolean hosted, Architecture arch) {
         return ImageSingletons.lookup(SubstrateSuitesCreatorProvider.class).getFallbackSuitesCreator().createSuites(options, arch);
+    }
+
+    protected static void maybeAddRuntimeConstantBlinding(OptionValues options, boolean hosted, Suites suites) {
+        /*
+         * Constant blinding only makes sense for JIT compilation, not for native image builds.
+         */
+        if (ConstantBlindingPhase.Options.BlindConstants.getValue(options) && !hosted) {
+            PhaseSuite<LowTierContext> lowTier = suites.getLowTier();
+            ListIterator<BasePhase<? super LowTierContext>> iterator = lowTier.findPhase(FinalSchedulePhase.class);
+            if (iterator.hasPrevious()) {
+                iterator.previous();
+            }
+            iterator.add(new SubstrateRuntimeConstantBlindingPhase());
+            iterator = lowTier.findPhase(LoweringPhase.class);
+            iterator.previous();
+            iterator.add(new ConstantPreBlindingPhase());
+        }
     }
 
     public LIRSuites createLIRSuites(OptionValues options) {

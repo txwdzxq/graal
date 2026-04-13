@@ -427,4 +427,19 @@ final class OptimizedRuntimeSupport extends RuntimeSupport {
             optimizedCallTarget.setInitializedTimestamp(timestamp);
         }
     }
+
+    @Override
+    public void initializeInterpreterCallStackHeadRoom(Object engineData, long interpreterCallStackHeadRoom) {
+        ((EngineData) engineData).interpreterCallStackHeadRoom = interpreterCallStackHeadRoom;
+    }
+
+    @Override
+    public boolean supportsHeapMemoryLimits() {
+        return true;
+    }
+
+    @Override
+    public long getStackOverflowLimit() {
+        return OptimizedTruffleRuntime.getRuntime().getStackOverflowLimit();
+    }
 }
