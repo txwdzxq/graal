@@ -73,6 +73,8 @@ import com.oracle.svm.hosted.meta.HostedMetaAccess;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.hosted.meta.MaterializedConstantFields;
 import com.oracle.svm.hosted.meta.PatchedWordConstant;
+import com.oracle.svm.hosted.pltgot.GOTEntryAllocator;
+import com.oracle.svm.hosted.pltgot.HostedPLTGOTConfiguration;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.GuestAccess;
 
@@ -97,6 +99,7 @@ public final class NativeImageHeapWriter {
     private final LayeredImageHooks layerHooks = imageLayer ? LayeredImageHooks.singleton() : null;
     private final LayeredFieldValueTransformerSupport layeredFieldSupport = imageLayer ? LayeredFieldValueTransformerSupport.singleton() : null;
     private final CrossLayerConstantRegistryFeature layerConstantRegistry = imageLayer ? CrossLayerConstantRegistryFeature.singleton() : null;
+    private final HostedPLTGOTConfiguration pltgotConfig = HostedPLTGOTConfiguration.isEnabled() ? HostedPLTGOTConfiguration.singleton() : null;
     private final ImageHeapReasonSupport reasonSupport;
     private final JavaKind wordKind = SubstrateTarget.getWordKind();
     private long sectionOffsetOfARelocatablePointer = -1;
@@ -206,6 +209,16 @@ public final class NativeImageHeapWriter {
         }
     }
 
+    private int getMethodCodeAddressOffset(HostedMethod target) {
+        if (pltgotConfig != null) {
+            GOTEntryAllocator gotAllocator = pltgotConfig.getGOTEntryAllocator();
+            if (gotAllocator.queryGotEntry(target) != GOTEntryAllocator.GOT_NO_ENTRY) {
+                return pltgotConfig.getPLTSupport().getMethodPLTStubCodeAddressOffset(target);
+            }
+        }
+        return target.getCodeAddressOffset();
+    }
+
     private final boolean useHeapBase = NativeImageHeap.useHeapBase();
     private final CompressEncoding compressEncoding = ImageSingletons.lookup(CompressEncoding.class);
 
@@ -262,7 +275,7 @@ public final class NativeImageHeapWriter {
                     addWordConstantRelocation(buffer, index, methodOffset);
                 } else {
                     HostedMethod target = NativeImage.getMethodRefTargetMethod(metaAccess, hMethod);
-                    JavaConstant con = JavaConstant.forIntegerKind(wordKind, target.getCodeAddressOffset());
+                    JavaConstant con = JavaConstant.forIntegerKind(wordKind, getMethodCodeAddressOffset(target));
                     write(buffer, index, con, reason);
                 }
             } else {

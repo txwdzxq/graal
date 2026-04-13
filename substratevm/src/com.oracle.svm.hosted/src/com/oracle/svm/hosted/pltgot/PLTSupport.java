@@ -107,4 +107,11 @@ public class PLTSupport {
     void addMethodPLTStubResolverRelocation(RelocatableBuffer buffer, int offset, RelocationKind relocationKind, SharedMethod target) {
         buffer.addRelocationWithAddend(offset, relocationKind, generatedPLT.getResolverEntryDisplacement(target), new MethodPointer(target));
     }
+
+    public int getMethodPLTStubCodeAddressOffset(SharedMethod method) {
+        assert pltTextOffset >= 0;
+        int stubOffset = generatedPLT.getStubStartOffset(method);
+        assert stubOffset >= 0;
+        return pltTextOffset + stubOffset;
+    }
 }
