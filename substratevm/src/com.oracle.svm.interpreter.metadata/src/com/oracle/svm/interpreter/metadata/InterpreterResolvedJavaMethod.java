@@ -333,8 +333,10 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
         PreparedSignature preparedSignature;
         if (maybePreparedSignature != null) {
             preparedSignature = maybePreparedSignature;
-        } else {
+        } else if (InterpreterSupport.isEnabled()) {
             preparedSignature = InterpreterSupport.singleton().prepareSignature(signature, !Modifier.isStatic(flags), declaringClass);
+        } else {
+            preparedSignature = null;
         }
         return new InterpreterResolvedJavaMethod(nameSymbol, maxLocals, maxStackSize, flags, declaringClass, signature, preparedSignature, signatureSymbol, code,
                         exceptionHandlers, lineNumberTable, localVariableTable, nativeEntryPoint, vtableIndex, gotOffset, enterStubOffset, methodId);
