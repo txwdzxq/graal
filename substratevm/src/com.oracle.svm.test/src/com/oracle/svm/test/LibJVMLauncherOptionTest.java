@@ -144,8 +144,8 @@ public class LibJVMLauncherOptionTest {
         }
     }
 
-    /// Verifies that boot-layer root selection expands `ALL-MODULE-PATH`, ignores empty list
-    /// entries, and keeps module roots unique.
+    /// Verifies that boot-layer root selection expands `ALL-MODULE-PATH`, `ALL-DEFAULT`, and
+    /// `ALL-SYSTEM`, skips empty list entries, and keeps module roots unique.
     @Test
     public void bootLayerRootModuleComputationExpandsAndDeduplicates() throws Exception {
         assumeLibJVMNativeImage();
@@ -158,10 +158,17 @@ public class LibJVMLauncherOptionTest {
             clearProperties(previousValues.keySet());
             System.setProperty(RuntimeBootModuleLayerSupport.MAIN_MODULE_PROPERTY, "main.module");
             System.setProperty(RuntimeBootModuleLayerSupport.ADD_MODULES_PROPERTY_PREFIX + "0", "alpha,,ALL-MODULE-PATH");
-            System.setProperty(RuntimeBootModuleLayerSupport.ADD_MODULES_PROPERTY_PREFIX + "1", "beta,alpha");
+            System.setProperty(RuntimeBootModuleLayerSupport.ADD_MODULES_PROPERTY_PREFIX + "1", "ALL-DEFAULT,beta,ALL-SYSTEM,alpha");
 
-            Set<String> roots = getRootModules(new OrderedModuleFinder("alpha", "beta", "gamma"));
-            Assert.assertEquals(new LinkedHashSet<>(Arrays.asList("main.module", "alpha", "beta", "gamma")), roots);
+            Set<String> roots = getRootModules(
+                            new OrderedModuleFinder(
+                                            TestModuleReference.apiModule("sys.api", "sys.api"),
+                                            TestModuleReference.module("sys.internal")),
+                            new OrderedModuleFinder(
+                                            TestModuleReference.module("alpha"),
+                                            TestModuleReference.module("beta"),
+                                            TestModuleReference.module("gamma")));
+            Assert.assertEquals(new LinkedHashSet<>(Arrays.asList("main.module", "alpha", "beta", "gamma", "sys.api", "sys.internal")), roots);
         } finally {
             restoreProperties(previousValues);
         }
@@ -178,10 +185,10 @@ public class LibJVMLauncherOptionTest {
     }
 
     @SuppressWarnings("unchecked")
-    private static Set<String> getRootModules(ModuleFinder moduleFinder) throws Exception {
-        Method method = RuntimeBootModuleLayerSupport.class.getDeclaredMethod("getRootModules", ModuleFinder.class);
+    private static Set<String> getRootModules(ModuleFinder systemModuleFinder, ModuleFinder modulePathFinder) throws Exception {
+        Method method = RuntimeBootModuleLayerSupport.class.getDeclaredMethod("getRootModules", ModuleFinder.class, ModuleFinder.class);
         method.setAccessible(true);
-        return (Set<String>) method.invoke(null, moduleFinder);
+        return (Set<String>) method.invoke(null, systemModuleFinder, modulePathFinder);
     }
 
     private static Map<String, String> rememberProperties(String... keys) {
@@ -215,8 +222,8 @@ public class LibJVMLauncherOptionTest {
     private static final class OrderedModuleFinder implements ModuleFinder {
         private final Set<ModuleReference> modules;
 
-        private OrderedModuleFinder(String... moduleNames) {
-            modules = Arrays.stream(moduleNames).map(TestModuleReference::new).collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+        private OrderedModuleFinder(ModuleReference... moduleReferences) {
+            modules = Arrays.stream(moduleReferences).collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
         }
 
         @Override
@@ -231,8 +238,16 @@ public class LibJVMLauncherOptionTest {
     }
 
     private static final class TestModuleReference extends ModuleReference {
-        private TestModuleReference(String moduleName) {
-            super(ModuleDescriptor.newModule(moduleName).build(), (URI) null);
+        private TestModuleReference(ModuleDescriptor descriptor) {
+            super(descriptor, (URI) null);
+        }
+
+        private static TestModuleReference module(String moduleName) {
+            return new TestModuleReference(ModuleDescriptor.newModule(moduleName).build());
+        }
+
+        private static TestModuleReference apiModule(String moduleName, String exportedPackage) {
+            return new TestModuleReference(ModuleDescriptor.newModule(moduleName).exports(exportedPackage).build());
         }
 
         @Override

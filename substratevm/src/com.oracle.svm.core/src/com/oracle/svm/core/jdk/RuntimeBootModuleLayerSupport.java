@@ -103,6 +103,8 @@ public final class RuntimeBootModuleLayerSupport {
     public static final String MAIN_MODULE_PROPERTY = "jdk.module.main";
     public static final String ADD_MODULES_PROPERTY_PREFIX = "jdk.module.addmods.";
     public static final String ALL_MODULE_PATH = "ALL-MODULE-PATH";
+    public static final String ALL_DEFAULT = "ALL-DEFAULT";
+    public static final String ALL_SYSTEM = "ALL-SYSTEM";
 
     private RuntimeBootModuleLayerSupport() {
     }
@@ -126,21 +128,23 @@ public final class RuntimeBootModuleLayerSupport {
         }
 
         /*
-         * Resolve the runtime launcher options against the existing boot configuration so we only
+         * Resolve the runtime launcher options against the existing boot configuration, so we only
          * add modules that were named at runtime and are not already present in the build-time boot
          * layer.
          */
         String modulePath = System.getProperty(MODULE_PATH_PROPERTY, "");
         ModuleFinder modulePathFinder = createModuleFinder(modulePath);
+        ModuleFinder systemModuleFinder = ModuleFinder.ofSystem();
+        ModuleFinder finder = createObservableModuleFinder(systemModuleFinder, modulePathFinder);
         Configuration bootConfiguration = bootLayer.configuration();
-        Set<String> roots = getRootModules(modulePathFinder);
+        Set<String> roots = getRootModules(systemModuleFinder, modulePathFinder);
         roots.removeIf(moduleName -> bootConfiguration.findModule(moduleName).isPresent());
         if (roots.isEmpty()) {
             // Boot layer is not modified by runtime launcher options
             return;
         }
 
-        Configuration augmentationConfiguration = resolveAugmentationConfiguration(bootConfiguration, modulePathFinder, roots);
+        Configuration augmentationConfiguration = resolveAugmentationConfiguration(bootConfiguration, finder, roots);
         if (augmentationConfiguration.modules().isEmpty()) {
             return;
         }
@@ -159,12 +163,12 @@ public final class RuntimeBootModuleLayerSupport {
         patchBootLayer(bootLayer, bootConfiguration, augmentationConfiguration, augmentationLayer);
     }
 
-    /// Resolves the runtime module-path roots against the existing boot configuration.
+    /// Resolves the runtime root modules against the existing boot configuration.
     ///
     /// The returned configuration contains only the newly resolved runtime modules; the boot-layer
     /// modules remain represented by `bootConfiguration`.
-    private static Configuration resolveAugmentationConfiguration(Configuration bootConfiguration, ModuleFinder modulePathFinder, Set<String> roots) {
-        return Configuration.resolve(modulePathFinder, List.of(bootConfiguration), ModuleFinder.of(), roots);
+    private static Configuration resolveAugmentationConfiguration(Configuration bootConfiguration, ModuleFinder finder, Set<String> roots) {
+        return Configuration.resolve(finder, List.of(bootConfiguration), ModuleFinder.of(), roots);
     }
 
     /// Patches the real boot layer so it exposes the modules created in the temporary augmentation
@@ -237,37 +241,68 @@ public final class RuntimeBootModuleLayerSupport {
         return ModuleFinder.of(paths);
     }
 
-    /// Computes the runtime root modules requested by launcher options.
+    /// Computes the runtime root modules requested by launcher options using the supplied system
+    /// and application module finders.
     ///
-    /// This combines:
-    ///
-    /// - The main module from the launcher-populated `jdk.module.main` property, and
-    /// - Additional roots from repeated `--add-modules` occurrences, including
-    /// `ALL-MODULE-PATH`.
-    private static Set<String> getRootModules(ModuleFinder moduleFinder) {
+    /// This mirrors the root-selection logic from `jdk.internal.module.ModuleBootstrap#boot2`,
+    /// adapted to augment an existing boot layer at runtime.
+    private static Set<String> getRootModules(ModuleFinder systemModuleFinder, ModuleFinder modulePathFinder) {
+        ModuleFinder finder = createObservableModuleFinder(systemModuleFinder, modulePathFinder);
         LinkedHashSet<String> roots = new LinkedHashSet<>();
         String mainModule = System.getProperty(MAIN_MODULE_PROPERTY);
-        if (mainModule != null && !mainModule.isEmpty()) {
+        if (mainModule != null) {
             roots.add(mainModule);
         }
 
+        boolean addAllDefaultModules = false;
+        boolean addAllSystemModules = false;
         for (int index = 0;; index++) {
             String value = System.getProperty(ADD_MODULES_PROPERTY_PREFIX + index);
             if (value == null) {
                 break;
             }
             for (String moduleName : value.split(",")) {
-                if (moduleName.isEmpty()) {
-                    continue;
-                }
-                if (ALL_MODULE_PATH.equals(moduleName)) {
-                    moduleFinder.findAll().stream().map(ModuleReference::descriptor).map(ModuleDescriptor::name).forEach(roots::add);
-                } else {
-                    roots.add(moduleName);
+                switch (moduleName) {
+                    case "" -> {
+                    }
+                    case ALL_MODULE_PATH -> modulePathFinder.findAll() //
+                                    .stream() //
+                                    .map(ModuleReference::descriptor) //
+                                    .map(ModuleDescriptor::name) //
+                                    .filter(name -> finder.find(name).isPresent()) //
+                                    .forEach(roots::add);
+                    case ALL_DEFAULT -> addAllDefaultModules = true;
+                    case ALL_SYSTEM -> addAllSystemModules = true;
+                    default -> roots.add(moduleName);
                 }
             }
         }
+
+        // If there is no initial module specified, then assume that the initial
+        // module is the unnamed module of the application class loader. This
+        // is implemented by resolving all observable modules that export an
+        // API. Modules that have the DO_NOT_RESOLVE_BY_DEFAULT bit set in
+        // their ModuleResolution attribute flags are excluded from the
+        // default set of roots.
+        if (mainModule == null || addAllDefaultModules) {
+            roots.addAll(Target_jdk_internal_module_DefaultRoots.compute(systemModuleFinder, finder));
+        }
+
+        // If `--add-modules ALL-SYSTEM` is specified, then all observable system
+        // modules will be resolved.
+        if (addAllSystemModules) {
+            systemModuleFinder.findAll() //
+                            .stream() //
+                            .map(ModuleReference::descriptor) //
+                            .map(ModuleDescriptor::name) //
+                            .filter(name -> finder.find(name).isPresent()) //
+                            .forEach(roots::add);
+        }
         return roots;
+    }
+
+    private static ModuleFinder createObservableModuleFinder(ModuleFinder systemModuleFinder, ModuleFinder modulePathFinder) {
+        return ModuleFinder.compose(systemModuleFinder, modulePathFinder);
     }
 
     /// Minimal `ModuleFinder` backed by an already-collected map of module references.
