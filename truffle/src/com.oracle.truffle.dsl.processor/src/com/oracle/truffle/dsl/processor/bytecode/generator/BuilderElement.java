@@ -2658,8 +2658,7 @@ final class BuilderElement extends AbstractElement {
         for (VariableElement e : ElementFilter.fieldsIn(parent.abstractBytecodeNode.getEnclosedElements())) {
             b.defaultDeclaration(e.asType(), e.getSimpleName().toString() + "_");
         }
-        String sourceBits = parent.configEncoder.encodeSourceBits("parseSources", "parseSourceContent");
-        b.startAssign("configEncoding_").string(parent.configEncoder.encode(sourceBits, "instrumentations", "tags")).end();
+        b.startAssign("configEncoding_").tree(parent.configEncoder.encode("parseSources", "parseSourceContent", "instrumentations", "tags", "state.continuationsIndex != 0")).end();
 
         b.statement("doEmitRootSourceInfo(", operationStack.read(model.rootOperation, operationFields.index), ")");
         b.startIf().string("parseSources").end().startBlock();

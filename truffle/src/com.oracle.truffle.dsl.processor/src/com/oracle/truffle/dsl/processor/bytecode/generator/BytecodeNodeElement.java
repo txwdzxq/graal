@@ -74,7 +74,6 @@ import com.oracle.truffle.dsl.processor.bytecode.model.InstructionModel;
 import com.oracle.truffle.dsl.processor.bytecode.model.InstructionModel.ImmediateKind;
 import com.oracle.truffle.dsl.processor.bytecode.model.InstructionModel.InstructionImmediate;
 import com.oracle.truffle.dsl.processor.bytecode.model.InstructionModel.InstructionKind;
-import com.oracle.truffle.dsl.processor.bytecode.model.OperationModel.OperationKind;
 import com.oracle.truffle.dsl.processor.generator.GeneratorUtils;
 import com.oracle.truffle.dsl.processor.java.ElementUtils;
 import com.oracle.truffle.dsl.processor.java.model.CodeAnnotationMirror;
@@ -115,9 +114,6 @@ final class BytecodeNodeElement extends AbstractElement {
             this.add(createCachedConstructor());
             this.add(parent.compFinal(1, new CodeVariableElement(Set.of(PRIVATE, FINAL), arrayOf(types.Node), "cachedNodes_")));
             this.add(parent.compFinal(1, new CodeVariableElement(Set.of(PRIVATE, FINAL), arrayOf(type(boolean.class)), "exceptionProfiles_")));
-            if (parent.model.hasYieldOperation()) {
-                this.add(parent.compFinal(new CodeVariableElement(Set.of(PRIVATE, FINAL), type(boolean.class), "hasYields_")));
-            }
             if (parent.model.epilogExceptional != null) {
                 this.add(parent.child(new CodeVariableElement(Set.of(PRIVATE), BytecodeRootNodeElement.getCachedDataClassType(parent.model.epilogExceptional.operation.instruction),
                                 "epilogExceptionalNode_")));
@@ -1255,9 +1251,6 @@ final class BytecodeNodeElement extends AbstractElement {
         b.statement("byte[] bc = bytecodes");
         b.statement("int bci = 0");
         b.statement("int numConditionalBranches = 0");
-        if (parent.model.hasYieldOperation()) {
-            b.statement("boolean hasYields = false");
-        }
 
         b.string("loop: ").startWhile().string("bci < bc.length").end().startBlock();
 
@@ -1277,10 +1270,6 @@ final class BytecodeNodeElement extends AbstractElement {
                     default:
                         break;
                 }
-            }
-
-            if (parent.model.hasYieldOperation() && (instr.kind == InstructionKind.YIELD || instr.operation != null && instr.operation.kind == OperationKind.CUSTOM_YIELD)) {
-                group.statement("hasYields = true");
             }
 
             group.statement("bci += " + instr.getInstructionLength());
@@ -1311,9 +1300,6 @@ final class BytecodeNodeElement extends AbstractElement {
         b.startAssign("this.cachedNodes_").string("result").end();
         b.startAssign("this.branchProfiles_").startCall("allocateBranchProfiles").string("numConditionalBranches").end(2);
         b.startAssign("this.exceptionProfiles_").string("handlers.length == 0 ? EMPTY_EXCEPTION_PROFILES : new boolean[handlers.length / 5]").end();
-        if (parent.model.hasYieldOperation()) {
-            b.startAssign("this.hasYields_").string("hasYields").end();
-        }
 
         if (parent.model.epilogExceptional != null) {
             b.startAssign("this.epilogExceptionalNode_").startCall("insert").startNew(
@@ -1325,7 +1311,7 @@ final class BytecodeNodeElement extends AbstractElement {
 
             if (parent.model.hasYieldOperation()) {
                 b.startAssign("this.stableTagsAssumption_");
-                b.string("hasYields ? ");
+                b.string(parent.configEncoder.checkHasYieldsBit("this.configEncoding")).string(" ? ");
                 b.startStaticCall(types.Assumption, "create").doubleQuote("Stable local tags").end();
                 b.string(" : null");
                 b.end();
@@ -1845,7 +1831,7 @@ final class BytecodeNodeElement extends AbstractElement {
             conditions.add(CodeTreeBuilder.createBuilder().startStaticCall(types.CompilerDirectives, "inCompiledCode").end().build());
         }
         if (checkHasYields) {
-            conditions.add(CodeTreeBuilder.singleString("this.hasYields_"));
+            conditions.add(CodeTreeBuilder.singleString(parent.configEncoder.checkHasYieldsBit("this.configEncoding")));
         }
         conditions.add(parent.hasContinuationFrame(frameName));
 

@@ -1514,6 +1514,11 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         b.end().startDoWhile().startCall("!BYTECODE_UPDATER", "compareAndSet").string("this").string("oldBytecode").string("newBytecode").end().end();
         b.newLine();
 
+        if (model.hasYieldOperation()) {
+            b.startAssert().string(configEncoder.compareHasYieldsBit("oldBytecode.configEncoding", "newBytecode.configEncoding")).string(" : ").doubleQuote(
+                            "has-yields bit must be preserved across reparsing and bytecode updates").end();
+        }
+
         if (model.isBytecodeUpdatable()) {
             b.startIf().string("bytecodes_ != null").end().startBlock();
             b.lineComment("Ensure new bytecode node is published before invalidating the old bytecode.");
