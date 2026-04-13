@@ -2423,12 +2423,13 @@ public final class Method extends Member<Signature> implements MethodRef, Truffl
             if (methodParameters == null) {
                 return StaticObject.NULL;
             }
-            MethodParametersAttribute.Entry[] entries = methodParameters.getEntries();
-            ParameterInteropWrapper[] parameters = new ParameterInteropWrapper[entries.length];
+            int entryCount = methodParameters.entryCount();
+            ParameterInteropWrapper[] parameters = new ParameterInteropWrapper[entryCount];
             ConstantPool constantPool = receiver.getConstantPool();
-            for (int i = 0; i < entries.length; i++) {
-                MethodParametersAttribute.Entry entry = entries[i];
-                parameters[i] = new ParameterInteropWrapper(constantPool.utf8At(entry.getNameIndex()), entry.getAccessFlags());
+            for (int i = 0; i < entryCount; i++) {
+                MethodParametersAttribute.Entry entry = methodParameters.entryAt(i);
+                Symbol<?> name = entry.getNameIndex() != 0 ? constantPool.utf8At(entry.getNameIndex()) : null;
+                parameters[i] = new ParameterInteropWrapper(name, entry.getAccessFlags());
             }
             return new KeysArray<>(parameters);
         }

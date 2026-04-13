@@ -241,7 +241,8 @@ final class EspressoExternalResolvedJavaMethod extends AbstractEspressoResolvedJ
         Parameter[] result = new Parameter[size];
         for (int i = 0; i < size; i++) {
             Value parameter = table.getArrayElement(i);
-            String name = parameter.getMember("name").asString();
+            Value nameValue = parameter.getMember("name");
+            String name = nameValue.isNull() ? null : nameValue.asString();
             int modifiers = parameter.getMember("modifiers").asInt();
             result[i] = new Parameter(name, modifiers, this, i);
         }
