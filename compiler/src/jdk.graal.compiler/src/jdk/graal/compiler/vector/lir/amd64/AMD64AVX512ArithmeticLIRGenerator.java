@@ -33,6 +33,10 @@ import static jdk.graal.compiler.asm.amd64.AMD64Assembler.EvexGatherOp.EVPGATHER
 import static jdk.graal.compiler.asm.amd64.AMD64Assembler.EvexGatherOp.EVPGATHERDQ;
 import static jdk.graal.compiler.asm.amd64.AMD64Assembler.EvexGatherOp.EVPGATHERQD;
 import static jdk.graal.compiler.asm.amd64.AMD64Assembler.EvexGatherOp.EVPGATHERQQ;
+import static jdk.graal.compiler.asm.amd64.AMD64Assembler.EvexRMIExtendOp.EVPROLD;
+import static jdk.graal.compiler.asm.amd64.AMD64Assembler.EvexRMIExtendOp.EVPROLQ;
+import static jdk.graal.compiler.asm.amd64.AMD64Assembler.EvexRMIExtendOp.EVPRORD;
+import static jdk.graal.compiler.asm.amd64.AMD64Assembler.EvexRMIExtendOp.EVPRORQ;
 import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexFloatCompareOp.EVCMPPD;
 import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexFloatCompareOp.EVCMPPS;
 import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexFloatCompareOp.EVCMPSD;
@@ -185,6 +189,10 @@ import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexRVMOp.EVPMULLQ;
 import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexRVMOp.EVPMULLW;
 import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexRVMOp.EVPORD;
 import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexRVMOp.EVPORQ;
+import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexRVMOp.EVPROLVD;
+import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexRVMOp.EVPROLVQ;
+import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexRVMOp.EVPRORVD;
+import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexRVMOp.EVPRORVQ;
 import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexRVMOp.EVPSHUFB;
 import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexRVMOp.EVPSUBB;
 import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexRVMOp.EVPSUBD;
@@ -207,6 +215,8 @@ import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexShiftOp.EVPSRAW;
 import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexShiftOp.EVPSRLD;
 import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexShiftOp.EVPSRLQ;
 import static jdk.graal.compiler.asm.amd64.AMD64Assembler.VexShiftOp.EVPSRLW;
+import static jdk.graal.compiler.lir.LIRValueUtil.asConstant;
+import static jdk.graal.compiler.lir.LIRValueUtil.isConstantValue;
 import static jdk.graal.compiler.vector.lir.amd64.AMD64VectorNodeMatchRules.getRegisterSize;
 
 import java.util.Arrays;
@@ -274,6 +284,7 @@ import jdk.vm.ci.meta.Constant;
 import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.JavaKind;
 import jdk.vm.ci.meta.PlatformKind;
+import jdk.vm.ci.meta.PrimitiveConstant;
 import jdk.vm.ci.meta.Value;
 import jdk.vm.ci.meta.ValueKind;
 
@@ -575,6 +586,55 @@ public class AMD64AVX512ArithmeticLIRGenerator extends AMD64VectorArithmeticLIRG
             case DWORD -> emitShift(EVPSRLD, a, b);
             case QWORD -> emitShift(EVPSRLQ, a, b);
             default -> throw GraalError.shouldNotReachHereUnexpectedValue(aKind.getScalar()); // ExcludeFromJacocoGeneratedReport
+        };
+    }
+
+    /**
+     * Emits a vector rotate with one of three count forms:
+     * <ul>
+     * <li>scalar constant count: lowered to an immediate rotate op,</li>
+     * <li>scalar variable count: broadcast to a vector count,</li>
+     * <li>vector count: used directly as lane-wise counts.</li>
+     * </ul>
+     */
+    private Variable emitRotate(Value inputVector, Value rotateCount, VexRVMOp vectorRotateOp, AMD64Assembler.VexRRIOp immediateRotateOp) {
+        if (isConstantValue(rotateCount) && asConstant(rotateCount) instanceof PrimitiveConstant primitiveConstant) {
+            int rotateCountInt = primitiveConstant.asInt() & 0xFF;
+            Variable result = getLIRGen().newVariable(LIRKind.combine(inputVector));
+            getLIRGen().append(new AMD64VectorBinary.AVXBinaryConstOp(immediateRotateOp, getRegisterSize(result), result, asAllocatable(inputVector), rotateCountInt));
+            return result;
+        }
+
+        AMD64Kind rotateCountKind = (AMD64Kind) rotateCount.getPlatformKind();
+        Value vectorCount = rotateCountKind.isXMM() ? rotateCount : emitVectorFill(LIRKind.value(inputVector.getPlatformKind()), rotateCount);
+        return emitVectorBinary(vectorRotateOp, inputVector, vectorCount);
+    }
+
+    @Override
+    public Variable emitRol(Value inputVector, Value rotateCount) {
+        AMD64Kind inputKind = (AMD64Kind) inputVector.getPlatformKind();
+        if (!inputKind.isXMM()) {
+            return super.emitRol(inputVector, rotateCount);
+        }
+
+        return switch (inputKind.getScalar()) {
+            case DWORD -> emitRotate(inputVector, rotateCount, EVPROLVD, EVPROLD);
+            case QWORD -> emitRotate(inputVector, rotateCount, EVPROLVQ, EVPROLQ);
+            default -> throw GraalError.shouldNotReachHereUnexpectedValue(inputKind.getScalar()); // ExcludeFromJacocoGeneratedReport
+        };
+    }
+
+    @Override
+    public Variable emitRor(Value inputVector, Value rotateCount) {
+        AMD64Kind inputKind = (AMD64Kind) inputVector.getPlatformKind();
+        if (!inputKind.isXMM()) {
+            return super.emitRor(inputVector, rotateCount);
+        }
+
+        return switch (inputKind.getScalar()) {
+            case DWORD -> emitRotate(inputVector, rotateCount, EVPRORVD, EVPRORD);
+            case QWORD -> emitRotate(inputVector, rotateCount, EVPRORVQ, EVPRORQ);
+            default -> throw GraalError.shouldNotReachHereUnexpectedValue(inputKind.getScalar()); // ExcludeFromJacocoGeneratedReport
         };
     }
 

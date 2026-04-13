@@ -279,6 +279,26 @@ public final class VectorAMD64 extends VectorArchitecture {
         return getSupportedVectorLength(stamp, maxLength, result);
     }
 
+    /**
+     * Returns support for native AVX512 rotate instructions.
+     */
+    @Override
+    public int getSupportedVectorRotateLength(Stamp stamp, int maxLength) {
+        if (!hasMinimumVectorizationRequirements(maxLength)) {
+            return 1;
+        }
+        if (!(stamp instanceof IntegerStamp integerStamp)) {
+            return 1;
+        }
+        int bits = integerStamp.getBits();
+        if (bits != Integer.SIZE && bits != Long.SIZE) {
+            return 1;
+        }
+        int requiredBytes = maxLength * getVectorStride(stamp);
+        AVXSize avxSize = arithOps.getSupportedAVXSize(VectorFeatureAssertion.AVX512F_VL, requiredBytes);
+        return getSupportedVectorLength(stamp, maxLength, avxSize);
+    }
+
     @Override
     public boolean narrowedVectorInstructionAvailable(NarrowableArithmeticNode operation, IntegerStamp narrowedStamp) {
         Op op = operation.getArithmeticOp();
