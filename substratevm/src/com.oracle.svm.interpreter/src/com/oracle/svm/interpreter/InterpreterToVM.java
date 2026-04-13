@@ -73,16 +73,6 @@ import jdk.vm.ci.meta.ResolvedJavaType;
 @InternalVMMethod
 public final class InterpreterToVM {
 
-    private static final JavaKind WORD_KIND = SubstrateTarget.getWordKind();
-
-    static {
-        VMError.guarantee(WORD_KIND == JavaKind.Int || WORD_KIND == JavaKind.Long);
-    }
-
-    public static JavaKind wordJavaKind() {
-        return WORD_KIND;
-    }
-
     private InterpreterToVM() {
         throw VMError.shouldNotReachHereAtRuntime();
     }
@@ -330,10 +320,10 @@ public final class InterpreterToVM {
     public static WordBase getFieldWord(Object obj, InterpreterResolvedJavaField wordField) throws SemanticJavaException {
         assert obj != null;
         assert wordField.isWordStorage();
-        return switch (wordJavaKind()) {
+        return switch (SubstrateTarget.getWordKind()) {
             case Long -> Word.signed(getFieldLong(obj, wordField));
             case Int -> Word.signed(getFieldInt(obj, wordField));
-            default -> throw VMError.shouldNotReachHere("Unexpected word kind " + wordJavaKind());
+            default -> throw VMError.shouldNotReachHere("Unexpected word kind " + SubstrateTarget.getWordKind());
         };
     }
 
@@ -543,10 +533,10 @@ public final class InterpreterToVM {
     public static void setFieldWord(WordBase value, Object obj, InterpreterResolvedJavaField field) {
         assert obj != null;
         ensureMaterialized(field);
-        switch (wordJavaKind()) {
+        switch (SubstrateTarget.getWordKind()) {
             case Int -> setFieldInt((int) value.rawValue(), obj, field);
             case Long -> setFieldLong(value.rawValue(), obj, field);
-            default -> throw VMError.shouldNotReachHere("Unexpected word kind " + wordJavaKind());
+            default -> throw VMError.shouldNotReachHere("Unexpected word kind " + SubstrateTarget.getWordKind());
         }
     }
 
