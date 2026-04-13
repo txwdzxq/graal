@@ -790,7 +790,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
 
                 b.end();
             } else {
-                b.startIf().string("uncachedExecuteCount_ <= 1").end().startBlock();
+                b.startIf().string("uncachedExecuteCount_ <= 0").end().startBlock();
                 /*
                  * The force uncached check is put in here so that we don't need to check it in the
                  * common case (the else branch where we just decrement).
@@ -858,7 +858,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
         if (getTier().isUncached()) {
             b.statement("bci = " + BytecodeRootNodeElement.readImmediate("bc", "bci", instruction.getImmediate(ImmediateKind.BYTECODE_INDEX)));
 
-            b.startIf().string("uncachedExecuteCount_ <= 1").end().startBlock();
+            b.startIf().string("uncachedExecuteCount_ <= 0").end().startBlock();
             /*
              * The force uncached check is put in here so that we don't need to check it in the
              * common case (the else branch where we just decrement).

@@ -130,15 +130,15 @@ public @interface GenerateBytecode {
     boolean enableUncachedInterpreter() default false;
 
     /**
-     * Sets the default number of times an uncached interpreter must be invoked/resumed or branch
-     * backwards before transitioning to cached.
+     * Sets the default number of invocations/resumptions or backward branches for which the
+     * interpreter executes uncached before transitioning to cached on the next such event.
      * <p>
      * The default uncached threshold expression supports a subset of Java (see the
      * {@link com.oracle.truffle.api.dsl.Cached Cached} documentation). It should evaluate to an
      * int. It should be a positive value, {@code 0}, or {@code Integer.MIN_VALUE}. A threshold of
-     * {@code 0} will cause each bytecode node to immediately transition to cached on first
-     * invocation. A threshold of {@code Integer.MIN_VALUE} forces a bytecode node to stay uncached
-     * (i.e., it will not transition to cached).
+     * {@code 0} will cause each bytecode node to immediately transition to cached on the first
+     * invocation/resume. A threshold of {@code Integer.MIN_VALUE} forces a bytecode node to stay
+     * uncached (i.e., it will not transition to cached).
      * <p>
      * The default local value expression can be a constant literal (e.g., {@code "42"}), in which
      * case the value will be validated at build time. However, the expression can also refer to
