@@ -2070,9 +2070,14 @@ suite = {
                 "name" : "org.graalvm.nativeimage.guest.staging",
                 "exports" : [
                     """* to org.graalvm.nativeimage.builder,
+                            org.graalvm.extraimage.builder,
                             org.graalvm.nativeimage.guest,
                             org.graalvm.nativeimage.foreign,
-                            org.graalvm.truffle.runtime.svm""",
+                            org.graalvm.truffle.runtime.svm,
+                            org.graalvm.nativeimage.agent.jvmtibase,
+                            org.graalvm.nativeimage.enterprise.testrunner,
+                            com.oracle.truffle.enterprise.svm,
+                            com.oracle.svm.svm_enterprise""",
                 ],
                 "opens" : [],
                 "requires": [
