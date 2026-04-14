@@ -31,7 +31,7 @@ import java.util.ListIterator;
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.nativeimage.ImageSingletons;
 
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.graal.code.SubstrateBackend;
 import com.oracle.svm.core.graal.code.SubstrateBackendFactory;
 import com.oracle.svm.core.graal.code.SubstrateLoweringProviderFactory;
@@ -124,7 +124,7 @@ public class GraalConfiguration {
     public LoweringProvider createLoweringProvider(MetaAccessProvider metaAccess, ForeignCallsProvider foreignCalls, PlatformConfigurationProvider platformConfig,
                     MetaAccessExtensionProvider metaAccessExtensionProvider) {
         return ImageSingletons.lookup(SubstrateLoweringProviderFactory.class).newLoweringProvider(metaAccess, foreignCalls, platformConfig, metaAccessExtensionProvider,
-                        ConfigurationValues.getTarget());
+                        SubstrateTarget.singleton());
     }
 
     public Suites createSuites(OptionValues options, boolean hosted, Architecture arch) {
@@ -185,7 +185,7 @@ public class GraalConfiguration {
          * AMD64 machine). This ensures that Truffle runtime compilation can leverage vectorized
          * code on target machines that support it.
          */
-        final Architecture hostedArchitecture = ConfigurationValues.getTarget().arch;
+        final Architecture hostedArchitecture = SubstrateTarget.getArchitecture();
         if (hostedArchitecture instanceof AMD64) {
             populateMatchRuleRegistry(matchRuleRegistry, AMD64NodeMatchRules.class);
             populateMatchRuleRegistry(matchRuleRegistry, AMD64VectorNodeMatchRules.class);

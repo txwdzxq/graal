@@ -26,7 +26,6 @@ package com.oracle.svm.core.util;
 
 import java.nio.ByteBuffer;
 
-import com.oracle.svm.shared.util.VMError;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.word.ComparableWord;
@@ -35,7 +34,8 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.WordBase;
 
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTarget;
+import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.core.common.NumUtil;
 
@@ -506,7 +506,7 @@ public final class HostedByteBufferPointer implements Pointer {
     @Override
     public void writeWord(int offset, WordBase val) {
         long value = val.rawValue();
-        int wordSize = ConfigurationValues.getWordSize();
+        int wordSize = SubstrateTarget.getWordSize();
         if (wordSize == Integer.BYTES) {
             buffer.putInt(baseOffset + offset, NumUtil.safeToUInt(value));
         } else {

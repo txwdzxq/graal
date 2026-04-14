@@ -45,8 +45,8 @@ import org.graalvm.word.impl.Word;
 import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.ReservedRegisters;
 import com.oracle.svm.core.SubstrateOptions;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.struct.OffsetOf;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.deopt.DeoptimizationSlotPacking;
 import com.oracle.svm.core.graal.code.InterpreterAccessStubData;
@@ -89,7 +89,7 @@ import jdk.vm.ci.meta.JavaKind;
 public class AMD64InterpreterStubs {
 
     private static SubstrateAMD64RegisterConfig getRegisterConfig() {
-        return new SubstrateAMD64RegisterConfig(SubstrateRegisterConfig.ConfigKind.NORMAL, null, ConfigurationValues.getTarget(),
+        return new SubstrateAMD64RegisterConfig(SubstrateRegisterConfig.ConfigKind.NORMAL, null, SubstrateTarget.singleton(),
                         SubstrateOptions.PreserveFramePointer.getValue());
     }
 
@@ -113,7 +113,8 @@ public class AMD64InterpreterStubs {
         }
 
         private static AMD64BaseAssembler.OperandSize referenceOperandSize() {
-            return ConfigurationValues.getObjectLayout().getReferenceSize() == Integer.BYTES ? AMD64BaseAssembler.OperandSize.DWORD : AMD64BaseAssembler.OperandSize.QWORD;
+            int refSize = ObjectLayout.singleton().getReferenceSize();
+            return refSize == Integer.BYTES ? AMD64BaseAssembler.OperandSize.DWORD : AMD64BaseAssembler.OperandSize.QWORD;
         }
 
         private static AMD64Address heapObjectAddress(Register base, int offset, boolean compressedBase, int compressionShift) {
@@ -135,7 +136,7 @@ public class AMD64InterpreterStubs {
          * See {@code SubstrateBasicLoweringProvider#createReadHub}.
          */
         private static void loadHub(AMD64MacroAssembler masm, Register obj, Register hub, Register scratch2) {
-            ObjectLayout ol = ConfigurationValues.getObjectLayout();
+            ObjectLayout ol = ObjectLayout.singleton();
             long reservedHubBitsMask = Heap.getHeap().getObjectHeader().getReservedHubBitsMask();
             int compressionShift = ReferenceAccess.singleton().getCompressionShift();
             int alignmentBits = CodeUtil.log2(ol.getAlignment());
@@ -229,7 +230,7 @@ public class AMD64InterpreterStubs {
          * back to the slow path.
          */
         private static void emitVTableInstalledCodeFastPath(AMD64MacroAssembler masm, Register receiver, Register vtableIndex, Register scratch1, Register scratch2) {
-            ObjectLayout ol = ConfigurationValues.getObjectLayout();
+            ObjectLayout ol = ObjectLayout.singleton();
             boolean compression = ReferenceAccess.singleton().haveCompressedReferences();
             int compressionShift = ReferenceAccess.singleton().getCompressionShift();
 
@@ -684,7 +685,7 @@ public class AMD64InterpreterStubs {
         @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
         private static int spAdjustOnCall(int offset) {
             // offset is relative caller sp, undo side-effect of call instruction
-            int spAdjustmentOnCall = ConfigurationValues.getWordSize();
+            int spAdjustmentOnCall = SubstrateTarget.getWordSize();
             return offset + spAdjustmentOnCall;
         }
 

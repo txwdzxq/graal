@@ -29,8 +29,8 @@ import static jdk.graal.compiler.nodes.extended.BranchProbabilityNode.probabilit
 
 import java.lang.ref.Reference;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.shared.AlwaysInline;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.heap.ReferenceInternals;
 import com.oracle.svm.core.heap.UninterruptibleObjectVisitor;
 import com.oracle.svm.core.hub.DynamicHub;
@@ -54,7 +54,7 @@ public final class ObjectFixupVisitor implements UninterruptibleObjectVisitor {
         if (probability(SLOW_PATH_PROBABILITY, hub.isReferenceInstanceClass())) {
             // update Target_java_lang_ref_Reference.referent
             Reference<?> dr = (Reference<?>) obj;
-            int referenceSize = ConfigurationValues.getObjectLayout().getReferenceSize();
+            int referenceSize = ObjectLayout.singleton().getReferenceSize();
             refFixupVisitor.visitObjectReferences(ReferenceInternals.getReferentFieldAddress(dr), true, referenceSize, dr, 1);
         }
         InteriorObjRefWalker.walkObjectInline(obj, refFixupVisitor);

@@ -44,8 +44,7 @@ import com.oracle.svm.core.SkipEpilogueSafepointCheck;
 import com.oracle.svm.core.SkipStackOverflowCheck;
 import com.oracle.svm.core.SubstrateControlFlowIntegrity;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.deopt.Deoptimizer;
 import com.oracle.svm.core.graal.code.AssignedLocation;
 import com.oracle.svm.core.graal.code.CustomCallingConventionMethod;
@@ -178,7 +177,7 @@ public final class SubstrateTruffleBytecodeHandlerStub extends NonBytecodeMethod
     }
 
     private static RegisterConfig getRegisterConfig() {
-        SubstrateTargetDescription target = ConfigurationValues.getTarget();
+        SubstrateTarget target = SubstrateTarget.singleton();
         return SubstrateRegisterConfigFactory.singleton().newRegisterFactory(SubstrateRegisterConfig.ConfigKind.NORMAL, null, target, SubstrateOptions.PreserveFramePointer.getValue());
     }
 
@@ -192,13 +191,13 @@ public final class SubstrateTruffleBytecodeHandlerStub extends NonBytecodeMethod
         return returnRegister;
     }
 
-    private static boolean isBasePointerRegister(SubstrateTargetDescription target, Register register) {
+    private static boolean isBasePointerRegister(SubstrateTarget target, Register register) {
         return target.arch instanceof AMD64 && register.equals(AMD64.rbp);
     }
 
     @Override
     public SubstrateCallingConventionType getCallingConvention() {
-        SubstrateTargetDescription target = ConfigurationValues.getTarget();
+        SubstrateTarget target = SubstrateTarget.singleton();
         RegisterConfig registerConfig = getRegisterConfig();
         Register returnRegister = getReturnRegister(registerConfig);
 

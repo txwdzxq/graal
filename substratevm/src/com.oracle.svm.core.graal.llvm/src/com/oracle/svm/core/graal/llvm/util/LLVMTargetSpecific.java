@@ -38,12 +38,13 @@ import org.graalvm.nativeimage.Platforms;
 
 import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.shadowed.org.bytedeco.llvm.LLVM.LLVMRelocationIteratorRef;
 import com.oracle.svm.shadowed.org.bytedeco.llvm.LLVM.LLVMSectionIteratorRef;
 import com.oracle.svm.shadowed.org.bytedeco.llvm.LLVM.LLVMSymbolIteratorRef;
 import com.oracle.svm.shadowed.org.bytedeco.llvm.global.LLVM;
+import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
@@ -234,12 +235,12 @@ class LLVMAMD64TargetSpecificFeature implements InternalFeature {
              */
             @Override
             public int getFramePointerOffset() {
-                return -FrameAccess.wordSize();
+                return -SubstrateTarget.getWordSize();
             }
 
             @Override
             public long getCallerSPOffset() {
-                return 2L * FrameAccess.wordSize();
+                return 2L * SubstrateTarget.getWordSize();
             }
 
             @Override
@@ -339,12 +340,12 @@ class LLVMAArch64TargetSpecificFeature implements InternalFeature {
              */
             @Override
             public int getFramePointerOffset() {
-                return -2 * FrameAccess.wordSize();
+                return -2 * SubstrateTarget.getWordSize();
             }
 
             @Override
             public long getCallerSPOffset() {
-                return 2L * FrameAccess.wordSize();
+                return 2L * SubstrateTarget.getWordSize();
             }
 
             @Override

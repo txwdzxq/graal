@@ -24,6 +24,7 @@
  */
 package com.oracle.svm.core.heap;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.PointerBase;
 
@@ -31,7 +32,6 @@ import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.core.c.NonmovableArray;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.util.DuplicatedInNativeCode;
 import com.oracle.svm.core.util.NonmovableByteArrayReader;
 
@@ -59,7 +59,7 @@ public class CodeReferenceMapDecoder {
         assert referenceMapIndex != ReferenceMapIndex.NO_REFERENCE_MAP;
         assert referenceMapEncoding.isNonNull();
         int uncompressedSize = FrameAccess.uncompressedReferenceSize();
-        int compressedSize = ConfigurationValues.getObjectLayout().getReferenceSize();
+        int compressedSize = ObjectLayout.singleton().getReferenceSize();
 
         Pointer objRef = (Pointer) baseAddress;
         long idx = referenceMapIndex;

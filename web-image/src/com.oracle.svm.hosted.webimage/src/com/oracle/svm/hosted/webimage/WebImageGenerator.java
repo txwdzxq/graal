@@ -41,7 +41,7 @@ import com.oracle.graal.pointsto.infrastructure.SubstitutionProcessor;
 import com.oracle.graal.pointsto.util.Timer;
 import com.oracle.graal.pointsto.util.TimerCollection;
 import com.oracle.svm.core.JavaMainWrapper;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.graal.code.SubstratePlatformConfigurationProvider;
 import com.oracle.svm.core.heap.BarrierSetProvider;
 import com.oracle.svm.core.image.ImageHeapLayoutInfo;
@@ -248,8 +248,8 @@ public class WebImageGenerator extends NativeImageGenerator {
     }
 
     @Override
-    protected SubstrateTargetDescription createTarget() {
+    protected SubstrateTarget createTarget() {
         Architecture architecture = GuestAccess.get().getTarget().arch;
-        return new SubstrateTargetDescription(architecture, false, 16, 0, null);
+        return new SubstrateTarget(architecture, false, 16, 0, null);
     }
 }

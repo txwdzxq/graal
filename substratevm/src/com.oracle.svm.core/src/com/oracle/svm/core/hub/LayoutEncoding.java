@@ -33,7 +33,6 @@ import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.shared.AlwaysInline;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.heap.Heap;
 import com.oracle.svm.core.heap.ObjectHeader;
@@ -220,7 +219,7 @@ public class LayoutEncoding {
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
     public static UnsignedWord getPureInstanceSize(DynamicHub hub, boolean withOptionalIdHashField) {
         UnsignedWord size = getPureInstanceAllocationSize(hub.getLayoutEncoding());
-        ObjectLayout ol = ConfigurationValues.getObjectLayout();
+        ObjectLayout ol = ObjectLayout.singleton();
         if (withOptionalIdHashField && ol.isIdentityHashFieldOptional()) {
             int afterIdHashField = hub.getIdentityHashOffset() + Integer.BYTES;
             if (size.belowThan(afterIdHashField)) {
@@ -311,13 +310,13 @@ public class LayoutEncoding {
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
     public static UnsignedWord getArraySize(int encoding, int length, boolean withOptionalIdHashField) {
         long unalignedSize = getArrayElementOffset(encoding, length).rawValue();
-        long totalSize = ConfigurationValues.getObjectLayout().computeArrayTotalSize(unalignedSize, withOptionalIdHashField);
+        long totalSize = ObjectLayout.singleton().computeArrayTotalSize(unalignedSize, withOptionalIdHashField);
         return Word.unsigned(totalSize);
     }
 
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
     public static int getIdentityHashOffset(Object obj) {
-        ObjectLayout ol = ConfigurationValues.getObjectLayout();
+        ObjectLayout ol = ObjectLayout.singleton();
         if (ol.isIdentityHashFieldInObjectHeader()) {
             return ol.getObjectHeaderIdentityHashOffset();
         }
@@ -334,7 +333,7 @@ public class LayoutEncoding {
 
     @Uninterruptible(reason = "Prevent a GC moving the object or interfering with its identity hash state.", callerMustBe = true)
     public static UnsignedWord getSizeFromObject(Object obj) {
-        boolean withOptionalIdHashField = ConfigurationValues.getObjectLayout().isIdentityHashFieldOptional() && hasOptionalIdentityHashField(obj);
+        boolean withOptionalIdHashField = ObjectLayout.singleton().isIdentityHashFieldOptional() && hasOptionalIdentityHashField(obj);
         return getSizeFromObjectInline(obj, withOptionalIdHashField);
     }
 
@@ -366,7 +365,7 @@ public class LayoutEncoding {
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
     public static UnsignedWord getSizeFromObjectInlineInGC(Object obj, boolean addOptionalIdHashField) {
         boolean withOptionalIdHashField = addOptionalIdHashField ||
-                        (ConfigurationValues.getObjectLayout().isIdentityHashFieldOptional() && hasOptionalIdentityHashField(obj));
+                        (ObjectLayout.singleton().isIdentityHashFieldOptional() && hasOptionalIdentityHashField(obj));
         return getSizeFromObjectInline(obj, withOptionalIdHashField);
     }
 

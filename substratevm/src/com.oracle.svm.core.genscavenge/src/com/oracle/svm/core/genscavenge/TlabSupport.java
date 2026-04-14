@@ -43,7 +43,6 @@ import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.SubstrateDiagnostics;
 import com.oracle.svm.core.SubstrateGCOptions;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.graal.snippets.SubstrateAllocationSnippets;
 import com.oracle.svm.core.jdk.UninterruptibleUtils;
@@ -354,7 +353,7 @@ public class TlabSupport {
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     private static UnsignedWord getFillerObjectSize() {
         int minSize = FillerObjectUtil.instanceMinSize();
-        int alignment = ConfigurationValues.getObjectLayout().getAlignment();
+        int alignment = ObjectLayout.singleton().getAlignment();
         assert FillerObjectUtil.arrayMinSize() - minSize <= alignment : "all sizes above min instance size must be fillable";
         return (minSize > alignment) ? Word.unsigned(minSize) : Word.zero();
     }
@@ -402,7 +401,7 @@ public class TlabSupport {
 
         long minTlabSize = TlabOptionCache.getMinTlabSize();
         newSize = UnsignedUtils.clamp(newSize, Word.unsigned(minTlabSize), maxSize());
-        UnsignedWord alignedNewSize = Word.unsigned(ConfigurationValues.getObjectLayout().alignUp(newSize.rawValue()));
+        UnsignedWord alignedNewSize = Word.unsigned(ObjectLayout.singleton().alignUp(newSize.rawValue()));
 
         if (SerialAndEpsilonGCOptions.PrintTLAB.getValue()) {
             Log.log().string("TLAB new size: thread ").zhex(thread)
@@ -424,7 +423,7 @@ public class TlabSupport {
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+8/src/hotspot/share/gc/shared/threadLocalAllocBuffer.inline.hpp#L54-L71")
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     private static UnsignedWord computeDesiredSizeOfNewTlab(UnsignedWord allocationSize) {
-        assert UnsignedUtils.isAMultiple(allocationSize, Word.unsigned(ConfigurationValues.getObjectLayout().getAlignment()));
+        assert UnsignedUtils.isAMultiple(allocationSize, Word.unsigned(ObjectLayout.singleton().getAlignment()));
 
         /*
          * Compute the size of the new TLAB. To minimize fragmentation, the last TLAB that fits into
@@ -439,7 +438,7 @@ public class TlabSupport {
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-23-ga/src/hotspot/share/gc/shared/threadLocalAllocBuffer.inline.hpp#L73-L77")
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     private static UnsignedWord computeMinSizeOfNewTlab(UnsignedWord allocationSize) {
-        assert ConfigurationValues.getObjectLayout().isAligned(allocationSize);
+        assert ObjectLayout.singleton().isAligned(allocationSize);
 
         UnsignedWord sizeWithReserve = allocationSize.add(getFillerObjectSize());
         UnsignedWord minTlabSize = Word.unsigned(TlabOptionCache.getMinTlabSize());

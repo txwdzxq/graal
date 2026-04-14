@@ -40,8 +40,8 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 
 import com.oracle.svm.core.JavaMemoryUtil;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.UnmanagedMemoryUtil;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.hosted.webimage.JSGraphBuilderPlugins;
 import com.oracle.svm.hosted.webimage.wasm.nodes.WasmMemoryCopyNode;
 import com.oracle.svm.hosted.webimage.wasm.nodes.WasmMemoryFillNode;
@@ -520,8 +520,9 @@ public class WasmLMGraphBuilderPlugins implements TargetGraphBuilderPlugins {
 
         @Override
         public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode from, ValueNode fromOffset, ValueNode to, ValueNode toOffset, ValueNode size) {
-            WordCastNode fromUntracked = b.add(WordCastNode.objectToUntrackedPointer(from, ConfigurationValues.getWordKind()));
-            WordCastNode toUntracked = b.add(WordCastNode.objectToUntrackedPointer(to, ConfigurationValues.getWordKind()));
+            JavaKind wordKind = SubstrateTarget.getWordKind();
+            WordCastNode fromUntracked = b.add(WordCastNode.objectToUntrackedPointer(from, wordKind));
+            WordCastNode toUntracked = b.add(WordCastNode.objectToUntrackedPointer(to, wordKind));
             ValueNode fromPointer = b.add(BinaryArithmeticNode.add(fromUntracked, fromOffset));
             ValueNode toPointer = b.add(BinaryArithmeticNode.add(toUntracked, toOffset));
 

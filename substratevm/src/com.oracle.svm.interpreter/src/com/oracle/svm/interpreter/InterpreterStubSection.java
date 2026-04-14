@@ -46,13 +46,14 @@ import com.oracle.objectfile.ObjectFile;
 import com.oracle.objectfile.SectionName;
 import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.CGlobalData;
 import com.oracle.svm.core.c.CGlobalDataFactory;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.deopt.Deoptimizer;
 import com.oracle.svm.core.graal.code.InterpreterAccessStubData;
 import com.oracle.svm.core.graal.code.PreparedSignature;
+import com.oracle.svm.core.graal.code.SubstrateRegisterConfigFactory;
+import com.oracle.svm.core.graal.meta.SubstrateRegisterConfig;
 import com.oracle.svm.core.handles.ThreadLocalHandles;
 import com.oracle.svm.core.heap.GCCause;
 import com.oracle.svm.core.heap.Heap;
@@ -98,9 +99,9 @@ public abstract class InterpreterStubSection {
     /* '-3' to reduce padding due to alignment in .svm_interp section */
     static final int MAX_VTABLE_STUBS = 2 * 1024 - 3;
 
-    protected RegisterConfig registerConfig;
-    protected SubstrateTargetDescription target;
-    protected ValueKindFactory<LIRKind> valueKindFactory;
+    protected final SubstrateTarget target;
+    protected final RegisterConfig registerConfig;
+    protected final ValueKindFactory<LIRKind> valueKindFactory;
 
     @Platforms(Platform.HOSTED_ONLY.class) //
     private ObjectFile.ProgbitsSectionImpl stubsBufferImpl;
@@ -109,6 +110,12 @@ public abstract class InterpreterStubSection {
     private final Map<InterpreterResolvedJavaMethod, Integer> enterTrampolineOffsets = new HashMap<>();
     @Platforms(Platform.HOSTED_ONLY.class) //
     private int vTableStubBaseOffset = -1;
+
+    protected InterpreterStubSection() {
+        this.target = SubstrateTarget.singleton();
+        this.registerConfig = SubstrateRegisterConfigFactory.singleton().newRegisterFactory(SubstrateRegisterConfig.ConfigKind.NATIVE_TO_JAVA, null, this.target, true);
+        this.valueKindFactory = javaKind -> LIRKind.fromJavaKind(this.target.arch, javaKind);
+    }
 
     @Platforms(Platform.HOSTED_ONLY.class)
     public void createInterpreterEnterStubSection(AbstractImage image, Collection<InterpreterResolvedJavaMethod> methods) {
@@ -126,7 +133,7 @@ public abstract class InterpreterStubSection {
 
         for (InterpreterResolvedJavaMethod method : enterTrampolineOffsets.keySet()) {
             int offset = enterTrampolineOffsets.get(method);
-            objectFile.createDefinedSymbol(nameForInterpMethod(method), stubsSection, offset, ConfigurationValues.getWordSize(), true, internalSymbolsAreGlobal);
+            objectFile.createDefinedSymbol(nameForInterpMethod(method), stubsSection, offset, target.wordSize, true, internalSymbolsAreGlobal);
         }
     }
 
@@ -164,7 +171,7 @@ public abstract class InterpreterStubSection {
         for (int vTableIndex = 0; vTableIndex < MAX_VTABLE_STUBS; vTableIndex++) {
             int codeOffset = vTableStubBaseOffset + vTableIndex * getVTableStubSize();
             String symbolName = nameForVTableIndex(vTableIndex);
-            objectFile.createDefinedSymbol(symbolName, stubsSection, codeOffset, ConfigurationValues.getWordSize(), true, internalSymbolsAreGlobal);
+            objectFile.createDefinedSymbol(symbolName, stubsSection, codeOffset, target.wordSize, true, internalSymbolsAreGlobal);
         }
     }
 

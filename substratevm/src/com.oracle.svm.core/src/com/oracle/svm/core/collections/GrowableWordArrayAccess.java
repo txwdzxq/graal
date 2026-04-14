@@ -28,12 +28,10 @@ import org.graalvm.nativeimage.c.type.WordPointer;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.impl.Word;
 
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.UnmanagedMemoryUtil;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.memory.NullableNativeMemory;
 import com.oracle.svm.core.nmt.NmtCategory;
-
-import jdk.graal.compiler.api.replacements.Fold;
 
 public class GrowableWordArrayAccess {
     private static final int INITIAL_CAPACITY = 10;
@@ -82,12 +80,13 @@ public class GrowableWordArrayAccess {
 
         assert newCapacity >= INITIAL_CAPACITY;
         WordPointer oldData = array.getData();
-        WordPointer newData = NullableNativeMemory.malloc(Word.unsigned(newCapacity).multiply(wordSize()), nmtCategory);
+        int wordSize = SubstrateTarget.getWordSize();
+        WordPointer newData = NullableNativeMemory.malloc(Word.unsigned(newCapacity).multiply(wordSize), nmtCategory);
         if (newData.isNull()) {
             return false;
         }
 
-        UnmanagedMemoryUtil.copyForward((Pointer) oldData, (Pointer) newData, Word.unsigned(array.getSize()).multiply(wordSize()));
+        UnmanagedMemoryUtil.copyForward((Pointer) oldData, (Pointer) newData, Word.unsigned(array.getSize()).multiply(wordSize));
         NullableNativeMemory.free(oldData);
 
         array.setData(newData);
@@ -102,11 +101,6 @@ public class GrowableWordArrayAccess {
         } else {
             return oldCapacity * 2;
         }
-    }
-
-    @Fold
-    static int wordSize() {
-        return ConfigurationValues.getWordSize();
     }
 
     public static void qsort(GrowableWordArray array, int low, int high, Comparator c) {

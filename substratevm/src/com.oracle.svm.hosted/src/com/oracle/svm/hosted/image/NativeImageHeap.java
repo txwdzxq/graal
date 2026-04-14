@@ -61,7 +61,6 @@ import com.oracle.svm.core.StaticFieldsSupport;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.core.code.ImageCodeInfo;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.heap.FillerObject;
 import com.oracle.svm.core.heap.Heap;
@@ -185,7 +184,7 @@ public final class NativeImageHeap implements ImageHeap {
         this.hMetaAccess = hMetaAccess;
         this.hConstantReflection = hConstantReflection;
 
-        this.objectLayout = ConfigurationValues.getObjectLayout();
+        this.objectLayout = ObjectLayout.singleton();
         this.heapLayouter = heapLayouter;
 
         this.minInstanceSize = objectLayout.getMinImageHeapInstanceSize();
@@ -488,7 +487,7 @@ public final class NativeImageHeap implements ImageHeap {
     public int countPatchAndVerifyDynamicHubs() {
         byte[] refMap = DynamicHubSupport.currentLayer().getReferenceMapEncoding();
         ObjectInfo refMapInfo = getObjectInfo(refMap);
-        long currentLayerRefMapDataStart = refMapInfo.getOffset() + ConfigurationValues.getObjectLayout().getArrayBaseOffset(JavaKind.Byte);
+        long currentLayerRefMapDataStart = refMapInfo.getOffset() + ObjectLayout.singleton().getArrayBaseOffset(JavaKind.Byte);
 
         ObjectHeader objHeader = Heap.getHeap().getObjectHeader();
         int count = 0;

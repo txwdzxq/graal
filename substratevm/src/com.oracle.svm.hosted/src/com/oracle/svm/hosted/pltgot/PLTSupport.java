@@ -30,7 +30,7 @@ import com.oracle.objectfile.ObjectFile;
 import com.oracle.objectfile.ObjectFile.ProgbitsSectionImpl;
 import com.oracle.objectfile.ObjectFile.RelocationKind;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.graal.code.SubstrateBackend;
 import com.oracle.svm.core.meta.MethodPointer;
 import com.oracle.svm.core.meta.SharedMethod;
@@ -90,9 +90,10 @@ public class PLTSupport {
 
         objectFile.createDefinedSymbol(SVM_PLT_SYMBOL_NAME, textSection, pltTextOffset, 0, true, false);
 
+        int wordSize = SubstrateTarget.getWordSize();
         generatedPLT.forEachStubStartOffset((method, offset) -> {
             int position = pltTextOffset + offset;
-            objectFile.createDefinedSymbol(pltSymbolNameForMethod(method), textSection, position, ConfigurationValues.getWordSize(), true,
+            objectFile.createDefinedSymbol(pltSymbolNameForMethod(method), textSection, position, wordSize, true,
                             SubstrateOptions.InternalSymbolsAreGlobal.getValue());
         });
 

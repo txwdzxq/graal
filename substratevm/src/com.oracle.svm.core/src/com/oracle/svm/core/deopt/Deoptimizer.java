@@ -49,6 +49,7 @@ import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.Isolates;
 import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.SubstrateOptions;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.code.CodeInfo;
 import com.oracle.svm.core.code.CodeInfoAccess;
 import com.oracle.svm.core.code.CodeInfoQueryResult;
@@ -58,7 +59,7 @@ import com.oracle.svm.core.code.FrameInfoQueryResult;
 import com.oracle.svm.core.code.FrameInfoQueryResult.ValueInfo;
 import com.oracle.svm.core.code.UntetheredCodeInfo;
 import com.oracle.svm.core.collections.RingBuffer;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.deopt.DeoptimizedFrame.DeoptTargetTier;
 import com.oracle.svm.core.deopt.DeoptimizedFrame.RelockObjectData;
 import com.oracle.svm.core.graal.code.StubCallingConvention;
@@ -858,7 +859,7 @@ public final class Deoptimizer {
         FrameAccess.singleton().writeReturnAddress(CurrentIsolate.getCurrentThread(), originalStackPointer, returnAddress);
 
         try {
-            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(ConfigurationValues.getTarget().stackAlignment));
+            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(SubstrateTarget.singleton().stackAlignment));
             assert Options.LazyDeoptimization.getValue();
             assert VMThreads.StatusSupport.isStatusJava() : "Deopt stub execution must not be visible to other threads.";
 
@@ -893,7 +894,7 @@ public final class Deoptimizer {
          * that involves returning an exception object.
          */
         try {
-            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(ConfigurationValues.getTarget().stackAlignment));
+            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(SubstrateTarget.singleton().stackAlignment));
             assert Options.LazyDeoptimization.getValue();
             assert VMThreads.StatusSupport.isStatusJava() : "Deopt stub execution must not be visible to other threads.";
             assert !ExceptionUnwind.getLazyDeoptStubShouldReturnToExceptionHandler();
@@ -1024,7 +1025,7 @@ public final class Deoptimizer {
         FrameAccess.singleton().writeReturnAddress(CurrentIsolate.getCurrentThread(), originalStackPointer, returnAddress);
 
         try {
-            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(ConfigurationValues.getTarget().stackAlignment));
+            assert PointerUtils.isAMultiple(KnownIntrinsics.readStackPointer(), Word.unsigned(SubstrateTarget.singleton().stackAlignment));
             VMError.guarantee(VMThreads.StatusSupport.isStatusJava(), "Deopt stub execution must not be visible to other threads.");
 
             DeoptimizedFrame frame = (DeoptimizedFrame) ReferenceAccess.singleton().readObjectAt(originalStackPointer, true);
@@ -1110,7 +1111,7 @@ public final class Deoptimizer {
     @Fold
     public static int savedBasePointerSize() {
         if (SubstrateOptions.hasFramePointer()) {
-            return FrameAccess.wordSize();
+            return SubstrateTarget.getWordSize();
         } else {
             VMError.guarantee(Platform.includedIn(Platform.AMD64.class));
             return 0;
@@ -1390,9 +1391,10 @@ public final class Deoptimizer {
             deoptInfo = deoptInfo.getCaller();
         }
 
-        if (sourceChunk.getTotalFrameSize() < FrameAccess.wordSize()) {
+        int wordSize = SubstrateTarget.getWordSize();
+        if (sourceChunk.getTotalFrameSize() < wordSize) {
             throw fatalDeoptimizationError(
-                            String.format("Insufficient space in frame for pointer to DeoptimizedFrame sourceChunkSize: %s, word size: %s", sourceChunk.getTotalFrameSize(), FrameAccess.wordSize()),
+                            String.format("Insufficient space in frame for pointer to DeoptimizedFrame sourceChunkSize: %s, word size: %s", sourceChunk.getTotalFrameSize(), wordSize),
                             frameInfo, frameInfo);
         }
 
@@ -1545,7 +1547,7 @@ public final class Deoptimizer {
                             if (targetValue.getKind().isObject() && !targetValue.isCompressedReference()) {
                                 size = FrameAccess.uncompressedReferenceSize();
                             } else {
-                                size = ConfigurationValues.getObjectLayout().sizeInBytes(con.getJavaKind());
+                                size = ObjectLayout.singleton().sizeInBytes(con.getJavaKind());
                             }
                             int endOffset = totalOffset + size;
                             if (endOffset > newEndOfParams) {
@@ -1735,9 +1737,9 @@ public final class Deoptimizer {
         private static final int sizeofInt = JavaKind.Int.getByteCount();
         private static final int sizeofLong = JavaKind.Long.getByteCount();
         /** All references in deopt frames are compressed when compressed references are enabled. */
-        private final int sizeofCompressedReference = ConfigurationValues.getObjectLayout().getReferenceSize();
+        private final int sizeofCompressedReference = ObjectLayout.singleton().getReferenceSize();
         private final int sizeofUncompressedReference = FrameAccess.uncompressedReferenceSize();
-        private final int arrayBaseOffset = ConfigurationValues.getObjectLayout().getArrayBaseOffset(JavaKind.Byte);
+        private final int arrayBaseOffset = ObjectLayout.singleton().getArrayBaseOffset(JavaKind.Byte);
 
         private static final ArrayIndexOutOfBoundsException arrayIndexOutOfBoundsException = new ArrayIndexOutOfBoundsException("TargetContent.offsetCheck");
 
@@ -1791,12 +1793,13 @@ public final class Deoptimizer {
         /** Write a word-sized constant to the frame buffer. */
         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
         protected void writeWord(int offset, WordBase value) {
-            if (FrameAccess.wordSize() == 8) {
+            int wordSize = SubstrateTarget.getWordSize();
+            if (wordSize == 8) {
                 writeLong(offset, value.rawValue());
-            } else if (FrameAccess.wordSize() == 4) {
+            } else if (wordSize == 4) {
                 writeInt(offset, (int) value.rawValue());
             } else {
-                throw VMError.shouldNotReachHere("Unexpected word size: " + FrameAccess.wordSize());
+                throw VMError.shouldNotReachHere("Unexpected word size: " + wordSize);
             }
         }
 

@@ -41,7 +41,7 @@ import com.oracle.graal.pointsto.ObjectScanner.OtherReason;
 import com.oracle.graal.pointsto.ObjectScanner.ScanReason;
 import com.oracle.graal.pointsto.meta.AnalysisUniverse;
 import com.oracle.svm.core.BuildPhaseProvider.AfterAnalysis;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.graal.code.SubstrateBackend;
 import com.oracle.svm.core.graal.code.SubstrateBackendFactory;
 import com.oracle.svm.core.graal.meta.RuntimeConfiguration;
@@ -307,7 +307,7 @@ public class RuntimeCompilationSupport {
                         .setIsSubstitution(isSubstitution)
                         .speculationLog((caller != null) ? caller.getSpeculationLog() : null)
                         .build();
-        PEGraphDecoder decoder = new PEGraphDecoder(ConfigurationValues.getTarget().arch, graph, get().runtimeConfig.getProviders(),
+        PEGraphDecoder decoder = new PEGraphDecoder(SubstrateTarget.getArchitecture(), graph, get().runtimeConfig.getProviders(),
                         null, get().invocationPlugins, new InlineInvokePlugin[0], null, null,
                         null, null, new ConcurrentHashMap<>(), new ConcurrentHashMap<>(), true, false) {
             @Override

@@ -26,6 +26,7 @@ package com.oracle.svm.core.c;
 
 import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
@@ -34,7 +35,6 @@ import org.graalvm.word.PointerBase;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.BuildPhaseProvider.AfterHostedUniverse;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.heap.UnknownObjectField;
 import com.oracle.svm.core.util.PointerUtils;
 import com.oracle.svm.shared.Uninterruptible;
@@ -94,6 +94,6 @@ public final class CIsolateDataStorage {
 
     @Fold
     static int arrayBaseOffset() {
-        return ConfigurationValues.getObjectLayout().getArrayBaseOffset(JavaKind.Long);
+        return ObjectLayout.singleton().getArrayBaseOffset(JavaKind.Long);
     }
 }

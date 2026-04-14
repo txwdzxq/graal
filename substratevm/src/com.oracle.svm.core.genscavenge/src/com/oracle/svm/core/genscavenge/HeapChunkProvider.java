@@ -33,7 +33,7 @@ import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.WordBase;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.FrameAccess;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.genscavenge.AlignedHeapChunk.AlignedHeader;
 import com.oracle.svm.core.genscavenge.HeapChunk.Header;
 import com.oracle.svm.core.genscavenge.UnalignedHeapChunk.UnalignedHeader;
@@ -259,7 +259,7 @@ final class HeapChunkProvider {
     static void zapUnusedObjectMemory(Header<?> chunk, WordBase value) {
         Pointer start = HeapChunk.getTopPointer(chunk);
         Pointer limit = HeapChunk.getEndPointer(chunk);
-        for (Pointer p = start; p.belowThan(limit); p = p.add(FrameAccess.wordSize())) {
+        for (Pointer p = start; p.belowThan(limit); p = p.add(SubstrateTarget.getWordSize())) {
             p.writeWord(0, value);
         }
     }

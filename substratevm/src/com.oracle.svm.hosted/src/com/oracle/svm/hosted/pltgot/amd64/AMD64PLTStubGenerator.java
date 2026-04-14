@@ -31,7 +31,7 @@ import java.util.Map;
 
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.ReservedRegisters;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.graal.amd64.SubstrateAMD64Backend;
 import com.oracle.svm.core.graal.code.SubstrateBackend;
 import com.oracle.svm.core.graal.code.SubstrateCallingConventionKind;
@@ -153,7 +153,7 @@ public class AMD64PLTStubGenerator implements PLTStubGenerator {
         }
 
         byte[] code = asm.close(true);
-        RelocatableBuffer buffer = new RelocatableBuffer(code.length, ConfigurationValues.getByteOrder());
+        RelocatableBuffer buffer = new RelocatableBuffer(code.length, SubstrateTarget.getArchitecture().getByteOrder());
         buffer.getByteBuffer().put(code);
 
         MethodPointer resolver = new MethodPointer(configuration.getArchSpecificResolverAsHostedMethod(), false);

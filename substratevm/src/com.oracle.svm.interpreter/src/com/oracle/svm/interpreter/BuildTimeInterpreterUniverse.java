@@ -51,6 +51,7 @@ import com.oracle.graal.pointsto.heap.ImageHeapConstant;
 import com.oracle.graal.pointsto.meta.AnalysisField;
 import com.oracle.graal.pointsto.meta.AnalysisMethod;
 import com.oracle.graal.pointsto.meta.AnalysisType;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.util.HostedStringDeduplication;
 import com.oracle.svm.core.util.UserError;
 import com.oracle.svm.hosted.meta.HostedField;
@@ -358,7 +359,7 @@ public final class BuildTimeInterpreterUniverse {
         }
         if (!thiz.isUndefined()) {
             if (thiz.isWordStorage()) {
-                VMError.guarantee(thiz.getUnmaterializedConstant().getJavaKind() == InterpreterToVM.wordJavaKind());
+                VMError.guarantee(thiz.getUnmaterializedConstant().getJavaKind() == SubstrateTarget.getWordKind());
             } else {
                 VMError.guarantee(thiz.getUnmaterializedConstant().getJavaKind() == thiz.getJavaKind());
             }

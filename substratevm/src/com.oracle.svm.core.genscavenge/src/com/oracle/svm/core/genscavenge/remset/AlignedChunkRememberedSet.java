@@ -36,8 +36,8 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.shared.AlwaysInline;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTarget;
+import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.genscavenge.AlignedHeapChunk;
 import com.oracle.svm.core.genscavenge.AlignedHeapChunk.AlignedHeader;
 import com.oracle.svm.core.genscavenge.HeapChunk;
@@ -52,6 +52,7 @@ import com.oracle.svm.core.image.ImageHeapObject;
 import com.oracle.svm.core.util.HostedByteBufferPointer;
 import com.oracle.svm.core.util.PointerUtils;
 import com.oracle.svm.core.util.UnsignedUtils;
+import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.shared.Uninterruptible;
 
 import jdk.graal.compiler.api.replacements.Fold;
@@ -64,7 +65,7 @@ public final class AlignedChunkRememberedSet {
 
     @Fold
     public static int wordSize() {
-        return ConfigurationValues.getWordSize();
+        return SubstrateTarget.getWordSize();
     }
 
     @Fold
@@ -74,7 +75,7 @@ public final class AlignedChunkRememberedSet {
             // Compaction needs room for a ObjectMoveInfo structure before the first object.
             headerSize = headerSize.add(ObjectMoveInfo.getSize());
         }
-        UnsignedWord alignment = Word.unsigned(ConfigurationValues.getObjectLayout().getAlignment());
+        UnsignedWord alignment = Word.unsigned(ObjectLayout.singleton().getAlignment());
         return UnsignedUtils.roundUp(headerSize, alignment);
     }
 
@@ -251,7 +252,7 @@ public final class AlignedChunkRememberedSet {
         UnsignedWord structSize = getStructSize();
         UnsignedWord available = HeapParameters.getAlignedHeapChunkSize().subtract(structSize);
         UnsignedWord requiredSize = CardTable.tableSizeForMemorySize(available);
-        UnsignedWord alignment = Word.unsigned(ConfigurationValues.getObjectLayout().getAlignment());
+        UnsignedWord alignment = Word.unsigned(ObjectLayout.singleton().getAlignment());
         return UnsignedUtils.roundUp(requiredSize, alignment);
     }
 
@@ -263,7 +264,7 @@ public final class AlignedChunkRememberedSet {
     @Fold
     static UnsignedWord getFirstObjectTableStartOffset() {
         UnsignedWord cardTableLimit = getCardTableLimitOffset();
-        UnsignedWord alignment = Word.unsigned(ConfigurationValues.getObjectLayout().getAlignment());
+        UnsignedWord alignment = Word.unsigned(ObjectLayout.singleton().getAlignment());
         return UnsignedUtils.roundUp(cardTableLimit, alignment);
     }
 
@@ -272,14 +273,14 @@ public final class AlignedChunkRememberedSet {
         UnsignedWord fotStart = getFirstObjectTableStartOffset();
         UnsignedWord fotSize = getFirstObjectTableSize();
         UnsignedWord fotLimit = fotStart.add(fotSize);
-        UnsignedWord alignment = Word.unsigned(ConfigurationValues.getObjectLayout().getAlignment());
+        UnsignedWord alignment = Word.unsigned(ObjectLayout.singleton().getAlignment());
         return UnsignedUtils.roundUp(fotLimit, alignment);
     }
 
     @Fold
     static UnsignedWord getCardTableStartOffset() {
         UnsignedWord structSize = getStructSize();
-        UnsignedWord alignment = Word.unsigned(ConfigurationValues.getObjectLayout().getAlignment());
+        UnsignedWord alignment = Word.unsigned(ObjectLayout.singleton().getAlignment());
         return UnsignedUtils.roundUp(structSize, alignment);
     }
 
@@ -288,7 +289,7 @@ public final class AlignedChunkRememberedSet {
         UnsignedWord tableStart = getCardTableStartOffset();
         UnsignedWord tableSize = getCardTableSize();
         UnsignedWord tableLimit = tableStart.add(tableSize);
-        UnsignedWord alignment = Word.unsigned(ConfigurationValues.getObjectLayout().getAlignment());
+        UnsignedWord alignment = Word.unsigned(ObjectLayout.singleton().getAlignment());
         return UnsignedUtils.roundUp(tableLimit, alignment);
     }
 

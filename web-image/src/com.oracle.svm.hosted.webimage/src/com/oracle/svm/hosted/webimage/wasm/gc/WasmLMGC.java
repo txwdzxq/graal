@@ -30,6 +30,7 @@ import static jdk.graal.compiler.nodes.extended.BranchProbabilityNode.probabilit
 
 import java.lang.ref.Reference;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
@@ -49,7 +50,6 @@ import com.oracle.svm.core.SubstrateGCOptions;
 import com.oracle.svm.core.UnmanagedMemoryUtil;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.genscavenge.HeapVerifier;
 import com.oracle.svm.core.heap.GC;
 import com.oracle.svm.core.heap.GCCause;
@@ -598,7 +598,7 @@ final class GrayToBlackObjectVisitor implements ObjectVisitor {
         // Always mark referent as reachable (no support for soft or weak references yet)
         // TODO GR-43486 allow for soft and weak referenced referents to be potentially freed by the
         // GC
-        int referenceSize = ConfigurationValues.getObjectLayout().getReferenceSize();
+        int referenceSize = ObjectLayout.singleton().getReferenceSize();
         referenceVisitor.visitObjectReferences(ReferenceInternals.getReferentFieldAddress(dr), false, referenceSize, dr, 1);
     }
 
