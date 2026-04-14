@@ -34,10 +34,10 @@ import org.graalvm.nativeimage.c.function.CEntryPoint;
 import org.graalvm.word.PointerBase;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.core.c.function.CEntryPointSetup.EnterPrologue;
 import com.oracle.svm.core.c.function.CEntryPointSetup.LeaveEpilogue;
+import com.oracle.svm.guest.staging.SubstrateGuestOptions;
+import com.oracle.svm.shared.Uninterruptible;
 
 /**
  * Annotates a method to provide extra details for a {@linkplain CEntryPoint VM entry point}.
@@ -49,7 +49,7 @@ public @interface CEntryPointOptions {
     final class DefaultNameTransformation implements Function<String, String> {
         @Override
         public String apply(String name) {
-            return SubstrateOptions.EntryPointNamePrefix.getValue() + name;
+            return SubstrateGuestOptions.EntryPointNamePrefix.getValue() + name;
         }
     }
 

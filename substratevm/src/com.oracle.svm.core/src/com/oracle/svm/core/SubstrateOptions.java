@@ -675,10 +675,6 @@ public class SubstrateOptions {
     public static final HostedOptionKey<Boolean> TraceNativeToolUsage = new HostedOptionKey<>(false);
 
     @LayerVerifiedOption(kind = Kind.Changed, severity = Severity.Error)//
-    @Option(help = "Prefix that is added to the names of entry point methods.")//
-    public static final HostedOptionKey<String> EntryPointNamePrefix = new HostedOptionKey<>("");
-
-    @LayerVerifiedOption(kind = Kind.Changed, severity = Severity.Error)//
     @Option(help = "Prefix that is added to the names of API functions.", stability = OptionStability.STABLE)//
     public static final HostedOptionKey<String> APIFunctionPrefix = new HostedOptionKey<>("graal_");
 

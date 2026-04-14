@@ -26,6 +26,7 @@ package com.oracle.svm.guest.staging;
 
 import com.oracle.svm.shared.meta.GuestFold;
 import com.oracle.svm.shared.option.HostedOptionKey;
+import com.oracle.svm.shared.option.LayerVerifiedOption;
 
 import jdk.graal.compiler.options.Option;
 
@@ -33,6 +34,10 @@ public final class SubstrateGuestOptions {
 
     @Option(help = "Initialize the VM and run startup hooks.")//
     public static final HostedOptionKey<Boolean> InitializeVM = new HostedOptionKey<>(true);
+
+    @LayerVerifiedOption(kind = LayerVerifiedOption.Kind.Changed, severity = LayerVerifiedOption.Severity.Error)//
+    @Option(help = "Prefix that is added to the names of entry point methods.")//
+    public static final HostedOptionKey<String> EntryPointNamePrefix = new HostedOptionKey<>("");
 
     /**
      * Determines if the installation of important signal handlers should be tried during early
