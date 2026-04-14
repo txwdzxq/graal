@@ -58,11 +58,13 @@ import com.oracle.graal.pointsto.BigBang;
 import com.oracle.graal.pointsto.heap.ImageHeapArray;
 import com.oracle.graal.pointsto.heap.ImageHeapConstant;
 import com.oracle.graal.pointsto.heap.ImageHeapInstance;
+import com.oracle.graal.pointsto.heap.ImageHeapPrimitiveArray;
 import com.oracle.graal.pointsto.meta.AnalysisField;
 import com.oracle.graal.pointsto.meta.AnalysisType;
 import com.oracle.graal.pointsto.phases.InlineBeforeAnalysisGraphDecoder;
 import com.oracle.svm.core.classinitialization.EnsureClassInitializedNode;
 import com.oracle.svm.core.config.ObjectLayout;
+import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.hosted.ameta.AnalysisConstantReflectionProvider;
 import com.oracle.svm.hosted.classinitialization.SimulateClassInitializerPolicy.SimulateClassInitializerInlineScope;
@@ -361,7 +363,20 @@ public class SimulateClassInitializerGraphDecoder extends InlineBeforeAnalysisGr
         }
 
         /* All checks passed, we can now copy array elements. */
-        if (source.equals(dest) && sourcePos < destPos) {
+        if (sourceComponentType.getJavaKind().isPrimitive()) {
+            /*
+             * Primitive arrays are already backed by guest-side storage, so we can delegate the
+             * copy to GuestAccess and preserve the normal arraycopy overlap semantics.
+             */
+            var sourceArray = ((ImageHeapPrimitiveArray) source).getArray();
+            var destArray = ((ImageHeapPrimitiveArray) dest).getArray();
+            GuestAccess.get().copyArray(sourceArray, sourcePos, destArray, destPos, length);
+        } else if (source.equals(dest) && sourcePos < destPos) {
+            /*
+             * The object-array path still operates on the builder-side ImageHeapObjectArray model.
+             * Port it to VMAccess bulk copy after GR-74854 migrates ImageHeapObjectArray for
+             * Terminus.
+             */
             /* Must copy backwards to avoid losing elements. */
             for (int i = length - 1; i >= 0; i--) {
                 dest.setElement(destPos + i, (JavaConstant) source.getElement(sourcePos + i));
@@ -466,9 +481,18 @@ public class SimulateClassInitializerGraphDecoder extends InlineBeforeAnalysisGr
 
     protected ImageHeapArray createNewArray(AnalysisType arrayType, int length) {
         var array = ImageHeapArray.create(arrayType, length);
-        var defaultValue = JavaConstant.defaultForKind(arrayType.getComponentType().getStorageKind());
-        for (int i = 0; i < length; i++) {
-            array.setElement(i, defaultValue);
+        if (arrayType.getComponentType().getJavaKind() == JavaKind.Object) {
+            /*
+             * ImageHeapObjectArray stores builder-side references. Empty slots must therefore be
+             * materialized as NULL_POINTER, not host null, so later load-indexed simulation still
+             * sees a JavaConstant.
+             *
+             * Primitive arrays keep their language-default zero/false values in guest-side backing
+             * storage and do not need an explicit fill here.
+             */
+            for (int i = 0; i < length; i++) {
+                array.setElement(i, JavaConstant.NULL_POINTER);
+            }
         }
         currentActiveObjects.add(array);
         return array;
