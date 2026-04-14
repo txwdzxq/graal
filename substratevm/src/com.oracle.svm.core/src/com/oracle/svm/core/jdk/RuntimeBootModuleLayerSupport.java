@@ -179,9 +179,11 @@ public final class RuntimeBootModuleLayerSupport {
     /// both the build-time and runtime-resolved modules.
     private static void patchBootLayer(ModuleLayer bootLayer, Configuration bootConfiguration, Configuration augmentationConfiguration, ModuleLayer augmentationLayer) {
         Map<String, Module> mergedNameToModule = new LinkedHashMap<>(ModuleLayerSubstitutionsSupport.nameToModule(bootLayer));
-        for (Module module : augmentationLayer.modules()) {
+        for (ResolvedModule resolvedModule : augmentationConfiguration.modules()) {
+            String moduleName = resolvedModule.reference().descriptor().name();
+            Module module = augmentationLayer.findModule(moduleName).orElseThrow();
             ModuleSubstitutionsSupport.patchLayer(module, bootLayer);
-            mergedNameToModule.put(module.getName(), module);
+            mergedNameToModule.put(moduleName, module);
         }
 
         Configuration mergedConfiguration = createAugmentedBootConfiguration(bootConfiguration, augmentationConfiguration);
