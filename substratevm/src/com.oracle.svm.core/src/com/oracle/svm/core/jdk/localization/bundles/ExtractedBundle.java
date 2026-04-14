@@ -47,8 +47,6 @@ public final class ExtractedBundle extends AbstractMap<String, Object> implement
             this.values = EMPTY_VALUES;
         } else {
             String[] copiedKeys = lookup.keySet().toArray(new String[0]);
-            Arrays.sort(copiedKeys);
-
             Object[] copiedValues = new Object[copiedKeys.length];
             for (int i = 0; i < copiedKeys.length; i++) {
                 String key = Objects.requireNonNull(copiedKeys[i], "Bundle content keys must not be null");
@@ -71,7 +69,7 @@ public final class ExtractedBundle extends AbstractMap<String, Object> implement
 
     @Override
     public boolean containsKey(Object key) {
-        return key instanceof String stringKey && indexOf(stringKey) >= 0;
+        return key instanceof String stringKey && getByStringKey(stringKey) != null;
     }
 
     @Override
@@ -79,8 +77,7 @@ public final class ExtractedBundle extends AbstractMap<String, Object> implement
         if (!(key instanceof String stringKey)) {
             return null;
         }
-        int index = indexOf(stringKey);
-        return index >= 0 ? values[index] : null;
+        return getByStringKey(stringKey);
     }
 
     @Override
@@ -122,8 +119,13 @@ public final class ExtractedBundle extends AbstractMap<String, Object> implement
         throw immutable();
     }
 
-    private int indexOf(String key) {
-        return Arrays.binarySearch(keys, key);
+    private Object getByStringKey(String key) {
+        for (int i = 0; i < keys.length; i++) {
+            if (keys[i].equals(key)) {
+                return values[i];
+            }
+        }
+        return null;
     }
 
     private static UnsupportedOperationException immutable() {
