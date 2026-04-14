@@ -448,7 +448,8 @@ public class SVMHost extends HostVM {
     }
 
     @Override
-    public void validateReachableObject(Object obj) {
+    public void validateReachableObject(BigBang bb, JavaConstant constant) {
+        Object obj = bb.getSnippetReflectionProvider().asObject(Object.class, constant);
         ImageSingletons.lookup(ClassInitializationFeature.class).checkImageHeapInstance(obj);
     }
 

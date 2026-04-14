@@ -430,19 +430,17 @@ public abstract class ImageHeapScanner {
         return instance;
     }
 
+    /**
+     * Applies registered object replacers to a scanned constant before it is added to the image
+     * heap.
+     */
     private Optional<JavaConstant> maybeReplace(JavaConstant constant, ScanReason reason) {
-        Object unwrapped = snippetReflection.asObject(Object.class, constant);
-        if (unwrapped == null) {
-            throw GraalError.shouldNotReachHere(formatReason("Could not unwrap constant", reason)); // ExcludeFromJacocoGeneratedReport
-        } else if (unwrapped instanceof ImageHeapConstant) {
-            throw GraalError.shouldNotReachHere(formatReason("Double wrapping of constant. Most likely, the reachability analysis code itself is seen as reachable.", reason)); // ExcludeFromJacocoGeneratedReport
-        }
         maybeForceHashCodeComputation(constant);
 
         /* Run all registered object replacers. */
         if (constant.getJavaKind() == JavaKind.Object) {
             try {
-                JavaConstant replaced = universe.replaceObjectWithConstant(unwrapped);
+                JavaConstant replaced = universe.replaceConstantWithConstant(constant, (JavaConstant value) -> unwrapConstantForReplacement(value, reason));
                 if (!replaced.equals(constant)) {
                     return Optional.of(hostedValuesProvider.validateReplacedConstant(replaced));
                 }
@@ -455,6 +453,20 @@ public abstract class ImageHeapScanner {
 
         }
         return Optional.empty();
+    }
+
+    /**
+     * Unwraps a hosted constant so object replacers can operate on the original hosted object. This
+     * is temporary code that should be removed once GR-72093 is resolved.
+     */
+    private Object unwrapConstantForReplacement(JavaConstant value, ScanReason reason) {
+        Object unwrapped = snippetReflection.asObject(Object.class, value);
+        if (unwrapped == null) {
+            throw GraalError.shouldNotReachHere(formatReason("Could not unwrap constant", reason)); // ExcludeFromJacocoGeneratedReport
+        } else if (unwrapped instanceof ImageHeapConstant) {
+            throw GraalError.shouldNotReachHere(formatReason("Double wrapping of constant. Most likely, the reachability analysis code itself is seen as reachable.", reason)); // ExcludeFromJacocoGeneratedReport
+        }
+        return unwrapped;
     }
 
     public void maybeForceHashCodeComputation(JavaConstant constant) {
@@ -610,26 +622,31 @@ public abstract class ImageHeapScanner {
         return imageHeapConstant;
     }
 
+    /**
+     * Validates a newly reachable hosted object, triggers any reachability callbacks, and then
+     * scans the object's contents into the image heap.
+     */
     protected void onObjectReachable(ImageHeapConstant imageHeapConstant, ScanReason reason, Consumer<ScanReason> onAnalysisModified) {
 
         AnalysisType objectType = imageHeapConstant.getType();
         if (imageHeapConstant.isBackedByHostedObject()) {
             /* Simulated constants don't have a backing object and don't need to be processed. */
             try {
-                Object object = bb.getSnippetReflectionProvider().asObject(Object.class, imageHeapConstant);
                 /*
                  * Before adding the object to ImageHeap.reachableObjects, where it could be read by
                  * other threads, run validation checks, e.g., verify that the object's type can be
-                 * initialized at build time. Also run the validation before exposing the object to
-                 * other reachability hooks to avoid propagating an invalid object.
+                 * initialized at build time.
                  */
-                hostVM.validateReachableObject(object);
-                /*
-                 * Note that reachability hooks can also reject objects based on specific validation
-                 * conditions, e.g., a started Thread should never be added to the image heap, but
-                 * the structure of the object is valid, as ensured by the validity check above.
-                 */
-                objectType.notifyObjectReachable(object, reason);
+                hostVM.validateReachableObject(bb, imageHeapConstant);
+                if (objectType.hasReachabilityCallbacks()) {
+                    Object object = bb.getSnippetReflectionProvider().asObject(Object.class, imageHeapConstant);
+                    /*
+                     * Reachability hooks can reject objects based on additional conditions, e.g., a
+                     * started Thread should never be added to the image heap, but the structure of
+                     * the object is valid, as ensured by the validation above.
+                     */
+                    objectType.notifyObjectReachable(object, reason);
+                }
             } catch (UnsupportedFeatureException e) {
                 /* Enhance the unsupported feature message with the object trace and rethrow. */
                 StringBuilder backtrace = new StringBuilder();
@@ -713,7 +730,7 @@ public abstract class ImageHeapScanner {
 
     /**
      * Trigger rescanning of a root field.
-     * 
+     *
      * @see #rescanRoot(Field, ScanReason)
      */
     public void rescanRoot(ResolvedJavaField hostField, ScanReason rescanReason) {
