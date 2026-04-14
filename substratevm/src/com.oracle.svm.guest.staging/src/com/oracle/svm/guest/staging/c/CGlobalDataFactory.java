@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.c;
+package com.oracle.svm.guest.staging.c;
 
 import java.nio.ByteBuffer;
 import java.util.function.IntSupplier;

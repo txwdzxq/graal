@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.c;
+package com.oracle.svm.guest.staging.c;
 
 import java.util.EnumSet;
 import java.util.Optional;
@@ -33,11 +33,9 @@ import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.word.PointerBase;
 
-import com.oracle.svm.core.graal.code.CGlobalDataInfo;
-
 /**
  * Stores static information about a CGlobal. Build-specific information is stored in
- * {@link CGlobalDataInfo}. This separation of data is used to facilitate storing
+ * {@code CGlobalDataInfo}. This separation of data is used to facilitate storing
  * {@link CGlobalDataImpl} within static fields.
  */
 public final class CGlobalDataImpl<T extends PointerBase> extends CGlobalData<T> {
