@@ -138,9 +138,10 @@ public abstract class HostVM {
     /**
      * Run validation checks for reachable objects before registering them in the shadow heap.
      *
-     * @param obj the object to validate
+     * @param bb the active analysis
+     * @param constant the hosted object constant to validate
      */
-    public void validateReachableObject(Object obj) {
+    public void validateReachableObject(BigBang bb, JavaConstant constant) {
     }
 
     /**
