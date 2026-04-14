@@ -44,7 +44,6 @@ import org.graalvm.word.impl.Word;
 import com.oracle.objectfile.BasicProgbitsSectionImpl;
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.objectfile.SectionName;
-import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.SubstrateTargetDescription;
@@ -58,6 +57,7 @@ import com.oracle.svm.core.handles.ThreadLocalHandles;
 import com.oracle.svm.core.heap.GCCause;
 import com.oracle.svm.core.heap.Heap;
 import com.oracle.svm.core.hub.DynamicHub;
+import com.oracle.svm.core.interpreter.InterpreterEnterStub;
 import com.oracle.svm.core.jdk.UninterruptibleUtils;
 import com.oracle.svm.core.memory.NativeMemory;
 import com.oracle.svm.core.memory.NullableNativeMemory;
@@ -65,7 +65,6 @@ import com.oracle.svm.core.nmt.NmtCategory;
 import com.oracle.svm.core.threadlocal.FastThreadLocalFactory;
 import com.oracle.svm.core.threadlocal.FastThreadLocalObject;
 import com.oracle.svm.graal.meta.SubstrateInstalledCodeImpl;
-import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.guest.staging.jdk.InternalVMMethod;
 import com.oracle.svm.hosted.image.AbstractImage;
 import com.oracle.svm.hosted.image.NativeImage;
@@ -75,6 +74,8 @@ import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaMethod;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedObjectType;
 import com.oracle.svm.interpreter.metadata.InterpreterUniverse;
 import com.oracle.svm.interpreter.ristretto.meta.RistrettoMethod;
+import com.oracle.svm.shared.AlwaysInline;
+import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.core.common.LIRKind;
@@ -212,6 +213,7 @@ public abstract class InterpreterStubSection {
     @Deoptimizer.DeoptStub(stubType = Deoptimizer.StubType.InterpreterEnterStub)
     @NeverInline("needs ABI boundary")
     @Uninterruptible(reason = REASON_REFERENCES_ON_STACK)
+    @InterpreterEnterStub(InterpreterEnterStub.Kind.EST_OFFSET)
     public static Pointer enterMethodInterpreterStub(int interpreterMethodESTOffset, Pointer enterData) {
         DebuggerSupport debuggerSupport = ImageSingletons.lookup(DebuggerSupport.class);
 
@@ -227,6 +229,7 @@ public abstract class InterpreterStubSection {
     @Deoptimizer.DeoptStub(stubType = Deoptimizer.StubType.InterpreterEnterStub)
     @NeverInline("needs ABI boundary")
     @Uninterruptible(reason = REASON_REFERENCES_ON_STACK)
+    @InterpreterEnterStub(InterpreterEnterStub.Kind.DIRECT)
     public static Pointer enterDirectInterpreterStub(InterpreterResolvedJavaMethod interpreterMethod, Pointer enterData) {
         VMError.guarantee(interpreterMethod != null);
 
@@ -236,6 +239,7 @@ public abstract class InterpreterStubSection {
     @Deoptimizer.DeoptStub(stubType = Deoptimizer.StubType.InterpreterEnterStub)
     @NeverInline("needs ABI boundary")
     @Uninterruptible(reason = REASON_REFERENCES_ON_STACK)
+    @InterpreterEnterStub(InterpreterEnterStub.Kind.VTABLE)
     public static Pointer enterVTableInterpreterStub(int vTableIndex, Pointer enterData) {
         InterpreterAccessStubData accessHelper = ImageSingletons.lookup(InterpreterAccessStubData.class);
 
@@ -425,7 +429,7 @@ public abstract class InterpreterStubSection {
         VMError.guarantee(handles.getHandleCount() == handleCount);
         VMError.guarantee(handleFrameId == handles.popFrame());
 
-        return call(interpreterMethod, args);
+        return call(interpreterMethod, args, true);
     }
 
     @Uninterruptible(reason = "Raw object pointer.")
@@ -579,6 +583,25 @@ public abstract class InterpreterStubSection {
                 Heap.getHeap().getGC().collectCompletely(GCCause.UnitTest);
             }
         }
+
+        private static boolean checkFastPath = false;
+
+        public static void enableFastPathCheck() {
+            VMError.guarantee(InterpreterOptions.InterpreterBackdoor.getValue());
+            checkFastPath = true;
+        }
+
+        public static void disableFastPathCheck() {
+            VMError.guarantee(InterpreterOptions.InterpreterBackdoor.getValue());
+            checkFastPath = false;
+        }
+
+        @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+        public static void handleFastPathWasNotTaken() {
+            if (InterpreterOptions.InterpreterBackdoor.getValue() && checkFastPath) {
+                VMError.shouldNotReachHere("JIT method is available, but the fast path was not taken.");
+            }
+        }
     }
 
     /**
@@ -602,15 +625,18 @@ public abstract class InterpreterStubSection {
     }
 
     @Uninterruptible(reason = REASON_DEOPT_INSTALLED_CODE)
-    public static Object call(InterpreterResolvedJavaMethod interpreterMethod, Object[] args) {
+    public static Object call(InterpreterResolvedJavaMethod interpreterMethod, Object[] args, boolean callerIsCompiled) {
         /*
-         * Determine if a JIT compiled version is available and if so execute this one instead. This
-         * could be more optimized, see GR-71160.
+         * Determine if a JIT compiled version is available and if so execute this one instead.
          */
         CFunctionPointer entryPoint = getInstalledCodeEntryPoint(interpreterMethod);
         if (entryPoint.isNonNull()) {
+            if (callerIsCompiled) {
+                TestingBackdoor.handleFastPathWasNotTaken();
+            }
             return leaveInterpreter(entryPoint, interpreterMethod, args);
         }
+
         return callInterpreterInterruptibly(interpreterMethod, args);
     }
 
