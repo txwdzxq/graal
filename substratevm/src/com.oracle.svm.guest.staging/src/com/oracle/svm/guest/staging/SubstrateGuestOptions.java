@@ -29,6 +29,7 @@ import com.oracle.svm.shared.option.HostedOptionKey;
 import com.oracle.svm.shared.option.LayerVerifiedOption;
 
 import jdk.graal.compiler.options.Option;
+import jdk.graal.compiler.options.OptionStability;
 
 public final class SubstrateGuestOptions {
 
@@ -38,6 +39,10 @@ public final class SubstrateGuestOptions {
     @LayerVerifiedOption(kind = LayerVerifiedOption.Kind.Changed, severity = LayerVerifiedOption.Severity.Error)//
     @Option(help = "Prefix that is added to the names of entry point methods.")//
     public static final HostedOptionKey<String> EntryPointNamePrefix = new HostedOptionKey<>("");
+
+    @LayerVerifiedOption(kind = LayerVerifiedOption.Kind.Changed, severity = LayerVerifiedOption.Severity.Error)//
+    @Option(help = "Prefix that is added to the names of API functions.", stability = OptionStability.STABLE)//
+    public static final HostedOptionKey<String> APIFunctionPrefix = new HostedOptionKey<>("graal_");
 
     /**
      * Determines if the installation of important signal handlers should be tried during early
