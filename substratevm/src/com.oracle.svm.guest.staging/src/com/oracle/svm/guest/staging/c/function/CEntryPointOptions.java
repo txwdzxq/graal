@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.c.function;
+package com.oracle.svm.guest.staging.c.function;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -34,8 +34,8 @@ import org.graalvm.nativeimage.c.function.CEntryPoint;
 import org.graalvm.word.PointerBase;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.c.function.CEntryPointSetup.EnterPrologue;
-import com.oracle.svm.core.c.function.CEntryPointSetup.LeaveEpilogue;
+import com.oracle.svm.guest.staging.c.function.CEntryPointSetup.EnterPrologue;
+import com.oracle.svm.guest.staging.c.function.CEntryPointSetup.LeaveEpilogue;
 import com.oracle.svm.guest.staging.SubstrateGuestOptions;
 import com.oracle.svm.shared.Uninterruptible;
 

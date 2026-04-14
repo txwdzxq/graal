@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.c.function;
+package com.oracle.svm.guest.staging.c.function;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -35,11 +35,11 @@ import org.graalvm.nativeimage.IsolateThread;
 import org.graalvm.nativeimage.c.function.CEntryPoint;
 import org.graalvm.nativeimage.c.function.CEntryPoint.Builtin;
 import org.graalvm.nativeimage.c.function.CEntryPoint.Publish;
-
-import com.oracle.svm.shared.Uninterruptible;
-import com.oracle.svm.core.c.function.CEntryPointOptions.NoEpilogue;
-import com.oracle.svm.core.c.function.CEntryPointOptions.NoPrologue;
 import org.graalvm.word.impl.Word;
+
+import com.oracle.svm.guest.staging.c.function.CEntryPointOptions.NoEpilogue;
+import com.oracle.svm.guest.staging.c.function.CEntryPointOptions.NoPrologue;
+import com.oracle.svm.shared.Uninterruptible;
 
 /**
  * Methods implementing the built-ins of {@link Builtin}, which are matched by name

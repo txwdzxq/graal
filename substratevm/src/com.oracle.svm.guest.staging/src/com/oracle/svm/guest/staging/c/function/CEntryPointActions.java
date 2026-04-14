@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.c.function;
+package com.oracle.svm.guest.staging.c.function;
 
 import org.graalvm.nativeimage.Isolate;
 import org.graalvm.nativeimage.IsolateThread;
@@ -31,7 +31,6 @@ import org.graalvm.nativeimage.c.type.CCharPointer;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.shared.Uninterruptible;
-import com.oracle.svm.core.thread.PlatformThreads;
 
 /**
  * Advanced entry and leave actions for entry point methods annotated with {@link CEntryPoint}.
@@ -65,7 +64,7 @@ public final class CEntryPointActions {
      * @param startedByIsolate Whether the current thread has been launched directly by the isolate
      *            (as opposed to being an externally started thread), which makes the isolate
      *            responsible for cleanups when the thread detaches.
-     * @param ensureJavaThread when set to true, {@link PlatformThreads#ensureCurrentAssigned()} is
+     * @param ensureJavaThread when set to true, {@code PlatformThreads#ensureCurrentAssigned()} is
      *            called to ensure that the Java {@link Thread} is fully initialized. If the
      *            parameter is set to false, the initialization must be done manually (early after
      *            the prologue).

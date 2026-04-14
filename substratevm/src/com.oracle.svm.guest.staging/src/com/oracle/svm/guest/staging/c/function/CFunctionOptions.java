@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.c.function;
+package com.oracle.svm.guest.staging.c.function;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -32,7 +32,6 @@ import java.lang.annotation.Target;
 import org.graalvm.nativeimage.c.function.CFunction;
 
 import com.oracle.svm.shared.Uninterruptible;
-import com.oracle.svm.core.thread.VMThreads.StatusSupport;
 
 /**
  * This annotation is used to override or extend the behavior of {@link CFunction}. May only be used
@@ -43,13 +42,13 @@ import com.oracle.svm.core.thread.VMThreads.StatusSupport;
 public @interface CFunctionOptions {
     enum Transition {
         /**
-         * Does a transition to {@link StatusSupport#STATUS_IN_VM}. This prevents safepoints
+         * Does a transition to {@code StatusSupport#STATUS_IN_VM}. This prevents safepoints
          * (similar to {@code NO_TRANSITION}) but also pushes a frame anchor (similar to {@code
          * TO_NATIVE}) to make the Java part of the stack walkable.
          *
          * The executed C code can safely assume that there are no safepoints happening in the VM.
          * If it is necessary to block in the native code, the C code can do an explicit thread
-         * state transition to {@link StatusSupport#STATUS_IN_NATIVE} to allow safepoints in a
+         * state transition to {@code StatusSupport#STATUS_IN_NATIVE} to allow safepoints in a
          * controlled manner.
          *
          * Note that this transition does not do a safepoint check when the C code returns back to

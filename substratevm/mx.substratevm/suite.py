@@ -2077,6 +2077,7 @@ suite = {
                 "opens" : [],
                 "requires": [
                     "transitive org.graalvm.nativeimage",
+                    "jdk.graal.compiler.options",
                 ],
                 "uses" : [
                     "org.graalvm.nativeimage.Platform",
