@@ -856,8 +856,11 @@ public final class InterpreterToVM {
     }
 
     private static boolean shouldCallAOTEntryPoint(boolean forceStayInInterpreter, boolean preferStayInInterpreter, InterpreterResolvedJavaMethod target, boolean quiet) {
-        boolean canBeInterpreterInvoked = target.hasBytecodes() || (RuntimeClassLoading.isSupported() && target.isSignaturePolymorphicIntrinsic());
-        boolean canBeAOTCalled = target.hasNativeEntryPoint() && target.getNativeEntryPoint().isNonNull();
+        boolean canBeInterpreterInvoked = target.hasBytecodes() ||
+                        (RuntimeClassLoading.isSupported() && target.isSignaturePolymorphicIntrinsic());
+        boolean canBeAOTCalled = target.hasNativeEntryPoint() &&
+                        target.getNativeEntryPoint().isNonNull() &&
+                        !target.getNativeEntryPoint().equal(InterpreterNotCompiledMethodPointerHolder.getMethodNotCompiledHandler());
 
         if (!canBeInterpreterInvoked && !canBeAOTCalled) {
             String source;
@@ -870,9 +873,14 @@ public final class InterpreterToVM {
                 }
             } else {
                 source = "AOT";
+                String dotPkg = target.getDeclaringClass().getSymbolicRuntimePackage().toString().replace('/', '.');
                 if (!DynamicHub.fromClass(target.getDeclaringClass().getJavaClass()).isPreserved()) {
-                    String dotPkg = target.getDeclaringClass().getSymbolicRuntimePackage().toString().replace('/', '.');
-                    reason = MetadataUtil.fmt("Class was not preserved during image build. Consider using '-H:Preserve=package=%s'.", dotPkg);
+                    reason = MetadataUtil.fmt("Class %s was not preserved during image build.%nConsider using '-H:Preserve=package=%s'.", target.getDeclaringClass().toClassName(), dotPkg);
+                }
+                if (target.getNativeEntryPoint().equal(InterpreterNotCompiledMethodPointerHolder.getMethodNotCompiledHandler())) {
+                    reason = MetadataUtil.fmt(
+                                    "Trying to dispatch to compiled code for AOT method %s but it was not compiled because it was not seen as reachable by analysis.%nConsider using '-H:Preserve=package=%s'",
+                                    target, dotPkg);
                 }
             }
             InterpreterUtil.guarantee(false, "Unable to call %s method: %s%n%s", source, target, reason);

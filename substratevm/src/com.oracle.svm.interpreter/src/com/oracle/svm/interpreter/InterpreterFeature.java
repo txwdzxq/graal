@@ -256,6 +256,7 @@ public class InterpreterFeature implements InternalFeature {
 
         ImageSingletons.add(InterpreterSupport.class, new InterpreterSupportImpl(bciSlot, interpreterMethodSlot, interpreterFrameSlot, intrinsicMethodSlot, intrinsicFrameSlot));
         ImageSingletons.add(InterpreterDirectivesSupport.class, new InterpreterDirectivesSupportImpl());
+        ImageSingletons.add(InterpreterNotCompiledMethodPointerHolder.class, new InterpreterNotCompiledMethodPointerHolder(accessImpl.getMetaAccess()));
 
         // Locals must be available at runtime to retrieve BCI, interpreted method and interpreter
         // frame.
