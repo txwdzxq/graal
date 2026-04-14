@@ -26,6 +26,7 @@ package com.oracle.svm.interpreter.metadata;
 
 import static com.oracle.svm.espresso.classfile.Constants.REF_invokeVirtual;
 
+import com.oracle.svm.core.graal.code.PreparedSignature;
 import com.oracle.svm.core.invoke.Target_java_lang_invoke_MemberName;
 import com.oracle.svm.core.methodhandles.Target_java_lang_invoke_MethodHandleNatives;
 import com.oracle.svm.espresso.classfile.descriptors.Name;
@@ -51,8 +52,9 @@ public final class InterpreterResolvedInvokeGenericJavaMethod extends Interprete
 
     private InterpreterResolvedInvokeGenericJavaMethod(Symbol<Name> name, int maxLocals, int flags,
                     InterpreterResolvedObjectType declaringClass, InterpreterUnresolvedSignature signature, Symbol<Signature> signatureSymbol,
-                    int vtableIndex, int gotOffset, int enterStubOffset, int methodId, InterpreterResolvedJavaMethod invoker, Object appendix, JavaKind unbasicTo) {
-        super(name, maxLocals, flags, declaringClass, signature, signatureSymbol, vtableIndex, gotOffset, enterStubOffset, methodId, SignaturePolymorphicIntrinsic.InvokeGeneric);
+                    int vtableIndex, int gotOffset, int enterStubOffset, int methodId, InterpreterResolvedJavaMethod invoker, Object appendix, JavaKind unbasicTo,
+                    PreparedSignature preparedSignature) {
+        super(name, maxLocals, flags, declaringClass, signature, signatureSymbol, vtableIndex, gotOffset, enterStubOffset, methodId, SignaturePolymorphicIntrinsic.InvokeGeneric, preparedSignature);
         this.invoker = invoker;
         this.appendix = appendix;
         this.unbasicTo = unbasicTo;
@@ -70,7 +72,8 @@ public final class InterpreterResolvedInvokeGenericJavaMethod extends Interprete
         }
         return new InterpreterResolvedInvokeGenericJavaMethod(invokeGeneric.getSymbolicName(), invokeGeneric.getMaxLocals(), invokeGeneric.getFlags(),
                         invokeGeneric.getDeclaringClass(), invokeGeneric.getSignature(), invokeGeneric.getSymbolicSignature(),
-                        invokeGeneric.getVTableIndex(), invokeGeneric.getGotOffset(), invokeGeneric.getEnterStubOffset(), invokeGeneric.getMethodId(), invoker, appendixBox[0], unbasicTo);
+                        invokeGeneric.getVTableIndex(), invokeGeneric.getGotOffset(), invokeGeneric.getEnterStubOffset(), invokeGeneric.getMethodId(), invoker, appendixBox[0], unbasicTo,
+                        invokeGeneric.getPreparedSignature());
     }
 
     public InterpreterResolvedJavaMethod getInvoker() {

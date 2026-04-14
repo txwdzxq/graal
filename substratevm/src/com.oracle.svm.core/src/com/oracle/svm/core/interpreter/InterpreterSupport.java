@@ -53,6 +53,8 @@ import com.oracle.svm.shared.Uninterruptible;
 
 import jdk.graal.compiler.api.replacements.Fold;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
+import jdk.vm.ci.meta.ResolvedJavaType;
+import jdk.vm.ci.meta.Signature;
 
 /* Enables unoptimized execution of AOT compiled methods with an interpreter. The SVM
  * constraints apply, e.g. this itself does not enable class loading. */
@@ -108,7 +110,11 @@ public abstract class InterpreterSupport {
     public abstract UnsignedWord continueInterpreterDeoptimization(DeoptimizedFrame frame, Pointer originalStackPointer, UnsignedWord gpReturnValue, UnsignedWord fpReturnValue,
                     boolean hasException);
 
-    public abstract PreparedSignature prepareSignature(ResolvedJavaMethod method);
+    public PreparedSignature prepareSignature(ResolvedJavaMethod method) {
+        return prepareSignature(method.getSignature(), method.hasReceiver(), method.getDeclaringClass());
+    }
+
+    public abstract PreparedSignature prepareSignature(Signature signature, boolean hasReceiver, ResolvedJavaType accessingClass);
 
     @Platforms(Platform.HOSTED_ONLY.class)
     public static void setLeaveStubPointer(CFunctionPointer leaveStubPointer, int length) {

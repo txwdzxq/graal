@@ -201,10 +201,14 @@ public final class Target_java_lang_ClassLoader {
         return findClass(name);
     }
 
-    @Substitute //
+    @Substitute
+    @TargetElement(onlyWith = RuntimeClassLoading.NoRuntimeClassLoading.class)
     @SuppressWarnings("unused")
     Class<?> loadClass(Module module, String name) {
-        /* The module system is not supported for now, therefore the module parameter is ignored. */
+        /*
+         * When runtime class loading is disabled, named-module lookups still need to resolve
+         * classes already linked into the image.
+         */
         try {
             return loadClass(name, false);
         } catch (ClassNotFoundException e) {
