@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.util;
+package com.oracle.svm.guest.staging.util;
 
 import java.nio.ByteBuffer;
 
@@ -34,8 +34,7 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.WordBase;
 
-import com.oracle.svm.core.config.ConfigurationValues;
-import com.oracle.svm.guest.staging.util.NumUtil;
+import com.oracle.svm.guest.staging.config.GuestConfigurationValues;
 import com.oracle.svm.shared.util.VMError;
 
 @Platforms(Platform.HOSTED_ONLY.class)
@@ -505,7 +504,7 @@ public final class HostedByteBufferPointer implements Pointer {
     @Override
     public void writeWord(int offset, WordBase val) {
         long value = val.rawValue();
-        int wordSize = ConfigurationValues.getWordSize();
+        int wordSize = GuestConfigurationValues.getWordSize();
         if (wordSize == Integer.BYTES) {
             buffer.putInt(baseOffset + offset, Math.toIntExact(value));
         } else {
