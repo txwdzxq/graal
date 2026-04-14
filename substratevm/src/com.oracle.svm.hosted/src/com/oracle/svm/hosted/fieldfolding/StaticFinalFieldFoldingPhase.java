@@ -126,13 +126,14 @@ public final class StaticFinalFieldFoldingPhase extends BasePhase<CoreProviders>
         }
 
         /*
-         * The foldability decision can change after ensureGraphParsed() above parsed the defining
-         * class initializer. In that case the bytecode parser did not treat the field load as a
-         * folding candidate yet, so no StateSplitProxyNode was inserted. Without the proxy we
-         * cannot safely rewrite the load into the diamond below, so leave the original load in
-         * place.
+         * Not every optimizable static final field load is created by
+         * StaticFinalFieldFoldingNodePlugin. Other node plugins can intercept the bytecode earlier
+         * and emit their own LoadFieldNode, e.g., word-typed field loads handled by the word
+         * plugin. In that case no StateSplitProxyNode is present. Without the proxy we cannot
+         * safely rewrite the load into the diamond below, so leave the original load in place.
          */
         if (!(loadFieldNode.next() instanceof StateSplitProxyNode stateSplitProxyNode)) {
+            assert aField.getType().isWordType() : "unexpected missing StateSplitProxy for " + aField.format("%H.%n");
             return;
         }
 
