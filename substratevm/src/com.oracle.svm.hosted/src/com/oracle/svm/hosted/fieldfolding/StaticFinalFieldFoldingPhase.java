@@ -128,12 +128,13 @@ public final class StaticFinalFieldFoldingPhase extends BasePhase<CoreProviders>
         /*
          * Not every optimizable static final field load is created by
          * StaticFinalFieldFoldingNodePlugin. Other node plugins can intercept the bytecode earlier
-         * and emit their own LoadFieldNode, e.g., word-typed field loads handled by the word
-         * plugin. In that case no StateSplitProxyNode is present. Without the proxy we cannot
-         * safely rewrite the load into the diamond below, so leave the original load in place.
+         * and emit their own LoadFieldNode, e.g., fields handled by the word plugin. This includes
+         * both direct word-typed fields and array fields whose elemental type is a word type. In
+         * that case no StateSplitProxyNode is present. Without the proxy we cannot safely rewrite
+         * the load into the diamond below, so leave the original load in place.
          */
         if (!(loadFieldNode.next() instanceof StateSplitProxyNode stateSplitProxyNode)) {
-            assert aField.getType().isWordType() : "unexpected missing StateSplitProxy for " + aField.format("%H.%n");
+            assert aField.getType().getElementalType().isWordType() : "unexpected missing StateSplitProxy for " + aField.format("%H.%n");
             return;
         }
 
