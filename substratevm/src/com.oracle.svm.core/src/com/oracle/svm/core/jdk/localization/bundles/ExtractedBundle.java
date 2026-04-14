@@ -25,13 +25,9 @@
 package com.oracle.svm.core.jdk.localization.bundles;
 
 import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
@@ -46,11 +42,7 @@ public final class ExtractedBundle extends AbstractMap<String, Object> implement
             this.content = EconomicMap.emptyMap();
         } else {
             EconomicMap<String, Object> copiedContent = EconomicMap.create(lookup.size());
-            for (Map.Entry<String, Object> entry : lookup.entrySet()) {
-                String key = Objects.requireNonNull(entry.getKey(), "Bundle content keys must not be null");
-                Object value = Objects.requireNonNull(entry.getValue(), () -> "Bundle content value must not be null for key: " + key);
-                copiedContent.put(key, value);
-            }
+            lookup.forEach(copiedContent::put);
             this.content = copiedContent;
         }
     }
@@ -83,24 +75,6 @@ public final class ExtractedBundle extends AbstractMap<String, Object> implement
             entries.add(Map.entry(cursor.getKey(), cursor.getValue()));
         }
         return Collections.unmodifiableSet(entries);
-    }
-
-    @Override
-    public Set<String> keySet() {
-        Set<String> keys = new LinkedHashSet<>(content.size());
-        for (String key : content.getKeys()) {
-            keys.add(key);
-        }
-        return Collections.unmodifiableSet(keys);
-    }
-
-    @Override
-    public Collection<Object> values() {
-        List<Object> values = new ArrayList<>(content.size());
-        for (Object value : content.getValues()) {
-            values.add(value);
-        }
-        return Collections.unmodifiableList(values);
     }
 
     @Override
