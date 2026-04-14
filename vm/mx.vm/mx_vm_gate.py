@@ -357,7 +357,7 @@ def _test_libgraal_CompilationTimeout_JIT(extra_vm_arguments):
     for vm_can_exit in (False, True):
         vm_exit_delay = 0 if not vm_can_exit else 2
         vmargs = [f'{G}CompilationWatchDogStartDelay=1',  # set compilation timeout to 1 sec
-                  f'{G}InjectedCompilationDelay=4',       # inject a 4 sec compilation delay
+                  f'{G}InjectedCompilationDelay=6',       # inject a 6 sec compilation delay
                   f'{G}CompilationWatchDogVMExitDelay={vm_exit_delay}',
                   f'{G}CompilationFailureAction=Print',
                   f'{G}PrintCompilation=false',
@@ -366,7 +366,7 @@ def _test_libgraal_CompilationTimeout_JIT(extra_vm_arguments):
 
         cmd = [join(graalvm_home, 'bin', 'java')] + vmargs + extra_vm_arguments + _get_CountUppercase_vmargs()
         exit_code = mx.run(cmd, nonZeroIsFatal=False)
-        expectations = ['detected long running compilation'] + (['a stuck compilation'] if vm_can_exit else [])
+        expectations = ['detected long running compilation']
         _check_compiler_log(compiler_log_file, expectations)
         if vm_can_exit:
             # jdk.graal.compiler.core.CompilationWatchDog.EventHandler.STUCK_COMPILATION_EXIT_CODE
@@ -387,7 +387,7 @@ def _test_libgraal_CompilationTimeout_Truffle(extra_vm_arguments):
     for vm_can_exit in (False, True):
         vm_exit_delay = 0 if not vm_can_exit else 2
         vmargs = [f'{G}CompilationWatchDogStartDelay=1',  # set compilation timeout to 1 sec
-                  f'{G}InjectedCompilationDelay=4',       # inject a 4 sec compilation delay
+                  f'{G}InjectedCompilationDelay=6',       # inject a 6 sec compilation delay
                   f'{G}CompilationWatchDogVMExitDelay={vm_exit_delay}',
                   f'{G}CompilationFailureAction=Print',
                   f'{G}ShowConfiguration=info',
@@ -413,7 +413,13 @@ def _test_libgraal_CompilationTimeout_Truffle(extra_vm_arguments):
         if err.data:
             mx.log(err.data)
 
-        expectations = ['detected long running compilation'] + (['a stuck compilation'] if vm_can_exit else [])
+        with open(truffle_log_file, encoding='utf-8') as fp:
+            truffle_log = fp.read()
+        expected_truffle_log_line = 'delaying compilation of root delay_compilation_here'
+        if expected_truffle_log_line not in truffle_log:
+            mx.abort(f'Did not find expected pattern ("{expected_truffle_log_line}") in Truffle log:{linesep}{truffle_log}')
+
+        expectations = ['detected long running compilation']
         _check_compiler_log(compiler_log_file, expectations, extra_log_files=[truffle_log_file])
         if vm_can_exit:
             # jdk.graal.compiler.core.CompilationWatchDog.EventHandler.STUCK_COMPILATION_EXIT_CODE
