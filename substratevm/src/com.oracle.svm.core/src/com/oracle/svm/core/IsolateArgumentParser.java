@@ -37,7 +37,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import com.oracle.svm.core.jdk.UninterruptibleUtils;
+import com.oracle.svm.shared.util.NumUtil;
 import com.oracle.svm.core.option.RuntimeOptionParser;
 import com.oracle.svm.shared.util.SubstrateUtil;
 import org.graalvm.nativeimage.ImageSingletons;
@@ -381,7 +381,7 @@ public class IsolateArgumentParser {
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public int getIntOptionValue(int optionIndex) {
         long value = getLongOptionValue(optionIndex);
-        return UninterruptibleUtils.NumUtil.safeToInt(value);
+        return NumUtil.safeToInt(value);
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)

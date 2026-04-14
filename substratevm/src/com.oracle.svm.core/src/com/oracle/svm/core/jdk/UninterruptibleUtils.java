@@ -29,8 +29,8 @@ import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_
 import org.graalvm.word.Pointer;
 import org.graalvm.word.PointerBase;
 import org.graalvm.word.UnsignedWord;
-import org.graalvm.word.impl.Word;
 import org.graalvm.word.WordBase;
+import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.Uninterruptible;
@@ -473,28 +473,6 @@ public class UninterruptibleUtils {
         public static long ceilToLong(double a) {
             long floor = floorToLong(a);
             return a > floor ? floor + 1 : floor;
-        }
-    }
-
-    public static class NumUtil {
-
-        /**
-         * Determines if a given {@code long} value is the range of signed int values.
-         */
-        @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-        public static boolean isInt(long l) {
-            return (int) l == l;
-        }
-
-        @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-        public static int safeToInt(long v) {
-            assert isInt(v);
-            return (int) v;
-        }
-
-        @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-        public static int roundUp(int number, int mod) {
-            return ((number + mod - 1) / mod) * mod;
         }
     }
 

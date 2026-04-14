@@ -46,7 +46,6 @@ import com.oracle.svm.core.SubstrateGCOptions;
 import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.graal.snippets.SubstrateAllocationSnippets;
-import com.oracle.svm.core.jdk.UninterruptibleUtils;
 import com.oracle.svm.core.log.Log;
 import com.oracle.svm.core.thread.ThreadsLock;
 import com.oracle.svm.core.thread.VMOperation;
@@ -58,6 +57,7 @@ import com.oracle.svm.core.threadlocal.FastThreadLocalWord;
 import com.oracle.svm.core.util.UnsignedUtils;
 import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.util.BasedOnJDKFile;
+import com.oracle.svm.shared.util.NumUtil;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.api.replacements.Fold;
@@ -224,7 +224,7 @@ public class TlabSupport {
     @Uninterruptible(reason = "Accesses TLAB")
     private static void recordRefillWaste() {
         long availableTlabMemory = availableTlabMemory(getTlab()).rawValue();
-        refillWaste.set(refillWaste.get() + UninterruptibleUtils.NumUtil.safeToInt(availableTlabMemory));
+        refillWaste.set(refillWaste.get() + NumUtil.safeToInt(availableTlabMemory));
     }
 
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+25/src/hotspot/share/runtime/thread.cpp#L157-L166")

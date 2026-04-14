@@ -60,7 +60,6 @@ import org.graalvm.word.impl.Word;
 import com.oracle.svm.core.c.struct.OffsetOf;
 import com.oracle.svm.core.deopt.DeoptimizationSlotPacking;
 import com.oracle.svm.core.graal.code.InterpreterAccessStubData;
-import com.oracle.svm.core.jdk.UninterruptibleUtils;
 import com.oracle.svm.core.meta.SharedMethod;
 import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
@@ -68,6 +67,7 @@ import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.RuntimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.SingletonLayeredInstallationKind.Duplicable;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
+import com.oracle.svm.shared.util.NumUtil;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.api.replacements.Fold;
@@ -256,7 +256,7 @@ public class AArch64InterpreterStubs {
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public static int sizeOfInterpreterData() {
-        return UninterruptibleUtils.NumUtil.roundUp(SizeOf.get(InterpreterDataAArch64.class), 0x10);
+        return NumUtil.roundUp(SizeOf.get(InterpreterDataAArch64.class), 0x10);
     }
 
     public static int additionalFrameSizeEnterStub() {

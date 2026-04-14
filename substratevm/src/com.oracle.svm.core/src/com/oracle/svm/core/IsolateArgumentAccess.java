@@ -26,7 +26,7 @@ package com.oracle.svm.core;
 
 import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
-import com.oracle.svm.core.jdk.UninterruptibleUtils;
+import com.oracle.svm.shared.util.NumUtil;
 import com.oracle.svm.shared.Uninterruptible;
 import org.graalvm.nativeimage.c.type.CCharPointer;
 import org.graalvm.word.impl.Word;
@@ -67,7 +67,7 @@ public class IsolateArgumentAccess {
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public static int readInt(IsolateArguments arguments, int optionIndex) {
         long value = readLong(arguments, optionIndex);
-        return UninterruptibleUtils.NumUtil.safeToInt(value);
+        return NumUtil.safeToInt(value);
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
