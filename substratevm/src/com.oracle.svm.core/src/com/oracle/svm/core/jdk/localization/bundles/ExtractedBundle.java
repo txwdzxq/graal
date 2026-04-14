@@ -25,35 +25,33 @@
 package com.oracle.svm.core.jdk.localization.bundles;
 
 import java.util.AbstractMap;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
-public final class ExtractedBundle extends AbstractMap<String, Object> implements StoredBundle, ConcurrentMap<String, Object> {
-    private static final String[] EMPTY_KEYS = new String[0];
-    private static final Object[] EMPTY_VALUES = new Object[0];
+import org.graalvm.collections.EconomicMap;
+import org.graalvm.collections.MapCursor;
 
-    private final String[] keys;
-    private final Object[] values;
+public final class ExtractedBundle extends AbstractMap<String, Object> implements StoredBundle, ConcurrentMap<String, Object> {
+    private final EconomicMap<String, Object> content;
 
     public ExtractedBundle(Map<String, Object> lookup) {
         if (lookup.isEmpty()) {
-            this.keys = EMPTY_KEYS;
-            this.values = EMPTY_VALUES;
+            this.content = EconomicMap.emptyMap();
         } else {
-            String[] copiedKeys = lookup.keySet().toArray(new String[0]);
-            Object[] copiedValues = new Object[copiedKeys.length];
-            for (int i = 0; i < copiedKeys.length; i++) {
-                String key = Objects.requireNonNull(copiedKeys[i], "Bundle content keys must not be null");
-                copiedValues[i] = Objects.requireNonNull(lookup.get(key), () -> "Bundle content value must not be null for key: " + key);
+            EconomicMap<String, Object> copiedContent = EconomicMap.create(lookup.size());
+            for (Map.Entry<String, Object> entry : lookup.entrySet()) {
+                String key = Objects.requireNonNull(entry.getKey(), "Bundle content keys must not be null");
+                Object value = Objects.requireNonNull(entry.getValue(), () -> "Bundle content value must not be null for key: " + key);
+                copiedContent.put(key, value);
             }
-            this.keys = copiedKeys;
-            this.values = copiedValues;
+            this.content = copiedContent;
         }
     }
 
@@ -64,39 +62,45 @@ public final class ExtractedBundle extends AbstractMap<String, Object> implement
 
     @Override
     public int size() {
-        return keys.length;
+        return content.size();
     }
 
     @Override
     public boolean containsKey(Object key) {
-        return key instanceof String stringKey && getByStringKey(stringKey) != null;
+        return key instanceof String stringKey && content.containsKey(stringKey);
     }
 
     @Override
     public Object get(Object key) {
-        if (!(key instanceof String stringKey)) {
-            return null;
-        }
-        return getByStringKey(stringKey);
+        return key instanceof String stringKey ? content.get(stringKey) : null;
     }
 
     @Override
     public Set<Entry<String, Object>> entrySet() {
-        Set<Entry<String, Object>> entries = new LinkedHashSet<>(keys.length);
-        for (int i = 0; i < keys.length; i++) {
-            entries.add(Map.entry(keys[i], values[i]));
+        Set<Entry<String, Object>> entries = new LinkedHashSet<>(content.size());
+        MapCursor<String, Object> cursor = content.getEntries();
+        while (cursor.advance()) {
+            entries.add(Map.entry(cursor.getKey(), cursor.getValue()));
         }
         return Collections.unmodifiableSet(entries);
     }
 
     @Override
     public Set<String> keySet() {
-        return Collections.unmodifiableSet(new LinkedHashSet<>(Arrays.asList(keys)));
+        Set<String> keys = new LinkedHashSet<>(content.size());
+        for (String key : content.getKeys()) {
+            keys.add(key);
+        }
+        return Collections.unmodifiableSet(keys);
     }
 
     @Override
     public Collection<Object> values() {
-        return Collections.unmodifiableList(Arrays.asList(values));
+        List<Object> values = new ArrayList<>(content.size());
+        for (Object value : content.getValues()) {
+            values.add(value);
+        }
+        return Collections.unmodifiableList(values);
     }
 
     @Override
@@ -117,15 +121,6 @@ public final class ExtractedBundle extends AbstractMap<String, Object> implement
     @Override
     public Object replace(String key, Object value) {
         throw immutable();
-    }
-
-    private Object getByStringKey(String key) {
-        for (int i = 0; i < keys.length; i++) {
-            if (keys[i].equals(key)) {
-                return values[i];
-            }
-        }
-        return null;
     }
 
     private static UnsupportedOperationException immutable() {
