@@ -79,25 +79,21 @@ public final class ExtractedBundle extends AbstractMap<String, Object> implement
 
     @Override
     public Object putIfAbsent(String key, Object value) {
-        throw immutable();
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public boolean remove(Object key, Object value) {
-        throw immutable();
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public boolean replace(String key, Object oldValue, Object newValue) {
-        throw immutable();
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public Object replace(String key, Object value) {
-        throw immutable();
-    }
-
-    private static UnsupportedOperationException immutable() {
-        return new UnsupportedOperationException("ExtractedBundle is immutable");
+        throw new UnsupportedOperationException();
     }
 }
