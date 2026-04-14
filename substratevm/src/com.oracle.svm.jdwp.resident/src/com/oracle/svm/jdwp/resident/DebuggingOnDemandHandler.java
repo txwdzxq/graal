@@ -43,7 +43,7 @@ import org.graalvm.word.PointerBase;
 
 import com.oracle.svm.core.OS;
 import com.oracle.svm.shared.Uninterruptible;
-import com.oracle.svm.core.c.function.CEntryPointOptions;
+import com.oracle.svm.guest.staging.c.function.CEntryPointOptions;
 import com.oracle.svm.core.headers.LibC;
 import com.oracle.svm.core.jdk.PlatformNativeLibrarySupport;
 import com.oracle.svm.core.jni.headers.JNIEnvironment;

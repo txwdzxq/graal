@@ -48,13 +48,9 @@ import com.oracle.svm.guest.staging.c.CGlobalData;
 import com.oracle.svm.guest.staging.c.CGlobalDataFactory;
 import com.oracle.svm.guest.staging.util.HostedByteBufferPointer;
 import com.oracle.svm.shared.util.VMError;
-import com.oracle.svm.guest.staging.c.CGlobalData;
-import com.oracle.svm.guest.staging.c.CGlobalDataFactory;
-import com.oracle.svm.guest.staging.util.HostedByteBufferPointer;
-import com.oracle.svm.shared.util.VMError;
 
 /**
- * Errors returned by {@link CEntryPointActions} and {@link CEntryPointNativeFunctions} and their
+ * Errors returned by {@link CEntryPointActions} and {@code CEntryPointNativeFunctions} and their
  * implementation, including snippets and foreign function calls. These are non-public API as
  * callers such as libgraal rely on those values.
  */
