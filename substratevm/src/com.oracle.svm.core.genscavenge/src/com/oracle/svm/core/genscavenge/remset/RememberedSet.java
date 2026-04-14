@@ -41,8 +41,8 @@ import com.oracle.svm.core.heap.BarrierSetProvider;
 import com.oracle.svm.core.heap.UninterruptibleObjectReferenceVisitor;
 import com.oracle.svm.core.heap.UninterruptibleObjectVisitor;
 import com.oracle.svm.core.image.ImageHeapObject;
-import com.oracle.svm.core.util.HostedByteBufferPointer;
 import com.oracle.svm.shared.Uninterruptible;
+import com.oracle.svm.guest.staging.util.HostedByteBufferPointer;
 
 import jdk.graal.compiler.api.replacements.Fold;
 
