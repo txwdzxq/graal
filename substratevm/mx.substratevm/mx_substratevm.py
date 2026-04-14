@@ -504,8 +504,8 @@ def svm_gate_body(args, tasks):
             elif mx.is_windows():
                 mx.warn('Skipping standalone pointsto unittests on Windows.')
             else:
-                jvm_unittest(['--record-results', '--print-failed', 'failed.txt',
-                            '--use-graalvm'] + args.extra_image_builder_arguments + ['com.oracle.graal.pointsto.standalone.test'])
+                standalone_pointsto_unittest(['espresso'])
+                standalone_pointsto_unittest(['host'])
 
     with Task('native unittests', tasks, tags=[GraalTags.native_unittests]) as t:
         if t:
@@ -946,6 +946,40 @@ def _native_unittest(native_image, cmdline_args):
 
 def jvm_unittest(args):
     return mx_unittest.unittest(['--suite', 'substratevm'] + args)
+
+
+@mx.command(suite_name=suite.name, command_name='standalone-pointsto-unittest', usage_msg='[host|espresso]')
+def standalone_pointsto_unittest(args):
+    def espresso_vmargs():
+        if not mx.suite('espresso-compiler-stub', fatalIfMissing=False):
+            mx.abort('The espresso-compiler-stub suite is required for standalone pointsto tests.\n' +
+                     'Use `mx --dy /espresso-compiler-stub standalone-pointsto-unittest espresso`.')
+
+        # Mirror the terminus-style guest-context setup for Espresso-backed VMAccess tests.
+        guest_modulepath_entries = [
+            # Required or Espresso fails with: FindException: Module org.graalvm.nativeimage.guest.staging not found.
+            'substratevm:SVM_GUEST_STAGING',
+        ]
+        guest_modulepath = mx.classpath(guest_modulepath_entries, unique=True)
+        upgrade_modulepath = mx.classpath(['compiler:GRAAL'], unique=True)
+
+        return [
+            '-Dcom.oracle.truffle.espresso.vmaccess.test.modulepath=' + guest_modulepath,
+            '-Dcom.oracle.truffle.espresso.vmaccess.test.upgrade.module.path=' + upgrade_modulepath,
+        ]
+
+    if len(args) > 1 or (args and args[0] not in ('host', 'espresso')):
+        mx.abort('Usage: mx standalone-pointsto-unittest [host|espresso]')
+
+    requested_vmaccess = args[0] if args else 'espresso'
+    unittest_args = [
+        '--use-graalvm',
+        '-Dcom.oracle.graal.pointsto.standalone.vmaccess.name=' + requested_vmaccess,
+        'com.oracle.graal.pointsto.standalone.test',
+    ]
+    if requested_vmaccess == 'espresso':
+        unittest_args = espresso_vmargs() + unittest_args
+    return jvm_unittest(unittest_args)
 
 
 def js_image_test(jslib, bench_location, name, warmup_iterations, iterations, timeout=None, bin_args=None, pre_args=None):
@@ -3054,6 +3088,10 @@ class StandalonePointstoUnittestsConfig(mx_unittest.MxUnittestConfig):
 
     def __init__(self):
         super().__init__('standalone-pointsto-unittest')
+
+    def processDeps(self, deps):
+        if mx.suite('espresso-compiler-stub', fatalIfMissing=False):
+            deps.add(mx.distribution('espresso-compiler-stub:ESPRESSO_VMACCESS'))
 
     def apply(self, config):
         vmArgs, mainClass, mainClassArgs = config
