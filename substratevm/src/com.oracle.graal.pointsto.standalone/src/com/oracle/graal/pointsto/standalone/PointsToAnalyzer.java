@@ -96,11 +96,11 @@ public final class PointsToAnalyzer {
      * Name of the {@code VMAccess.Builder} service that is used to create the {@link VMAccess}
      * based on espresso guest context.
      */
-    private static final String ESPRESSO_BUILDER_NAME = "espresso";
-    private static final String ESPRESSO_MODULE_PATH_PROPERTY = "com.oracle.truffle.espresso.vmaccess.test.modulepath";
-    private static final String ESPRESSO_UPGRADE_MODULE_PATH_PROPERTY = "com.oracle.truffle.espresso.vmaccess.test.upgrade.module.path";
-    private static final String ESPRESSO_LOG_LEVEL_PROPERTY = "espresso.test.log.level";
+    private static final String DEFAULT_VM_ACCESS_NAME = "espresso";
+    private static final String VM_ACCESS_MODULE_PATH_PROPERTY = "com.oracle.graal.pointsto.standalone.vmaccess.modulepath";
+    private static final String VM_ACCESS_UPGRADE_MODULE_PATH_PROPERTY = "com.oracle.graal.pointsto.standalone.vmaccess.upgrade.modulepath";
     private static final List<String> BASE_VM_ACCESS_MODULES = List.of("jdk.graal.compiler", "java.scripting");
+    private static final String ESPRESSO_LOG_LEVEL_PROPERTY = "espresso.test.log.level";
 
     static {
         ModuleSupport.accessPackagesToClass(ModuleSupport.Access.OPEN, null, false, "jdk.internal.vm.ci");
@@ -122,6 +122,7 @@ public final class PointsToAnalyzer {
      * class path and the selected VMAccess mode.
      */
     private static ClassLoaderAccess cachedAccess;
+    private static String cachedClasspath;
 
     private final OptionValues options;
     private final StandalonePointsToAnalysis bigbang;
@@ -270,8 +271,15 @@ public final class PointsToAnalyzer {
             }
         }
         OptionValues options = PointsToOptionParser.getInstance().parse(optionArgs.toArray(new String[0]));
+        String classpath = StandaloneOptions.AnalysisTargetAppCP.getValue(options);
+        AnalysisError.guarantee(classpath != null, "Must specify analysis target application's classpath with -H:%s", StandaloneOptions.AnalysisTargetAppCP.getName());
         if (cachedAccess == null) {
-            cachedAccess = initializeCachedAccess(options);
+            cachedAccess = initializeCachedAccess(classpath);
+            cachedClasspath = classpath;
+        } else {
+            AnalysisError.guarantee(cachedClasspath.equals(classpath),
+                            "Standalone analysis reuses a process-global VMAccess cache and cannot switch classpath from '%s' to '%s' within the same process.",
+                            cachedClasspath, classpath);
         }
         return new PointsToAnalyzer(mainEntryClass, options, cachedAccess);
     }
@@ -279,9 +287,7 @@ public final class PointsToAnalyzer {
     /**
      * Creates the process-global {@link ClassLoaderAccess} used by standalone analysis.
      */
-    private static ClassLoaderAccess initializeCachedAccess(OptionValues options) {
-        String classpath = StandaloneOptions.AnalysisTargetAppCP.getValue(options);
-        AnalysisError.guarantee(classpath != null, "Must specify analysis target application's classpath with -H:%s", StandaloneOptions.AnalysisTargetAppCP.getName());
+    private static ClassLoaderAccess initializeCachedAccess(String classpath) {
         VMAccess access = buildVmAccess(classpath);
         GuestAccess.plantConfiguration(access);
         return new ClassLoaderAccess(access);
@@ -303,10 +309,14 @@ public final class PointsToAnalyzer {
      * {@link VMAccess} configurations.
      */
     private static void configureVmAccessBuilder(VMAccess.Builder builder) {
-        String mp = GraalServices.getSavedProperty(ESPRESSO_MODULE_PATH_PROPERTY, "");
-        builder.modulePath(Arrays.asList(mp.split(File.pathSeparator)));
-        String ump = GraalServices.getSavedProperty(ESPRESSO_UPGRADE_MODULE_PATH_PROPERTY, "");
-        builder.systemProperty("jdk.module.upgrade.path", String.join(File.pathSeparator, ump.split(":")));
+        String modulePath = GraalServices.getSavedProperty(VM_ACCESS_MODULE_PATH_PROPERTY);
+        if (modulePath != null) {
+            builder.modulePath(Arrays.asList(modulePath.split(File.pathSeparator)));
+        }
+        String upgradeModulePath = GraalServices.getSavedProperty(VM_ACCESS_UPGRADE_MODULE_PATH_PROPERTY);
+        if (upgradeModulePath != null) {
+            builder.systemProperty("jdk.module.upgrade.path", String.join(File.pathSeparator, upgradeModulePath.split(File.pathSeparator)));
+        }
         builder.addModules(BASE_VM_ACCESS_MODULES);
         builder.enableAssertions(true);
         builder.enableSystemAssertions(true);
@@ -334,7 +344,7 @@ public final class PointsToAnalyzer {
      * builder when no explicit selection was saved.
      */
     private static VMAccess.Builder getVmAccessBuilder() {
-        String requestedAccessName = GraalServices.getSavedProperty("com.oracle.graal.pointsto.standalone.vmaccess.name", ESPRESSO_BUILDER_NAME);
+        String requestedAccessName = GraalServices.getSavedProperty("com.oracle.graal.pointsto.standalone.vmaccess.name", DEFAULT_VM_ACCESS_NAME);
         ServiceLoader<VMAccess.Builder> loader = ServiceLoader.load(VMAccess.Builder.class);
         VMAccess.Builder selected = null;
         for (VMAccess.Builder builder : loader) {

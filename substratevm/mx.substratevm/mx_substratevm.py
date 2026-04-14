@@ -964,8 +964,8 @@ def standalone_pointsto_unittest(args):
         upgrade_modulepath = mx.classpath(['compiler:GRAAL'], unique=True)
 
         return [
-            '-Dcom.oracle.truffle.espresso.vmaccess.test.modulepath=' + guest_modulepath,
-            '-Dcom.oracle.truffle.espresso.vmaccess.test.upgrade.module.path=' + upgrade_modulepath,
+            '-Dcom.oracle.graal.pointsto.standalone.vmaccess.modulepath=' + guest_modulepath,
+            '-Dcom.oracle.graal.pointsto.standalone.vmaccess.upgrade.modulepath=' + upgrade_modulepath,
         ]
 
     if len(args) > 1 or (args and args[0] not in ('host', 'espresso')):
