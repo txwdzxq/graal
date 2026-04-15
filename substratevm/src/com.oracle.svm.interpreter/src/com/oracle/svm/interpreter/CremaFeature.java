@@ -28,7 +28,6 @@ import static com.oracle.graal.pointsto.ObjectScanner.OtherReason;
 import static com.oracle.graal.pointsto.ObjectScanner.ScanReason;
 import static com.oracle.svm.interpreter.InterpreterFeature.assertionsEnabled;
 
-import java.lang.reflect.Field;
 import java.util.Arrays;
 import java.util.List;
 
@@ -61,9 +60,11 @@ import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
-import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.VMError;
+import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.util.JVMCIReflectionUtil;
+
+import jdk.vm.ci.meta.ResolvedJavaField;
 
 /**
  * In this mode the interpreter is used to execute previously (= image build-time) unknown methods,
@@ -134,7 +135,7 @@ public class CremaFeature implements InternalFeature {
         FeatureImpl.BeforeCompilationAccessImpl accessImpl = (FeatureImpl.BeforeCompilationAccessImpl) access;
         HostedUniverse hUniverse = accessImpl.getUniverse();
         BuildTimeInterpreterUniverse iUniverse = BuildTimeInterpreterUniverse.singleton();
-        Field vtableHolderField = ReflectionUtil.lookupField(InterpreterResolvedObjectType.class, VTABLE_HOLDER_FIELD);
+        ResolvedJavaField vtableHolderField = JVMCIReflectionUtil.getUniqueDeclaredField(GuestAccess.get().lookupType(InterpreterResolvedObjectType.class), VTABLE_HOLDER_FIELD);
 
         for (HostedMethod method : hUniverse.getMethods()) {
             if (method.hasVTableIndex()) {

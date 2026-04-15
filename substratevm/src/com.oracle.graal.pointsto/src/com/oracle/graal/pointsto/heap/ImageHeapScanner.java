@@ -24,7 +24,6 @@
  */
 package com.oracle.graal.pointsto.heap;
 
-import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
@@ -717,28 +716,16 @@ public abstract class ImageHeapScanner {
      * with an exception: if the value is a known collection type ({@code Object[]},
      * {{@link Collection}, {@link Map} or {@link EconomicMap}} then its elements will be rescanned
      * too.
+     * <p>
+     * The provided {@link ResolvedJavaField} must be the original field owned by
+     * {@link GuestAccess}, not an analysis wrapper. Use
+     * {@code OriginalFieldProvider.getOriginalField()} when adapting a field from another layer.
      */
-    public void rescanRoot(Field reflectionField, ScanReason rescanReason) {
+    public void rescanRoot(ResolvedJavaField field, ScanReason rescanReason) {
         maybeRunInExecutor(unused -> {
-            AnalysisType type = metaAccess.lookupJavaType(reflectionField.getDeclaringClass());
+            AnalysisType type = universe.lookup(field.getDeclaringClass());
             if (type.isReachable()) {
-                AnalysisField field = metaAccess.lookupJavaField(reflectionField);
-                rescanRootImpl(field, rescanReason);
-            }
-        });
-    }
-
-    /**
-     * Trigger rescanning of a root field.
-     *
-     * @see #rescanRoot(Field, ScanReason)
-     */
-    public void rescanRoot(ResolvedJavaField hostField, ScanReason rescanReason) {
-        maybeRunInExecutor(unused -> {
-            AnalysisType type = universe.lookup(hostField.getDeclaringClass());
-            if (type.isReachable()) {
-                AnalysisField field = universe.lookup(hostField);
-                rescanRootImpl(field, rescanReason);
+                rescanRootImpl(lookupAnalysisField(field), rescanReason);
             }
         });
     }
@@ -752,10 +739,6 @@ public abstract class ImageHeapScanner {
         }
     }
 
-    public void rescanField(Object receiver, Field reflectionField, ScanReason reason) {
-        rescanField(receiver, metaAccess.lookupJavaField(reflectionField), reason);
-    }
-
     /**
      * Trigger rescanning of an instance field. If the receiver value or field value were not
      * scanned before they will first be scanned and added to the shadow heap, then the value will
@@ -763,13 +746,18 @@ public abstract class ImageHeapScanner {
      * i.e., it's fields will not be followed, with an exception: if the value is a known collection
      * type ({@code Object[]}, {{@link Collection}, {@link Map} or {@link EconomicMap}} then its
      * elements will be rescanned too.
+     * <p>
+     * The provided {@link ResolvedJavaField} must be the original field owned by
+     * {@link GuestAccess}, not an analysis wrapper. Use
+     * {@code OriginalFieldProvider.getOriginalField()} when adapting a field from another layer.
      */
-    public void rescanField(Object receiver, AnalysisField field, ScanReason reason) {
+    public void rescanField(Object receiver, ResolvedJavaField field, ScanReason reason) {
         maybeRunInExecutor(unused -> {
-            AnalysisType type = field.getType();
+            AnalysisField analysisField = lookupAnalysisField(field);
+            AnalysisType type = analysisField.getType();
             if (type.isReachable()) {
-                assert !field.isStatic() : field;
-                if (!field.isReachable()) {
+                assert !analysisField.isStatic() : analysisField;
+                if (!analysisField.isReachable()) {
                     return;
                 }
                 JavaConstant receiverConstant = asConstant(receiver);
@@ -781,10 +769,10 @@ public abstract class ImageHeapScanner {
                     }
                     receiverConstant = replaced.get();
                 }
-                JavaConstant fieldValue = readHostedFieldValue(field, receiverConstant).get();
+                JavaConstant fieldValue = readHostedFieldValue(analysisField, receiverConstant).get();
                 if (fieldValue != null) {
                     ImageHeapInstance receiverObject = (ImageHeapInstance) toImageHeapObject(receiverConstant, reason);
-                    JavaConstant fieldSnapshot = receiverObject.readFieldValue(field);
+                    JavaConstant fieldSnapshot = receiverObject.readFieldValue(analysisField);
                     JavaConstant unwrappedSnapshot = ScanningObserver.maybeUnwrapSnapshot(fieldSnapshot, fieldValue instanceof ImageHeapConstant);
 
                     if (fieldSnapshot instanceof ImageHeapConstant ihc && ihc.isInSharedLayer() && ihc.getHostedObject() == null) {
@@ -798,8 +786,8 @@ public abstract class ImageHeapScanner {
                     }
 
                     if (!Objects.equals(unwrappedSnapshot, fieldValue)) {
-                        AnalysisFuture<JavaConstant> fieldTask = patchInstanceField(receiverObject, field, fieldValue, reason, null);
-                        if (field.isRead() || field.isFolded()) {
+                        AnalysisFuture<JavaConstant> fieldTask = patchInstanceField(receiverObject, analysisField, fieldValue, reason, null);
+                        if (analysisField.isRead() || analysisField.isFolded()) {
                             JavaConstant constant = fieldTask.ensureDone();
                             ensureReaderInstalled(constant);
                             rescanCollectionElements(constant, reason);
@@ -810,6 +798,12 @@ public abstract class ImageHeapScanner {
                 }
             }
         });
+    }
+
+    private AnalysisField lookupAnalysisField(ResolvedJavaField field) {
+        AnalysisError.guarantee(GuestAccess.get().owns(field),
+                        "The ResolvedJavaField %s must be the original field. Use OriginalFieldProvider.getOriginalField() to retrieve it.", field);
+        return universe.lookup(field);
     }
 
     /**

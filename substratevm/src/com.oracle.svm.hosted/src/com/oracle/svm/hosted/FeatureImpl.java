@@ -101,6 +101,7 @@ import com.oracle.svm.hosted.reflect.ReflectionDataBuilder;
 import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.AnnotationUtil;
+import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.util.JVMCIFieldValueTransformer;
 import com.oracle.svm.util.OriginalFieldProvider;
 import com.oracle.svm.util.dynamicaccess.JVMCIRuntimeReflection;
@@ -328,16 +329,22 @@ public class FeatureImpl {
         }
 
         public void rescanField(Object receiver, Field field, ScanReason reason) {
+            rescanField(receiver, getMetaAccess().getWrapped().lookupJavaField(field), reason);
+        }
+
+        public void rescanField(Object receiver, ResolvedJavaField field, ScanReason reason) {
+            VMError.guarantee(GuestAccess.get().owns(field),
+                            "The ResolvedJavaField %s must be the original field. Use OriginalFieldProvider.getOriginalField() to retrieve it.", field);
             getUniverse().getHeapScanner().rescanField(receiver, field, reason);
         }
 
         public void rescanRoot(Field field, ScanReason reason) {
-            getUniverse().getHeapScanner().rescanRoot(field, reason);
+            getUniverse().getHeapScanner().rescanRoot(getMetaAccess().getWrapped().lookupJavaField(field), reason);
         }
 
         public void rescanRoot(ResolvedJavaField field, ScanReason reason) {
-            VMError.guarantee(!(field instanceof OriginalFieldProvider),
-                            "The ResolvedJavaField %s must be the original (Host VM) field. You can use OriginalFieldProvider.getOriginalField() to retrieve that", field);
+            VMError.guarantee(GuestAccess.get().owns(field),
+                            "The ResolvedJavaField %s must be the original field. Use OriginalFieldProvider.getOriginalField() to retrieve it.", field);
             getUniverse().getHeapScanner().rescanRoot(field, reason);
         }
 
