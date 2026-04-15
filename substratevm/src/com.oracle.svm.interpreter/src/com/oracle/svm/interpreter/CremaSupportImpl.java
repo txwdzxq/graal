@@ -601,8 +601,10 @@ public class CremaSupportImpl implements CremaSupport {
         String name;
         if (componentHub.isArray()) {
             name = '[' + componentHub.getName();
-        } else {
+        } else if (componentHub.isPrimitive()) {
             name = '[' + DynamicHub.toClass(componentHub).descriptorString();
+        } else {
+            name = "[L" + componentHub.getName() + ';';
         }
         DynamicHub superHub = DynamicHub.fromClass(Object.class);
         int modifiers = (componentHub.getModifiers() & (ACC_PUBLIC | ACC_PRIVATE | ACC_PROTECTED)) | ACC_FINAL | ACC_ABSTRACT;
