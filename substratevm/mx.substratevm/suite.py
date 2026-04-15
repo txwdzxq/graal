@@ -1113,6 +1113,24 @@ suite = {
             "jacoco" : "exclude",
         },
 
+        "com.oracle.svm.driver.test": {
+            "subDir": "src",
+            "sourceDirs": ["src"],
+            "dependencies": [
+                "mx:JUNIT_TOOL",
+                "com.oracle.svm.driver",
+            ],
+            "checkstyle": "com.oracle.svm.test",
+            "workingSets": "SVM",
+            "annotationProcessors": [
+                "compiler:GRAAL_PROCESSOR",
+                "SVM_PROCESSOR",
+            ],
+            "javaCompliance": "24+",
+            "jacoco": "exclude",
+            "testProject": True,
+        },
+
         "com.oracle.svm.libjvm": {
             "subDir": "src",
             "sourceDirs": [
