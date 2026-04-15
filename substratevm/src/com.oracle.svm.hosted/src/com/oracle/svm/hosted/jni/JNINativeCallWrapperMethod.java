@@ -24,7 +24,6 @@
  */
 package com.oracle.svm.hosted.jni;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +45,8 @@ import com.oracle.svm.core.jni.headers.JNIObjectHandle;
 import com.oracle.svm.core.thread.VMThreads.StatusSupport;
 import com.oracle.svm.hosted.annotation.CustomSubstitutionMethod;
 import com.oracle.svm.hosted.c.CGlobalDataFeature;
-import com.oracle.svm.shared.util.ReflectionUtil;
+import com.oracle.svm.util.GuestAccess;
+import com.oracle.svm.util.JVMCIReflectionUtil;
 
 import jdk.graal.compiler.debug.DebugContext;
 import jdk.graal.compiler.nodes.ConstantNode;
@@ -58,6 +58,7 @@ import jdk.graal.compiler.nodes.java.MonitorExitNode;
 import jdk.graal.compiler.nodes.java.MonitorIdNode;
 import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.LineNumberTable;
+import jdk.vm.ci.meta.ResolvedJavaField;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 
 /**
@@ -71,12 +72,13 @@ class JNINativeCallWrapperMethod extends CustomSubstitutionMethod {
     private static final LineNumberTable LINE_NUMBER_TABLE = new LineNumberTable(new int[]{1}, new int[]{NATIVE_LINE_NUMBER});
 
     private final JNINativeLinkage linkage;
-    private final Field linkageBuiltInAddressField = ReflectionUtil.lookupField(JNINativeLinkage.class, "builtInAddress");
+    private final ResolvedJavaField linkageBuiltInAddressField;
 
     JNINativeCallWrapperMethod(ResolvedJavaMethod method) {
         super(method);
         assert !(method instanceof WrappedJavaMethod);
         this.linkage = createLinkage(method);
+        this.linkageBuiltInAddressField = JVMCIReflectionUtil.getUniqueDeclaredField(GuestAccess.get().lookupType(JNINativeLinkage.class), "builtInAddress");
     }
 
     private static JNINativeLinkage createLinkage(ResolvedJavaMethod method) {

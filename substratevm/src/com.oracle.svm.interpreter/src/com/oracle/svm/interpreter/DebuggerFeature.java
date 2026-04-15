@@ -114,6 +114,7 @@ import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.PartiallyLayerAware;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.util.VMError;
+import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.util.JVMCIReflectionUtil;
 
 import jdk.graal.compiler.api.replacements.SnippetReflectionProvider;
@@ -503,7 +504,7 @@ public class DebuggerFeature implements InternalFeature {
 
         iUniverse.purgeUnreachable(hMetaAccess);
 
-        AnalysisField vtableHolderField = (AnalysisField) JVMCIReflectionUtil.getUniqueDeclaredField(aMetaAccess.lookupJavaType(InterpreterResolvedObjectType.class), "vtableHolder");
+        ResolvedJavaField vtableHolderField = JVMCIReflectionUtil.getUniqueDeclaredField(GuestAccess.get().lookupType(InterpreterResolvedObjectType.class), "vtableHolder");
         ScanReason reason = new OtherReason("Manual rescan triggered before compilation from " + DebuggerFeature.class);
         for (HostedType hostedType : hUniverse.getTypes()) {
             iUniverse.mirrorSVMVTable(hostedType, objectType -> accessImpl.getHeapScanner().rescanField(objectType, vtableHolderField, reason));
