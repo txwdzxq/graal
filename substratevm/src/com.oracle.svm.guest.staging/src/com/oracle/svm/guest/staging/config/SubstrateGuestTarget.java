@@ -36,27 +36,25 @@ import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import jdk.vm.ci.meta.JavaKind;
 
 /**
- * Guest level replacements for {@code ConfigurationValues}. It avoids exposing builder internals
- * such as {@code SubstrateTargetDescription}. Instead, it stores all the values directly in the
- * instance which is installed as an {@linkplain ImageSingletons image singleton} in
- * {@code NativeImageGenerator}.
+ * Guest level replacements for select values of {@code SubstrateTarget}, without exposing builder
+ * internals. Instead, it stores all the values directly in the instance.
  */
 @SingletonTraits(access = BuiltinTraits.AllAccess.class, layeredCallbacks = BuiltinTraits.NoLayeredCallbacks.class, layeredInstallationKind = SingletonLayeredInstallationKind.Duplicable.class)
-public class GuestConfigurationValues {
+public class SubstrateGuestTarget {
 
     private final JavaKind wordKind;
     private final int wordSize;
     private final ByteOrder byteOrder;
 
-    public GuestConfigurationValues(JavaKind wordKind, int wordSize, ByteOrder byteOrder) {
+    public SubstrateGuestTarget(JavaKind wordKind, int wordSize, ByteOrder byteOrder) {
         this.wordKind = wordKind;
         this.wordSize = wordSize;
         this.byteOrder = byteOrder;
     }
 
     @GuestFold
-    private static GuestConfigurationValues singleton() {
-        return ImageSingletons.lookup(GuestConfigurationValues.class);
+    private static SubstrateGuestTarget singleton() {
+        return ImageSingletons.lookup(SubstrateGuestTarget.class);
     }
 
     @GuestFold

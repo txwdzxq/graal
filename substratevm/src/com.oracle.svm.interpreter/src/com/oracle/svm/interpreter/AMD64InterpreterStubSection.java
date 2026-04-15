@@ -34,10 +34,8 @@ import org.graalvm.nativeimage.Platforms;
 
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.SubstrateControlFlowIntegrity;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.graal.amd64.SubstrateAMD64Backend;
-import com.oracle.svm.core.graal.amd64.SubstrateAMD64RegisterConfig;
-import com.oracle.svm.core.graal.meta.SubstrateRegisterConfig;
 import com.oracle.svm.hosted.image.NativeImage;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaMethod;
@@ -51,15 +49,11 @@ import jdk.graal.compiler.asm.Assembler;
 import jdk.graal.compiler.asm.Label;
 import jdk.graal.compiler.asm.amd64.AMD64BaseAssembler;
 import jdk.graal.compiler.asm.amd64.AMD64MacroAssembler;
-import jdk.graal.compiler.core.common.LIRKind;
 import jdk.graal.compiler.core.common.NumUtil;
 
 @SingletonTraits(access = AllAccess.class, layeredCallbacks = NoLayeredCallbacks.class, other = Disallowed.class)
-public class AMD64InterpreterStubSection extends InterpreterStubSection {
-    public AMD64InterpreterStubSection() {
-        this.target = ConfigurationValues.getTarget();
-        this.registerConfig = new SubstrateAMD64RegisterConfig(SubstrateRegisterConfig.ConfigKind.NATIVE_TO_JAVA, null, target, true);
-        this.valueKindFactory = javaKind -> LIRKind.fromJavaKind(target.arch, javaKind);
+class AMD64InterpreterStubSection extends InterpreterStubSection {
+    AMD64InterpreterStubSection() {
     }
 
     @Override
@@ -93,7 +87,7 @@ public class AMD64InterpreterStubSection extends InterpreterStubSection {
 
     @Override
     public int getVTableStubSize() {
-        int branchTargetAlignment = ConfigurationValues.getWordSize() * 2;
+        int branchTargetAlignment = SubstrateTarget.getWordSize() * 2;
         int stubSize = 10;
 
         return NumUtil.roundUp(stubSize, branchTargetAlignment);

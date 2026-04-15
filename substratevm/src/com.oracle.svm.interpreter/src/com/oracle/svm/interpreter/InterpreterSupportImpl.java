@@ -27,6 +27,9 @@ package com.oracle.svm.interpreter;
 
 import static com.oracle.svm.core.code.FrameSourceInfo.LINENUMBER_NATIVE;
 
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
+
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
@@ -55,7 +58,6 @@ import com.oracle.svm.espresso.classfile.descriptors.ByteSequence;
 import com.oracle.svm.espresso.classfile.descriptors.Name;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaMethod;
-import com.oracle.svm.interpreter.metadata.InterpreterUnresolvedSignature;
 import com.oracle.svm.interpreter.ristretto.RistrettoOptions;
 import com.oracle.svm.interpreter.ristretto.compile.RistrettoDeoptimizationSupport;
 import com.oracle.svm.interpreter.ristretto.compile.RistrettoDeoptimizedInterpreterFrame;
@@ -78,9 +80,7 @@ import jdk.vm.ci.meta.JavaType;
 import jdk.vm.ci.meta.LineNumberTable;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
-
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
+import jdk.vm.ci.meta.Signature;
 
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class, other = Disallowed.class)
 public final class InterpreterSupportImpl extends InterpreterSupport {
@@ -103,11 +103,7 @@ public final class InterpreterSupportImpl extends InterpreterSupport {
     }
 
     @Override
-    public PreparedSignature prepareSignature(ResolvedJavaMethod method) {
-        InterpreterResolvedJavaMethod interpreterMethod = (InterpreterResolvedJavaMethod) method;
-
-        InterpreterUnresolvedSignature signature = interpreterMethod.getSignature();
-        boolean hasReceiver = interpreterMethod.hasReceiver();
+    public PreparedSignature prepareSignature(Signature signature, boolean hasReceiver, ResolvedJavaType accessingClass) {
         int count = signature.getParameterCount(false);
 
         InterpreterStubSection stubSection = ImageSingletons.lookup(InterpreterStubSection.class);
@@ -115,8 +111,7 @@ public final class InterpreterSupportImpl extends InterpreterSupport {
 
         // The calling convention is always used with a caller perspective, i.e. sp is unmodified.
         SubstrateCallingConventionType callingConventionType = SubstrateCallingConventionKind.Java.toType(true);
-        ResolvedJavaType accessingClass = interpreterMethod.getDeclaringClass();
-        JavaType thisType = interpreterMethod.hasReceiver() ? accessingClass : null;
+        JavaType thisType = hasReceiver ? accessingClass : null;
         JavaType returnType = signature.getReturnType(accessingClass);
         CallingConvention callingConvention = stubSection.registerConfig.getCallingConvention(callingConventionType, returnType, signature.toParameterTypes(thisType), stubSection.valueKindFactory);
 

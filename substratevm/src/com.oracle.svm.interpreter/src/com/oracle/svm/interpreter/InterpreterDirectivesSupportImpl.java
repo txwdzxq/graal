@@ -40,7 +40,7 @@ import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.WordBase;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.pltgot.GOTAccess;
 import com.oracle.svm.core.pltgot.GOTHeapSupport;
 import com.oracle.svm.guest.staging.jdk.InternalVMMethod;
@@ -80,7 +80,7 @@ final class InterpreterDirectivesSupportImpl implements InterpreterDirectivesSup
             traceInterpreter().string("[forceInterpreterExecution] ").string(interpreterMethod.toString()).newline();
         }
 
-        int estOffset = ConfigurationValues.getWordSize() * interpreterMethod.getEnterStubOffset();
+        int estOffset = SubstrateTarget.getWordSize() * interpreterMethod.getEnterStubOffset();
         Pointer estBase = InterpreterStubTable.getBaseForEnterStubTable();
         UnsignedWord estEntry = estBase.add(estOffset).readWord(0);
 

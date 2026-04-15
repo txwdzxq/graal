@@ -34,7 +34,8 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.WordBase;
 
-import com.oracle.svm.guest.staging.config.GuestConfigurationValues;
+import com.oracle.svm.guest.staging.config.SubstrateGuestTarget;
+import com.oracle.svm.shared.util.NumUtil;
 import com.oracle.svm.shared.util.VMError;
 
 @Platforms(Platform.HOSTED_ONLY.class)
@@ -504,9 +505,9 @@ public final class HostedByteBufferPointer implements Pointer {
     @Override
     public void writeWord(int offset, WordBase val) {
         long value = val.rawValue();
-        int wordSize = GuestConfigurationValues.getWordSize();
+        int wordSize = SubstrateGuestTarget.getWordSize();
         if (wordSize == Integer.BYTES) {
-            buffer.putInt(baseOffset + offset, Math.toIntExact(value));
+            buffer.putInt(baseOffset + offset, NumUtil.safeToUInt(value));
         } else {
             assert wordSize == Long.BYTES;
             buffer.putLong(baseOffset + offset, value);

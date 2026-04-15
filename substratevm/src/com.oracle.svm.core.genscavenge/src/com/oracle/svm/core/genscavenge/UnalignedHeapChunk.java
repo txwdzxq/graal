@@ -26,6 +26,7 @@ package com.oracle.svm.core.genscavenge;
 
 import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.c.struct.RawStructure;
@@ -35,7 +36,6 @@ import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.shared.Uninterruptible;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.genscavenge.remset.RememberedSet;
 import com.oracle.svm.core.heap.ObjectVisitor;
 import com.oracle.svm.core.heap.UninterruptibleObjectVisitor;
@@ -120,7 +120,7 @@ public final class UnalignedHeapChunk {
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     static UnsignedWord getChunkSizeForObject(UnsignedWord objectSize) {
         UnsignedWord objectStart = RememberedSet.get().getHeaderSizeOfUnalignedChunk(objectSize);
-        UnsignedWord alignment = Word.unsigned(ConfigurationValues.getObjectLayout().getAlignment());
+        UnsignedWord alignment = Word.unsigned(ObjectLayout.singleton().getAlignment());
         return UnsignedUtils.roundUp(objectStart.add(objectSize), alignment);
     }
 

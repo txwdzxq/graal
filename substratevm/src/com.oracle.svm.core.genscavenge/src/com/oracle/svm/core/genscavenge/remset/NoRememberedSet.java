@@ -28,6 +28,7 @@ import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_
 
 import java.util.List;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.c.struct.SizeOf;
@@ -36,7 +37,6 @@ import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.shared.AlwaysInline;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.genscavenge.AlignedHeapChunk.AlignedHeader;
 import com.oracle.svm.core.genscavenge.UnalignedHeapChunk.UnalignedHeader;
 import com.oracle.svm.core.heap.UninterruptibleObjectReferenceVisitor;
@@ -71,7 +71,7 @@ public final class NoRememberedSet implements RememberedSet {
     @Override
     public UnsignedWord getHeaderSizeOfAlignedChunk() {
         UnsignedWord headerSize = Word.unsigned(SizeOf.get(AlignedHeader.class));
-        UnsignedWord alignment = Word.unsigned(ConfigurationValues.getObjectLayout().getAlignment());
+        UnsignedWord alignment = Word.unsigned(ObjectLayout.singleton().getAlignment());
         return UnsignedUtils.roundUp(headerSize, alignment);
     }
 
@@ -84,7 +84,7 @@ public final class NoRememberedSet implements RememberedSet {
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     private static UnsignedWord getHeaderSizeOfUnalignedChunk() {
         UnsignedWord headerSize = Word.unsigned(SizeOf.get(UnalignedHeader.class));
-        UnsignedWord alignment = Word.unsigned(ConfigurationValues.getObjectLayout().getAlignment());
+        UnsignedWord alignment = Word.unsigned(ObjectLayout.singleton().getAlignment());
         return UnsignedUtils.roundUp(headerSize, alignment);
     }
 

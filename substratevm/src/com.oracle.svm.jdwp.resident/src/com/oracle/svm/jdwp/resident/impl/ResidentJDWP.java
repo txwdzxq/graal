@@ -36,6 +36,7 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.WordBase;
 import org.graalvm.word.impl.Word;
 
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.code.FrameInfoQueryResult;
 import com.oracle.svm.core.code.FrameSourceInfo;
 import com.oracle.svm.core.deopt.DeoptState;
@@ -971,11 +972,10 @@ public final class ResidentJDWP implements JDWP {
 
         byte componentStorageTag;
         if (isWordTypeComponent) {
-            componentStorageTag = switch (InterpreterToVM.wordJavaKind()) {
+            componentStorageTag = switch (SubstrateTarget.getWordKind()) {
                 case Int -> TagConstants.INT;
                 case Long -> TagConstants.LONG;
-                default ->
-                    throw VMError.shouldNotReachHere("Unexpected word kind " + InterpreterToVM.wordJavaKind());
+                default -> throw VMError.shouldNotReachHere("Unexpected word kind " + SubstrateTarget.getWordKind());
             };
         } else {
             componentStorageTag = TagConstants.getTagFromClass(componentType);
@@ -995,11 +995,10 @@ public final class ResidentJDWP implements JDWP {
         if (isWordTypeComponent) {
             for (int i = firstIndex; i - firstIndex < length; ++i) {
                 WordBase value = InterpreterToVM.getArrayWord(i, (WordBase[]) array);
-                switch (InterpreterToVM.wordJavaKind()) {
+                switch (SubstrateTarget.getWordKind()) {
                     case Int -> writer.writeInt((int) value.rawValue());
                     case Long -> writer.writeLong(value.rawValue());
-                    default ->
-                        throw VMError.shouldNotReachHere("Unexpected word kind " + InterpreterToVM.wordJavaKind());
+                    default -> throw VMError.shouldNotReachHere("Unexpected word kind " + SubstrateTarget.getWordKind());
                 }
             }
         } else if (componentType.isPrimitive()) {
@@ -1066,11 +1065,10 @@ public final class ResidentJDWP implements JDWP {
         byte componentStorageTag;
         boolean isWordTypeComponent = WordBase.class.isAssignableFrom(componentType);
         if (isWordTypeComponent) {
-            componentStorageTag = switch (InterpreterToVM.wordJavaKind()) {
+            componentStorageTag = switch (SubstrateTarget.getWordKind()) {
                 case Int -> TagConstants.INT;
                 case Long -> TagConstants.LONG;
-                default ->
-                    throw VMError.shouldNotReachHere("Unexpected word kind " + InterpreterToVM.wordJavaKind());
+                default -> throw VMError.shouldNotReachHere("Unexpected word kind " + SubstrateTarget.getWordKind());
             };
         } else {
             componentStorageTag = TagConstants.getTagFromClass(componentType);
@@ -1083,7 +1081,7 @@ public final class ResidentJDWP implements JDWP {
         // This is followed by the values themselves.
         if (isWordTypeComponent) {
             for (int i = firstIndex; i - firstIndex < length; ++i) {
-                switch (InterpreterToVM.wordJavaKind()) {
+                switch (SubstrateTarget.getWordKind()) {
                     case Int -> {
                         WordBase value = Word.signed(reader.readInt());
                         InterpreterToVM.setArrayWord(value, i, (WordBase[]) array);
@@ -1092,8 +1090,7 @@ public final class ResidentJDWP implements JDWP {
                         WordBase value = Word.signed(reader.readLong());
                         InterpreterToVM.setArrayWord(value, i, (WordBase[]) array);
                     }
-                    default ->
-                        throw VMError.shouldNotReachHere("Unexpected word kind " + InterpreterToVM.wordJavaKind());
+                    default -> throw VMError.shouldNotReachHere("Unexpected word kind " + SubstrateTarget.getWordKind());
                 }
             }
         } else if (componentType.isPrimitive()) {
@@ -1323,7 +1320,7 @@ public final class ResidentJDWP implements JDWP {
         assert !field.isUndefined() : "Cannot read undefined field " + field;
 
         if (field.isWordStorage()) {
-            switch (InterpreterToVM.wordJavaKind()) {
+            switch (SubstrateTarget.getWordKind()) {
                 case Int -> {
                     writer.writeByte(TagConstants.INT);
                     writer.writeInt((int) InterpreterToVM.getFieldWord(receiver, field).rawValue());
@@ -1758,13 +1755,12 @@ public final class ResidentJDWP implements JDWP {
                         : "Cannot write undefined or unmaterialized field " + field;
 
         if (field.isWordStorage()) {
-            switch (InterpreterToVM.wordJavaKind()) {
+            switch (SubstrateTarget.getWordKind()) {
                 case Int ->
                     InterpreterToVM.setFieldWord(Word.signed(reader.readInt()), receiver, field);
                 case Long ->
                     InterpreterToVM.setFieldWord(Word.signed(reader.readLong()), receiver, field);
-                default ->
-                    throw VMError.shouldNotReachHere("Unexpected word kind " + InterpreterToVM.wordJavaKind());
+                default -> throw VMError.shouldNotReachHere("Unexpected word kind " + SubstrateTarget.getWordKind());
             }
             return;
         }

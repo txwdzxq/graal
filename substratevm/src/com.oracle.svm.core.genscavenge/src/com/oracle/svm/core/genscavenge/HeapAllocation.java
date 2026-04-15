@@ -37,7 +37,6 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.log.Log;
 import com.oracle.svm.core.thread.JavaSpinLockUtils;
@@ -214,7 +213,7 @@ public final class HeapAllocation {
             }
 
             UnsignedWord newTop = top.add(wantToAllocate);
-            ObjectLayout ol = ConfigurationValues.getObjectLayout();
+            ObjectLayout ol = ObjectLayout.singleton();
             assert ol.isAligned(top) && ol.isAligned(newTop);
             if (((Pointer) chunk).logicCompareAndSwapWord(HeapChunk.Header.offsetOfTopOffset(), top, newTop, CHUNK_HEADER_TOP_IDENTITY)) {
                 actualSize.write(wantToAllocate);

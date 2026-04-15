@@ -32,7 +32,7 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.util.UnsignedUtils;
 import com.oracle.svm.shared.Uninterruptible;
 
@@ -48,7 +48,7 @@ public final class SamplerBufferAccess {
 
     @Fold
     static UnsignedWord getHeaderSize() {
-        return UnsignedUtils.roundUp(SizeOf.unsigned(SamplerBuffer.class), Word.unsigned(ConfigurationValues.getWordSize()));
+        return UnsignedUtils.roundUp(SizeOf.unsigned(SamplerBuffer.class), Word.unsigned(SubstrateTarget.getWordSize()));
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)

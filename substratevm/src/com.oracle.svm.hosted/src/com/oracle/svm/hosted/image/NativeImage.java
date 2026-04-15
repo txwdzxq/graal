@@ -71,15 +71,15 @@ import com.oracle.objectfile.SectionName;
 import com.oracle.svm.core.BuildArtifacts;
 import com.oracle.svm.core.BuildArtifacts.ArtifactType;
 import com.oracle.svm.core.BuilderUtil;
-import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.FunctionPointerHolder;
 import com.oracle.svm.core.InvalidMethodPointerHandler;
 import com.oracle.svm.core.Isolates;
 import com.oracle.svm.core.OS;
 import com.oracle.svm.core.SubstrateOptions;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.function.GraalIsolateHeader;
 import com.oracle.svm.core.c.libc.TemporaryBuildDirectoryProvider;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.graal.code.CGlobalDataBasePointer;
 import com.oracle.svm.core.graal.code.CGlobalDataInfo;
@@ -151,6 +151,7 @@ public abstract class NativeImage extends AbstractImage {
     public static final long RWDATA_CGLOBALS_PARTITION_OFFSET = 0;
 
     private final ObjectFile objectFile;
+    private final SubstrateTarget targetDescription;
     private final int wordSize;
     private final Set<HostedMethod> uniqueEntryPoints = new HashSet<>(); // noEconomicSet(streaming)
     private final MethodPointerRelocationProvider relocationProvider;
@@ -178,9 +179,10 @@ public abstract class NativeImage extends AbstractImage {
         relocationProvider = MethodPointerRelocationProvider.singleton();
 
         int pageSize = SubstrateOptions.getPageSize();
+        targetDescription = SubstrateTarget.singleton();
+        wordSize = targetDescription.wordSize;
         objectFile = ObjectFileFactory.singleton().newObjectFile(pageSize, ImageSingletons.lookup(TemporaryBuildDirectoryProvider.class).getTemporaryBuildDirectory(), universe.getBigBang());
-        objectFile.setByteOrder(ConfigurationValues.getByteOrder());
-        wordSize = FrameAccess.wordSize();
+        objectFile.setByteOrder(targetDescription.arch.getByteOrder());
         assert objectFile.getWordSizeInBytes() == wordSize;
         assert objectFile.getPageSize() == heapLayout.getPageSize();
     }
@@ -443,7 +445,7 @@ public abstract class NativeImage extends AbstractImage {
             final CGlobalDataFeature cGlobals = CGlobalDataFeature.singleton();
 
             long roSectionSize = codeCache.getAlignedConstantsSize();
-            long rwSectionSize = ConfigurationValues.getObjectLayout().alignUp(cGlobals.getSize());
+            long rwSectionSize = ObjectLayout.singleton().alignUp(cGlobals.getSize());
             int pageSize = objectFile.getPageSize();
 
             if (ImageLayerBuildingSupport.buildingImageLayer()) {
@@ -569,7 +571,7 @@ public abstract class NativeImage extends AbstractImage {
 
     public void markRelocationSitesFromBuffer(RelocatableBuffer buffer, ProgbitsSectionImpl sectionImpl) {
         buffer.forEachRelocation((info, offset) -> {
-            assert ConfigurationValues.getTarget().arch instanceof AArch64 || checkEmbeddedOffset(sectionImpl, offset, info);
+            assert targetDescription.arch instanceof AArch64 || checkEmbeddedOffset(sectionImpl, offset, info);
 
             Object target = info.getTargetObject();
             if (target instanceof CFunctionPointer || target instanceof MethodOffset) {
@@ -610,8 +612,7 @@ public abstract class NativeImage extends AbstractImage {
         }
     }
 
-    private static boolean checkCodeRelocationKind(Info info) {
-        int wordSize = ConfigurationValues.getWordSize();
+    private boolean checkCodeRelocationKind(Info info) {
         int relocationSize = info.getRelocationSize();
         RelocationKind relocationKind = info.getRelocationKind();
 
@@ -699,14 +700,14 @@ public abstract class NativeImage extends AbstractImage {
 
     /** Mark a relocation site for the location of an image heap object. */
     private void markHeapReferenceRelocationSite(ProgbitsSectionImpl sectionImpl, int offset, RelocatableBuffer.Info info, ObjectInfo targetObjectInfo) {
-        assert ConfigurationValues.getTarget().arch instanceof AArch64 || info.getRelocationSize() == 4 || info.getRelocationSize() == 8 : "AMD64 Data relocation size should be 4 or 8 bytes.";
+        assert targetDescription.arch instanceof AArch64 || info.getRelocationSize() == 4 || info.getRelocationSize() == 8 : "AMD64 Data relocation size should be 4 or 8 bytes.";
         String targetSectionName = heapSection.getName();
         long relocationAddend = targetObjectInfo.getOffset() + info.getAddend();
         sectionImpl.markRelocationSite(offset, info.getRelocationKind(), targetSectionName, relocationAddend);
     }
 
     private void markDataRelocationSiteFromText(RelocatableBuffer buffer, final ProgbitsSectionImpl sectionImpl, final int offset, final Info info) {
-        Architecture arch = ConfigurationValues.getTarget().arch;
+        Architecture arch = targetDescription.arch;
         assert arch instanceof AArch64 || ((info.getRelocationSize() == 4) || (info.getRelocationSize() == 8)) : "AMD64 Data relocation size should be 4 or 8 bytes. Got size: " +
                         info.getRelocationSize();
         Object target = info.getTargetObject();

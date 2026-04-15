@@ -696,6 +696,13 @@ public abstract class AnalysisType extends AnalysisElement implements WrappedJav
                         (ObjectReachableCallback<T> c) -> c.doCallback(universe.getConcurrentAnalysisAccess(), object, reason));
     }
 
+    /**
+     * Returns whether this type currently has object-reachability callbacks registered.
+     */
+    public boolean hasReachabilityCallbacks() {
+        return ConcurrentLightHashSet.size(this, objectReachableCallbacksUpdater) > 0;
+    }
+
     public void registerInstantiatedCallback(Consumer<DuringAnalysisAccess> callback) {
         if (this.isInstantiated()) {
             /* If the type is already instantiated just trigger the callback. */

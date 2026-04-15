@@ -74,7 +74,7 @@ import com.oracle.svm.core.BuildArtifacts;
 import com.oracle.svm.core.MethodRefHolder;
 import com.oracle.svm.core.ParsingReason;
 import com.oracle.svm.core.RuntimeAssertionsSupport;
-import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.util.UserError;
@@ -107,6 +107,7 @@ import com.oracle.svm.interpreter.metadata.MetadataUtil;
 import com.oracle.svm.interpreter.metadata.ReferenceConstant;
 import com.oracle.svm.interpreter.metadata.serialization.SerializationContext;
 import com.oracle.svm.interpreter.metadata.serialization.Serializers;
+import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.shared.option.HostedOptionValues;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
@@ -432,8 +433,8 @@ public class DebuggerFeature implements InternalFeature {
 
     @Override
     public void afterAnalysis(AfterAnalysisAccess access) {
-        VMError.guarantee(InterpreterToVM.wordJavaKind() == JavaKind.Long ||
-                        InterpreterToVM.wordJavaKind() == JavaKind.Int);
+        JavaKind wordKind = SubstrateTarget.getWordKind();
+        VMError.guarantee(wordKind == JavaKind.Long || wordKind == JavaKind.Int);
     }
 
     @Override

@@ -33,7 +33,7 @@ import org.graalvm.nativeimage.Platforms;
 import org.graalvm.word.PointerBase;
 import org.graalvm.word.WordBase;
 
-import com.oracle.svm.guest.staging.config.GuestConfigurationValues;
+import com.oracle.svm.guest.staging.config.SubstrateGuestTarget;
 import com.oracle.svm.shared.util.Utf8;
 
 /**
@@ -144,8 +144,8 @@ public final class CGlobalDataFactory {
      */
     public static <T extends PointerBase> CGlobalData<T> createWord(WordBase initialValue, String symbolName, boolean nonConstant) {
         Supplier<byte[]> supplier = () -> {
-            assert GuestConfigurationValues.getWordSize() == Long.BYTES : "currently hard-coded for 8 byte words";
-            return ByteBuffer.allocate(Long.BYTES).order(GuestConfigurationValues.getByteOrder()).putLong(initialValue.rawValue()).array();
+            assert SubstrateGuestTarget.getWordSize() == Long.BYTES : "currently hard-coded for 8 byte words";
+            return ByteBuffer.allocate(Long.BYTES).order(SubstrateGuestTarget.getByteOrder()).putLong(initialValue.rawValue()).array();
         };
         return new CGlobalDataImpl<>(symbolName, supplier, nonConstant);
     }
@@ -162,7 +162,7 @@ public final class CGlobalDataFactory {
      * the allocated word.
      */
     public static <T extends PointerBase> CGlobalData<T> createWord(String symbolName) {
-        return new CGlobalDataImpl<>(symbolName, () -> GuestConfigurationValues.getWordSize());
+        return new CGlobalDataImpl<>(symbolName, () -> SubstrateGuestTarget.getWordSize());
     }
 
     /**

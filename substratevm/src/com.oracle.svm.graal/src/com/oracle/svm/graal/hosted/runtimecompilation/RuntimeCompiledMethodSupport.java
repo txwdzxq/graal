@@ -24,9 +24,9 @@
  */
 package com.oracle.svm.graal.hosted.runtimecompilation;
 
+import static com.oracle.svm.common.meta.MethodVariant.ORIGINAL_METHOD;
 import static com.oracle.svm.hosted.code.SubstrateCompilationDirectives.DEOPT_TARGET_METHOD;
 import static com.oracle.svm.hosted.code.SubstrateCompilationDirectives.RUNTIME_COMPILED_METHOD;
-import static com.oracle.svm.common.meta.MethodVariant.ORIGINAL_METHOD;
 
 import java.util.Arrays;
 import java.util.List;
@@ -50,7 +50,7 @@ import com.oracle.graal.pointsto.meta.HostedProviders;
 import com.oracle.graal.pointsto.meta.PointsToAnalysisMethod;
 import com.oracle.graal.pointsto.util.CompletionExecutor;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.graal.nodes.DeoptEntryNode;
 import com.oracle.svm.core.graal.nodes.DeoptEntrySupport;
 import com.oracle.svm.core.graal.nodes.DeoptProxyAnchorNode;
@@ -158,7 +158,7 @@ public class RuntimeCompiledMethodSupport {
 
         ImageHeapScanner imageScanner = bb.getUniverse().getHeapScanner();
 
-        GraphEncoder graphEncoder = createGraphEncoder(ConfigurationValues.getTarget().arch, imageScanner);
+        GraphEncoder graphEncoder = createGraphEncoder(SubstrateTarget.getArchitecture(), imageScanner);
         HostedProviders runtimeCompilationProviders = hostedProviders //
                         .copyWith(constantFieldProviderWrapper.apply(new RuntimeCompilationFieldProvider(hostedProviders.getMetaAccess(), hUniverse))) //
                         .copyWith(new RuntimeCompilationReflectionProvider(bb, hUniverse.hostVM().getClassInitializationSupport()));

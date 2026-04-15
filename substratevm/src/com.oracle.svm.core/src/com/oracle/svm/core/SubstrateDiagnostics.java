@@ -58,12 +58,11 @@ import com.oracle.svm.core.code.CodeInfoTable;
 import com.oracle.svm.core.code.FrameInfoQueryResult;
 import com.oracle.svm.core.code.RuntimeCodeInfoHistory;
 import com.oracle.svm.core.code.RuntimeCodeInfoMemory;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.container.Container;
 import com.oracle.svm.core.container.OperatingSystem;
 import com.oracle.svm.core.deopt.DeoptimizationSupport;
 import com.oracle.svm.core.deopt.Deoptimizer;
-import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.graal.RuntimeCompilation;
 import com.oracle.svm.core.graal.stackvalue.UnsafeStackValue;
@@ -97,6 +96,7 @@ import com.oracle.svm.core.util.CounterSupport;
 import com.oracle.svm.core.util.ImageHeapList;
 import com.oracle.svm.core.util.TimeUtils;
 import com.oracle.svm.shared.Uninterruptible;
+import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.SingleLayer;
@@ -498,7 +498,7 @@ public class SubstrateDiagnostics {
             stackBase = originalSp.add(32);
         }
 
-        int wordSize = ConfigurationValues.getWordSize();
+        int wordSize = SubstrateTarget.getWordSize();
         Pointer pos = originalSp;
         while (pos.belowThan(stackBase)) {
             CodePointer possibleIp = pos.readWord(0);
@@ -628,7 +628,7 @@ public class SubstrateDiagnostics {
                 hexDump(log, ip, bytesToPrint, bytesToPrint);
             } else if (invocationCount == 4) {
                 /* Just print one word starting at the ip. */
-                hexDump(log, ip, 0, ConfigurationValues.getWordSize());
+                hexDump(log, ip, 0, SubstrateTarget.getWordSize());
             }
             log.indent(false).newline();
         }
@@ -657,7 +657,7 @@ public class SubstrateDiagnostics {
             Pointer sp = context.getStackPointer();
             UnsignedWord stackEnd = VMThreads.StackEnd.get(); // low
             UnsignedWord stackBase = VMThreads.StackBase.get(); // high
-            int wordSize = ConfigurationValues.getWordSize();
+            int wordSize = SubstrateTarget.getWordSize();
 
             log.string("Top of stack (sp=").zhex(sp).string("):").indent(true);
             int bytesToPrintBelowSp = 32;
@@ -876,7 +876,7 @@ public class SubstrateDiagnostics {
                 log.string("Supports isolated compilation: ").bool(SubstrateOptions.supportCompileInIsolates()).newline();
             }
             log.string("Container support: ").bool(Container.isSupported()).newline();
-            log.string("Object reference size: ").signed(ConfigurationValues.getObjectLayout().getReferenceSize()).newline();
+            log.string("Object reference size: ").signed(ObjectLayout.singleton().getReferenceSize()).newline();
             log.string("CPU features used for AOT compiled code: ").string(getBuildTimeCpuFeatures()).newline();
             log.indent(false);
         }
@@ -1070,11 +1070,11 @@ public class SubstrateDiagnostics {
                  * If the stack pointer is not sufficiently aligned, then we might be in the middle
                  * of a call (i.e., only the arguments and the return address are on the stack).
                  */
-                int expectedStackAlignment = ConfigurationValues.getTarget().stackAlignment;
-                if (sp.unsignedRemainder(expectedStackAlignment).notEqual(0) && sp.unsignedRemainder(ConfigurationValues.getWordSize()).equal(0)) {
+                SubstrateTarget target = SubstrateTarget.singleton();
+                if (sp.unsignedRemainder(target.stackAlignment).notEqual(0) && sp.unsignedRemainder(target.wordSize).equal(0)) {
                     log.newline();
                     // Checkstyle: Allow raw info or warning printing - begin
-                    log.string("Warning: stack pointer is not aligned to ").signed(expectedStackAlignment).string(" bytes.").newline();
+                    log.string("Warning: stack pointer is not aligned to ").signed(target.stackAlignment).string(" bytes.").newline();
                     // Checkstyle: Allow raw info or warning printing - end
                 }
 

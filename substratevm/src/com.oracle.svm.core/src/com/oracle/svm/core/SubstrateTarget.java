@@ -27,6 +27,7 @@ package com.oracle.svm.core;
 import java.util.EnumSet;
 import java.util.List;
 
+import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
@@ -42,12 +43,32 @@ import com.oracle.svm.shared.singletons.traits.SingletonLayeredInstallationKind.
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.util.VMError;
 
+import jdk.graal.compiler.api.replacements.Fold;
 import jdk.vm.ci.code.Architecture;
 import jdk.vm.ci.code.TargetDescription;
+import jdk.vm.ci.meta.JavaKind;
 
-@SingletonTraits(access = AllAccess.class, layeredCallbacks = SubstrateTargetDescription.LayeredCallbacks.class, layeredInstallationKind = Duplicable.class)
-public class SubstrateTargetDescription extends TargetDescription {
-    private static final String RUNTIME_CHECKED_CPU_FEATURES = "runtimeCheckedCPUFeatures";
+@SingletonTraits(access = AllAccess.class, layeredCallbacks = SubstrateTarget.LayeredCallbacks.class, layeredInstallationKind = Duplicable.class)
+public class SubstrateTarget extends TargetDescription {
+    @Fold
+    public static SubstrateTarget singleton() {
+        return ImageSingletons.lookup(SubstrateTarget.class);
+    }
+
+    @Fold
+    public static JavaKind getWordKind() {
+        return singleton().wordJavaKind;
+    }
+
+    @Fold
+    public static int getWordSize() {
+        return singleton().wordSize;
+    }
+
+    @Fold
+    public static Architecture getArchitecture() {
+        return singleton().arch;
+    }
 
     @Platforms(Platform.HOSTED_ONLY.class)
     public static boolean shouldInlineObjectsInImageCode() {
@@ -61,7 +82,7 @@ public class SubstrateTargetDescription extends TargetDescription {
     private final EnumSet<?> runtimeCheckedCPUFeatures;
 
     @Platforms(Platform.HOSTED_ONLY.class)
-    public SubstrateTargetDescription(Architecture arch, boolean isMP, int stackAlignment, int implicitNullCheckLimit, EnumSet<?> runtimeCheckedCPUFeatures) {
+    public SubstrateTarget(Architecture arch, boolean isMP, int stackAlignment, int implicitNullCheckLimit, EnumSet<?> runtimeCheckedCPUFeatures) {
         super(arch, isMP, stackAlignment, implicitNullCheckLimit, shouldInlineObjectsInImageCode());
         this.runtimeCheckedCPUFeatures = runtimeCheckedCPUFeatures;
     }
@@ -71,17 +92,19 @@ public class SubstrateTargetDescription extends TargetDescription {
     }
 
     static class LayeredCallbacks extends SingletonLayeredCallbacksSupplier {
+        private static final String RUNTIME_CHECKED_CPU_FEATURES = "runtimeCheckedCPUFeatures";
+
         @Override
         public LayeredCallbacksSingletonTrait getLayeredCallbacksTrait() {
-            var action = new SingletonLayeredCallbacks<SubstrateTargetDescription>() {
+            var action = new SingletonLayeredCallbacks<SubstrateTarget>() {
                 @Override
-                public LayeredPersistFlags doPersist(ImageSingletonWriter writer, SubstrateTargetDescription singleton) {
+                public LayeredPersistFlags doPersist(ImageSingletonWriter writer, SubstrateTarget singleton) {
                     writer.writeStringList(RUNTIME_CHECKED_CPU_FEATURES, getCPUFeaturesList(singleton));
                     return LayeredPersistFlags.CALLBACK_ON_REGISTRATION;
                 }
 
                 @Override
-                public void onSingletonRegistration(ImageSingletonLoader loader, SubstrateTargetDescription singleton) {
+                public void onSingletonRegistration(ImageSingletonLoader loader, SubstrateTarget singleton) {
                     List<String> previousLayerRuntimeCheckedCPUFeatures = loader.readStringList(RUNTIME_CHECKED_CPU_FEATURES);
                     List<String> currentLayerRuntimeCheckedCPUFeatures = getCPUFeaturesList(singleton);
                     VMError.guarantee(previousLayerRuntimeCheckedCPUFeatures.equals(currentLayerRuntimeCheckedCPUFeatures),
@@ -93,7 +116,7 @@ public class SubstrateTargetDescription extends TargetDescription {
         }
     }
 
-    private static List<String> getCPUFeaturesList(SubstrateTargetDescription substrateTargetDescription) {
-        return substrateTargetDescription.runtimeCheckedCPUFeatures.stream().map(Enum::toString).toList();
+    private static List<String> getCPUFeaturesList(SubstrateTarget substrateTarget) {
+        return substrateTarget.runtimeCheckedCPUFeatures.stream().map(Enum::toString).toList();
     }
 }

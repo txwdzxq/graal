@@ -37,10 +37,7 @@ import org.graalvm.nativeimage.Platforms;
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.SubstrateControlFlowIntegrity;
 import com.oracle.svm.core.aarch64.SubstrateAArch64MacroAssembler;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.graal.aarch64.SubstrateAArch64Backend;
-import com.oracle.svm.core.graal.aarch64.SubstrateAArch64RegisterConfig;
-import com.oracle.svm.core.graal.meta.SubstrateRegisterConfig;
 import com.oracle.svm.hosted.image.NativeImage;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaMethod;
@@ -53,15 +50,11 @@ import com.oracle.svm.shared.util.VMError;
 import jdk.graal.compiler.asm.Assembler;
 import jdk.graal.compiler.asm.Label;
 import jdk.graal.compiler.asm.aarch64.AArch64MacroAssembler;
-import jdk.graal.compiler.core.common.LIRKind;
 import jdk.vm.ci.code.Register;
 
 @SingletonTraits(access = AllAccess.class, layeredCallbacks = NoLayeredCallbacks.class, other = Disallowed.class)
-public class AArch64InterpreterStubSection extends InterpreterStubSection {
-    public AArch64InterpreterStubSection() {
-        this.target = ConfigurationValues.getTarget();
-        this.registerConfig = new SubstrateAArch64RegisterConfig(SubstrateRegisterConfig.ConfigKind.NATIVE_TO_JAVA, null, target, true);
-        this.valueKindFactory = javaKind -> LIRKind.fromJavaKind(target.arch, javaKind);
+class AArch64InterpreterStubSection extends InterpreterStubSection {
+    AArch64InterpreterStubSection() {
     }
 
     @Override

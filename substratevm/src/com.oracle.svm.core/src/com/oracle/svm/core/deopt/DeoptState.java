@@ -38,9 +38,9 @@ import org.graalvm.word.WordBase;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.ReservedRegisters;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.code.FrameInfoQueryResult;
 import com.oracle.svm.core.code.FrameInfoQueryResult.ValueType;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.heap.ReferenceAccess;
 import com.oracle.svm.core.hub.DynamicHub;
@@ -148,7 +148,7 @@ public class DeoptState {
     }
 
     private static PrimitiveConstant createWordConstant(WordBase word) {
-        return JavaConstant.forIntegerKind(ConfigurationValues.getWordKind(), word.rawValue());
+        return JavaConstant.forIntegerKind(SubstrateTarget.getWordKind(), word.rawValue());
     }
 
     private Object materializeObject(FrameInfoQueryResult.ValueInfo valueInfo, FrameInfoQueryResult sourceFrame) {
@@ -175,7 +175,7 @@ public class DeoptState {
         DeoptimizationCounters.counters().virtualObjectsCount.inc();
 
         FrameInfoQueryResult.ValueInfo[] encodings = sourceFrame.getVirtualObjects()[virtualObjectId];
-        ObjectLayout objectLayout = ConfigurationValues.getObjectLayout();
+        ObjectLayout objectLayout = ObjectLayout.singleton();
 
         /* The first encoded value is always the hub. */
         DynamicHub hub = (DynamicHub) SubstrateObjectConstant.asObject(readValue(encodings[0], sourceFrame));

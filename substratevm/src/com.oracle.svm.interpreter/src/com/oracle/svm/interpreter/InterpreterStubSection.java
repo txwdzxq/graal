@@ -46,15 +46,17 @@ import com.oracle.objectfile.ObjectFile;
 import com.oracle.objectfile.SectionName;
 import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.SubstrateTargetDescription;
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.deopt.Deoptimizer;
 import com.oracle.svm.core.graal.code.InterpreterAccessStubData;
 import com.oracle.svm.core.graal.code.PreparedSignature;
+import com.oracle.svm.core.graal.code.SubstrateRegisterConfigFactory;
+import com.oracle.svm.core.graal.meta.SubstrateRegisterConfig;
 import com.oracle.svm.core.handles.ThreadLocalHandles;
 import com.oracle.svm.core.heap.GCCause;
 import com.oracle.svm.core.heap.Heap;
 import com.oracle.svm.core.hub.DynamicHub;
+import com.oracle.svm.core.interpreter.InterpreterEnterStub;
 import com.oracle.svm.core.memory.NativeMemory;
 import com.oracle.svm.core.memory.NullableNativeMemory;
 import com.oracle.svm.core.nmt.NmtCategory;
@@ -97,9 +99,9 @@ public abstract class InterpreterStubSection {
     /* '-3' to reduce padding due to alignment in .svm_interp section */
     static final int MAX_VTABLE_STUBS = 2 * 1024 - 3;
 
-    protected RegisterConfig registerConfig;
-    protected SubstrateTargetDescription target;
-    protected ValueKindFactory<LIRKind> valueKindFactory;
+    protected final SubstrateTarget target;
+    protected final RegisterConfig registerConfig;
+    protected final ValueKindFactory<LIRKind> valueKindFactory;
 
     @Platforms(Platform.HOSTED_ONLY.class) //
     private ObjectFile.ProgbitsSectionImpl stubsBufferImpl;
@@ -108,6 +110,12 @@ public abstract class InterpreterStubSection {
     private final Map<InterpreterResolvedJavaMethod, Integer> enterTrampolineOffsets = new HashMap<>();
     @Platforms(Platform.HOSTED_ONLY.class) //
     private int vTableStubBaseOffset = -1;
+
+    protected InterpreterStubSection() {
+        this.target = SubstrateTarget.singleton();
+        this.registerConfig = SubstrateRegisterConfigFactory.singleton().newRegisterFactory(SubstrateRegisterConfig.ConfigKind.NATIVE_TO_JAVA, null, this.target, true);
+        this.valueKindFactory = javaKind -> LIRKind.fromJavaKind(this.target.arch, javaKind);
+    }
 
     @Platforms(Platform.HOSTED_ONLY.class)
     public void createInterpreterEnterStubSection(AbstractImage image, Collection<InterpreterResolvedJavaMethod> methods) {
@@ -125,7 +133,7 @@ public abstract class InterpreterStubSection {
 
         for (InterpreterResolvedJavaMethod method : enterTrampolineOffsets.keySet()) {
             int offset = enterTrampolineOffsets.get(method);
-            objectFile.createDefinedSymbol(nameForInterpMethod(method), stubsSection, offset, ConfigurationValues.getWordSize(), true, internalSymbolsAreGlobal);
+            objectFile.createDefinedSymbol(nameForInterpMethod(method), stubsSection, offset, target.wordSize, true, internalSymbolsAreGlobal);
         }
     }
 
@@ -163,7 +171,7 @@ public abstract class InterpreterStubSection {
         for (int vTableIndex = 0; vTableIndex < MAX_VTABLE_STUBS; vTableIndex++) {
             int codeOffset = vTableStubBaseOffset + vTableIndex * getVTableStubSize();
             String symbolName = nameForVTableIndex(vTableIndex);
-            objectFile.createDefinedSymbol(symbolName, stubsSection, codeOffset, ConfigurationValues.getWordSize(), true, internalSymbolsAreGlobal);
+            objectFile.createDefinedSymbol(symbolName, stubsSection, codeOffset, target.wordSize, true, internalSymbolsAreGlobal);
         }
     }
 
@@ -212,6 +220,7 @@ public abstract class InterpreterStubSection {
     @Deoptimizer.DeoptStub(stubType = Deoptimizer.StubType.InterpreterEnterStub)
     @NeverInline("needs ABI boundary")
     @Uninterruptible(reason = REASON_REFERENCES_ON_STACK)
+    @InterpreterEnterStub(InterpreterEnterStub.Kind.EST_OFFSET)
     public static Pointer enterMethodInterpreterStub(int interpreterMethodESTOffset, Pointer enterData) {
         DebuggerSupport debuggerSupport = ImageSingletons.lookup(DebuggerSupport.class);
 
@@ -227,6 +236,7 @@ public abstract class InterpreterStubSection {
     @Deoptimizer.DeoptStub(stubType = Deoptimizer.StubType.InterpreterEnterStub)
     @NeverInline("needs ABI boundary")
     @Uninterruptible(reason = REASON_REFERENCES_ON_STACK)
+    @InterpreterEnterStub(InterpreterEnterStub.Kind.DIRECT)
     public static Pointer enterDirectInterpreterStub(InterpreterResolvedJavaMethod interpreterMethod, Pointer enterData) {
         VMError.guarantee(interpreterMethod != null);
 
@@ -236,6 +246,7 @@ public abstract class InterpreterStubSection {
     @Deoptimizer.DeoptStub(stubType = Deoptimizer.StubType.InterpreterEnterStub)
     @NeverInline("needs ABI boundary")
     @Uninterruptible(reason = REASON_REFERENCES_ON_STACK)
+    @InterpreterEnterStub(InterpreterEnterStub.Kind.VTABLE)
     public static Pointer enterVTableInterpreterStub(int vTableIndex, Pointer enterData) {
         InterpreterAccessStubData accessHelper = ImageSingletons.lookup(InterpreterAccessStubData.class);
 
@@ -425,7 +436,7 @@ public abstract class InterpreterStubSection {
         VMError.guarantee(handles.getHandleCount() == handleCount);
         VMError.guarantee(handleFrameId == handles.popFrame());
 
-        return call(interpreterMethod, args);
+        return call(interpreterMethod, args, true);
     }
 
     @Uninterruptible(reason = "Raw object pointer.")
@@ -579,6 +590,25 @@ public abstract class InterpreterStubSection {
                 Heap.getHeap().getGC().collectCompletely(GCCause.UnitTest);
             }
         }
+
+        private static boolean checkFastPath = false;
+
+        public static void enableFastPathCheck() {
+            VMError.guarantee(InterpreterOptions.InterpreterBackdoor.getValue());
+            checkFastPath = true;
+        }
+
+        public static void disableFastPathCheck() {
+            VMError.guarantee(InterpreterOptions.InterpreterBackdoor.getValue());
+            checkFastPath = false;
+        }
+
+        @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+        public static void handleFastPathWasNotTaken() {
+            if (InterpreterOptions.InterpreterBackdoor.getValue() && checkFastPath) {
+                VMError.shouldNotReachHere("JIT method is available, but the fast path was not taken.");
+            }
+        }
     }
 
     /**
@@ -602,15 +632,18 @@ public abstract class InterpreterStubSection {
     }
 
     @Uninterruptible(reason = REASON_DEOPT_INSTALLED_CODE)
-    public static Object call(InterpreterResolvedJavaMethod interpreterMethod, Object[] args) {
+    public static Object call(InterpreterResolvedJavaMethod interpreterMethod, Object[] args, boolean callerIsCompiled) {
         /*
-         * Determine if a JIT compiled version is available and if so execute this one instead. This
-         * could be more optimized, see GR-71160.
+         * Determine if a JIT compiled version is available and if so execute this one instead.
          */
         CFunctionPointer entryPoint = getInstalledCodeEntryPoint(interpreterMethod);
         if (entryPoint.isNonNull()) {
+            if (callerIsCompiled) {
+                TestingBackdoor.handleFastPathWasNotTaken();
+            }
             return leaveInterpreter(entryPoint, interpreterMethod, args);
         }
+
         return callInterpreterInterruptibly(interpreterMethod, args);
     }
 

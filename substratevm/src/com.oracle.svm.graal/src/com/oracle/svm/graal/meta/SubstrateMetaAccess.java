@@ -24,12 +24,12 @@
  */
 package com.oracle.svm.graal.meta;
 
-import static com.oracle.svm.core.config.ConfigurationValues.getObjectLayout;
 import static com.oracle.svm.shared.util.VMError.intentionallyUnimplemented;
 
 import java.lang.reflect.Executable;
 import java.lang.reflect.Field;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.ImageSingletons;
 
 import com.oracle.svm.core.SubstrateOptions;
@@ -140,7 +140,7 @@ public class SubstrateMetaAccess implements MetaAccessProvider {
      */
     @Override
     public int getArrayBaseOffset(JavaKind kind) {
-        return getObjectLayout().getArrayBaseOffset(kind);
+        return ObjectLayout.singleton().getArrayBaseOffset(kind);
     }
 
     /**
@@ -150,7 +150,7 @@ public class SubstrateMetaAccess implements MetaAccessProvider {
      */
     @Override
     public int getArrayIndexScale(JavaKind elementKind) {
-        return getObjectLayout().getArrayIndexScale(elementKind);
+        return ObjectLayout.singleton().getArrayIndexScale(elementKind);
     }
 
     @Override

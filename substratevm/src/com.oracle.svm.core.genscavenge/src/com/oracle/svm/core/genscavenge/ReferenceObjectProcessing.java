@@ -33,13 +33,13 @@ import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.SoftReference;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.core.SubstrateGCOptions;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.genscavenge.remset.RememberedSet;
 import com.oracle.svm.core.heap.Heap;
 import com.oracle.svm.core.heap.ObjectHeader;
@@ -136,7 +136,7 @@ final class ReferenceObjectProcessing {
             if (elapsed.belowThan(maxSoftRefAccessIntervalMs)) {
                 // Important: we need to pass the reference object as holder so that the remembered
                 // set can be updated accordingly!
-                int referenceSize = ConfigurationValues.getObjectLayout().getReferenceSize();
+                int referenceSize = ObjectLayout.singleton().getReferenceSize();
                 refVisitor.visitObjectReferences(ReferenceInternals.getReferentFieldAddress(dr), true, referenceSize, dr, 1);
                 return; // referent will survive
             }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, 2019, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,45 +22,17 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.config;
+package com.oracle.svm.core.jdk;
 
-import java.nio.ByteOrder;
+import java.lang.module.ModuleFinder;
+import java.util.Set;
 
-import org.graalvm.nativeimage.ImageSingletons;
+import com.oracle.svm.core.annotate.Alias;
+import com.oracle.svm.core.annotate.TargetClass;
 
-import com.oracle.svm.core.SubstrateTargetDescription;
-
-import jdk.graal.compiler.api.replacements.Fold;
-import jdk.vm.ci.meta.JavaKind;
-
-/**
- * Accessors for important configuration objects that are always accessible via the
- * {@link ImageSingletons}.
- */
-public final class ConfigurationValues {
-
-    @Fold
-    public static SubstrateTargetDescription getTarget() {
-        return ImageSingletons.lookup(SubstrateTargetDescription.class);
-    }
-
-    @Fold
-    public static ObjectLayout getObjectLayout() {
-        return ImageSingletons.lookup(ObjectLayout.class);
-    }
-
-    @Fold
-    public static JavaKind getWordKind() {
-        return getTarget().wordJavaKind;
-    }
-
-    @Fold
-    public static int getWordSize() {
-        return getTarget().wordSize;
-    }
-
-    @Fold
-    public static ByteOrder getByteOrder() {
-        return getTarget().arch.getByteOrder();
-    }
+@TargetClass(className = "jdk.internal.module.DefaultRoots")
+@SuppressWarnings("unused")
+final class Target_jdk_internal_module_DefaultRoots {
+    @Alias
+    static native Set<String> compute(ModuleFinder finder1, ModuleFinder finder2);
 }

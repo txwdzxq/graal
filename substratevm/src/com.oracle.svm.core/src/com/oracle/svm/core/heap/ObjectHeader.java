@@ -26,6 +26,7 @@ package com.oracle.svm.core.heap;
 
 import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.word.LocationIdentity;
@@ -34,7 +35,6 @@ import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.shared.Uninterruptible;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.image.ImageHeapObject;
 import com.oracle.svm.core.metaspace.Metaspace;
@@ -185,12 +185,12 @@ public abstract class ObjectHeader {
 
     @Fold
     protected static int getReferenceSize() {
-        return ConfigurationValues.getObjectLayout().getReferenceSize();
+        return ObjectLayout.singleton().getReferenceSize();
     }
 
     @Fold
     protected static int getHubOffset() {
-        return ConfigurationValues.getObjectLayout().getHubOffset();
+        return ObjectLayout.singleton().getHubOffset();
     }
 
     /**

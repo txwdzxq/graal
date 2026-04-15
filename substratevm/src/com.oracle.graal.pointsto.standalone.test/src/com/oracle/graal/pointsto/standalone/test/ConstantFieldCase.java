@@ -28,6 +28,11 @@ package com.oracle.graal.pointsto.standalone.test;
 
 public class ConstantFieldCase {
     public static final ConstantType constantField = new ConstantType();
+    /*
+     * This sink keeps the hash computation side-effectful for the standalone analysis test without
+     * adding extra observable behavior to the exercised code path.
+     */
+    @SuppressWarnings("unused") private static volatile int sink;
 
     public static void main(String[] args) {
         constantField.foo();
@@ -35,6 +40,16 @@ public class ConstantFieldCase {
 
     static class ConstantType {
         public void foo() {
+            consume("first");
+            consume("second");
         }
+    }
+
+    /**
+     * Forces the test constant to execute {@link String#hashCode()} without changing the expected
+     * observable behavior of the test case.
+     */
+    private static void consume(String value) {
+        sink ^= value.hashCode();
     }
 }

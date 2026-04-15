@@ -27,6 +27,8 @@ package com.oracle.svm.hosted.jdk;
 import java.security.CodeSource;
 
 import org.graalvm.nativeimage.ImageSingletons;
+import org.graalvm.nativeimage.Platform;
+import org.graalvm.nativeimage.impl.InternalPlatform;
 import org.graalvm.nativeimage.impl.RuntimeClassInitializationSupport;
 
 import com.oracle.graal.pointsto.meta.AnalysisField;
@@ -34,15 +36,20 @@ import com.oracle.graal.pointsto.meta.AnalysisMetaAccess;
 import com.oracle.svm.core.FutureDefaultsOptions;
 import com.oracle.svm.core.OS;
 import com.oracle.svm.core.ParsingReason;
-import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
+import com.oracle.svm.core.jdk.JNIRegistrationUtil;
+import com.oracle.svm.core.jdk.NativeLibrarySupport;
 import com.oracle.svm.core.jdk.ProtectionDomainSupport;
 import com.oracle.svm.hosted.FeatureImpl;
+import com.oracle.svm.hosted.c.NativeLibraries;
+import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
+import com.oracle.svm.shared.singletons.traits.BuiltinTraits.PartiallyLayerAware;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.util.JVMCIReflectionUtil;
+import com.oracle.svm.util.dynamicaccess.JVMCIRuntimeJNIAccess;
 
 import jdk.graal.compiler.nodes.ValueNode;
 import jdk.graal.compiler.nodes.graphbuilderconf.GraphBuilderConfiguration;
@@ -57,10 +64,18 @@ import jdk.vm.ci.meta.ResolvedJavaField;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
 
-@SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
+@SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class, other = PartiallyLayerAware.class)
 @AutomaticallyRegisteredFeature
-public class JDKInitializationFeature implements InternalFeature {
+public class JDKInitializationFeature extends JNIRegistrationUtil implements InternalFeature {
     private static final String JDK_CLASS_REASON = "Core JDK classes are initialized at build time";
+
+    @Override
+    public void duringSetup(DuringSetupAccess access) {
+        initializeAtRunTime(access, "java.util.zip.Inflater", "java.util.zip.Deflater");
+        /* These classes have class initializers that lazily load the zip library. */
+        initializeAtRunTime(access, "java.util.zip.Adler32", "java.util.zip.CRC32");
+        initializeAtRunTime(access, "sun.net.www.protocol.jar.JarFileFactory", "sun.net.www.protocol.jar.JarURLConnection");
+    }
 
     @Override
     public void afterRegistration(AfterRegistrationAccess access) {
@@ -359,6 +374,20 @@ public class JDKInitializationFeature implements InternalFeature {
         access.allowStableFieldFoldingBeforeAnalysis(JVMCIReflectionUtil.getUniqueDeclaredField(systemClass, "initialIn"));
         access.allowStableFieldFoldingBeforeAnalysis(JVMCIReflectionUtil.getUniqueDeclaredField(systemClass, "initialErr"));
         access.allowStableFieldFoldingBeforeAnalysis(JVMCIReflectionUtil.getUniqueDeclaredField(guestAccess.lookupType("java.util.jar.Attributes$Name"), "KNOWN_NAMES"));
+
+        if (Platform.includedIn(InternalPlatform.PLATFORM_JNI.class)) {
+            a.registerReachabilityHandler(JDKInitializationFeature::registerInflaterInitIDs, method(a, "java.util.zip.Inflater", "initIDs"));
+            a.registerReachabilityHandler(JDKInitializationFeature::registerAndLinkZip, method(a, "java.util.zip.ZipUtils", "loadLibrary"));
+        }
+    }
+
+    private static void registerInflaterInitIDs(DuringAnalysisAccess a) {
+        JVMCIRuntimeJNIAccess.register(fields(a, "java.util.zip.Inflater", "inputConsumed", "outputConsumed"));
+    }
+
+    private static void registerAndLinkZip(@SuppressWarnings("unused") DuringAnalysisAccess a) {
+        NativeLibrarySupport.singleton().preregisterUninitializedBuiltinLibrary("zip");
+        NativeLibraries.singleton().addStaticJniLibrary("zip");
     }
 
     /**

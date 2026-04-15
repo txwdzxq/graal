@@ -27,13 +27,13 @@ package com.oracle.svm.core.genscavenge.compacting;
 import static com.oracle.svm.core.genscavenge.HeapChunk.CHUNK_HEADER_TOP_IDENTITY;
 import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.genscavenge.AlignedHeapChunk;
 import com.oracle.svm.core.genscavenge.GCImpl;
 import com.oracle.svm.core.genscavenge.HeapChunk;
@@ -107,7 +107,7 @@ public final class PlanningVisitor implements AlignedHeapChunk.Visitor {
                  * Adding the optional identity hash field would increase an object's size, so we
                  * should have copied all objects that need one during marking instead.
                  */
-                assert sweeping || !ConfigurationValues.getObjectLayout().isIdentityHashFieldOptional() ||
+                assert sweeping || !ObjectLayout.singleton().isIdentityHashFieldOptional() ||
                                 !ObjectHeaderImpl.hasIdentityHashFromAddressInline(header);
 
                 if (gapSize.notEqual(0)) { // end of a gap, start of an object sequence

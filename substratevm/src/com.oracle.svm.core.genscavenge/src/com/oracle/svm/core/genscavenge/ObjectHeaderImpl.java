@@ -36,7 +36,6 @@ import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.heap.Heap;
 import com.oracle.svm.core.heap.ObjectHeader;
@@ -90,7 +89,7 @@ public final class ObjectHeaderImpl extends ObjectHeader {
 
     @Platforms(Platform.HOSTED_ONLY.class)
     ObjectHeaderImpl() {
-        numAlignmentBits = CodeUtil.log2(ConfigurationValues.getObjectLayout().getAlignment());
+        numAlignmentBits = CodeUtil.log2(ObjectLayout.singleton().getAlignment());
         int numMinReservedHubBits = 3;
         VMError.guarantee(numMinReservedHubBits <= numAlignmentBits, "Minimum set of reserved bits must be provided by object alignment");
         if (isIdentityHashFieldOptional()) {
@@ -141,7 +140,7 @@ public final class ObjectHeaderImpl extends ObjectHeader {
     @AlwaysInline(INLINE_INITIALIZE_HEADER_INIT_REASON)
     @Override
     protected void initializeObjectHeader(Pointer objectPointer, Word encodedHub, boolean isArrayLike, MemWriter writer) {
-        ObjectLayout ol = ConfigurationValues.getObjectLayout();
+        ObjectLayout ol = ObjectLayout.singleton();
         boolean isIdentityHashFieldInObjectHeader = ol.isIdentityHashFieldInObjectHeader() || ol.isIdentityHashFieldAtTypeSpecificOffset() && isArrayLike;
         if (getReferenceSize() == Integer.BYTES) {
             dynamicAssert(encodedHub.and(Word.unsigned(0xFFFFFFFF00000000L)).isNull(), "hub can only use 32 bits");
@@ -458,7 +457,7 @@ public final class ObjectHeaderImpl extends ObjectHeader {
             if (hasShift()) {
                 // References compressed with shift have no bits to spare, so the forwarding
                 // reference is stored separately, after the object header
-                ObjectLayout layout = ConfigurationValues.getObjectLayout();
+                ObjectLayout layout = ObjectLayout.singleton();
                 assert layout.isAligned(getHubOffset()) && (2 * getReferenceSize()) <= layout.getAlignment() : "Forwarding reference must fit after hub";
                 int forwardRefOffset = getHubOffset() + getReferenceSize();
                 return ReferenceAccess.singleton().readObjectAt(ptr.add(forwardRefOffset), true);
@@ -534,6 +533,6 @@ public final class ObjectHeaderImpl extends ObjectHeader {
 
     @Fold
     static boolean isIdentityHashFieldOptional() {
-        return ConfigurationValues.getObjectLayout().isIdentityHashFieldOptional();
+        return ObjectLayout.singleton().isIdentityHashFieldOptional();
     }
 }

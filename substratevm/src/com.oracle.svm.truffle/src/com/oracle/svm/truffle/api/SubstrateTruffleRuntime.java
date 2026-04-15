@@ -32,6 +32,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import com.oracle.svm.core.config.ObjectLayout;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platform.HOSTED_ONLY;
@@ -39,7 +40,6 @@ import org.graalvm.nativeimage.Platforms;
 import org.graalvm.options.OptionDescriptors;
 
 import com.oracle.svm.shared.util.SubstrateUtil;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.deopt.Deoptimizer;
 import com.oracle.svm.core.deopt.SubstrateSpeculationLog;
 import com.oracle.svm.core.heap.ReferenceInternals;
@@ -433,17 +433,17 @@ public final class SubstrateTruffleRuntime extends OptimizedTruffleRuntime {
 
     @Override
     protected int getObjectAlignment() {
-        return ConfigurationValues.getObjectLayout().getAlignment();
+        return ObjectLayout.singleton().getAlignment();
     }
 
     @Override
     protected int getArrayBaseOffset(Class<?> componentType) {
-        return ConfigurationValues.getObjectLayout().getArrayBaseOffset(JavaKind.fromJavaClass(componentType));
+        return ObjectLayout.singleton().getArrayBaseOffset(JavaKind.fromJavaClass(componentType));
     }
 
     @Override
     protected int getArrayIndexScale(Class<?> componentType) {
-        return ConfigurationValues.getObjectLayout().getArrayIndexScale(JavaKind.fromJavaClass(componentType));
+        return ObjectLayout.singleton().getArrayIndexScale(JavaKind.fromJavaClass(componentType));
     }
 
     @Override

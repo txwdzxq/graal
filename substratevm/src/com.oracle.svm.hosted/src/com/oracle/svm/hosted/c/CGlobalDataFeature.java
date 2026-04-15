@@ -44,10 +44,9 @@ import com.oracle.graal.pointsto.ObjectScanner.ScanReason;
 import com.oracle.graal.pointsto.meta.AnalysisType;
 import com.oracle.svm.core.CGlobalDataPointerSingleton;
 import com.oracle.svm.core.ParsingReason;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.c.BoxedRelocatedPointer;
 import com.oracle.svm.core.c.CGlobalDataNonConstantRegistry;
-import com.oracle.svm.core.config.ConfigurationValues;
-import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.graal.code.CGlobalDataInfo;
 import com.oracle.svm.core.graal.nodes.CGlobalDataLoadAddressNode;
@@ -60,6 +59,7 @@ import com.oracle.svm.hosted.image.RelocatableBuffer;
 import com.oracle.svm.hosted.imagelayer.CodeLocation;
 import com.oracle.svm.hosted.imagelayer.LoadImageSingletonFeature;
 import com.oracle.svm.hosted.meta.HostedSnippetReflectionProvider;
+import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
@@ -397,7 +397,7 @@ public class CGlobalDataFeature implements InternalFeature {
 
     private void layout() {
         assert !isLaidOut() : "Already laid out";
-        final int wordSize = ConfigurationValues.getWordSize();
+        final int wordSize = SubstrateTarget.getWordSize();
         /*
          * Put larger blobs at the end so that offsets are reasonable (<24bit imm) for smaller
          * entries

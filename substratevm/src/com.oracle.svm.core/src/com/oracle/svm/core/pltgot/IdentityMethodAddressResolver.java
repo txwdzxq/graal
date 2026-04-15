@@ -27,8 +27,7 @@ package com.oracle.svm.core.pltgot;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
-
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.guest.staging.c.CGlobalData;
 import com.oracle.svm.guest.staging.c.CGlobalDataFactory;
@@ -41,7 +40,7 @@ public class IdentityMethodAddressResolver implements MethodAddressResolver {
     @Uninterruptible(reason = "Called from the PLT stub where stack walks are not safe.")
     public long resolveMethodWithGotEntry(long gotEntry) {
         /* Fetch the absolute address of the method that corresponds to the target GOT entry. */
-        UnsignedWord methodTableOffset = Word.unsigned(gotEntry).multiply(ConfigurationValues.getWordSize());
+        UnsignedWord methodTableOffset = Word.unsigned(gotEntry).multiply(SubstrateTarget.getWordSize());
         UnsignedWord address = methodTable.get().readWord(methodTableOffset);
         /*
          * Write the resolved address to the GOT entry so that it can be directly used for future

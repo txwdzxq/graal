@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.module.ModuleReader;
 import java.lang.module.ModuleReference;
+import java.lang.ref.SoftReference;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -56,6 +57,12 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
 
     @Alias @RecomputeFieldValue(kind = Kind.Custom, declClass = NewConcurrentHashMap.class) //
     private Map<ModuleReference, ModuleReader> moduleToReader;
+
+    @Alias @RecomputeFieldValue(kind = Kind.Reset) //
+    private volatile SoftReference<Map<String, List<URL>>> resourceCache;
+
+    @Alias
+    public native void loadModule(ModuleReference mref);
 
     @Substitute
     @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)

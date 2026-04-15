@@ -32,7 +32,8 @@ import org.graalvm.word.PointerBase;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.config.ConfigurationValues;
+import com.oracle.svm.core.SubstrateTarget;
+import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.heap.OutOfMemoryUtil;
 import com.oracle.svm.core.heap.RestrictHeapAccess;
 import com.oracle.svm.core.nmt.NmtCategory;
@@ -104,7 +105,7 @@ public abstract class ChunkBasedCommittedMemoryProvider extends AbstractCommitte
      */
     @Fold
     protected static UnsignedWord getAlignmentForUnalignedChunks() {
-        int alignment = Math.max(ConfigurationValues.getWordSize(), ConfigurationValues.getObjectLayout().getAlignment());
+        int alignment = Math.max(SubstrateTarget.getWordSize(), ObjectLayout.singleton().getAlignment());
         return Word.unsigned(alignment);
     }
 

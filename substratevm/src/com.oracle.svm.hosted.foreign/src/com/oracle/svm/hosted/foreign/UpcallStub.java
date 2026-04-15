@@ -41,9 +41,9 @@ import com.oracle.graal.pointsto.meta.AnalysisUniverse;
 import com.oracle.graal.pointsto.meta.HostedProviders;
 import com.oracle.svm.core.ReservedRegisters;
 import com.oracle.svm.core.SubstrateOptions;
+import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.UninterruptibleAnnotationUtils;
 import com.oracle.svm.guest.staging.c.function.CEntryPointErrors;
-import com.oracle.svm.core.config.ConfigurationValues;
 import com.oracle.svm.core.foreign.AbiUtils;
 import com.oracle.svm.core.foreign.AbiUtils.Adapter.Result.TypeAdaptation;
 import com.oracle.svm.core.foreign.JavaEntryPointInfo;
@@ -156,7 +156,7 @@ final class LowLevelUpcallStub extends UpcallStub implements CustomCallingConven
         super(jep, toLowLevelType(adapted.callType()), metaAccess, false, direct);
         this.highLevelStub = highLevelStubMethod;
         this.savedRegisters = SubstrateRegisterConfigFactory.singleton()
-                        .newRegisterFactory(SubstrateRegisterConfig.ConfigKind.NATIVE_TO_JAVA, null, ConfigurationValues.getTarget(), SubstrateOptions.PreserveFramePointer.getValue())
+                        .newRegisterFactory(SubstrateRegisterConfig.ConfigKind.NATIVE_TO_JAVA, null, SubstrateTarget.singleton(), SubstrateOptions.PreserveFramePointer.getValue())
                         .getCalleeSaveRegisters();
         this.parametersAssignment = toLowLevelAssignments(adapted);
     }

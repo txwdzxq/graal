@@ -80,6 +80,7 @@ import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.hosted.meta.HostedSnippetReflectionProvider;
 import com.oracle.svm.hosted.meta.HostedType;
 import com.oracle.svm.hosted.meta.HostedUniverse;
+import com.oracle.svm.hosted.substitute.SubstitutionMethod;
 import com.oracle.svm.hosted.thread.VMThreadLocalCollector;
 import com.oracle.svm.shared.option.HostedOptionValues;
 import com.oracle.svm.shared.util.ModuleSupport;
@@ -312,6 +313,18 @@ public class SVMImageLayerSnapshotUtil {
             if (originalMethod != null) {
                 return addModuleName(method.getQualifiedName() + " " + getResolvedJavaMethodQualifiedName(originalMethod), moduleName);
             }
+        }
+        if (method.wrapped instanceof SubstitutionMethod substitutionMethod) {
+            /*
+             * A layered image can track both the original method and its substitution wrapper when
+             * a substitution calls an aliased original method. The descriptor therefore needs to
+             * encode both identities to remain unique and stable across layers.
+             */
+            ResolvedJavaMethod annotated = substitutionMethod.getAnnotated();
+            ResolvedJavaMethod original = substitutionMethod.getOriginal();
+            String annotatedModule = JVMCIReflectionUtil.getModule(annotated.getDeclaringClass()).getName();
+            String originalModule = JVMCIReflectionUtil.getModule(original.getDeclaringClass()).getName();
+            return addModuleName(getResolvedJavaMethodQualifiedName(original), originalModule) + "->" + addModuleName(getResolvedJavaMethodQualifiedName(annotated), annotatedModule);
         }
         if (!(method.wrapped instanceof HotSpotResolvedJavaMethod)) {
             return addModuleName(getQualifiedName(method), moduleName);
