@@ -31,13 +31,14 @@ import java.lang.annotation.Target;
 
 /**
  * Specifies extra native-image build arguments required by a unit test when run with
- * {@code mx native-unittest}. The test harness applies the arguments before building the JUnit
- * image for the selected test set.
+ * {@code mx native-unittest}. The test harness computes the effective build-arg list for each
+ * selected test and groups together tests with the same effective list so they can share one
+ * native-image build.
  *
  * If a selected test class and one of its superclasses both declare this annotation, the harness
  * combines their argument lists additively. Subclass arguments are applied first, superclass
  * arguments are appended afterwards, and duplicate arguments are removed while preserving that
- * order.
+ * order. The resulting ordered list is the grouping key used by {@code mx native-unittest}.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)

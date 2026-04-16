@@ -42,8 +42,20 @@ import java.util.Optional;
 import org.junit.runners.Suite;
 
 /**
- * Collects {@code @NativeImageBuildArgs} annotations from the selected JUnit test classes without
- * initializing the classes.
+ * Computes the effective {@code @NativeImageBuildArgs} for the selected JUnit tests without
+ * initializing the classes and groups tests by that effective argument list.
+ *
+ * <p>For each selected test, this helper:
+ * <ul>
+ * <li>loads the selected test class without running class initialization,</li>
+ * <li>expands {@code @SuiteClasses} transitively,</li>
+ * <li>collects {@code @NativeImageBuildArgs} from the class and its superclasses, preserving the
+ * subclass-to-superclass order and removing duplicates, and</li>
+ * <li>groups tests that end up with the same effective build-arg list.</li>
+ * </ul>
+ *
+ * <p>{@code mx native-unittest} then consumes the grouped manifest and decides which groups should
+ * produce separate images for the current invocation.
  */
 public final class NativeImageBuildArgsSupport {
     /*
@@ -72,6 +84,10 @@ public final class NativeImageBuildArgsSupport {
         }
     }
 
+    /**
+     * Returns one entry per selected test with the fully expanded effective build-arg list for
+     * that test.
+     */
     static List<TestBuildArgs> collectBuildArgsByTest(List<String> selectedTests, ClassLoader classLoader) throws ClassNotFoundException {
         List<TestBuildArgs> testsWithBuildArgs = new ArrayList<>();
         for (String selectedTest : selectedTests) {
@@ -82,6 +98,14 @@ public final class NativeImageBuildArgsSupport {
         return testsWithBuildArgs;
     }
 
+    /**
+     * Collects the effective build args for {@code selectedTest}.
+     *
+     * <p>The selected class is the starting point. If it is a JUnit suite, its
+     * {@code @SuiteClasses} members are visited too. For every visited class, build args from
+     * the class hierarchy are appended from subclass to superclass, and duplicates are removed
+     * while preserving that first-seen order.
+     */
     private static List<String> collectBuildArgs(String selectedTest, ClassLoader classLoader) throws ClassNotFoundException {
         LinkedHashSet<String> buildArgs = new LinkedHashSet<>();
         LinkedHashSet<Class<?>> visitedClasses = new LinkedHashSet<>();
@@ -158,6 +182,10 @@ public final class NativeImageBuildArgsSupport {
         }
     }
 
+    /**
+     * Groups tests by their effective build-arg list. Groups preserve first encounter order from
+     * the selected test list so the Python side can iterate them deterministically.
+     */
     private static List<TestBuildArgsGroup> groupTestsByBuildArgs(List<TestBuildArgs> testsWithBuildArgs) {
         LinkedHashMap<List<String>, List<String>> groupedTests = new LinkedHashMap<>();
         for (TestBuildArgs testBuildArgs : testsWithBuildArgs) {
@@ -169,6 +197,13 @@ public final class NativeImageBuildArgsSupport {
         return result;
     }
 
+    /**
+     * Writes the grouped test/build-args manifest as JSON.
+     *
+     * <p>This helper is packaged in {@code JUNIT_SUPPORT}, which is shared across native-unittest
+     * configurations. The manifest format is intentionally simple, so keep the writer local instead
+     * of adding a JSON library dependency just for this handoff file.
+     */
     private static void writeGroupedManifest(Path manifestFile, List<TestBuildArgsGroup> groups) throws IOException {
         StringBuilder json = new StringBuilder();
         json.append("[\n");
@@ -193,6 +228,10 @@ public final class NativeImageBuildArgsSupport {
         json.append(']');
     }
 
+    /**
+     * Escapes exactly the characters that must be escaped in a JSON string, plus any remaining
+     * ASCII control characters.
+     */
     private static void appendJsonString(StringBuilder json, String value) {
         json.append('"');
         for (int i = 0; i < value.length(); i++) {
