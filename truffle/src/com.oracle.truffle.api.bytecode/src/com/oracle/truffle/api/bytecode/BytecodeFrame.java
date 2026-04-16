@@ -42,13 +42,18 @@ package com.oracle.truffle.api.bytecode;
 
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.function.Function;
 
+import com.oracle.truffle.api.RootCallTarget;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleStackTraceElement;
 import com.oracle.truffle.api.frame.Frame;
 import com.oracle.truffle.api.frame.FrameDescriptor;
 import com.oracle.truffle.api.frame.FrameInstance;
 import com.oracle.truffle.api.frame.FrameInstance.FrameAccess;
+import com.oracle.truffle.api.frame.FrameInstanceVisitor;
+import com.oracle.truffle.api.nodes.Node;
+import com.oracle.truffle.api.nodes.RootNode;
 
 /**
  * Represents a captured Bytecode DSL frame, including the location metadata needed to access the
@@ -346,5 +351,135 @@ public final class BytecodeFrame {
             throw new IllegalArgumentException("Bytecode index of TruffleStackTraceElement cannot be negative.");
         }
         return new BytecodeFrame(frame, bytecode, bytecodeIndex);
+    }
+
+    /**
+     * Returns the current top stack activation as a {@link BytecodeFrame bytecode frame}.
+     * <p>
+     * The top frame's location is derived using {@code topLocation} and {@code topBytecodeIndex}.
+     * If {@code topBytecodeIndex} is {@code -1}, the bytecode index is resolved from
+     * {@code topLocation} and the resolved top {@link Frame}.
+     *
+     * @param access the access mode used when resolving the top frame
+     * @param topLocation a node in the current top bytecode activation
+     * @param topBytecodeIndex the bytecode index of the current top bytecode activation, or
+     *            {@code -1} to resolve it from {@code topLocation} and the resolved frame
+     * @return the current top bytecode frame
+     * @throws IllegalArgumentException if {@code topLocation} and {@code topBytecodeIndex} do not
+     *             identify a valid location for the top frame, or if the top frame is not a
+     *             bytecode frame.
+     * @since 25.1
+     */
+    public static BytecodeFrame getTop(FrameInstance.FrameAccess access, Node topLocation, int topBytecodeIndex) {
+        return iterateBytecodeFrames(frame -> frame, access, topLocation, topBytecodeIndex, 0);
+    }
+
+    /**
+     * Iterates the current stack as {@link BytecodeFrame bytecode frames}, starting with the
+     * current top activation.
+     * <p>
+     * This method uses {@link com.oracle.truffle.api.TruffleRuntime#iterateFrames} to perform a
+     * stack walk, constructing each {@link BytecodeFrame} instance from an underlying
+     * {@link FrameInstance}. Frame instances that do not correspond to bytecode frames are ignored.
+     * <p>
+     * The visitor is invoked for each available bytecode frame until it returns a non-{@code null}
+     * value, which is then returned from this method. If the visitor always returns {@code null},
+     * this method returns {@code null}.
+     * <p>
+     * The stack walk begins with the current (top) activation. The top frame's location is derived
+     * using {@code topLocation} and {@code topBytecodeIndex}. These parameters are necessary
+     * because the {@link FrameInstance} for the top activation does not necessarily provide
+     * location information.
+     * <p>
+     * If {@code skipBytecodeFrames > 0}, the top frame is skipped and {@code topLocation} and
+     * {@code topBytecodeIndex} are ignored. Otherwise, {@code topLocation} must identify a node in
+     * the current top bytecode activation, and {@code topBytecodeIndex} must be a valid bytecode
+     * index or {@code -1}. When {@code topBytecodeIndex} is {@code -1}, the bytecode index of the
+     * top frame is computed using {@code topLocation} and the resolved top {@link Frame}.
+     *
+     * @param visitor the visitor applied to each bytecode frame
+     * @param access the access mode used when resolving frames from runtime stack frames
+     * @param topLocation a node in the current top bytecode activation; ignored if
+     *            {@code skipBytecodeFrames > 0}
+     * @param topBytecodeIndex the bytecode index of the current top bytecode activation, or
+     *            {@code -1} to resolve it from {@code topLocation} and the resolved frame; ignored
+     *            if {@code skipBytecodeFrames > 0}
+     * @param skipBytecodeFrames the number of bytecode frames to skip before invoking the visitor
+     * @return the first non-{@code null} value returned by {@code visitor}, or {@code null} if no
+     *         visited frame produces one
+     * @throws IllegalArgumentException if the top frame is not skipped and {@code topLocation} and
+     *             {@code topBytecodeIndex} do not identify a valid location for the top frame, or
+     *             if the top frame is not a bytecode frame.
+     * @since 25.1
+     */
+    public static <T> T iterateBytecodeFrames(Function<BytecodeFrame, T> visitor, FrameInstance.FrameAccess access, Node topLocation, int topBytecodeIndex,
+                    @SuppressWarnings("unused") int skipBytecodeFrames) {
+        if (skipBytecodeFrames < 0) {
+            throw new IllegalArgumentException("The skipBytecodeFrames parameter must be >= 0.");
+        }
+
+        return Truffle.getRuntime().iterateFrames(new FrameInstanceVisitor<>() {
+            int remainingSkips = skipBytecodeFrames;
+            boolean first = true;
+
+            @Override
+            public T visitFrame(FrameInstance frameInstance) {
+                if (first) {
+                    first = false;
+                    if (remainingSkips > 0) {
+                        remainingSkips--;
+                        return null;
+                    }
+                    return visitor.apply(createTopFrame(frameInstance, access, topLocation, topBytecodeIndex));
+                }
+
+                BytecodeFrame frame = BytecodeFrame.get(frameInstance, access);
+                if (frame == null) {
+                    // not a bytecode frame.
+                    return null;
+                } else if (remainingSkips > 0) {
+                    remainingSkips--;
+                    return null;
+                }
+                return visitor.apply(frame);
+            }
+        });
+    }
+
+    private static BytecodeFrame createTopFrame(FrameInstance frameInstance, FrameAccess access, Node topLocation, int topBytecodeIndex) {
+        if (topBytecodeIndex < -1) {
+            throw new IllegalArgumentException("The topBytecodeIndex parameter must be >= -1.");
+        }
+        Objects.requireNonNull(topLocation, "topLocation");
+        BytecodeNode bytecode = BytecodeNode.get(topLocation);
+        if (bytecode == null) {
+            throw new IllegalArgumentException("The topLocation parameter must identify a node in the current top bytecode activation.");
+        }
+        RootNode frameRootNode = unwrapRootNode(frameInstance);
+        if (frameRootNode != bytecode.getRootNode()) {
+            throw new IllegalArgumentException(
+                            "The top frame activation has a different root node (%s) than the bytecode node resolved from topLocation (%s).".formatted(frameRootNode, bytecode.getRootNode()));
+        }
+        Frame frame = bytecode.resolveFrameImpl(frameInstance, access);
+        int bytecodeIndex = topBytecodeIndex;
+        if (bytecodeIndex == -1) {
+            bytecodeIndex = bytecode.findBytecodeIndexImpl(frame, topLocation);
+            if (bytecodeIndex < 0) {
+                throw new IllegalArgumentException("Could not resolve the bytecode index of the current top bytecode activation.");
+            }
+        }
+        return new BytecodeFrame(frame, bytecode, bytecodeIndex);
+    }
+
+    private static RootNode unwrapRootNode(FrameInstance frameInstance) {
+        if (frameInstance.getCallTarget() instanceof RootCallTarget rct) {
+            RootNode root = rct.getRootNode();
+            if (root instanceof ContinuationRootNode continuation) {
+                return (RootNode) continuation.getSourceRootNode();
+            } else {
+                return root;
+            }
+        }
+        return null;
     }
 }

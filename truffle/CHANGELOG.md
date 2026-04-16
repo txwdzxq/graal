@@ -88,6 +88,7 @@ This changelog summarizes major changes between Truffle versions relevant to lan
 * GR-72488: Bytecode DSL: Added support for lazy loading of source content using `@GenerateBytecode(sourceContentSupplier=...)`. This attribute allows to parse sources without content and only load source content upon request, reducing interpreter footprint when full source content is not needed.
 * GR-74314: Bytecode DSL: Added generated `BytecodeRootNode#getSource()` to return the source associated with a bytecode root node, or `null` when no source information is available.
 * GR-74761: Bytecode DSL: Tightened validation of invalid bytecode indices across Bytecode DSL APIs. Constructing a `BytecodeFrame` or `BytecodeLocation` from a `TruffleStackTraceElement` with illegal bytecode index now throws an `IllegalArgumentException`; `BytecodeNode#getBytecodeLocation(Frame, Node)` now reliably returns `null` when no valid bytecode index can be determined; other `BytecodeNode` APIs that take a `bytecodeIndex` or `FrameInstance` now consistently assert that the bytecode index is valid.
+* GR-74761: Bytecode DSL: Added `BytecodeFrame.getTop(...)` and `BytecodeFrame.iterateBytecodeFrames(...)` helpers for accessing Bytecode DSL frames during stack walks.
 
 ## Version 25.0
 * GR-31495 Added ability to specify language and instrument specific options using `Source.Builder.option(String, String)`. Languages may describe available source options by implementing `TruffleLanguage.getSourceOptionDescriptors()` and `TruffleInstrument.getSourceOptionDescriptors()` respectively.

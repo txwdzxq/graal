@@ -241,7 +241,7 @@ public abstract class BytecodeNode extends Node {
      */
     public abstract SourceSection[] getSourceLocations(int bytecodeIndex);
 
-    private int findBytecodeIndexImpl(Frame frame, Node location) {
+    int findBytecodeIndexImpl(Frame frame, Node location) {
         Objects.requireNonNull(frame, "Provided frame must not be null.");
         Objects.requireNonNull(location, "Provided location must not be null.");
         Node operationNode = findOperationNode(location);

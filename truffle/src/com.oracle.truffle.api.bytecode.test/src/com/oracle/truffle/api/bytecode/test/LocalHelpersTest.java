@@ -40,6 +40,7 @@
  */
 package com.oracle.truffle.api.bytecode.test;
 
+import static com.oracle.truffle.api.bytecode.test.BytecodeNodeWithLocalIntrospection.IterateBytecodeFrames;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -73,6 +74,7 @@ import com.oracle.truffle.api.TruffleStackTraceElement;
 import com.oracle.truffle.api.bytecode.BytecodeConfig;
 import com.oracle.truffle.api.bytecode.BytecodeFrame;
 import com.oracle.truffle.api.bytecode.BytecodeLocal;
+import com.oracle.truffle.api.bytecode.BytecodeLocation;
 import com.oracle.truffle.api.bytecode.BytecodeNode;
 import com.oracle.truffle.api.bytecode.BytecodeParser;
 import com.oracle.truffle.api.bytecode.BytecodeRootNode;
@@ -1005,6 +1007,305 @@ public class LocalHelpersTest {
         bytecodeFrame.setLocalValue(0, -42);
         assertEquals(-42, bytecodeFrame.getLocalValue(0));
         assertEquals(new Pair(444, 42), cont.continueWith(null));
+    }
+
+    @Test
+    public void testIterateBytecodeFramesTopFrame() {
+        BytecodeNodeWithLocalIntrospection root = parseIterateBytecodeFramesCallee(IterateBytecodeFrames.USE_CURRENT_BCI, IterateBytecodeFrames.USE_CURRENT_LOCATION, 0);
+        BytecodeFrame[] frames = (BytecodeFrame[]) root.getCallTarget().call();
+        assertEquals(1, frames.length);
+        checkCalleeBytecodeFrame(root, frames[0], "c.IterateBytecodeFrames");
+    }
+
+    @Test
+    public void testIterateBytecodeFramesTopFrameComputedBci() {
+        BytecodeNodeWithLocalIntrospection root = parseIterateBytecodeFramesCallee(-1, IterateBytecodeFrames.USE_CURRENT_LOCATION, 0);
+        BytecodeFrame[] frames = (BytecodeFrame[]) root.getCallTarget().call();
+        assertEquals(1, frames.length);
+        checkCalleeBytecodeFrame(root, frames[0], "c.IterateBytecodeFrames");
+    }
+
+    @Test
+    public void testGetTopTopFrame() {
+        BytecodeNodeWithLocalIntrospection root = parseGetTopCallee();
+        BytecodeFrame frame = (BytecodeFrame) root.getCallTarget().call();
+        checkCalleeBytecodeFrame(root, frame, "c.GetTop");
+    }
+
+    @Test
+    public void testIterateBytecodeFramesBadTopLocation() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            BytecodeNodeWithLocalIntrospection root = parseIterateBytecodeFramesCallee(IterateBytecodeFrames.USE_CURRENT_BCI, IterateBytecodeFrames.USE_INVALID_LOCATION, 0);
+            root.getCallTarget().call();
+        });
+    }
+
+    @Test
+    public void testIterateBytecodeFramesBadTopBci() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            BytecodeNodeWithLocalIntrospection root = parseIterateBytecodeFramesCallee(-2, IterateBytecodeFrames.USE_CURRENT_LOCATION, 0);
+            root.getCallTarget().call();
+        });
+    }
+
+    @Test
+    public void testIterateBytecodeFramesBadSkipFrames() {
+        assertThrows(IllegalArgumentException.class, () -> {
+            BytecodeNodeWithLocalIntrospection root = parseIterateBytecodeFramesCallee(IterateBytecodeFrames.USE_CURRENT_BCI, IterateBytecodeFrames.USE_CURRENT_LOCATION, -1);
+            root.getCallTarget().call();
+        });
+    }
+
+    @Test
+    public void testIterateBytecodeFramesMismatchedTopLocation() {
+        BytecodeNodeWithLocalIntrospection callee = parseNode(b -> {
+            b.beginRoot();
+            b.beginReturn();
+            b.beginIterateBytecodeFrames();
+            b.emitLoadConstant(-1);
+            b.emitLoadArgument(0); // caller's location
+            b.emitLoadConstant(0);
+            b.endIterateBytecodeFrames();
+            b.endReturn();
+            b.endRoot();
+        });
+
+        BytecodeNodeWithLocalIntrospection caller = parseNode(b -> {
+            b.beginRoot();
+            b.beginReturn();
+            b.beginInvoke();
+            b.emitLoadConstant(callee);
+            b.emitGetCurrentLocation();
+            b.endInvoke();
+            b.endReturn();
+            b.endRoot();
+        });
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () -> caller.getCallTarget().call());
+        assertTrue(error.getMessage(), error.getMessage().contains("different root node"));
+    }
+
+    @Test
+    public void testIterateBytecodeFramesTopFrameContinuation() {
+        BytecodeNodeWithLocalIntrospection root = parseNode(b -> {
+            b.beginRoot();
+            b.beginBlock();
+            BytecodeLocal foo = makeLocal(b, "foo");
+            BytecodeLocal bar = makeLocal(b, "bar");
+
+            b.beginStoreLocal(foo);
+            b.emitLoadConstant(42);
+            b.endStoreLocal();
+
+            b.beginStoreLocal(bar);
+            b.emitLoadConstant(123);
+            b.endStoreLocal();
+
+            b.beginYield();
+            b.emitLoadConstant(0);
+            b.endYield();
+
+            b.beginReturn();
+            b.beginIterateBytecodeFrames();
+            b.emitLoadConstant(IterateBytecodeFrames.USE_CURRENT_BCI);
+            b.emitLoadConstant(IterateBytecodeFrames.USE_CURRENT_LOCATION);
+            b.emitLoadConstant(0);
+            b.endIterateBytecodeFrames();
+            b.endReturn();
+
+            b.endBlock();
+            b.endRoot();
+        });
+
+        ContinuationResult cont = (ContinuationResult) root.getCallTarget().call(444);
+        BytecodeFrame[] frames = (BytecodeFrame[]) cont.continueWith(null);
+        assertEquals(1, frames.length);
+        checkCalleeBytecodeFrame(root, frames[0], "c.IterateBytecodeFrames");
+    }
+
+    @Test
+    public void testIterateBytecodeFramesShortCircuits() {
+        BytecodeNodeWithLocalIntrospection callee = parseNode(b -> {
+            b.beginRoot();
+            b.beginReturn();
+            b.emitIterateBytecodeFramesShortCircuit();
+            b.endReturn();
+            b.endRoot();
+        });
+        BytecodeNodeWithLocalIntrospection caller = parseIterateBytecodeFramesCaller(callee);
+        assertEquals(1, caller.getCallTarget().call());
+    }
+
+    @Test
+    public void testIterateBytecodeFramesAllFrames() {
+        BytecodeNodeWithLocalIntrospection callee = parseIterateBytecodeFramesCallee(IterateBytecodeFrames.USE_CURRENT_BCI, IterateBytecodeFrames.USE_CURRENT_LOCATION, 0);
+        BytecodeNodeWithLocalIntrospection caller = parseIterateBytecodeFramesCaller(callee);
+        BytecodeFrame[] frames = (BytecodeFrame[]) caller.getCallTarget().call();
+        assertEquals(2, frames.length);
+        checkCalleeBytecodeFrame(callee, frames[0], "c.IterateBytecodeFrames");
+        checkCallerBytecodeFrame(caller, frames[1]);
+    }
+
+    @Test
+    public void testIterateBytecodeFramesNoFrames() {
+        BytecodeNodeWithLocalIntrospection callee = parseIterateBytecodeFramesCallee(IterateBytecodeFrames.USE_CURRENT_BCI, IterateBytecodeFrames.USE_CURRENT_LOCATION, 2);
+        BytecodeNodeWithLocalIntrospection caller = parseIterateBytecodeFramesCaller(callee);
+        BytecodeFrame[] frames = (BytecodeFrame[]) caller.getCallTarget().call();
+        assertEquals(0, frames.length);
+    }
+
+    @Test
+    public void testIterateBytecodeFramesSkipTopFrame() {
+        BytecodeNodeWithLocalIntrospection callee = parseIterateBytecodeFramesCallee(IterateBytecodeFrames.USE_CURRENT_BCI, IterateBytecodeFrames.USE_CURRENT_LOCATION, 1);
+        BytecodeNodeWithLocalIntrospection caller = parseIterateBytecodeFramesCaller(callee);
+        BytecodeNodeWithLocalIntrospection grandCaller = parseIterateBytecodeFramesGrandCaller(caller);
+        BytecodeFrame[] frames = (BytecodeFrame[]) grandCaller.getCallTarget().call();
+        assertEquals(2, frames.length);
+        checkCallerBytecodeFrame(caller, frames[0]);
+        checkGrandCallerBytecodeFrame(grandCaller, frames[1]);
+    }
+
+    @Test
+    public void testIterateBytecodeFramesSkipTopFrameIgnoresTopMetadata() {
+        BytecodeNodeWithLocalIntrospection callee = parseIterateBytecodeFramesCallee(-2, IterateBytecodeFrames.USE_INVALID_LOCATION, 1);
+        BytecodeNodeWithLocalIntrospection caller = parseIterateBytecodeFramesCaller(callee);
+        BytecodeNodeWithLocalIntrospection grandCaller = parseIterateBytecodeFramesGrandCaller(caller);
+        BytecodeFrame[] frames = (BytecodeFrame[]) grandCaller.getCallTarget().call();
+        assertEquals(2, frames.length);
+        checkCallerBytecodeFrame(caller, frames[0]);
+        checkGrandCallerBytecodeFrame(grandCaller, frames[1]);
+    }
+
+    @Test
+    public void testIterateBytecodeFramesSkipTwoFrames() {
+        BytecodeNodeWithLocalIntrospection callee = parseIterateBytecodeFramesCallee(IterateBytecodeFrames.USE_CURRENT_BCI, IterateBytecodeFrames.USE_CURRENT_LOCATION, 2);
+        BytecodeNodeWithLocalIntrospection caller = parseIterateBytecodeFramesCaller(callee);
+        BytecodeNodeWithLocalIntrospection grandCaller = parseIterateBytecodeFramesGrandCaller(caller);
+        BytecodeFrame[] frames = (BytecodeFrame[]) grandCaller.getCallTarget().call();
+        assertEquals(1, frames.length);
+        checkGrandCallerBytecodeFrame(grandCaller, frames[0]);
+    }
+
+    private BytecodeNodeWithLocalIntrospection parseIterateBytecodeFramesCallee(int topBytecodeIndex, Object topLocation, int skipFrames) {
+        return parseNode(b -> {
+            b.beginRoot();
+            b.beginBlock();
+            BytecodeLocal foo = makeLocal(b, "foo");
+            BytecodeLocal bar = makeLocal(b, "bar");
+
+            b.beginStoreLocal(foo);
+            b.emitLoadConstant(42);
+            b.endStoreLocal();
+
+            b.beginStoreLocal(bar);
+            b.emitLoadConstant(123);
+            b.endStoreLocal();
+
+            b.beginReturn();
+            b.beginIterateBytecodeFrames();
+            b.emitLoadConstant(topBytecodeIndex);
+            b.emitLoadConstant(topLocation);
+            b.emitLoadConstant(skipFrames);
+            b.endIterateBytecodeFrames();
+            b.endReturn();
+
+            b.endBlock();
+            b.endRoot();
+        });
+    }
+
+    private BytecodeNodeWithLocalIntrospection parseGetTopCallee() {
+        return parseNode(b -> {
+            b.beginRoot();
+            b.beginBlock();
+            BytecodeLocal foo = makeLocal(b, "foo");
+            BytecodeLocal bar = makeLocal(b, "bar");
+
+            b.beginStoreLocal(foo);
+            b.emitLoadConstant(42);
+            b.endStoreLocal();
+
+            b.beginStoreLocal(bar);
+            b.emitLoadConstant(123);
+            b.endStoreLocal();
+
+            b.beginReturn();
+            b.emitGetTop();
+            b.endReturn();
+
+            b.endBlock();
+            b.endRoot();
+        });
+    }
+
+    private BytecodeNodeWithLocalIntrospection parseIterateBytecodeFramesCaller(BytecodeNodeWithLocalIntrospection callee) {
+        return parseNode(b -> {
+            b.beginRoot();
+            b.beginBlock();
+            BytecodeLocal baz = makeLocal(b, "baz");
+
+            b.beginStoreLocal(baz);
+            b.emitLoadConstant(7);
+            b.endStoreLocal();
+
+            b.beginReturn();
+            b.beginInvoke();
+            b.emitLoadConstant(callee);
+            b.endInvoke();
+            b.endReturn();
+
+            b.endBlock();
+            b.endRoot();
+        });
+    }
+
+    private BytecodeNodeWithLocalIntrospection parseIterateBytecodeFramesGrandCaller(BytecodeNodeWithLocalIntrospection caller) {
+        return parseNode(b -> {
+            b.beginRoot();
+            b.beginBlock();
+            BytecodeLocal qux = makeLocal(b, "qux");
+
+            b.beginStoreLocal(qux);
+            b.emitLoadConstant(9);
+            b.endStoreLocal();
+
+            b.beginReturn();
+            b.beginInvoke();
+            b.emitLoadConstant(caller);
+            b.endInvoke();
+            b.endReturn();
+
+            b.endBlock();
+            b.endRoot();
+        });
+    }
+
+    private static void checkCalleeBytecodeFrame(BytecodeNodeWithLocalIntrospection root, BytecodeFrame frame, String expectedInstruction) {
+        assertEquals(2, frame.getLocalCount());
+        assertArrayEquals(new Object[]{"foo", "bar"}, frame.getLocalNames());
+        assertEquals(42, frame.getLocalValue(0));
+        assertEquals(123, frame.getLocalValue(1));
+        BytecodeLocation frameLocation = frame.getLocation();
+        assertSame(root.getBytecodeNode(), frameLocation.getBytecodeNode());
+        assertEquals(expectedInstruction, frameLocation.getInstruction().getName());
+    }
+
+    private static void checkCallerBytecodeFrame(BytecodeNodeWithLocalIntrospection root, BytecodeFrame frame) {
+        assertEquals(1, frame.getLocalCount());
+        assertArrayEquals(new Object[]{"baz"}, frame.getLocalNames());
+        assertEquals(7, frame.getLocalValue(0));
+        BytecodeLocation frameLocation = frame.getLocation();
+        assertSame(root.getBytecodeNode(), frameLocation.getBytecodeNode());
+        assertEquals("c.Invoke", frameLocation.getInstruction().getName());
+    }
+
+    private static void checkGrandCallerBytecodeFrame(BytecodeNodeWithLocalIntrospection root, BytecodeFrame frame) {
+        assertEquals(1, frame.getLocalCount());
+        assertArrayEquals(new Object[]{"qux"}, frame.getLocalNames());
+        assertEquals(9, frame.getLocalValue(0));
+        BytecodeLocation frameLocation = frame.getLocation();
+        assertSame(root.getBytecodeNode(), frameLocation.getBytecodeNode());
+        assertEquals("c.Invoke", frameLocation.getInstruction().getName());
     }
 
     private void doTestBytecodeFrameGet(boolean yield, Function<Integer, Boolean> frameCaptured, boolean frameWritable, RootNode collectBytecodeFrames) {
@@ -2331,6 +2632,70 @@ abstract class BytecodeNodeWithLocalIntrospection extends DebugBytecodeRootNode 
         @Specialization
         public static BytecodeFrame perform(VirtualFrame frame, @Bind BytecodeNode node, @Bind("$bytecodeIndex") int bci) {
             return node.createCopiedFrame(bci, frame);
+        }
+    }
+
+    @Operation
+    public static final class GetCurrentLocation {
+        @Specialization
+        public static Node perform(@Bind Node currentLocation) {
+            return currentLocation;
+        }
+    }
+
+    @Operation
+    public static final class IterateBytecodeFrames {
+        public static final int USE_CURRENT_BCI = Integer.MIN_VALUE;
+        public static final Object USE_CURRENT_LOCATION = new Object();
+        public static final Object USE_INVALID_LOCATION = new Object();
+
+        @Specialization
+        public static BytecodeFrame[] perform(int topBytecodeIndex, Object topLocation, int skipBytecodeFrames, @Bind Node currentTopLocation, @Bind("$bytecodeIndex") int currentBytecodeIndex) {
+            int bci = topBytecodeIndex == USE_CURRENT_BCI ? currentBytecodeIndex : topBytecodeIndex;
+            Node location;
+            if (topLocation == USE_CURRENT_LOCATION) {
+                location = currentTopLocation;
+            } else if (topLocation == USE_INVALID_LOCATION) {
+                location = new Node() {
+                };
+            } else {
+                location = (Node) topLocation;
+            }
+            List<BytecodeFrame> frames = new ArrayList<>();
+            BytecodeFrame.iterateBytecodeFrames(frame -> {
+                frames.add(frame);
+                return null;
+            }, FrameInstance.FrameAccess.READ_WRITE, location, bci, skipBytecodeFrames);
+            return frames.toArray(BytecodeFrame[]::new);
+        }
+    }
+
+    // Validates short circuiting behaviour.
+    @Operation
+    public static final class IterateBytecodeFramesShortCircuit {
+        @Specialization
+        public static int perform(@Bind Node currentTopLocation, @Bind("$bytecodeIndex") int currentBytecodeIndex) {
+            CountingVisitor visitor = new CountingVisitor();
+            BytecodeFrame.iterateBytecodeFrames(visitor, FrameInstance.FrameAccess.READ_WRITE, currentTopLocation, currentBytecodeIndex, 0);
+            return visitor.invocations;
+        }
+
+        private static final class CountingVisitor implements Function<BytecodeFrame, String> {
+            int invocations = 0;
+
+            @Override
+            public String apply(BytecodeFrame frame) {
+                invocations++;
+                return "Done"; // terminates the stack walk.
+            }
+        }
+    }
+
+    @Operation
+    public static final class GetTop {
+        @Specialization
+        public static BytecodeFrame perform(@Bind Node currentTopLocation, @Bind("$bytecodeIndex") int currentBytecodeIndex) {
+            return BytecodeFrame.getTop(FrameInstance.FrameAccess.READ_WRITE, currentTopLocation, currentBytecodeIndex);
         }
     }
 
