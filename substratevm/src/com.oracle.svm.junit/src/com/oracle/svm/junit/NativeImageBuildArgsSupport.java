@@ -45,7 +45,8 @@ import org.junit.runners.Suite;
  * Computes the effective {@code @NativeImageBuildArgs} for the selected JUnit tests without
  * initializing the classes and groups tests by that effective argument list.
  *
- * <p>For each selected test, this helper:
+ * <p>
+ * For each selected test, this helper:
  * <ul>
  * <li>loads the selected test class without running class initialization,</li>
  * <li>expands {@code @SuiteClasses} transitively,</li>
@@ -54,7 +55,8 @@ import org.junit.runners.Suite;
  * <li>groups tests that end up with the same effective build-arg list.</li>
  * </ul>
  *
- * <p>{@code mx native-unittest} then consumes the grouped manifest and decides which groups should
+ * <p>
+ * {@code mx native-unittest} then consumes the grouped manifest and decides which groups should
  * produce separate images for the current invocation.
  */
 public final class NativeImageBuildArgsSupport {
@@ -64,24 +66,30 @@ public final class NativeImageBuildArgsSupport {
      * reflectively by name instead.
      */
     private static final String NATIVE_IMAGE_BUILD_ARGS_ANNOTATION = "com.oracle.svm.test.NativeImageBuildArgs";
-    private static final String OUTPUT_SEPARATOR = "\t";
 
     private NativeImageBuildArgsSupport() {
     }
 
+    /**
+     * Entry point for the native-unittest build-arg helper.
+     *
+     * <p>
+     * Arguments:
+     * <ul>
+     * <li>{@code args[0]}: path to the file listing the selected test ids, one per line,</li>
+     * <li>{@code args[1]}: output path for the grouped JSON manifest.</li>
+     * </ul>
+     *
+     * <p>
+     * The helper writes the grouped manifest to {@code args[1]}.
+     */
     public static void main(String[] args) throws IOException, ClassNotFoundException {
-        if (args.length != 1 && args.length != 2) {
-            throw new IllegalArgumentException("Expected the selected test classes file and an optional manifest output file.");
+        if (args.length != 2) {
+            throw new IllegalArgumentException("Expected the selected test classes file and the manifest output file.");
         }
         Path testClassesFile = Path.of(args[0]);
         List<TestBuildArgs> testsWithBuildArgs = collectBuildArgsByTest(Files.readAllLines(testClassesFile), Thread.currentThread().getContextClassLoader());
-        if (args.length == 1) {
-            for (TestBuildArgs testBuildArgs : testsWithBuildArgs) {
-                System.out.println(testBuildArgs.toOutputLine());
-            }
-        } else {
-            writeGroupedManifest(Path.of(args[1]), groupTestsByBuildArgs(testsWithBuildArgs));
-        }
+        writeGroupedManifest(Path.of(args[1]), groupTestsByBuildArgs(testsWithBuildArgs));
     }
 
     /**
@@ -101,10 +109,11 @@ public final class NativeImageBuildArgsSupport {
     /**
      * Collects the effective build args for {@code selectedTest}.
      *
-     * <p>The selected class is the starting point. If it is a JUnit suite, its
-     * {@code @SuiteClasses} members are visited too. For every visited class, build args from
-     * the class hierarchy are appended from subclass to superclass, and duplicates are removed
-     * while preserving that first-seen order.
+     * <p>
+     * The selected class is the starting point. If it is a JUnit suite, its {@code @SuiteClasses}
+     * members are visited too. For every visited class, build args from the class hierarchy are
+     * appended from subclass to superclass, and duplicates are removed while preserving that
+     * first-seen order.
      */
     private static List<String> collectBuildArgs(String selectedTest, ClassLoader classLoader) throws ClassNotFoundException {
         LinkedHashSet<String> buildArgs = new LinkedHashSet<>();
@@ -200,7 +209,8 @@ public final class NativeImageBuildArgsSupport {
     /**
      * Writes the grouped test/build-args manifest as JSON.
      *
-     * <p>This helper is packaged in {@code JUNIT_SUPPORT}, which is shared across native-unittest
+     * <p>
+     * This helper is packaged in {@code JUNIT_SUPPORT}, which is shared across native-unittest
      * configurations. The manifest format is intentionally simple, so keep the writer local instead
      * of adding a JSON library dependency just for this handoff file.
      */
@@ -263,15 +273,6 @@ public final class NativeImageBuildArgsSupport {
         private TestBuildArgs(String selectedTest, List<String> buildArgs) {
             this.selectedTest = selectedTest;
             this.buildArgs = buildArgs;
-        }
-
-        private String toOutputLine() {
-            /* One line per selected test: test-id TAB arg TAB arg ... */
-            StringBuilder outputLine = new StringBuilder(selectedTest);
-            for (String buildArg : buildArgs) {
-                outputLine.append(OUTPUT_SEPARATOR).append(buildArg);
-            }
-            return outputLine.toString();
         }
     }
 
