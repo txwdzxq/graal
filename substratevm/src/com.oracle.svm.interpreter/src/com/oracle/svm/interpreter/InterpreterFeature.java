@@ -263,7 +263,7 @@ public class InterpreterFeature implements InternalFeature {
         SubstrateCompilationDirectives.singleton().registerFrameInformationRequired(interpreterRoot);
         SubstrateCompilationDirectives.singleton().registerFrameInformationRequired(intrinsicRoot);
 
-        Method leaveMethod = ReflectionUtil.lookupMethod(InterpreterStubSection.class, "leaveInterpreterStub", CFunctionPointer.class, Pointer.class, long.class);
+        Method leaveMethod = ReflectionUtil.lookupMethod(InterpreterStubSection.class, "leaveInterpreterStub", CFunctionPointer.class, Pointer.class, long.class, boolean.class);
         leaveStub = metaAccess.lookupJavaMethod(leaveMethod);
         accessImpl.registerAsRoot(leaveStub, true, "low level entry point");
 

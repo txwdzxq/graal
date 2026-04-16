@@ -35,7 +35,7 @@ public interface InterpreterAccessStubData {
     String REASON_RAW_POINTER = "raw pointer to object";
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-    void setSp(Pointer data, int stackSize, Pointer stackBuffer);
+    void setSpAndStoreStackSizeInDeoptSlot(Pointer data, int stackSize, Pointer stackBuffer);
 
     @Uninterruptible(reason = REASON_RAW_POINTER, callerMustBe = true)
     long getGpArgumentAt(int cArgType, Pointer data, int pos);

@@ -363,12 +363,10 @@ public class AArch64InterpreterStubs {
             super.enter(crb);
             AArch64MacroAssembler masm = (AArch64MacroAssembler) crb.asm;
 
-            /* sp points to two reserved stack slots for this stub */
+            /* sp points to a reserved stack slot for this stub */
 
-            /* Pointer to InterpreterData struct */
-            masm.str(64, r1, createImmediateAddress(64, IMMEDIATE_UNSIGNED_SCALED, sp, 0));
-            /* Variable stack size */
-            masm.str(64, r2, createImmediateAddress(64, IMMEDIATE_UNSIGNED_SCALED, sp, 8));
+            /* arg3: true if the result of the function is in a floating-point register */
+            masm.str(64, r3, createImmediateAddress(64, IMMEDIATE_UNSIGNED_SCALED, sp, 0));
 
             masm.sub(64, sp, sp, r2 /* variable stack size */);
         }
@@ -385,9 +383,6 @@ public class AArch64InterpreterStubs {
             masm.mov(64, r0, r1);
 
             Register stackSize = AArch64.r2;
-            Label regsHandling = new Label();
-            /* if stackSize == 0 */
-            masm.cbz(64, stackSize, regsHandling);
 
             /* Copy prepared outgoing args to the stack where the ABI expects it */
             Register calleeSpArgs = AArch64.r4;
@@ -403,8 +398,6 @@ public class AArch64InterpreterStubs {
             masm.sub(64, stackSize, stackSize, wordSize);
 
             masm.cbnz(64, stackSize, spCopyBegin);
-
-            masm.bind(regsHandling);
 
             /* Set fp argument registers */
             masm.fldr(64, v7, createImmediateAddress(64, IMMEDIATE_SIGNED_UNSCALED, AArch64.r0, offsetAbiFpArg7()));
@@ -429,29 +422,23 @@ public class AArch64InterpreterStubs {
             /* Call into target method */
             masm.blr(callTarget);
 
-            try (AArch64MacroAssembler.ScratchRegister scratchRegister = masm.getScratchRegister()) {
-                Register resultCopy = scratchRegister.getRegister();
-                masm.mov(64, resultCopy, r0);
+            /* Obtain stack size from deopt slot */
+            masm.ldr(64, r2, createImmediateAddress(64, IMMEDIATE_UNSIGNED_SCALED, sp, 0));
 
-                /* Obtain stack size from deopt slot */
-                masm.ldr(64, r2, createImmediateAddress(64, IMMEDIATE_UNSIGNED_SCALED, sp, 0));
+            /* Assumption of deopt slot encoding */
+            assert crb.target.stackAlignment == 0x10;
+            masm.lsr(64, r2, r2, DeoptimizationSlotPacking.POS_VARIABLE_FRAMESIZE - DeoptimizationSlotPacking.STACK_ALIGNMENT);
 
-                /* Assumption of deopt slot encoding */
-                assert crb.target.stackAlignment == 0x10;
-                masm.lsr(64, r2, r2, DeoptimizationSlotPacking.POS_VARIABLE_FRAMESIZE - DeoptimizationSlotPacking.STACK_ALIGNMENT);
+            /* Restore stack pointer */
+            masm.add(64, sp, sp, r2);
 
-                /* Restore stack pointer */
-                masm.add(64, sp, sp, r2);
-
-                /* Pointer InterpreterData struct */
-                masm.ldr(64, r0, createImmediateAddress(64, IMMEDIATE_UNSIGNED_SCALED, sp, 0));
-
-                /* Save gp ABI register into InterpreterData struct */
-                masm.str(64, resultCopy, createImmediateAddress(64, IMMEDIATE_UNSIGNED_SCALED, r0, offsetAbiGpRet()));
-            }
-
-            /* Save fp ABI register into InterpreterData struct */
-            masm.fstr(64, v0, createImmediateAddress(64, IMMEDIATE_UNSIGNED_SCALED, r0, offsetAbiFpRet()));
+            Label gpResult = new Label();
+            /* The leave stub returns a long, so check whether the actual call returned in v0. */
+            masm.ldr(64, r2, createImmediateAddress(64, IMMEDIATE_UNSIGNED_SCALED, sp, 0));
+            masm.cbz(64, r2, gpResult);
+            /* Return the raw float/double bits in r0. */
+            masm.fmov(64, r0, v0);
+            masm.bind(gpResult);
 
             super.leave(crb);
         }
@@ -469,9 +456,8 @@ public class AArch64InterpreterStubs {
     }
 
     public static int additionalFrameSizeLeaveStub() {
-        int wordSize = 8;
-        // reserve two slots for: base address of outgoing stack args and variable stack size.
-        return 2 * wordSize;
+        /* Reserve one extra word to remember whether the actual call returns in the FP register. */
+        return 8;
     }
 
     @RawStructure
@@ -698,7 +684,7 @@ public class AArch64InterpreterStubs {
 
         @Override
         @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-        public void setSp(Pointer data, int stackSize, Pointer stackBuffer) {
+        public void setSpAndStoreStackSizeInDeoptSlot(Pointer data, int stackSize, Pointer stackBuffer) {
             VMError.guarantee(stackBuffer.isNonNull());
 
             InterpreterDataAArch64 p = (InterpreterDataAArch64) data;
