@@ -58,7 +58,6 @@ import com.oracle.svm.core.imagelayer.ImageLayerBuildingSupport;
 import com.oracle.svm.core.jdk.VectorAPIEnabled;
 import com.oracle.svm.core.option.GCOptionValue;
 import com.oracle.svm.core.option.RuntimeOptionKey;
-import com.oracle.svm.core.pltgot.PLTGOTConfiguration;
 import com.oracle.svm.core.thread.VMOperationControl;
 import com.oracle.svm.core.util.TimeUtils;
 import com.oracle.svm.core.util.UserError;
@@ -1649,12 +1648,6 @@ public class SubstrateOptions {
 
             // The concept of a code base would need to be introduced in the LLVM backend first.
             UserError.guarantee(!useLLVMBackend(), "%s is currently not supported with the LLVM backend.", enabledOption);
-
-            /*
-             * With PLT/GOT enabled, some relative code pointers need to be redirected through
-             * PLT/GOT, which is currently not implemented.
-             */
-            UserError.guarantee(!PLTGOTConfiguration.isEnabled(), "%s cannot be used together with PLT/GOT.", enabledOption);
         }
     }
 

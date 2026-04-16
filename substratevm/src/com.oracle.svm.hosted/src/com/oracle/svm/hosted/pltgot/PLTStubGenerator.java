@@ -41,7 +41,15 @@ public interface PLTStubGenerator {
         }
 
         int getResolverEntryDisplacement(SharedMethod method) {
-            Integer offset = resolverEntryDisplacements().get(method);
+            return getInt(resolverEntryDisplacements, method);
+        }
+
+        int getStubStartOffset(SharedMethod method) {
+            return getInt(stubStartOffsets, method);
+        }
+
+        private static int getInt(Map<SharedMethod, Integer> map, SharedMethod method) {
+            Integer offset = map.get(method);
             assert offset != null : "Target doesn't have a PLT stub: " + method;
             return offset;
         }
