@@ -88,22 +88,24 @@ public final class NativeImageBuildArgsSupport {
             throw new IllegalArgumentException("Expected the selected test classes file and the manifest output file.");
         }
         Path testClassesFile = Path.of(args[0]);
-        List<TestBuildArgs> testsWithBuildArgs = collectBuildArgsByTest(Files.readAllLines(testClassesFile), Thread.currentThread().getContextClassLoader());
-        writeGroupedManifest(Path.of(args[1]), groupTestsByBuildArgs(testsWithBuildArgs));
+        List<TestBuildArgsGroup> groups = collectBuildArgGroups(Files.readAllLines(testClassesFile), Thread.currentThread().getContextClassLoader());
+        writeGroupedManifest(Path.of(args[1]), groups);
     }
 
     /**
-     * Returns one entry per selected test with the fully expanded effective build-arg list for
-     * that test.
+     * Collects the grouped build-arg manifest entries directly from the selected test list.
      */
-    static List<TestBuildArgs> collectBuildArgsByTest(List<String> selectedTests, ClassLoader classLoader) throws ClassNotFoundException {
-        List<TestBuildArgs> testsWithBuildArgs = new ArrayList<>();
+    static List<TestBuildArgsGroup> collectBuildArgGroups(List<String> selectedTests, ClassLoader classLoader) throws ClassNotFoundException {
+        LinkedHashMap<List<String>, List<String>> groupedTests = new LinkedHashMap<>();
         for (String selectedTest : selectedTests) {
             if (!selectedTest.isBlank()) {
-                testsWithBuildArgs.add(new TestBuildArgs(selectedTest, collectBuildArgs(selectedTest, classLoader)));
+                List<String> buildArgs = collectBuildArgs(selectedTest, classLoader);
+                groupedTests.computeIfAbsent(buildArgs, _ -> new ArrayList<>()).add(selectedTest);
             }
         }
-        return testsWithBuildArgs;
+        List<TestBuildArgsGroup> result = new ArrayList<>(groupedTests.size());
+        groupedTests.forEach((buildArgs, groupedSelectedTests) -> result.add(new TestBuildArgsGroup(buildArgs, groupedSelectedTests)));
+        return result;
     }
 
     /**
@@ -132,7 +134,7 @@ public final class NativeImageBuildArgsSupport {
                 }
             }
         }
-        return new ArrayList<>(buildArgs);
+        return List.copyOf(buildArgs);
     }
 
     private static Class<?> loadSelectedTestClass(String selectedTest, ClassLoader classLoader) throws ClassNotFoundException {
@@ -189,21 +191,6 @@ public final class NativeImageBuildArgsSupport {
         } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
             throw new AssertionError("Failed to read @" + annotation.annotationType().getName() + "." + elementName, e);
         }
-    }
-
-    /**
-     * Groups tests by their effective build-arg list. Groups preserve first encounter order from
-     * the selected test list so the Python side can iterate them deterministically.
-     */
-    private static List<TestBuildArgsGroup> groupTestsByBuildArgs(List<TestBuildArgs> testsWithBuildArgs) {
-        LinkedHashMap<List<String>, List<String>> groupedTests = new LinkedHashMap<>();
-        for (TestBuildArgs testBuildArgs : testsWithBuildArgs) {
-            List<String> buildArgs = List.copyOf(testBuildArgs.buildArgs);
-            groupedTests.computeIfAbsent(buildArgs, _ -> new ArrayList<>()).add(testBuildArgs.selectedTest);
-        }
-        List<TestBuildArgsGroup> result = new ArrayList<>(groupedTests.size());
-        groupedTests.forEach((buildArgs, selectedTests) -> result.add(new TestBuildArgsGroup(buildArgs, selectedTests)));
-        return result;
     }
 
     /**
@@ -264,16 +251,6 @@ public final class NativeImageBuildArgsSupport {
             }
         }
         json.append('"');
-    }
-
-    static final class TestBuildArgs {
-        private final String selectedTest;
-        private final List<String> buildArgs;
-
-        private TestBuildArgs(String selectedTest, List<String> buildArgs) {
-            this.selectedTest = selectedTest;
-            this.buildArgs = buildArgs;
-        }
     }
 
     static final class TestBuildArgsGroup {
