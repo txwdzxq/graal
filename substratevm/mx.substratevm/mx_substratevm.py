@@ -928,14 +928,24 @@ def _native_junit(native_image, unittest_args, build_args=None, run_args=None, b
             mx.rmtree(junit_root_dir)
 
 
+def _native_unittest_helper_jdk(config=None):
+    helper_jdk_home = _vm_home(config)
+    java_executable = join(helper_jdk_home, 'bin', mx.exe_suffix('java'))
+    if not exists(java_executable):
+        _run_graalvm_cmd(['build'], config)
+        helper_jdk_home = _vm_home(config)
+    return mx.JDKConfig(home=helper_jdk_home)
+
+
 def _collect_native_unittest_groups(unittest_deps, unittest_file):
     helper_deps = list(unittest_deps) + [mx.dependency('substratevm:JUNIT_SUPPORT')]
-    vm_args = mx.get_runtime_jvm_args(helper_deps, jdk=mx_compiler.jdk, include_system_properties=False)
+    helper_jdk = _native_unittest_helper_jdk()
+    vm_args = mx.get_runtime_jvm_args(helper_deps, jdk=helper_jdk, include_system_properties=False)
     # The helper inspects selected test classes reflectively. Enable preview on the helper JVM so
     # preview-compiled tests remain loadable without forcing preview on the native-image build.
     vm_args = ['--enable-preview'] + vm_args
     manifest_file = unittest_file + '.build-args-groups.json'
-    mx.run_java(vm_args + ['com.oracle.svm.junit.NativeImageBuildArgsSupport', unittest_file, manifest_file], jdk=mx_compiler.jdk)
+    mx.run_java(vm_args + ['com.oracle.svm.junit.NativeImageBuildArgsSupport', unittest_file, manifest_file], jdk=helper_jdk)
     with open(manifest_file, encoding='utf-8') as fp:
         manifest = json.load(fp)
     return [(tuple(group['buildArgs']), group['tests']) for group in manifest]
