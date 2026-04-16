@@ -35,7 +35,7 @@ import org.graalvm.word.WordBase;
 import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.BuildPhaseProvider;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.graal.code.CGlobalDataReference;
+import com.oracle.svm.core.graal.code.CGlobalDataDirectReference;
 import com.oracle.svm.core.image.ImageHeapLayoutInfo;
 import com.oracle.svm.core.meta.MethodPointer;
 import com.oracle.svm.guest.staging.c.CGlobalData;
@@ -136,7 +136,8 @@ public class WebImageWasmLMCodeGen extends WebImageWasmCodeGen {
      * <li>Object references are replaced with their address in the image heap.</li>
      * <li>Method pointers populate a function table and are replaced with their index in that
      * table.</li>
-     * <li>{@link CGlobalDataReference}s are looked up in the passed {@code globalData} map</li>
+     * <li>{@link CGlobalDataDirectReference}s are looked up in the passed {@code globalData}
+     * map</li>
      * </ul>
      *
      * @param heapStart The address of the first byte in the image heap.
@@ -190,9 +191,9 @@ public class WebImageWasmLMCodeGen extends WebImageWasmCodeGen {
                     } else {
                         throw GraalError.unimplemented("Unsupported constant relocation: " + constant); // ExcludeFromJacocoGeneratedReport
                     }
-                } else if (targetRef instanceof CGlobalDataReference) {
+                } else if (targetRef instanceof CGlobalDataDirectReference) {
                     // CGlobalDataReferences are replaced with the value in the globalData map.
-                    CGlobalData<?> globalDataReference = ((CGlobalDataReference) targetRef).getDataInfo().getData();
+                    CGlobalData<?> globalDataReference = ((CGlobalDataDirectReference) targetRef).getDataInfo().getData();
                     GraalError.guarantee(globalData.containsKey(globalDataReference), "CGlobalData was referenced but not defined: %s", globalDataReference);
                     relocation.setValue(Instruction.Const.forWord(globalData.get(globalDataReference)));
                 }

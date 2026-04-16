@@ -47,7 +47,10 @@ import java.util.List;
 import java.util.function.BiConsumer;
 
 import org.graalvm.nativeimage.ImageSingletons;
+import org.graalvm.nativeimage.Platform;
+import org.graalvm.nativeimage.Platforms;
 
+import com.oracle.svm.core.CGlobalDataPointerSingleton;
 import com.oracle.svm.core.CPUFeatureAccess;
 import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.ReservedRegisters;
@@ -55,6 +58,8 @@ import com.oracle.svm.core.SubstrateControlFlowIntegrity;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.amd64.AMD64CPUFeatureAccess;
+import com.oracle.svm.core.c.BoxedRelocatedPointer;
+import com.oracle.svm.core.c.CGlobalDataLoadPolicy;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.cpufeature.Stubs;
 import com.oracle.svm.core.deopt.DeoptimizationRuntime;
@@ -100,6 +105,7 @@ import com.oracle.svm.core.nodes.SubstrateIndirectCallTargetNode;
 import com.oracle.svm.core.pltgot.GOTAccess;
 import com.oracle.svm.core.pltgot.PLTGOTConfiguration;
 import com.oracle.svm.core.thread.VMThreads.StatusSupport;
+import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.util.VMError;
 
@@ -714,7 +720,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
                 DynamicImageLayerInfo dynamicImageLayerInfo = DynamicImageLayerInfo.singleton();
                 if (dynamicImageLayerInfo.isMethodCompilationDelayed(targetMethod)) {
                     AllocatableValue methodAddress = newVariable(getLIRKindTool().getWordKind());
-                    append(new AMD64CGlobalDataLoadAddressOp(dynamicImageLayerInfo.getSymbolForDelayedMethod(targetMethod), methodAddress));
+                    append(new AMD64CGlobalDataDirectLoadAddressOp(dynamicImageLayerInfo.getSymbolForDelayedMethod(targetMethod), methodAddress));
                     return methodAddress;
                 } else {
                     /*
@@ -723,7 +729,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
                      */
                     var methodLocation = dynamicImageLayerInfo.getPriorLayerMethodLocation(targetMethod);
                     AllocatableValue basePointerAddress = newVariable(getLIRKindTool().getWordKind());
-                    append(new AMD64CGlobalDataLoadAddressOp(methodLocation.base(), basePointerAddress));
+                    append(new AMD64CGlobalDataDirectLoadAddressOp(methodLocation.base(), basePointerAddress));
                     Value codeOffsetInSection = emitConstant(getLIRKindTool().getWordKind(), JavaConstant.forLong(methodLocation.offset()));
                     return getArithmetic().emitAdd(basePointerAddress, codeOffsetInSection, false);
                 }
@@ -1172,10 +1178,32 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
         }
 
         @Override
+        @Platforms(Platform.HOSTED_ONLY.class)
         public void emitCGlobalDataLoadAddress(CGlobalDataLoadAddressNode node) {
-            Variable result = gen.newVariable(gen.getLIRKindTool().getWordKind());
-            append(new AMD64CGlobalDataLoadAddressOp(node.getDataInfo(), result));
+            SharedMethod method = (SharedMethod) node.graph().method();
+            LIRKind wordKind = gen.getLIRKindTool().getWordKind();
+            Variable result = gen.newVariable(wordKind);
+            if (CGlobalDataLoadPolicy.singleton().shouldAccessViaImageHeap(method)) {
+                Variable baseAddress = readCGlobalDataBaseAddressFromImageHeap(wordKind);
+                append(new AMD64CGlobalDataIndirectLoadAddressOp(node.getDataInfo(), result, baseAddress));
+            } else {
+                append(new AMD64CGlobalDataDirectLoadAddressOp(node.getDataInfo(), result));
+            }
             setResult(node, result);
+        }
+
+        @Platforms(Platform.HOSTED_ONLY.class)
+        private Variable readCGlobalDataBaseAddressFromImageHeap(LIRKind wordKind) {
+            assert !ImageLayerBuildingSupport.buildingImageLayer() : "Indirect CGlobalData access via the image heap is not yet implemented for layered images.";
+            JavaConstant runtimeBaseAddress = getProviders()
+                            .getSnippetReflection()
+                            .forObject(CGlobalDataPointerSingleton.currentLayer().getRuntimeBaseAddress());
+            AllocatableValue base = gen.emitLoadConstant(gen.getValueKind(runtimeBaseAddress.getJavaKind()), runtimeBaseAddress);
+            int offset = getProviders()
+                            .getMetaAccess()
+                            .lookupJavaField(ReflectionUtil.lookupField(BoxedRelocatedPointer.class, "pointer"))
+                            .getOffset();
+            return gen.getArithmetic().emitLoad(wordKind, new AMD64AddressValue(wordKind, base, offset), null, MemoryOrderMode.PLAIN, MemoryExtendKind.DEFAULT);
         }
 
         @Override
@@ -1580,7 +1608,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
                 if (constant.pointer().getMethod() instanceof SharedMethod sharedMethod && sharedMethod.forceIndirectCall()) {
                     DynamicImageLayerInfo dynamicImageLayerInfo = DynamicImageLayerInfo.singleton();
                     if (dynamicImageLayerInfo.isMethodCompilationDelayed(sharedMethod)) {
-                        return new AMD64CGlobalDataLoadAddressOp(dynamicImageLayerInfo.getSymbolForDelayedMethod(sharedMethod), dst);
+                        return new AMD64CGlobalDataDirectLoadAddressOp(dynamicImageLayerInfo.getSymbolForDelayedMethod(sharedMethod), dst);
                     } else {
                         /*
                          * AMD64LoadMethodPointerConstantOp retrieves the address via a PC-relative
@@ -1588,7 +1616,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
                          * methods defined in prior layers.
                          */
                         var methodLocation = dynamicImageLayerInfo.getPriorLayerMethodLocation(sharedMethod);
-                        return new AMD64CGlobalDataLoadAddressOp(methodLocation.base(), dst, methodLocation.offset());
+                        return new AMD64CGlobalDataDirectLoadAddressOp(methodLocation.base(), dst, methodLocation.offset());
                     }
                 }
             }

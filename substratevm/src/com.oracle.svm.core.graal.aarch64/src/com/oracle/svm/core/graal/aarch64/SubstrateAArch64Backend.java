@@ -41,6 +41,8 @@ import java.util.Collection;
 import java.util.function.BiConsumer;
 
 import org.graalvm.nativeimage.ImageSingletons;
+import org.graalvm.nativeimage.Platform;
+import org.graalvm.nativeimage.Platforms;
 
 import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.ReservedRegisters;
@@ -965,9 +967,10 @@ public class SubstrateAArch64Backend extends SubstrateBackendWithAssembler<Subst
         }
 
         @Override
+        @Platforms(Platform.HOSTED_ONLY.class)
         public void emitCGlobalDataLoadAddress(CGlobalDataLoadAddressNode node) {
             Variable result = gen.newVariable(gen.getLIRKindTool().getWordKind());
-            append(new AArch64CGlobalDataLoadAddressOp(node.getDataInfo(), result));
+            append(new AArch64CGlobalDataDirectLoadAddressOp(node.getDataInfo(), result));
             setResult(node, result);
         }
 

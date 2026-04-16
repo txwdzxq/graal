@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2026, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,42 +22,35 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.graal.code;
+package com.oracle.svm.core.c;
 
-import java.util.Objects;
+import java.util.HashSet;
+import java.util.Set;
 
+import com.oracle.svm.core.meta.SharedMethod;
+import com.oracle.svm.shared.singletons.traits.BuiltinTraits;
+import org.graalvm.nativeimage.ImageSingletons;
+
+import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
+import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
-import jdk.vm.ci.code.site.Reference;
-
 @Platforms(Platform.HOSTED_ONLY.class)
-public abstract sealed class CGlobalDataReference extends Reference permits CGlobalDataDirectReference, CGlobalDataIndirectReference {
+@SingletonTraits(access = BuiltinTraits.BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
+public final class CGlobalDataLoadPolicy {
+    private final Set<SharedMethod> accessViaImageHeap = new HashSet<>();
 
-    private final CGlobalDataInfo dataInfo;
-
-    protected CGlobalDataReference(CGlobalDataInfo dataInfo) {
-        this.dataInfo = Objects.requireNonNull(dataInfo);
+    public static CGlobalDataLoadPolicy singleton() {
+        return ImageSingletons.lookup(CGlobalDataLoadPolicy.class);
     }
 
-    public CGlobalDataInfo getDataInfo() {
-        return dataInfo;
+    public void markForAccessViaImageHeap(Set<? extends SharedMethod> methods) {
+        assert Platform.includedIn(Platform.AMD64.class) : "Indirect CGlobalData access via image heap is not currently supported on non-AMD64 platforms";
+        accessViaImageHeap.addAll(methods);
     }
 
-    @Override
-    public final boolean equals(Object o) {
-        if (o == this) {
-            return true;
-        }
-        if (o == null || o.getClass() != getClass()) {
-            return false;
-        }
-        CGlobalDataReference that = (CGlobalDataReference) o;
-        return dataInfo.equals(that.dataInfo);
-    }
-
-    @Override
-    public final int hashCode() {
-        return dataInfo.hashCode();
+    public boolean shouldAccessViaImageHeap(SharedMethod method) {
+        return accessViaImageHeap.contains(method);
     }
 }
