@@ -34,4 +34,9 @@ public class PlatformLoggerReconstructionTest extends AbstractPlatformLoggerReco
     public void testBuildTimePlatformLoggerPreservedInRuntimeCache() {
         assertBuildTimePlatformLoggerPreservedInRuntimeCache(true);
     }
+
+    @Test
+    public void testReachableButUncachedBuildTimePlatformLoggerIsNotInsertedIntoRuntimeCache() {
+        assertReachableButUncachedBuildTimePlatformLoggerNotInsertedIntoRuntimeCache();
+    }
 }

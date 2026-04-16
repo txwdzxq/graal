@@ -24,6 +24,7 @@
  */
 package com.oracle.svm.test.logger;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 
 import org.graalvm.nativeimage.hosted.Feature;
@@ -44,11 +45,14 @@ abstract class AbstractPlatformLoggerReconstructionTest {
             exportPlatformLoggerPackage();
             RuntimeClassInitialization.initializeAtBuildTime(BuildTimePlatformLoggerRoot.class);
             BuildTimePlatformLoggerRoot.logger();
+            BuildTimePlatformLoggerRoot.rogueLogger();
         }
 
         private static void exportPlatformLoggerPackage() {
             try {
-                ModuleSupport.accessModuleByClass(ModuleSupport.Access.EXPORT, AbstractPlatformLoggerReconstructionTest.class, Class.forName("sun.util.logging.PlatformLogger"));
+                Class<?> platformLoggerClass = Class.forName("sun.util.logging.PlatformLogger");
+                ModuleSupport.accessModuleByClass(ModuleSupport.Access.EXPORT, AbstractPlatformLoggerReconstructionTest.class, platformLoggerClass);
+                ModuleSupport.accessModuleByClass(ModuleSupport.Access.OPEN, AbstractPlatformLoggerReconstructionTest.class, platformLoggerClass);
             } catch (ClassNotFoundException e) {
                 throw new AssertionError("Failed to load sun.util.logging.PlatformLogger", e);
             }
@@ -57,10 +61,16 @@ abstract class AbstractPlatformLoggerReconstructionTest {
 
     private static final class BuildTimePlatformLoggerRoot {
         private static final String LOGGER_NAME = "com.oracle.svm.test.logger.PlatformLoggerReconstructionTest";
+        private static final String ROGUE_LOGGER_NAME = LOGGER_NAME + ".rogue";
         private static final Object LOGGER = getPlatformLogger(LOGGER_NAME);
+        private static final Object ROGUE_LOGGER = createUncachedPlatformLogger(ROGUE_LOGGER_NAME);
 
         static Object logger() {
             return LOGGER;
+        }
+
+        static Object rogueLogger() {
+            return ROGUE_LOGGER;
         }
     }
 
@@ -74,6 +84,12 @@ abstract class AbstractPlatformLoggerReconstructionTest {
         }
     }
 
+    protected static void assertReachableButUncachedBuildTimePlatformLoggerNotInsertedIntoRuntimeCache() {
+        Object rogueBuildTimeLogger = BuildTimePlatformLoggerRoot.rogueLogger();
+        Object runtimeLookup = getPlatformLogger(BuildTimePlatformLoggerRoot.ROGUE_LOGGER_NAME);
+        Assert.assertNotSame("Expected runtime lookup to ignore reachable PlatformLogger instances that were not present in the original cache.", rogueBuildTimeLogger, runtimeLookup);
+    }
+
     private static Object getPlatformLogger(String name) {
         try {
             Class<?> platformLoggerClass = Class.forName("sun.util.logging.PlatformLogger");
@@ -81,6 +97,20 @@ abstract class AbstractPlatformLoggerReconstructionTest {
             return getLoggerMethod.invoke(null, name);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError("Failed to access sun.util.logging.PlatformLogger", e);
+        }
+    }
+
+    private static Object createUncachedPlatformLogger(String name) {
+        try {
+            Class<?> platformLoggerClass = Class.forName("sun.util.logging.PlatformLogger");
+            Class<?> bridgeClass = Class.forName("sun.util.logging.PlatformLogger$Bridge");
+            Method convertMethod = bridgeClass.getMethod("convert", System.Logger.class);
+            Object bridge = convertMethod.invoke(null, System.getLogger(name));
+            Constructor<?> constructor = platformLoggerClass.getDeclaredConstructor(bridgeClass);
+            constructor.setAccessible(true);
+            return constructor.newInstance(bridge);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            throw new AssertionError("Failed to construct uncached sun.util.logging.PlatformLogger", e);
         }
     }
 }

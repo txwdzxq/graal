@@ -172,10 +172,26 @@ public class LoggingFeature implements InternalFeature {
 
         @Override
         public Object transform(Object receiver, Object originalValue) {
+            Map<String, WeakReference<Object>> originalLoggers = asPlatformLoggerCache(originalValue);
             HashMap<String, WeakReference<Object>> rebuiltLoggers = new HashMap<>(reachablePlatformLoggers.size());
-            reachablePlatformLoggers.forEach((loggerName, logger) -> rebuiltLoggers.put(loggerName, new WeakReference<>(logger)));
+            reachablePlatformLoggers.forEach((loggerName, logger) -> {
+                WeakReference<Object> originalRef = originalLoggers.get(loggerName);
+                /*
+                 * Rebuild only entries that were already present in the original weak cache. This
+                 * preserves the existing PlatformLogger factory semantics and avoids inserting
+                 * merely reachable loggers that were created outside PlatformLogger.getLogger().
+                 */
+                if (originalRef != null && originalRef.get() == logger) {
+                    rebuiltLoggers.put(loggerName, new WeakReference<>(logger));
+                }
+            });
             return rebuiltLoggers;
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, WeakReference<Object>> asPlatformLoggerCache(Object originalValue) {
+        return (Map<String, WeakReference<Object>>) originalValue;
     }
 
     private void collectReachablePlatformLogger(Method platformLoggerGetNameMethod, Object logger) {
