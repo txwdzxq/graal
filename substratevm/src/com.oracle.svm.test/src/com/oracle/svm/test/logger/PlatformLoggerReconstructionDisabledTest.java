@@ -28,7 +28,10 @@ import org.junit.Test;
 
 import com.oracle.svm.test.NativeImageBuildArgs;
 
-@NativeImageBuildArgs("-H:-EnableLoggingFeature")
+@NativeImageBuildArgs({
+                "-H:+UnlockExperimentalVMOptions",
+                "-H:-EnableLoggingFeature"
+})
 public class PlatformLoggerReconstructionDisabledTest extends AbstractPlatformLoggerReconstructionTest {
     @Test
     public void testBuildTimePlatformLoggerNotPreservedInRuntimeCacheWhenLoggingFeatureIsDisabled() {
