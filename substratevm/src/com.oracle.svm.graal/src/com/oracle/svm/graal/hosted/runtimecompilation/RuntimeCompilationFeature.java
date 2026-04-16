@@ -122,8 +122,8 @@ import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
-import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.VMError;
+import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.util.OriginalMethodProvider;
 
 import jdk.graal.compiler.api.runtime.GraalRuntime;
@@ -183,7 +183,6 @@ import jdk.vm.ci.meta.ResolvedJavaType;
  */
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class, other = Disallowed.class)
 public final class RuntimeCompilationFeature implements Feature, RuntimeCompilationCallbacks {
-    private static final Executable OPTIONAL_STACK_TRACE_THROWABLE_CONSTRUCTOR = ReflectionUtil.lookupConstructor(Throwable.class, String.class, Throwable.class, boolean.class, boolean.class);
 
     public static class Options {
         @Option(help = "Print methods available for runtime compilation")//
@@ -942,6 +941,7 @@ public final class RuntimeCompilationFeature implements Feature, RuntimeCompilat
      */
     private class RuntimeCompilationInlineBeforeAnalysisPolicy extends InlineBeforeAnalysisPolicy {
         private final int trivialAllowingInliningDepth = InlineDuringParsingMaxDepth.getValue(HostedOptionValues.singleton().get());
+        private final ResolvedJavaMethod optionalStackTraceThrowableConstructor = GuestAccess.elements().java_lang_Throwable_init_String_Throwable_boolean_boolean;
 
         final SVMHost hostVM;
         final InlineBeforeAnalysisPolicyUtils inliningUtils;
@@ -966,7 +966,7 @@ public final class RuntimeCompilationFeature implements Feature, RuntimeCompilat
              * analyzed independently with non-constant boolean parameters and fillInStackTrace()
              * becomes reachable.
              */
-            return OPTIONAL_STACK_TRACE_THROWABLE_CONSTRUCTOR.equals(OriginalMethodProvider.getJavaMethod(method));
+            return optionalStackTraceThrowableConstructor.equals(OriginalMethodProvider.getOriginalMethod(method));
         }
 
         @Override
