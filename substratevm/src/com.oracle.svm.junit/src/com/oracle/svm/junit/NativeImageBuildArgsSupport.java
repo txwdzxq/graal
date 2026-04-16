@@ -237,33 +237,20 @@ public final class NativeImageBuildArgsSupport {
         for (int i = 0; i < value.length(); i++) {
             char ch = value.charAt(i);
             switch (ch) {
-                case '\\':
-                    json.append("\\\\");
-                    break;
-                case '"':
-                    json.append("\\\"");
-                    break;
-                case '\b':
-                    json.append("\\b");
-                    break;
-                case '\f':
-                    json.append("\\f");
-                    break;
-                case '\n':
-                    json.append("\\n");
-                    break;
-                case '\r':
-                    json.append("\\r");
-                    break;
-                case '\t':
-                    json.append("\\t");
-                    break;
-                default:
+                case '\\' -> json.append("\\\\");
+                case '"' -> json.append("\\\"");
+                case '\b' -> json.append("\\b");
+                case '\f' -> json.append("\\f");
+                case '\n' -> json.append("\\n");
+                case '\r' -> json.append("\\r");
+                case '\t' -> json.append("\\t");
+                default -> {
                     if (ch < 0x20) {
                         json.append(String.format("\\u%04x", (int) ch));
                     } else {
                         json.append(ch);
                     }
+                }
             }
         }
         json.append('"');
