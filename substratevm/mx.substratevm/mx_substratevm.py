@@ -262,6 +262,7 @@ GraalTags = Tags([
     'debuginfotest',
     'standalone_pointsto_unittests',
     'native_unittests',
+    'all_native_unittests',
     'build',
     'benchmarktest',
     "nativeimagehelp",
@@ -517,6 +518,14 @@ def svm_gate_body(args, tasks):
             with native_image_context(IMAGE_ASSERTION_FLAGS):
                 native_unittests_task(args.extra_image_builder_arguments)
 
+    # Keep the shared native_unittests gate aligned with GitHub Actions and other low-cost presubmits.
+    # The internal all_native_unittests tag opts into the more expensive custom @NativeImageBuildArgs
+    # image groups without changing the behavior of existing public gate consumers.
+    with Task('all_native_unittests', tasks, tags=[GraalTags.all_native_unittests]) as t:
+        if t:
+            with native_image_context(IMAGE_ASSERTION_FLAGS):
+                native_unittests_task(args.extra_image_builder_arguments, include_custom_test_groups=True)
+
     with Task('conditional configuration tests', tasks, tags=[GraalTags.condconfig]) as t:
         if t:
             with native_image_context(IMAGE_ASSERTION_FLAGS) as native_image:
@@ -741,9 +750,11 @@ def _compute_native_unittest_args(extra_build_args=None, include_svm_test_featur
         return ['--build-args'] + additional_build_args
 
 # Do not inline this, it's used from the enterprise repository.
-def native_unittests_task(extra_build_args=None):
+def native_unittests_task(extra_build_args=None, include_custom_test_groups=False):
     # native_unittests runs the SVM test suite => include SVM test features.
     computed = _compute_native_unittest_args(extra_build_args, include_svm_test_features=True)
+    if include_custom_test_groups:
+        computed = computed + ['--all']
     native_image_context_run(_native_unittest, computed)
 
 def conditional_config_task(native_image):
