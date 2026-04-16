@@ -144,8 +144,8 @@ import jdk.graal.compiler.phases.tiers.MidTierContext;
 import jdk.graal.compiler.phases.util.Providers;
 import jdk.graal.compiler.replacements.MethodHandleWithExceptionPlugin;
 import jdk.graal.compiler.word.WordTypes;
-import jdk.internal.foreign.AbstractMemorySegmentImpl;
 import jdk.internal.foreign.MemorySessionImpl;
+import jdk.internal.foreign.NativeMemorySegmentImpl;
 import jdk.internal.foreign.abi.AbstractLinker;
 import jdk.internal.foreign.abi.LinkerOptions;
 import jdk.internal.foreign.abi.NativeEntryPoint;
@@ -921,9 +921,25 @@ public class ForeignFunctionsFeature implements InternalFeature, ForeignHostedSu
          * In case of open type world, methods 'ScopedMemoryAccess.(load|store)*MemorySegment*' do
          * virtual calls to 'AbstractMemorySegmentImpl.unsafeGet(Base|Offset)'. Those cannot be
          * inlined (since virtual) but we know that those methods do not access native memory.
+         *
+         * Keep this list explicit instead of matching overrides by inheritance: the safety argument
+         * only applies to the concrete JDK implementations that have been inspected.
          */
-        registerSafeArenaAccessorMethod(metaAccess, ReflectionUtil.lookupMethod(AbstractMemorySegmentImpl.class, "unsafeGetBase"));
-        registerSafeArenaAccessorMethod(metaAccess, ReflectionUtil.lookupMethod(AbstractMemorySegmentImpl.class, "unsafeGetOffset"));
+        registerSafeArenaAccessorMethod(metaAccess, ReflectionUtil.lookupMethod(NativeMemorySegmentImpl.class, "unsafeGetBase"));
+        registerSafeArenaAccessorMethod(metaAccess, ReflectionUtil.lookupMethod(NativeMemorySegmentImpl.class, "unsafeGetOffset"));
+        Class<?> heapMemorySegmentImpl = ReflectionUtil.lookupClass("jdk.internal.foreign.HeapMemorySegmentImpl");
+        registerSafeArenaAccessorMethod(metaAccess, ReflectionUtil.lookupMethod(heapMemorySegmentImpl, "unsafeGetOffset"));
+        for (var heapSegmentImpl : List.of(
+                        "jdk.internal.foreign.HeapMemorySegmentImpl$OfByte",
+                        "jdk.internal.foreign.HeapMemorySegmentImpl$OfChar",
+                        "jdk.internal.foreign.HeapMemorySegmentImpl$OfShort",
+                        "jdk.internal.foreign.HeapMemorySegmentImpl$OfInt",
+                        "jdk.internal.foreign.HeapMemorySegmentImpl$OfLong",
+                        "jdk.internal.foreign.HeapMemorySegmentImpl$OfFloat",
+                        "jdk.internal.foreign.HeapMemorySegmentImpl$OfDouble")) {
+            Class<?> concreteHeapSegmentImpl = ReflectionUtil.lookupClass(heapSegmentImpl);
+            registerSafeArenaAccessorMethod(metaAccess, ReflectionUtil.lookupMethod(concreteHeapSegmentImpl, "unsafeGetBase"));
+        }
     }
 
     protected void registerSafeArenaAccessorClass(MetaAccessProvider metaAccess, Class<?> klass) {
