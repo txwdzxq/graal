@@ -24,6 +24,7 @@
 #
 
 import filecmp
+import json
 import os
 import pathlib
 import platform
@@ -879,13 +880,12 @@ def _native_junit(native_image, unittest_args, build_args=None, run_args=None, b
         _run_tests(unittest_args, dummy_harness, _VMLauncher('dummy_launcher', None, mx_compiler.jdk), ['@Test', '@Parameters'], unittest_file, blacklist, whitelist, None, None)
         if not exists(unittest_file):
             mx.abort('No matching unit tests found. Skip image build and execution.')
-        with open(unittest_file, encoding='utf-8') as f:
-            test_classes = [line.rstrip() for line in f]
-        # @NativeImageBuildArgs is recorded per selected test so native-unittest can keep the
-        # default no-argument path on a single image while still splitting custom-arg tests into
-        # separate images when explicitly requested.
-        test_classes_by_build_args = _collect_native_image_build_args(unittest_deps, unittest_file)
-        test_groups, skipped_tests = _partition_native_unittest_groups(test_classes, test_classes_by_build_args, include_custom_test_groups)
+        # The Java helper inspects the selected test classes and emits a grouped manifest so the
+        # Python side only needs to decide which groups to build and run.
+        test_groups, skipped_tests = _partition_native_unittest_groups(
+            _collect_native_unittest_groups(unittest_deps, unittest_file),
+            include_custom_test_groups
+        )
         if skipped_tests:
             mx.log('Skipping tests that require custom @NativeImageBuildArgs in the default native-unittest run. '
                    'Re-run with --all or select the tests explicitly: ' + ' '.join(skipped_tests))
@@ -928,35 +928,29 @@ def _native_junit(native_image, unittest_args, build_args=None, run_args=None, b
             mx.rmtree(junit_root_dir)
 
 
-def _collect_native_image_build_args(unittest_deps, unittest_file):
+def _collect_native_unittest_groups(unittest_deps, unittest_file):
     helper_deps = list(unittest_deps) + [mx.dependency('substratevm:JUNIT_SUPPORT')]
     vm_args = mx.get_runtime_jvm_args(helper_deps, jdk=mx_compiler.jdk, include_system_properties=False)
     # The helper inspects selected test classes reflectively. Enable preview on the helper JVM so
     # preview-compiled tests remain loadable without forcing preview on the native-image build.
     vm_args = ['--enable-preview'] + vm_args
-    out = mx.LinesOutputCapture()
-    mx.run_java(vm_args + ['com.oracle.svm.junit.NativeImageBuildArgsSupport', unittest_file], jdk=mx_compiler.jdk, out=out)
-    test_classes_by_build_args = {}
-    for line in out.lines:
-        if line:
-            # One emitted line per selected test: field 0 is the test id, remaining fields are the
-            # effective @NativeImageBuildArgs collected for that test.
-            parts = line.split('\t')
-            test_classes_by_build_args[parts[0]] = parts[1:]
-    return test_classes_by_build_args
+    manifest_file = unittest_file + '.build-args-groups.json'
+    mx.run_java(vm_args + ['com.oracle.svm.junit.NativeImageBuildArgsSupport', unittest_file, manifest_file], jdk=mx_compiler.jdk)
+    with open(manifest_file, encoding='utf-8') as fp:
+        manifest = json.load(fp)
+    return [(tuple(group['buildArgs']), group['tests']) for group in manifest]
 
 
-def _partition_native_unittest_groups(test_classes, test_classes_by_build_args, include_custom_test_groups):
+def _partition_native_unittest_groups(grouped_test_specs, include_custom_test_groups):
     grouped_tests = collections.OrderedDict()
     skipped_tests = []
-    for test_class in test_classes:
-        group_key = tuple(test_classes_by_build_args.get(test_class, ()))
+    for group_key, test_classes in grouped_test_specs:
         # The default no-argument command remains cheap by only running the empty-args group.
         # Explicit selectors or --all opt into the extra images required by custom build args.
         if len(group_key) == 0 or include_custom_test_groups:
-            grouped_tests.setdefault(group_key, []).append(test_class)
+            grouped_tests[group_key] = test_classes
         else:
-            skipped_tests.append(test_class)
+            skipped_tests.extend(test_classes)
     return grouped_tests, skipped_tests
 
 

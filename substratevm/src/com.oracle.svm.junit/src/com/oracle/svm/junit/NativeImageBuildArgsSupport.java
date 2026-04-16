@@ -34,6 +34,7 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
@@ -57,12 +58,17 @@ public final class NativeImageBuildArgsSupport {
     }
 
     public static void main(String[] args) throws IOException, ClassNotFoundException {
-        if (args.length != 1) {
-            throw new IllegalArgumentException("Expected a single argument with the selected test classes file.");
+        if (args.length != 1 && args.length != 2) {
+            throw new IllegalArgumentException("Expected the selected test classes file and an optional manifest output file.");
         }
         Path testClassesFile = Path.of(args[0]);
-        for (TestBuildArgs testBuildArgs : collectBuildArgsByTest(Files.readAllLines(testClassesFile), Thread.currentThread().getContextClassLoader())) {
-            System.out.println(testBuildArgs.toOutputLine());
+        List<TestBuildArgs> testsWithBuildArgs = collectBuildArgsByTest(Files.readAllLines(testClassesFile), Thread.currentThread().getContextClassLoader());
+        if (args.length == 1) {
+            for (TestBuildArgs testBuildArgs : testsWithBuildArgs) {
+                System.out.println(testBuildArgs.toOutputLine());
+            }
+        } else {
+            writeGroupedManifest(Path.of(args[1]), groupTestsByBuildArgs(testsWithBuildArgs));
         }
     }
 
@@ -152,6 +158,78 @@ public final class NativeImageBuildArgsSupport {
         }
     }
 
+    private static List<TestBuildArgsGroup> groupTestsByBuildArgs(List<TestBuildArgs> testsWithBuildArgs) {
+        LinkedHashMap<List<String>, List<String>> groupedTests = new LinkedHashMap<>();
+        for (TestBuildArgs testBuildArgs : testsWithBuildArgs) {
+            List<String> buildArgs = List.copyOf(testBuildArgs.buildArgs);
+            groupedTests.computeIfAbsent(buildArgs, _ -> new ArrayList<>()).add(testBuildArgs.selectedTest);
+        }
+        List<TestBuildArgsGroup> result = new ArrayList<>(groupedTests.size());
+        groupedTests.forEach((buildArgs, selectedTests) -> result.add(new TestBuildArgsGroup(buildArgs, selectedTests)));
+        return result;
+    }
+
+    private static void writeGroupedManifest(Path manifestFile, List<TestBuildArgsGroup> groups) throws IOException {
+        StringBuilder json = new StringBuilder();
+        json.append("[\n");
+        for (int i = 0; i < groups.size(); i++) {
+            if (i != 0) {
+                json.append(",\n");
+            }
+            groups.get(i).appendJson(json, "  ");
+        }
+        json.append("\n]\n");
+        Files.writeString(manifestFile, json.toString());
+    }
+
+    private static void appendJsonArray(StringBuilder json, List<String> values) {
+        json.append('[');
+        for (int i = 0; i < values.size(); i++) {
+            if (i != 0) {
+                json.append(", ");
+            }
+            appendJsonString(json, values.get(i));
+        }
+        json.append(']');
+    }
+
+    private static void appendJsonString(StringBuilder json, String value) {
+        json.append('"');
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            switch (ch) {
+                case '\\':
+                    json.append("\\\\");
+                    break;
+                case '"':
+                    json.append("\\\"");
+                    break;
+                case '\b':
+                    json.append("\\b");
+                    break;
+                case '\f':
+                    json.append("\\f");
+                    break;
+                case '\n':
+                    json.append("\\n");
+                    break;
+                case '\r':
+                    json.append("\\r");
+                    break;
+                case '\t':
+                    json.append("\\t");
+                    break;
+                default:
+                    if (ch < 0x20) {
+                        json.append(String.format("\\u%04x", (int) ch));
+                    } else {
+                        json.append(ch);
+                    }
+            }
+        }
+        json.append('"');
+    }
+
     static final class TestBuildArgs {
         private final String selectedTest;
         private final List<String> buildArgs;
@@ -168,6 +246,24 @@ public final class NativeImageBuildArgsSupport {
                 outputLine.append(OUTPUT_SEPARATOR).append(buildArg);
             }
             return outputLine.toString();
+        }
+    }
+
+    static final class TestBuildArgsGroup {
+        private final List<String> buildArgs;
+        private final List<String> selectedTests;
+
+        private TestBuildArgsGroup(List<String> buildArgs, List<String> selectedTests) {
+            this.buildArgs = List.copyOf(buildArgs);
+            this.selectedTests = List.copyOf(selectedTests);
+        }
+
+        private void appendJson(StringBuilder json, String indent) {
+            json.append(indent).append("{\"buildArgs\": ");
+            appendJsonArray(json, buildArgs);
+            json.append(", \"tests\": ");
+            appendJsonArray(json, selectedTests);
+            json.append('}');
         }
     }
 }
