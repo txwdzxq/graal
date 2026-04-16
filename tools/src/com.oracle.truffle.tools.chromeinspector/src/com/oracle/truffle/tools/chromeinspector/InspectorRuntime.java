@@ -112,6 +112,53 @@ public final class InspectorRuntime extends RuntimeDomain {
                                     "\\s*\\{?\\s*\\k<result>\\[\\k<i>\\]\\s*=\\s*\\k<ownProps>\\[\\k<i>\\];\\s*\\}?" +
                                     "\\s*return\\s+\\k<result>;\\s*\\}");
 
+    // VS Code debugger function: getArrayProperties()
+    private static final Pattern FUNCTION_GET_ARRAY_PROPERTIES_PATTERN = Pattern.compile(
+                    "function(?:\\s+\\w+)?\\s*\\(\\s*\\)\\s*\\{\\s*\\w+\\s+(?<result>\\w+)\\s*=\\s*\\{\\s*__proto__\\s*:\\s*this\\.__proto__\\s*\\}\\s*,\\s*(?<ownProps>\\w+)\\s*=\\s*Object.getOwnPropertyNames\\(this\\)\\s*;" +
+                                    "\\s*for\\s*\\(\\s*\\w+\\s+(?<i>\\w+)\\s*=\\s*0\\s*;\\s*\\k<i>\\s*<\\s*\\k<ownProps>\\.length\\s*;\\s*(\\+\\+\\k<i>|\\k<i>\\+\\+)\\s*\\)\\s*\\{" +
+                                    "\\s*\\w+\\s+(?<name>\\w+)\\s*=\\s*\\k<ownProps>\\[\\k<i>\\]\\s*,\\s*(?<index>\\w+)\\s*=\\s*\\k<name>\\s*>>>\\s*0\\s*;" +
+                                    "\\s*if\\s*\\(\\s*String\\(\\k<index>\\s*>>>\\s*0\\)\\s*===\\s*\\k<name>\\s*&&\\s*\\k<index>\\s*>>>\\s*0\\s*!==\\s*4294967295\\s*\\)\\s*continue\\s*;" +
+                                    "\\s*\\w+\\s+(?<descriptor>\\w+)\\s*=\\s*Object.getOwnPropertyDescriptor\\(this\\s*,\\s*\\k<name>\\)\\s*;" +
+                                    "\\s*\\k<descriptor>\\s*&&\\s*Object.defineProperty\\(\\k<result>\\s*,\\s*\\k<name>\\s*,\\s*\\k<descriptor>\\)\\s*" +
+                                    "\\}\\s*return\\s+\\k<result>\\s*;?\\s*\\}");
+
+    // VS Code debugger function: getArraySlots(start, count)
+    private static final Pattern FUNCTION_GET_ARRAY_SLOTS_PATTERN = Pattern.compile(
+                    "function(?:\\s+\\w+)?\\s*\\((?<start>\\w+),\\s*(?<count>\\w+)\\)\\s*\\{\\s*\\w+\\s+(?<result>\\w+)\\s*=\\s*\\{\\s*\\}\\s*," +
+                                    "\\s*(?<normalizedStart>\\w+)\\s*=\\s*\\k<start>\\s*===\\s*-1\\s*\\?\\s*0\\s*:\\s*\\k<start>\\s*," +
+                                    "\\s*(?<end>\\w+)\\s*=\\s*\\k<count>\\s*===\\s*-1\\s*\\?\\s*this\\.length\\s*:\\s*\\k<start>\\s*\\+\\s*\\k<count>\\s*;" +
+                                    "\\s*for\\s*\\(\\s*\\w+\\s+(?<i>\\w+)\\s*=\\s*\\k<normalizedStart>\\s*;\\s*\\k<i>\\s*<\\s*\\k<end>\\s*&&\\s*\\k<i>\\s*<\\s*this\\.length\\s*;\\s*(\\+\\+\\k<i>|\\k<i>\\+\\+)\\s*\\)\\s*\\{" +
+                                    "\\s*\\w+\\s+(?<descriptor>\\w+)\\s*=\\s*Object.getOwnPropertyDescriptor\\(this\\s*,\\s*\\k<i>\\)\\s*;" +
+                                    "\\s*\\k<descriptor>\\s*&&\\s*Object.defineProperty\\(\\k<result>\\s*,\\s*\\k<i>\\s*,\\s*\\k<descriptor>\\)\\s*" +
+                                    "\\}\\s*return\\s+\\k<result>\\s*;?\\s*\\}");
+
+    // VS Code debugger function: getStringyProps(maxLength, customToString=null)
+    private static final Pattern FUNCTION_GET_STRINGY_PROPS_PATTERN = Pattern.compile(
+                    "function(?:\\s+\\w+)?\\s*\\(\\s*\\.\\.\\.(?<runtimeArgs>\\w+)\\s*\\)\\s*\\{" +
+                                    "\\s*\\w+\\s+(?<maxLengthVar>\\w+)\\s*=\\s*(?<maxLengthValue>\\d+)\\s*;" +
+                                    "\\s*\\w+\\s+(?<formatter>\\w+)\\s*=\\s*null\\s*;" +
+                                    ".*?<<default preview>>.*?" +
+                                    "(?:return\\s*`<<indescribable>>\\$\\{JSON\\.stringify\\(\\[String\\(\\w+\\),\"object\"\\]\\)\\}`\\s*;)?" +
+                                    ".*?Symbol\\.for\\(\"debug\\.description\"\\).*?Symbol\\.for\\(\"nodejs\\.util\\.inspect\\.custom\"\\).*?" +
+                                    "String\\(this\\.toString\\)\\.includes\\(\"\\[native code\\]\"\\).*?" +
+                                    "return\\s*\\w+\\.length\\s*>=\\s*\\k<maxLengthVar>\\s*\\?\\s*\\w+\\.slice\\(0\\s*,\\s*\\k<maxLengthVar>\\)\\s*\\+\\s*.*?(?:\\\\u2026|\u2026).*?\\s*:\\s*\\w+\\s*;?.*?" +
+                                    "\\}\\s*",
+                    Pattern.DOTALL);
+    // VS Code debugger function: getStringyProps(maxLength, customToString=getToStringIfCustom)
+    private static final Pattern FUNCTION_GET_STRINGY_PROPS_CUSTOM_PATTERN = Pattern.compile(
+                    "function(?:\\s+\\w+)?\\s*\\(\\s*\\.\\.\\.(?<runtimeArgs>\\w+)\\s*\\)\\s*\\{" +
+                                    "\\s*\\w+\\s+(?<maxLengthVar>\\w+)\\s*=\\s*(?<maxLengthValue>\\d+)\\s*;" +
+                                    "\\s*\\w+\\s+(?<formatter>\\w+)\\s*=\\s*null\\s*;" +
+                                    "\\s*\\w+\\s+(?<customProps>\\w+)\\s*=\\s*!1\\s*,\\s*(?<out>\\w+)\\s*=\\s*\\{\\s*\\}\\s*,\\s*(?<defaultPreview>\\w+)\\s*=\\s*\"<<default preview>>\"\\s*;" +
+                                    ".*?Object\\.keys\\(this\\).*?" +
+                                    "<<indescribable>>\\$\\{JSON\\.stringify\\(\\[String\\(\\w+\\),\\w+\\]\\)\\}.*?" +
+                                    "\\k<runtimeArgs>\\[0\\]\\.slice\\(0\\s*,\\s*2\\).*?" +
+                                    "String\\(\\w+\\.toString\\)\\.includes\\(\"\\[native code\\]\"\\).*?" +
+                                    "\\.length\\s*>=\\s*\\k<maxLengthVar>\\s*\\?\\s*\\w+\\.slice\\(0\\s*,\\s*\\k<maxLengthVar>\\)\\s*\\+\\s*.*?(?:\\\\u2026|\u2026).*?" +
+                                    "typeof\\s+this\\[\\k<runtimeArgs>\\[0\\]\\[2\\]\\]\\s*==\\s*\"function\".*?" +
+                                    "return\\s*\\{\\s*out\\s*:\\s*\\k<out>\\s*,\\s*customProps\\s*:\\s*\\k<customProps>\\s*\\}\\s*\\}",
+                    Pattern.DOTALL);
+
     private final InspectorExecutionContext context;
     private InspectorExecutionContext.Listener contextListener;
     private ScriptsHandler slh;
@@ -317,6 +364,18 @@ public final class InspectorRuntime extends RuntimeDomain {
                                         break;
                                     case MAP_ENTRY:
                                         putMapEntry(json, value, generatePreview, objectGroup);
+                                        break;
+                                    case ARRAY_PROPERTIES:
+                                        if (!value.isArray()) {
+                                            throw new CommandProcessException("Expecting an Array the function is called on.");
+                                        }
+                                        putResultProperties(json, value, getArrayProperties(value), Collections.emptyList(), generatePreview, objectGroup);
+                                        break;
+                                    case ARRAY_SLOTS:
+                                        if (!value.isArray()) {
+                                            throw new CommandProcessException("Expecting an Array the function is called on.");
+                                        }
+                                        putArraySlots(json, value, indexRange, generatePreview, objectGroup);
                                         break;
                                     default:
                                         throw new CommandProcessException("Unknown type mark " + typeMark);
@@ -560,6 +619,7 @@ public final class InspectorRuntime extends RuntimeDomain {
                     context.executeInSuspendThread(new SuspendThreadExecutable<Void>() {
                         @Override
                         public Void executeCommand() throws CommandProcessException {
+                            Matcher matcher;
                             JSONObject result;
                             if (functionNoWS.startsWith(FUNCTION_COMPLETION)) {
                                 result = createCodecompletion(value, scope, context, true);
@@ -696,6 +756,43 @@ public final class InspectorRuntime extends RuntimeDomain {
                                 RemoteObject ro = new RemoteObject(value, true, generatePreview, context, new RemoteObject.IndexRange(start, start + count, true));
                                 context.getRemoteObjectsHandler().register(ro, objectGroup);
                                 result = ro.toJSON();
+                            } else if (FUNCTION_GET_ARRAY_PROPERTIES_PATTERN.matcher(functionTrimmed).matches()) {
+                                if (!value.isArray()) {
+                                    throw new CommandProcessException("Expecting an Array the function is called on.");
+                                }
+                                RemoteObject ro = new RemoteObject(value, true, generatePreview, context, TypeMark.ARRAY_PROPERTIES);
+                                context.getRemoteObjectsHandler().register(ro, objectGroup);
+                                result = ro.toJSON();
+                            } else if (FUNCTION_GET_ARRAY_SLOTS_PATTERN.matcher(functionTrimmed).matches()) {
+                                if (!value.isArray()) {
+                                    throw new CommandProcessException("Expecting an Array the function is called on.");
+                                }
+                                if (arguments == null || arguments.length() < 2) {
+                                    throw new CommandProcessException("Insufficient number of arguments: " + (arguments != null ? arguments.length() : 0) + ", expecting: 2");
+                                }
+                                int rangeStart = ((JSONObject) arguments.get(0)).getInt("value");
+                                int rangeCount = ((JSONObject) arguments.get(1)).getInt("value");
+                                int arraySize = value.getArray().size();
+                                int start = rangeStart == -1 ? 0 : rangeStart;
+                                int end = rangeCount == -1 ? arraySize : rangeStart + rangeCount;
+                                if (start < 0) {
+                                    start = 0;
+                                }
+                                if (end < start) {
+                                    end = start;
+                                }
+                                if (end > arraySize) {
+                                    end = arraySize;
+                                }
+                                RemoteObject ro = new RemoteObject(value, true, generatePreview, context, new RemoteObject.IndexRange(start, end, false), TypeMark.ARRAY_SLOTS);
+                                context.getRemoteObjectsHandler().register(ro, objectGroup);
+                                result = ro.toJSON();
+                            } else if ((matcher = FUNCTION_GET_STRINGY_PROPS_PATTERN.matcher(functionTrimmed)).matches()) {
+                                int stringyValueMaxLength = Integer.parseInt(matcher.group("maxLengthValue"));
+                                result = createGetStringyPropsResult(value, stringyValueMaxLength);
+                            } else if ((matcher = FUNCTION_GET_STRINGY_PROPS_CUSTOM_PATTERN.matcher(functionTrimmed)).matches()) {
+                                int stringyPropsMaxLength = Integer.parseInt(matcher.group("maxLengthValue"));
+                                result = createGetStringyPropsCustomResult(value, arguments, stringyPropsMaxLength);
                             } else {
                                 // Process CustomPreview body:
                                 if (arguments != null && arguments.length() > 0) {
@@ -985,6 +1082,154 @@ public final class InspectorRuntime extends RuntimeDomain {
 
     private static String eliminateWhiteSpaces(String str) {
         return WHITESPACES_PATTERN.matcher(str).replaceAll("");
+    }
+
+    private static boolean isArrayIndexPropertyName(String name) {
+        if (name == null || name.isEmpty()) {
+            return false;
+        }
+        long index = 0;
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (c < '0' || c > '9') {
+                return false;
+            }
+            index = index * 10 + (c - '0');
+            if (index >= 0xffff_ffffL) {
+                return false;
+            }
+        }
+        return Long.toString(index).equals(name);
+    }
+
+    private static Collection<DebugValue> getArrayProperties(DebugValue value) {
+        Collection<DebugValue> props = value.getProperties();
+        if (props == null || props.isEmpty()) {
+            return props;
+        }
+        List<DebugValue> namedProps = new ArrayList<>(props.size());
+        for (DebugValue property : props) {
+            if (!isArrayIndexPropertyName(property.getName())) {
+                namedProps.add(property);
+            }
+        }
+        return namedProps;
+    }
+
+    private void putArraySlots(JSONObject json, DebugValue value, RemoteObject.IndexRange indexRange, boolean generatePreview, String objectGroup) throws CommandProcessException {
+        List<DebugValue> array = value.getArray();
+        int start = 0;
+        int end = array.size();
+        if (indexRange != null) {
+            start = indexRange.start();
+            end = indexRange.end();
+        }
+        if (start < 0 || end < start || end > array.size()) {
+            throw new CommandProcessException("Array range out of bounds.");
+        }
+        JSONArray result = new JSONArray();
+        for (int i = start; i < end; i++) {
+            DebugValue element = array.get(i);
+            try {
+                if (element.isReadable()) {
+                    result.put(createPropertyJSON(element, Integer.toString(i), generatePreview, objectGroup, null));
+                }
+            } catch (DebugException ex) {
+                fillExceptionDetails(json, ex);
+                if (ex.isInternalError()) {
+                    PrintWriter err = context.getErr();
+                    if (err != null) {
+                        err.println("Exception while retrieving variable " + i);
+                        ex.printStackTrace(err);
+                    }
+                }
+                break;
+            }
+        }
+        json.put("result", result);
+        json.put("internalProperties", new JSONArray());
+    }
+
+    /**
+     * Approximation of the VS Code js-debug stringy-props helper's {@code typeof s == "object" &&
+     * s} filter for {@link DebugValue}s. The helper skips null and functions, then attempts to
+     * derive custom/string display values only for object-like property values. Since
+     * {@link DebugValue} is language-neutral, object-like values are identified by the capabilities
+     * that can represent object-shaped interop values: properties, arrays, hash entries, iterators,
+     * and dates.
+     */
+    private static boolean isStringyPropsCandidate(DebugValue value) throws DebugException {
+        return !value.isNull() && !value.canExecute() &&
+                        (value.getProperties() != null || value.isArray() || value.hasHashEntries() || value.isIterator() || value.isDate() || value.isTime());
+    }
+
+    private static String truncateForStringyProps(String value, int maxLength) {
+        if (value.length() >= maxLength) {
+            return value.substring(0, maxLength) + "\u2026";
+        }
+        return value;
+    }
+
+    private JSONObject createGetStringyPropsResult(DebugValue value, int maxLength) {
+        String stringValue = null;
+        if (value != null && !value.isNull()) {
+            stringValue = value.toDisplayString(context.areToStringSideEffectsAllowed());
+        }
+        JSONObject result = new JSONObject();
+        if (stringValue != null && !stringValue.isEmpty() && !stringValue.startsWith("[object ")) {
+            String truncated = truncateForStringyProps(stringValue, maxLength);
+            result.put("type", "string");
+            result.put("value", truncated);
+            result.put("description", truncated);
+        } else {
+            result.put("type", "undefined");
+        }
+        return result;
+    }
+
+    private static JSONArray getStringyPropsRuntimeArgs(JSONArray arguments) {
+        if (arguments != null && !arguments.isEmpty()) {
+            Object value = arguments.getJSONObject(0).opt("value");
+            if (value instanceof JSONArray array) {
+                return array;
+            }
+            if (value instanceof String json) {
+                return new JSONArray(json);
+            }
+        }
+        return new JSONArray();
+    }
+
+    private JSONObject createGetStringyPropsCustomResult(DebugValue value, JSONArray arguments, int maxLength) {
+        JSONObject out = new JSONObject();
+        boolean customProps = false;
+        JSONArray runtimeArgs = getStringyPropsRuntimeArgs(arguments);
+        if (value != null) {
+            String customPropsName = runtimeArgs.optString(2, null);
+            if (customPropsName != null && !customPropsName.isEmpty()) {
+                DebugValue customPropsValue = value.getProperty(customPropsName);
+                customProps = customPropsValue != null && customPropsValue.canExecute();
+            }
+            Collection<DebugValue> properties = value.getProperties();
+            if (properties != null) {
+                for (DebugValue property : properties) {
+                    if (!property.isReadable() || property.isInternal() || !isStringyPropsCandidate(property)) {
+                        continue;
+                    }
+                    String displayString = property.toDisplayString(context.areToStringSideEffectsAllowed());
+                    if (displayString != null && !displayString.isEmpty() && !displayString.startsWith("[object ")) {
+                        out.put(property.getName(), truncateForStringyProps(displayString, maxLength));
+                    }
+                }
+            }
+        }
+        JSONObject valueObject = new JSONObject();
+        valueObject.put("out", out);
+        valueObject.put("customProps", customProps);
+        JSONObject result = new JSONObject();
+        result.put("type", "object");
+        result.put("value", valueObject);
+        return result;
     }
 
     private final class ContextListener implements InspectorExecutionContext.Listener {
