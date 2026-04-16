@@ -87,6 +87,7 @@ For more information, see [Using GraalVM and Native Image on Windows](https://me
 ## Build a Native Executable Using Maven or Gradle
 
 We provide Maven and Gradle plugins for Native Image to automate building, testing, and configuring native executables.
+Ensure `JAVA_HOME` points to a GraalVM installation so that the plugins can find the `native-image` tool.
 
 ### Maven
 
@@ -106,6 +107,7 @@ The [Maven plugin for Native Image](https://graalvm.github.io/native-build-tools
     ```bash
     mvn archetype:generate -DgroupId=com.example -DartifactId=helloworld -DarchetypeArtifactId=maven-archetype-quickstart -DinteractiveMode=false
     ```
+    The generated project includes a legacy _AppTest.java_ file that depends on an older JUnit version. If you follow the configuration below, remove or modernize that generated test before building the native executable.
 
 2. Add the regular Maven plugins for compiling and assembling the project into an executable JAR file to your _pom.xml_ file:
     ```xml
@@ -163,13 +165,18 @@ The [Maven plugin for Native Image](https://graalvm.github.io/native-build-tools
       </profile>
     </profiles>
     ```
-    Set the `version` property to the latest plugin version (for example, by specifying the version via `<native.maven.plugin.version>` in the `<properties>` element).
+    Set the `version` property to the latest plugin version (for example, by specifying the version via `<native.maven.plugin.version>` in the `<properties>` element). Keeping the plugin in a `native` profile preserves the default JVM build and enables native image generation only when you pass `-Pnative`. The `compile-no-fork` goal builds the native executable during the `package` phase without starting a second Maven lifecycle.
 
 4. Compile the project and build a native executable at one step:
     ```bash
     mvn -Pnative package
     ``` 
     The native executable, named `helloworld`, is created in the _target/_ directory of the project.
+    To build and run JUnit Platform tests as native executables, add the plugin `test` goal and run:
+    ```bash
+    mvn -Pnative test
+    ```
+    Use `-DskipTests` to skip all tests, or `-DskipNativeTests` to run only the regular JVM tests.
 
 5. Run the executable:
     ```bash
@@ -206,24 +213,25 @@ The [Gradle plugin for Native Image](https://graalvm.github.io/native-build-tool
         gradle init --project-name helloworld --type java-application --test-framework junit-jupiter --dsl groovy
         ```
         Follow the prompts. 
-        This command sets up a new Java application with the necessary directory structure and build files.
+        This command sets up a new Java application with the necessary directory structure and build files. The generated project uses an `app` subproject, so the application code and the plugin configuration live in _app/build.gradle_.
         
         > If caching was enabled by the project generator in the _gradle.properties_ file, comment out or remove the `org.gradle.configuration-cache=true` line.
 
-2. Enable the Gradle plugin for Native Image by adding the following to `plugins` section of your project’s _build.gradle_ file:
+2. Enable the Gradle plugin for Native Image by adding the following to the `plugins` section of _app/build.gradle_:
     ```
     plugins {
     // ...
     id 'org.graalvm.buildtools.native' version 'x.x.x'
     }
     ```
-    Specify the latest plugin version for the `'x.x.x'` version value.
+    Specify the latest plugin version for the `'x.x.x'` version value. Apply it together with the `application` or `java` plugin. By default, the native executable name is derived from the project name, and the main class is taken from the application configuration.
 
 3. Build a native executable by running `./gradlew nativeCompile`:
     ```bash
     ./gradlew nativeCompile
     ```
     The native executable, named `app`, is created in the _app/build/native/nativeCompile/_ directory of the project.
+    Related tasks you may want to use are `./gradlew nativeRun` to build and run the native executable, and `./gradlew nativeTest` to build and run native JUnit tests.
 
 4. Run the native executable:
     ```bash
