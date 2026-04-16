@@ -34,7 +34,7 @@ import org.graalvm.word.PointerBase;
 import org.graalvm.word.UnsignedWord;
 
 import com.oracle.svm.shared.Uninterruptible;
-import com.oracle.svm.core.c.function.CEntryPointErrors;
+import com.oracle.svm.guest.staging.c.function.CEntryPointErrors;
 import com.oracle.svm.core.code.DynamicMethodAddressResolutionHeapSupport;
 import com.oracle.svm.core.heap.Heap;
 import com.oracle.svm.core.os.VirtualMemoryProvider.Access;

@@ -28,7 +28,7 @@ import org.graalvm.nativeimage.Isolate;
 import org.graalvm.nativeimage.IsolateThread;
 
 import com.oracle.svm.shared.Uninterruptible;
-import com.oracle.svm.core.c.function.CEntryPointOptions.Prologue;
+import com.oracle.svm.guest.staging.c.function.CEntryPointOptions.Prologue;
 import com.oracle.svm.core.graal.nodes.WriteCurrentVMThreadNode;
 import com.oracle.svm.core.graal.snippets.CEntryPointSnippets;
 

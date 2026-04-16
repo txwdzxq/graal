@@ -43,11 +43,11 @@ import org.graalvm.word.PointerBase;
 import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.NeverInline;
-import com.oracle.svm.core.c.CGlobalData;
-import com.oracle.svm.core.c.CGlobalDataFactory;
 import com.oracle.svm.core.c.ProjectHeaderFile;
 import com.oracle.svm.core.debug.SubstrateDebugInfoInstaller;
 import com.oracle.svm.shared.Uninterruptible;
+import com.oracle.svm.guest.staging.c.CGlobalData;
+import com.oracle.svm.guest.staging.c.CGlobalDataFactory;
 
 /**
  * This interface is based on the <a href=

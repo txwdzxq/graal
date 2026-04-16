@@ -31,7 +31,6 @@ import org.graalvm.nativeimage.c.type.CCharPointer;
 import org.graalvm.nativeimage.c.type.CTypeConversion;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.c.function.CEntryPointOptions;
 import com.oracle.svm.core.hub.registry.ClassRegistries;
 import com.oracle.svm.core.hub.registry.SymbolsSupport;
 import com.oracle.svm.core.jni.JNIObjectHandles;
@@ -39,6 +38,7 @@ import com.oracle.svm.core.jni.functions.JNIFunctions.Support.JNIEnvEnterPrologu
 import com.oracle.svm.core.jni.functions.JNIFunctions.Support.ReturnNullHandle;
 import com.oracle.svm.core.jni.headers.JNIEnvironment;
 import com.oracle.svm.core.jni.headers.JNIObjectHandle;
+import com.oracle.svm.guest.staging.c.function.CEntryPointOptions;
 import com.oracle.svm.shared.Uninterruptible;
 
 final class LibJVMEntryPoints {

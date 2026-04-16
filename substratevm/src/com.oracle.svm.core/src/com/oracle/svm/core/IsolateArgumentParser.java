@@ -37,7 +37,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import com.oracle.svm.core.jdk.UninterruptibleUtils;
+import com.oracle.svm.shared.util.NumUtil;
 import com.oracle.svm.core.option.RuntimeOptionParser;
 import com.oracle.svm.shared.util.SubstrateUtil;
 import org.graalvm.nativeimage.ImageSingletons;
@@ -52,10 +52,8 @@ import org.graalvm.nativeimage.c.type.CTypeConversion;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.c.CGlobalData;
-import com.oracle.svm.core.c.CGlobalDataFactory;
-import com.oracle.svm.core.c.function.CEntryPointCreateIsolateParameters;
 import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
+import com.oracle.svm.guest.staging.c.function.CEntryPointCreateIsolateParameters;
 import com.oracle.svm.core.graal.RuntimeCompilation;
 import com.oracle.svm.core.headers.LibC;
 import com.oracle.svm.core.imagelayer.BuildingImageLayerPredicate;
@@ -64,6 +62,8 @@ import com.oracle.svm.core.memory.UntrackedNullableNativeMemory;
 import com.oracle.svm.core.option.RuntimeOptionKey;
 import com.oracle.svm.core.util.ImageHeapList;
 import com.oracle.svm.shared.Uninterruptible;
+import com.oracle.svm.guest.staging.c.CGlobalData;
+import com.oracle.svm.guest.staging.c.CGlobalDataFactory;
 import com.oracle.svm.shared.singletons.ImageSingletonLoader;
 import com.oracle.svm.shared.singletons.ImageSingletonWriter;
 import com.oracle.svm.shared.singletons.LayeredPersistFlags;
@@ -381,7 +381,7 @@ public class IsolateArgumentParser {
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public int getIntOptionValue(int optionIndex) {
         long value = getLongOptionValue(optionIndex);
-        return UninterruptibleUtils.NumUtil.safeToInt(value);
+        return NumUtil.safeToInt(value);
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)

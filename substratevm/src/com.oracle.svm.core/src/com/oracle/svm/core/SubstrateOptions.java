@@ -673,14 +673,6 @@ public class SubstrateOptions {
     @Option(help = "Trace all native tool invocations as part of image building", type = User)//
     public static final HostedOptionKey<Boolean> TraceNativeToolUsage = new HostedOptionKey<>(false);
 
-    @LayerVerifiedOption(kind = Kind.Changed, severity = Severity.Error)//
-    @Option(help = "Prefix that is added to the names of entry point methods.")//
-    public static final HostedOptionKey<String> EntryPointNamePrefix = new HostedOptionKey<>("");
-
-    @LayerVerifiedOption(kind = Kind.Changed, severity = Severity.Error)//
-    @Option(help = "Prefix that is added to the names of API functions.", stability = OptionStability.STABLE)//
-    public static final HostedOptionKey<String> APIFunctionPrefix = new HostedOptionKey<>("graal_");
-
     @APIOption(name = "enable-http", fixedValue = "http", customHelp = "enable http support in the generated image")//
     @APIOption(name = "enable-https", fixedValue = "https", customHelp = "enable https support in the generated image")//
     @APIOption(name = "enable-url-protocols")//

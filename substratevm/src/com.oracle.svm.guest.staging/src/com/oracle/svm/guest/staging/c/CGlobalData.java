@@ -22,16 +22,14 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.c;
+package com.oracle.svm.guest.staging.c;
 
 import org.graalvm.word.PointerBase;
 
-import com.oracle.svm.core.c.function.CEntryPointOptions;
-
 /**
  * An object of this class represents a chunk of static global data that is located outside the heap
- * and can be accessed directly {@linkplain PointerBase by address}. No
- * {@linkplain CEntryPointOptions#prologue() Java execution context} is required.
+ * and can be accessed directly {@linkplain PointerBase by address}. No Java execution context
+ * ({@code CEntryPointOptions.prologue}) is required.
  */
 public abstract class CGlobalData<T extends PointerBase> {
     /**

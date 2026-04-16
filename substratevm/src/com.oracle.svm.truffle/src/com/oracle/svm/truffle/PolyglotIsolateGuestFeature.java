@@ -28,7 +28,7 @@ import org.graalvm.jniutils.NativeBridgeSupport;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.hosted.Feature;
 
-import com.oracle.svm.core.SubstrateOptions;
+import com.oracle.svm.guest.staging.SubstrateGuestOptions;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
 import com.oracle.svm.core.snippets.KnownIntrinsics;
@@ -69,7 +69,7 @@ public final class PolyglotIsolateGuestFeature implements Feature {
                         PolyglotIsolateGuestFeature.class.getSimpleName(), PolyglotIsolateGuestFeature.class.getName());
         // Fix symbol name clashes in the native-to-native mode with external library using the API
         // function prefix.
-        ImageSingletons.add(PolyglotIsolateTearDownSupport.class, new PolyglotIsolateTearDownSupport(SubstrateOptions.APIFunctionPrefix.getValue()));
+        ImageSingletons.add(PolyglotIsolateTearDownSupport.class, new PolyglotIsolateTearDownSupport(SubstrateGuestOptions.APIFunctionPrefix.getValue()));
         ImageSingletons.add(PolyglotIsolateGuestFeatureEnabled.class, new PolyglotIsolateGuestFeatureEnabled());
         ImageSingletons.add(NativeBridgeSupport.class, new PolyglotIsolateBridgeSupport());
         registerProcessIsolateEntryPoint();

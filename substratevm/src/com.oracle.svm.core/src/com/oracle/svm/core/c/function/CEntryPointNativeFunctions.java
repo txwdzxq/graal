@@ -35,11 +35,14 @@ import org.graalvm.nativeimage.c.struct.CPointerTo;
 import org.graalvm.word.PointerBase;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.core.c.function.CEntryPointOptions.NoEpilogue;
-import com.oracle.svm.core.c.function.CEntryPointOptions.NoPrologue;
 import com.oracle.svm.core.thread.VMThreads;
+import com.oracle.svm.guest.staging.SubstrateGuestOptions;
 import com.oracle.svm.shared.Uninterruptible;
+import com.oracle.svm.guest.staging.c.function.CEntryPointActions;
+import com.oracle.svm.guest.staging.c.function.CEntryPointCreateIsolateParameters;
+import com.oracle.svm.guest.staging.c.function.CEntryPointOptions;
+import com.oracle.svm.guest.staging.c.function.CEntryPointOptions.NoEpilogue;
+import com.oracle.svm.guest.staging.c.function.CEntryPointOptions.NoPrologue;
 
 @CHeader(value = GraalIsolateHeader.class)
 public final class CEntryPointNativeFunctions {
@@ -63,7 +66,7 @@ public final class CEntryPointNativeFunctions {
     public static class NameTransformation implements Function<String, String> {
         @Override
         public String apply(String s) {
-            return SubstrateOptions.APIFunctionPrefix.getValue() + s;
+            return SubstrateGuestOptions.APIFunctionPrefix.getValue() + s;
         }
     }
 

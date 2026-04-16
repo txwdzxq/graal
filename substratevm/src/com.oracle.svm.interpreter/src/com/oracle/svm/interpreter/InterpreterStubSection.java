@@ -47,8 +47,6 @@ import com.oracle.objectfile.SectionName;
 import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.SubstrateTarget;
-import com.oracle.svm.core.c.CGlobalData;
-import com.oracle.svm.core.c.CGlobalDataFactory;
 import com.oracle.svm.core.deopt.Deoptimizer;
 import com.oracle.svm.core.graal.code.InterpreterAccessStubData;
 import com.oracle.svm.core.graal.code.PreparedSignature;
@@ -59,13 +57,14 @@ import com.oracle.svm.core.heap.GCCause;
 import com.oracle.svm.core.heap.Heap;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.interpreter.InterpreterEnterStub;
-import com.oracle.svm.core.jdk.UninterruptibleUtils;
 import com.oracle.svm.core.memory.NativeMemory;
 import com.oracle.svm.core.memory.NullableNativeMemory;
 import com.oracle.svm.core.nmt.NmtCategory;
 import com.oracle.svm.core.threadlocal.FastThreadLocalFactory;
 import com.oracle.svm.core.threadlocal.FastThreadLocalObject;
 import com.oracle.svm.graal.meta.SubstrateInstalledCodeImpl;
+import com.oracle.svm.guest.staging.c.CGlobalData;
+import com.oracle.svm.guest.staging.c.CGlobalDataFactory;
 import com.oracle.svm.guest.staging.jdk.InternalVMMethod;
 import com.oracle.svm.hosted.image.AbstractImage;
 import com.oracle.svm.hosted.image.NativeImage;
@@ -77,6 +76,7 @@ import com.oracle.svm.interpreter.metadata.InterpreterUniverse;
 import com.oracle.svm.interpreter.ristretto.meta.RistrettoMethod;
 import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.shared.Uninterruptible;
+import com.oracle.svm.shared.util.NumUtil;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.core.common.LIRKind;
@@ -486,7 +486,7 @@ public abstract class InterpreterStubSection {
         InterpreterAccessStubData accessHelper = ImageSingletons.lookup(InterpreterAccessStubData.class);
         Pointer leaveData = StackValue.get(accessHelper.allocateStubDataSize());
 
-        int stackSize = UninterruptibleUtils.NumUtil.roundUp(compiledSignature.getStackSize(), stubSection.target.stackAlignment);
+        int stackSize = NumUtil.roundUp(compiledSignature.getStackSize(), stubSection.target.stackAlignment);
 
         assert stackSize > 0 : "Stack size should include deopt slot.";
         Pointer stackBuffer = NullableNativeMemory.malloc(Word.unsigned(stackSize), NmtCategory.Interpreter);

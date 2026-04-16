@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.util;
+package com.oracle.svm.guest.staging.util;
 
 import java.nio.ByteBuffer;
 
@@ -34,10 +34,9 @@ import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.WordBase;
 
-import com.oracle.svm.core.SubstrateTarget;
+import com.oracle.svm.guest.staging.config.SubstrateGuestTarget;
+import com.oracle.svm.shared.util.NumUtil;
 import com.oracle.svm.shared.util.VMError;
-
-import jdk.graal.compiler.core.common.NumUtil;
 
 @Platforms(Platform.HOSTED_ONLY.class)
 public final class HostedByteBufferPointer implements Pointer {
@@ -101,7 +100,7 @@ public final class HostedByteBufferPointer implements Pointer {
     }
 
     private static int offsetAsInt(WordBase offset) {
-        return NumUtil.safeToInt(offset.rawValue());
+        return Math.toIntExact(offset.rawValue());
     }
 
     private static RuntimeException unsupported() {
@@ -506,7 +505,7 @@ public final class HostedByteBufferPointer implements Pointer {
     @Override
     public void writeWord(int offset, WordBase val) {
         long value = val.rawValue();
-        int wordSize = SubstrateTarget.getWordSize();
+        int wordSize = SubstrateGuestTarget.getWordSize();
         if (wordSize == Integer.BYTES) {
             buffer.putInt(baseOffset + offset, NumUtil.safeToUInt(value));
         } else {
@@ -567,7 +566,7 @@ public final class HostedByteBufferPointer implements Pointer {
 
     @Override
     public Pointer add(UnsignedWord val) {
-        return add(NumUtil.safeToInt(val.rawValue()));
+        return add(Math.toIntExact(val.rawValue()));
     }
 
     @Override

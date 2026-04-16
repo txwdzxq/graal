@@ -22,7 +22,7 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-package com.oracle.svm.core.c.function;
+package com.oracle.svm.guest.staging.c.function;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -41,16 +41,16 @@ import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 import org.graalvm.nativeimage.c.type.CCharPointer;
 import org.graalvm.word.Pointer;
-
-import com.oracle.svm.shared.Uninterruptible;
-import com.oracle.svm.core.c.CGlobalData;
-import com.oracle.svm.core.c.CGlobalDataFactory;
-import com.oracle.svm.core.util.HostedByteBufferPointer;
-import com.oracle.svm.shared.util.VMError;
 import org.graalvm.word.impl.Word;
 
+import com.oracle.svm.shared.Uninterruptible;
+import com.oracle.svm.guest.staging.c.CGlobalData;
+import com.oracle.svm.guest.staging.c.CGlobalDataFactory;
+import com.oracle.svm.guest.staging.util.HostedByteBufferPointer;
+import com.oracle.svm.shared.util.VMError;
+
 /**
- * Errors returned by {@link CEntryPointActions} and {@link CEntryPointNativeFunctions} and their
+ * Errors returned by {@link CEntryPointActions} and {@code CEntryPointNativeFunctions} and their
  * implementation, including snippets and foreign function calls. These are non-public API as
  * callers such as libgraal rely on those values.
  */
