@@ -1216,6 +1216,23 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
         return isFlagSet(flags, IS_PRIMITIVE_FLAG_BIT);
     }
 
+    /**
+     * Returns the Java view over this class' modifiers. Note that this is different from the JVM
+     * modifiers for inner classes.
+     * <p>
+     * Consider the following:
+     * 
+     * <pre>
+     * public class A {
+     *     protected class B {
+     *     }
+     * }
+     * </pre>
+     * 
+     * The Java view of {@code B}'s access flag has its {@link Modifier#PROTECTED protected} bit
+     * set, whereas the JVM considers {@code B}'s access flags to have its {@link Modifier#PUBLIC
+     * public} bit set.
+     */
     @Substitute
     public int getModifiers() {
         return companion.modifiers;
