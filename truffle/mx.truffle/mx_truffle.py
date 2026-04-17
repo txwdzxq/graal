@@ -2048,7 +2048,7 @@ def register_polyglot_isolate_distributions(
             deps=resources_dist_dependencies,
             mainClass=None,
             excludedLibs=[],
-            distDependencies=["truffle:TRUFFLE_RUNTIME"],
+            distDependencies=["truffle:TRUFFLE_API"],
             javaCompliance=str(build_internal_resource.javaCompliance) + "+",
             platformDependent=True,
             theLicense=licenses,

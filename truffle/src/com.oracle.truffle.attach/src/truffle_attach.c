@@ -188,7 +188,7 @@ JNIEXPORT jobject JNICALL Java_com_oracle_truffle_api_impl_Accessor_00024JavaLan
     return (*env)->CallObjectMethod(env, action, supplierGetMethod);
 }
 
-JNIEXPORT jlong JNICALL Java_com_oracle_truffle_api_impl_DefaultRuntimeAccessor_00024DefaultRuntimeSupport_getPlatformStackEnd0(JNIEnv *env, jclass clz) {
+JNIEXPORT jlong JNICALL Java_com_oracle_truffle_api_impl_StackLimitSupport_getPlatformStackEnd0(JNIEnv *env, jclass clz) {
 #if defined (__linux__)
     pthread_attr_t attr;
     if (pthread_getattr_np(pthread_self(), &attr) != 0) {

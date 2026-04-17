@@ -40,18 +40,12 @@
  */
 package com.oracle.truffle.api.impl;
 
-import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import com.oracle.truffle.api.InternalResource;
-import com.sun.management.HotSpotDiagnosticMXBean;
-import org.graalvm.nativeimage.ImageInfo;
 import org.graalvm.options.OptionDescriptors;
 import org.graalvm.options.OptionValues;
 import org.graalvm.polyglot.Engine;
@@ -70,9 +64,6 @@ import com.oracle.truffle.api.nodes.DirectCallNode;
 import com.oracle.truffle.api.nodes.IndirectCallNode;
 import com.oracle.truffle.api.nodes.Node;
 import com.oracle.truffle.api.nodes.RootNode;
-import sun.misc.Unsafe;
-
-import javax.management.MBeanServer;
 
 final class DefaultRuntimeAccessor extends Accessor {
 
@@ -338,82 +329,9 @@ final class DefaultRuntimeAccessor extends Accessor {
 
         @Override
         public long getStackOverflowLimit() {
-            if (ImageInfo.inImageCode()) {
-                // TODO: On native image we can use intrinsic
-                throw new UnsupportedOperationException();
-            }
-
-            long platformStackEnd = getPlatformStackEnd0();
-            if (platformStackEnd == 0L) {
-                throw new UnsupportedOperationException("Unable to determine platform stack end for the current thread.");
-            }
-            HotSpotStackConfig config = HotSpotStackConfig.INSTANCE;
-            long red = alignUp(config.redZoneSize(), config.pageSize());
-            long yellow = alignUp(config.yellowZoneSize(), config.pageSize());
-            long reserved = alignUp(config.reservedZoneSize(), config.pageSize());
-            long shadow = alignUp(config.shadowZoneSize(), config.pageSize());
-            long guardZone = red + yellow + reserved;
-            return platformStackEnd + config.transitionSafetyMargin() + Math.max(guardZone, shadow);
+            return StackLimitSupport.getStackOverflowLimit();
         }
 
-        private static long alignUp(long x, long a) {
-            return ((x + a - 1) / a) * a;
-        }
-
-        record HotSpotStackConfig(long redZoneSize, long yellowZoneSize, long reservedZoneSize,
-                        long shadowZoneSize, long transitionSafetyMargin, long pageSize) {
-
-            HotSpotStackConfig {
-                assert transitionSafetyMargin % pageSize == 0 : "transitionSafetyMargin must be a multiple of pageSize";
-            }
-
-            private static final HotSpotStackConfig INSTANCE = init();
-
-            private static HotSpotStackConfig init() {
-                if (ImageInfo.inImageCode()) {
-                    return null;
-                }
-                long pageSize = getUnsafe().pageSize();
-                MBeanServer platformMBeanServer = ManagementFactory.getPlatformMBeanServer();
-                try {
-                    HotSpotDiagnosticMXBean bean = ManagementFactory.newPlatformMXBeanProxy(platformMBeanServer, "com.sun.management:type=HotSpotDiagnostic", HotSpotDiagnosticMXBean.class);
-                    return new HotSpotStackConfig(
-                                    // uses 4KB units
-                                    Long.parseLong(bean.getVMOption("StackRedPages").getValue()) * 4096L,
-                                    // uses 4KB units
-                                    Long.parseLong(bean.getVMOption("StackYellowPages").getValue()) * 4096L,
-                                    // uses 4KB units
-                                    Long.parseLong(bean.getVMOption("StackReservedPages").getValue()) * 4096L,
-                                    // uses 4KB units
-                                    Long.parseLong(bean.getVMOption("StackShadowPages").getValue()) * 4096L,
-                                    // always add a glibc guard page which is not included in stack
-                                    // bottom on some glibc versions
-                                    InternalResource.OS.getCurrent() == InternalResource.OS.LINUX ? pageSize : 0L,
-                                    // OS page size in bytes
-                                    pageSize);
-                } catch (IOException ioe) {
-                    throw new RuntimeException(ioe);
-                }
-            }
-
-            private static Unsafe getUnsafe() {
-                try {
-                    // Fast path when we are trusted.
-                    return Unsafe.getUnsafe();
-                } catch (SecurityException se) {
-                    // Slow path when we are not trusted.
-                    try {
-                        Field theUnsafe = Unsafe.class.getDeclaredField("theUnsafe");
-                        theUnsafe.setAccessible(true);
-                        return (Unsafe) theUnsafe.get(Unsafe.class);
-                    } catch (Exception e) {
-                        throw new RuntimeException("exception while trying to get Unsafe", e);
-                    }
-                }
-            }
-        }
-
-        private static native long getPlatformStackEnd0();
     }
 
 }

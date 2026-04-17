@@ -41,7 +41,9 @@
 package com.oracle.truffle.polyglot.isolate;
 
 import com.oracle.truffle.api.InternalResource;
+import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.impl.Accessor;
+import com.oracle.truffle.api.impl.DefaultTruffleRuntime;
 import com.oracle.truffle.api.impl.PolyglotIsolateLanguages;
 import org.graalvm.collections.Pair;
 import org.graalvm.home.HomeFinder;
@@ -94,6 +96,15 @@ final class PolyglotIsolateHostSupport {
                     boolean allowExperimentalOptions, boolean boundEngine, MessageTransport messageInterceptor, boolean registerInActiveEngines, boolean externalProcess, long stackHeadroom,
                     String isolateLibrary, String isolateLauncher) {
         assert isolateLanguages != null;
+
+        if (!ImageInfo.inImageCode() && Truffle.getRuntime() instanceof DefaultTruffleRuntime && PolyglotIsolateAccessor.ENGINE.getModulesAccessor() == null) {
+            /*
+             * On HotSpot, polyglot isolates running with the fallback Truffle runtime depend on
+             * libtruffleattach for stack-limit support and terminating thread locals.
+             */
+            throw new IllegalStateException("Polyglot isolates require libtruffleattach when running on HotSpot with the fallback Truffle runtime. " +
+                            "Ensure that libtruffleattach is available, or switch to the optimized Truffle runtime.");
+        }
         APIAccess apiAccess = polyglot.getAPIAccess();
         LibraryConfig libraryConfig = resolveIsolatePaths(apiAccess.getEngineReceiver(localEngine), isolateLibrary, isolateLauncher, permittedLanguages, isolateLanguages);
         return spawnIsolatedEngine(polyglot, localEngine, permittedLanguages, sandboxPolicy, out, err, in, options, systemPropertiesOptions, useSystemProperties, allowExperimentalOptions, boundEngine,
