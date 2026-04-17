@@ -304,6 +304,7 @@ suite = {
         "java.base" : [
           "jdk.internal.module",
           "jdk.internal.access",
+          "jdk.internal.misc",
         ],
       },
       "annotationProcessors" : [

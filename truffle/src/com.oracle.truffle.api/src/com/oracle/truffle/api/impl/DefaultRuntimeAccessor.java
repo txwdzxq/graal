@@ -318,7 +318,7 @@ final class DefaultRuntimeAccessor extends Accessor {
 
         @Override
         public <T> ThreadLocal<T> createTerminatingThreadLocal(Supplier<T> initialValue, Consumer<T> onThreadTermination) {
-            return ThreadLocal.withInitial(initialValue);
+            return ENGINE.getModulesAccessor().getJavaLangSupport().createTerminatingThreadLocal(initialValue, onThreadTermination);
         }
 
         @Override

@@ -1513,6 +1513,8 @@ public abstract class Accessor {
             }
         }
 
+        public abstract <T> ThreadLocal<T> createTerminatingThreadLocal(Supplier<T> initialValue, Consumer<T> onThreadTermination);
+
         private static native <T> T runPinned0(Supplier<T> action);
 
         private static native void registerJVMTIHook();
