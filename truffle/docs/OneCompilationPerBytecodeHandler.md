@@ -119,6 +119,7 @@ private int dispatchLoop_1(int pc, State state, short[] bytecode, Frame frame, i
 ```
 
 Note that all `BytecodeInterpreterHandler` annotated methods in the same source file must have the same signature, and the signature must have the same number of arguments (include any implicit receiver) as the length of the {@link BytecodeInterpreterHandlerConfig#arguments} array.
+When the interpreter is split across multiple `@BytecodeInterpreterSwitch` methods, these helper methods can still inline back into the interpreter root, but the `@BytecodeInterpreterHandler` methods themselves remain outlined.
 
 The `@Argument` annotations define how each parameter (including receiver for non-static method) is handled:
 
@@ -248,6 +249,6 @@ __stub_addHandler(ReceiverType thiz, int pc, int sp, short[] bytecode, Frame fra
 This tail call threading implementation imposes the following **restrictions**:
 
 - The `BytecodeInterpreterSwitch` method must not contain additional logic after bytecode handler invocations, as such logic will only be executed after the threading terminates
-- All `BytecodeInterpreterHandler` methods called by the same `BytecodeInterpreterSwitch` method must share the same method descriptor and modifiers
+- All `BytecodeInterpreterHandler` methods participating in the same interpreter must share the same method descriptor and modifiers
 - A method annotated with `BytecodeInterpreterFetchOpcode` must be declared in the same enclosing class, have the same signature as `BytecodeInterpreterHandler` methods, and be free of side effects
-- Exception handling in the BytecodeInterpreterSwitch method should be made aware that exceptions thrown from handler stubs can be unwound to any threading entry point
+- Exception handling in the `BytecodeInterpreterSwitch` method should account for exceptions thrown from handler stubs being unwound to any threading entry point.
