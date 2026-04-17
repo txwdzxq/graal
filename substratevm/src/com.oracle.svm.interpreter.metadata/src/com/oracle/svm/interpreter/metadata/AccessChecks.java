@@ -28,16 +28,43 @@ import com.oracle.svm.core.jdk.Target_jdk_internal_reflect_Reflection;
 import com.oracle.svm.espresso.classfile.descriptors.ByteSequence;
 import com.oracle.svm.espresso.classfile.descriptors.ParserSymbols;
 
+/**
+ * Utility class for performing access checks on types loaded at run time.
+ * <p>
+ * This helper is used, for example, during symbolic resolution and when validating direct
+ * superclasses and superinterfaces. It covers package and module visibility, member access,
+ * nestmate access, {@code MagicAccessor} handling, and the array {@code Object.clone()} special
+ * case.
+ */
 public final class AccessChecks {
     private AccessChecks() {
     }
 
+    /**
+     * Ensures that {@code accessingType} may access {@code type}.
+     * <p>
+     * Array types are checked using their elemental type. Primitive types are always accessible.
+     * <p>
+     *
+     * @throws IllegalAccessError if {@code accessingType} is not allowed to access {@code type}
+     */
     public static void ensureTypeAccess(InterpreterResolvedJavaType type, InterpreterResolvedJavaType accessingType) throws IllegalAccessError {
         if (!AccessChecks.checkTypeAccess(type, accessingType)) {
             throw new IllegalAccessError(buildFailedAccessMessage(type, accessingType));
         }
     }
 
+    /**
+     * Ensures that the class being defined may access {@code accessedType} as a direct superclass
+     * or direct superinterface.
+     * <p>
+     * The {@code clsName}, {@code accessingLoader}, {@code accessingPkgName}, and
+     * {@code accessingModule} arguments describe the class under definition and are also used when
+     * constructing the {@link IllegalAccessError} message.
+     * <p>
+     *
+     * @throws IllegalAccessError if {@code accessedType} is not accessible
+     */
     public static void ensureTypeAccess(String clsName, ClassLoader accessingLoader, ByteSequence accessingPkgName, Module accessingModule, InterpreterResolvedJavaType accessedType)
                     throws IllegalAccessError {
         if (!AccessChecks.checkTypeAccess(accessingLoader, accessingPkgName, accessingModule, accessedType)) {
@@ -45,6 +72,14 @@ public final class AccessChecks {
         }
     }
 
+    /**
+     * Returns whether {@code accessingClass} may access {@code member}, with {@code holderClass} as
+     * the symbolic holder for the member.
+     * <p>
+     * {@code holderClass} may differ from {@code member.getDeclaringClass()}. The check covers
+     * protected access, including receiver constraints, package-private access, private nestmate
+     * access, the array {@code Object.clone()} special case, and {@code MagicAccessor} handling.
+     */
     public static boolean checkMemberAccess(CremaResolvedMember member, InterpreterResolvedJavaType accessingClass, InterpreterResolvedJavaType holderClass) {
         if (member.isPublic()) {
             return true;
