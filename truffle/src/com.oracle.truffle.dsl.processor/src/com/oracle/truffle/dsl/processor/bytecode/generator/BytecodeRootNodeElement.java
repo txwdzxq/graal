@@ -1434,7 +1434,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         method.addThrownType(type(IOException.class));
         addJavadoc(method,
                         """
-                                        Deserializes a byte sequence to bytecode nodes. The bytes must have been produced by a previous call to {@link #serialize}.").newLine()
+                                        Deserializes a byte sequence to bytecode nodes. The bytes must have been produced by a previous call to {@link #serialize}.
 
                                         @param language the language instance.
                                         @param config indicates whether to deserialize metadata (e.g., source information).
