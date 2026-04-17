@@ -2212,7 +2212,7 @@ final class BytecodeInstructionHandler extends CodeExecutableElement implements 
 
             b.declaration(type(short.class), "newInstruction");
             b.declaration(type(short.class), "newOperand");
-            b.declaration(type(int.class), "operandIndex", BytecodeRootNodeElement.readImmediate("bc", "bci", instruction.findImmediate(ImmediateKind.BYTECODE_INDEX, "child0")));
+            b.declaration(type(int.class), "operandIndex", BytecodeRootNodeElement.readImmediate("bc", "bci", instruction.findChildBciImmediate(0)));
             b.declaration(type(short.class), "operand", BytecodeRootNodeElement.readInstruction("bc", "operandIndex"));
 
             b.startIf().string("(newOperand = ").startCall(BytecodeRootNodeElement.createApplyQuickeningName(boxingType)).string("operand").end().string(") != -1").end().startBlock();
