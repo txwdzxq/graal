@@ -7,8 +7,8 @@ permalink: /reference-manual/native-image/
 
 # Native Image
 
-Native Image is a technology to compile Java code ahead-of-time to a binary&mdash;a **native executable**. 
-A native executable includes only the code required at run time, that is the application classes, standard-library classes, the language runtime, and statically-linked native code from the JDK. 
+Native Image is a technology to compile Java code ahead-of-time to a binary&mdash;a **native executable**.
+A native executable includes only the code required at run time, that is the application classes, standard-library classes, the language runtime, and statically-linked native code from the JDK.
 
 An executable file produced by Native Image has several important advantages, in that it
 
@@ -21,11 +21,11 @@ An executable file produced by Native Image has several important advantages, in
 A native executable is created by the **Native Image builder** or `native-image` that processes your application classes and [other metadata](ReachabilityMetadata.md) to create a binary for a specific operating system and architecture.
 First, the `native-image` tool performs static analysis of your code to determine the classes and methods that are **reachable** when your application runs.
 Second, it compiles classes, methods, and resources into a binary.
-This entire process is called **build time** to clearly distinguish it from the compilation of Java source code to bytecode. 
+This entire process is called **build time** to clearly distinguish it from the compilation of Java source code to bytecode.
 
 The `native-image` tool can be used to build a **native executable**, which is the default, or a **native shared library**. This quick start guide focuses on building a native executable; to learn more about native shared libraries, go [here](InteropWithNativeCode.md).
 
-To get used to Native Image terminology and get better understanding of the technology, we recommend you to read the [Basics of Native Image](NativeImageBasics.md). 
+To get used to Native Image terminology and get better understanding of the technology, we recommend you to read the [Basics of Native Image](NativeImageBasics.md).
 
 ### Table of Contents
 
@@ -37,7 +37,7 @@ To get used to Native Image terminology and get better understanding of the tech
 
 ### Prerequisites
 
-The `native-image` tool, available in the `bin` directory of your GraalVM installation, depends on the local toolchain (header files for the C library, `glibc-devel`, `zlib`, `gcc`, and/or `libstdc++-static`). 
+The `native-image` tool, available in the `bin` directory of your GraalVM installation, depends on the local toolchain (header files for the C library, `glibc-devel`, `zlib`, `gcc`, and/or `libstdc++-static`).
 These dependencies can be installed (if not yet installed) using a package manager on your machine.
 Choose your operating system to find instructions to meet the prerequisites.
 
@@ -103,11 +103,16 @@ The [Maven plugin for Native Image](https://graalvm.github.io/native-build-tools
         │           └── example
         │               └── App.java
     ```
-    For example, you can run this command to create a new Maven project using the quickstart archetype:
+    For example, you can run this command to create a new Maven project using the Maven Quickstart archetype:
     ```bash
-    mvn archetype:generate -DgroupId=com.example -DartifactId=helloworld -DarchetypeArtifactId=maven-archetype-quickstart -DinteractiveMode=false
+    mvn archetype:generate \
+      -DarchetypeGroupId=org.apache.maven.archetypes \
+      -DarchetypeArtifactId=maven-archetype-quickstart \
+      -DarchetypeVersion=1.5 \
+      -DgroupId=com.example \
+      -DartifactId=helloworld \
+      -DinteractiveMode=false
     ```
-    The generated project includes a legacy _AppTest.java_ file that depends on an older JUnit version. If you follow the configuration below, remove or modernize that generated test before building the native executable.
 
 2. Add the regular Maven plugins for compiling and assembling the project into an executable JAR file to your _pom.xml_ file:
     ```xml
@@ -170,7 +175,7 @@ The [Maven plugin for Native Image](https://graalvm.github.io/native-build-tools
 4. Compile the project and build a native executable at one step:
     ```bash
     mvn -Pnative package
-    ``` 
+    ```
     The native executable, named `helloworld`, is created in the _target/_ directory of the project.
     To build and run JUnit Platform tests as native executables, add the plugin `test` goal and run:
     ```bash
@@ -180,13 +185,13 @@ The [Maven plugin for Native Image](https://graalvm.github.io/native-build-tools
 
 5. Run the executable:
     ```bash
-    ./target/helloworld 
+    ./target/helloworld
     ```
     That is it, you successfully created the native executable for your Java application using Maven.
 
 The Maven plugin for Native Image building offers many other features that may be required for an application with more complexity, such as resources autodetection, generating the required configuration, running JUnit Platform tests on a native executable, and so on, described in the [plugin reference documentation](https://graalvm.github.io/native-build-tools/latest/maven-plugin.html).
 
-### Gradle 
+### Gradle
 
 The [Gradle plugin for Native Image](https://graalvm.github.io/native-build-tools/latest/gradle-plugin.html) adds support for compiling a Java application into a native executable using the [Gradle build tool](https://gradle.org/).
 
@@ -212,9 +217,9 @@ The [Gradle plugin for Native Image](https://graalvm.github.io/native-build-tool
         ```bash
         gradle init --project-name helloworld --type java-application --test-framework junit-jupiter --dsl groovy
         ```
-        Follow the prompts. 
+        Follow the prompts.
         This command sets up a new Java application with the necessary directory structure and build files. The generated project uses an `app` subproject, so the application code and the plugin configuration live in _app/build.gradle_.
-        
+
         > If caching was enabled by the project generator in the _gradle.properties_ file, comment out or remove the `org.gradle.configuration-cache=true` line.
 
 2. Enable the Gradle plugin for Native Image by adding the following to the `plugins` section of _app/build.gradle_:
@@ -235,7 +240,7 @@ The [Gradle plugin for Native Image](https://graalvm.github.io/native-build-tool
 
 4. Run the native executable:
     ```bash
-    ./app/build/native/nativeCompile/app 
+    ./app/build/native/nativeCompile/app
     ```
     That is it, you successfully created the native executable for your Java application using Gradle.
 
@@ -243,7 +248,7 @@ The Gradle plugin for Native Image building has many other features that may be 
 
 ## Build a Native Executable Using the `native-image` Tool
 
-The `native-image` tool takes Java bytecode as its input. 
+The `native-image` tool takes Java bytecode as its input.
 You can build a native executable from a class file, from a JAR file, or from a module (with Java 9 and higher).
 
 ### From a Class
@@ -256,7 +261,7 @@ native-image [options] class [imagename] [options]
 For example, build a native executable for a HelloWorld application.
 
 1. Save this code into file named _HelloWorld.java_:
-    ```java 
+    ```java
     public class HelloWorld {
         public static void main(String[] args) {
             System.out.println("Hello, Native World!");
@@ -269,15 +274,15 @@ For example, build a native executable for a HelloWorld application.
     javac HelloWorld.java
     native-image HelloWorld
     ```
-    It will create a native executable, `helloworld`, in the current working directory. 
-    
+    It will create a native executable, `helloworld`, in the current working directory.
+
 3. Run the application:
 
     ```shell
     ./helloworld
     ```
     You can time it to see the resources used:
-    
+
     ```shell
     time -f 'Elapsed Time: %e s Max RSS: %M KB' ./helloworld
     # Hello, Native World!
@@ -297,7 +302,7 @@ The default behavior of `native-image` is aligned with the `java` command which 
 
 ### From a Module
 
-You can also convert a modularized Java application into a native executable. 
+You can also convert a modularized Java application into a native executable.
 
 The command to build a native executable from a Java module is:
 ```shell
@@ -308,13 +313,13 @@ For more information about how to produce a native executable from a modular Jav
 
 ## Build Configuration
 
-There many options you can pass to the `native-image` tool to configure the build process. 
+There many options you can pass to the `native-image` tool to configure the build process.
 Run `native-image --help` to see the full list.
 The options passed to `native-image` are evaluated left-to-right.
 
 For different build tweaks and to learn more about build time configuration, see [Native Image Build Configuration](BuildConfiguration.md).
 
-Native Image will output the progress and various statistics during the build. 
+Native Image will output the progress and various statistics during the build.
 To learn more about the output and the different build phases, see [Build Output](BuildOutput.md).
 For more detailed insights regarding the contents of a native executable, see [Build Reports](BuildReport.md).
 
@@ -322,12 +327,12 @@ For more detailed insights regarding the contents of a native executable, see [B
 
 For more complex applications that use external libraries, you must provide the `native-image` tool with metadata.
 
-Building a standalone binary with `native-image` takes place under a "closed world assumption". 
-The `native-image` tool performs an analysis to see which classes, methods, and fields within your application are reachable and must be included in the native executable. 
+Building a standalone binary with `native-image` takes place under a "closed world assumption".
+The `native-image` tool performs an analysis to see which classes, methods, and fields within your application are reachable and must be included in the native executable.
 The analysis is static: it does not run your application.
 This means that all the bytecode in your application that can be called at runtime must be known (observed and analyzed) at build time.
 
-The analysis can determine some cases of dynamic class loading, but it cannot always exhaustively predict all usages of the Java Native Interface (JNI), Java Reflection, Dynamic Proxy objects, or class path resources. 
+The analysis can determine some cases of dynamic class loading, but it cannot always exhaustively predict all usages of the Java Native Interface (JNI), Java Reflection, Dynamic Proxy objects, or class path resources.
 To deal with these dynamic features of Java, you inform the analysis with details of the classes that use Reflection, Proxy, and so on, or what classes to be dynamically loaded.
 To achieve this, you either provide the `native-image` tool with JSON-formatted configuration files or pre-compute metadata in the code.
 
@@ -343,7 +348,7 @@ To learn more, see [Interoperability with Native Code](InteropWithNativeCode.md)
 
 ### Further Reading
 
-This getting started guide is intended for new users or those with little experience of using Native Image. 
+This getting started guide is intended for new users or those with little experience of using Native Image.
 We strongly recommend these users to check the [Basics of Native Image](NativeImageBasics.md) page to better understand some key aspects before going deeper.
 
 Check [user guides](guides/guides.md) to become more experienced with Native Image, find demo examples, and learn about potential usage scenarios.
