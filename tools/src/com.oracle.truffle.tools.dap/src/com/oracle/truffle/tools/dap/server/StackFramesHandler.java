@@ -24,6 +24,10 @@
  */
 package com.oracle.truffle.tools.dap.server;
 
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
+
 import com.oracle.truffle.api.debug.DebugException;
 import com.oracle.truffle.api.debug.DebugScope;
 import com.oracle.truffle.api.debug.DebugStackFrame;
@@ -36,9 +40,6 @@ import com.oracle.truffle.api.source.SourceSection;
 import com.oracle.truffle.tools.dap.types.Scope;
 import com.oracle.truffle.tools.dap.types.StackFrame;
 import com.oracle.truffle.tools.dap.types.Variable;
-import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.List;
 
 public final class StackFramesHandler {
 
@@ -155,29 +156,19 @@ public final class StackFramesHandler {
         return null;
     }
 
-    /**
-     * Label for the guest language top scope in the DAP variables view. Prefer
-     * {@link DebugScope#getName()} (guest {@code toDisplayString}) so languages can surface a
-     * meaningful name; fall back to {@value #DEFAULT_TOP_SCOPE_NAME} if the name is unavailable,
-     * empty, or blank after trimming, or if {@code getName()} throws.
-     */
-    static String topScopeDapName(DebugScope dscope) {
+    String topScopeDapName(DebugScope dscope) {
         try {
             return topScopeDapName(dscope.getName());
-        } catch (DebugException ignored) {
-            // Unusable guest scope name - keep the previous fixed label behavior.
+        } catch (DebugException ex) {
+            PrintWriter err = context.getErr();
+            if (err != null) {
+                err.println("getScope() has caused " + ex);
+                ex.printStackTrace(err);
+            }
             return DEFAULT_TOP_SCOPE_NAME;
         }
     }
 
-    /**
-     * Maps a guest top-scope display string to the DAP scope name: trims whitespace and falls back
-     * to {@value #DEFAULT_TOP_SCOPE_NAME} for {@code null} or blank results.
-     * <p>
-     * Exposed as {@code public} so unit tests in {@code com.oracle.truffle.tools.dap.test} can run
-     * under {@code mx unittest} (that harness does not load test classes in this package from the
-     * test JAR). Production callers should use {@link #topScopeDapName(DebugScope)}.
-     */
     public static String topScopeDapName(String guestName) {
         if (guestName == null) {
             return DEFAULT_TOP_SCOPE_NAME;

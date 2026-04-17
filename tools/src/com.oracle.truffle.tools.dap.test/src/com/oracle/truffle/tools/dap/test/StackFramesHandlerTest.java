@@ -29,11 +29,6 @@ import org.junit.Test;
 
 import com.oracle.truffle.tools.dap.server.StackFramesHandler;
 
-/**
- * Unit tests for {@link com.oracle.truffle.tools.dap.server.StackFramesHandler}. Lives in this
- * package so {@code mx unittest} can load the class (tests in {@code com.oracle.truffle.tools.dap.server}
- * from the test module are not resolved by the harness).
- */
 public class StackFramesHandlerTest {
 
     @Test
