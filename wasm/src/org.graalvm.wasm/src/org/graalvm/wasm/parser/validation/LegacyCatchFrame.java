@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -41,26 +41,24 @@
 
 package org.graalvm.wasm.parser.validation;
 
+import java.util.BitSet;
+
+import org.graalvm.wasm.constants.Bytecode;
 import org.graalvm.wasm.exception.Failure;
 import org.graalvm.wasm.exception.WasmException;
 import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
 
-import java.util.BitSet;
+public final class LegacyCatchFrame extends ControlFrame {
+    private final LegacyTryFrame parentTryFrame;
 
-/**
- * Representation of a wasm loop during module validation.
- */
-class LoopFrame extends ControlFrame {
-    private final int labelLocation;
-
-    LoopFrame(int[] paramTypes, int[] resultTypes, int initialStackSize, ControlFrame parentFrame, int labelLocation) {
-        super(paramTypes, resultTypes, parentFrame.getSymbolTable(), initialStackSize, (BitSet) parentFrame.initializedLocals.clone(), nestedLegacyCatchDepth(parentFrame));
-        this.labelLocation = labelLocation;
+    LegacyCatchFrame(int[] paramTypes, int[] resultTypes, int initialStackSize, LegacyTryFrame parentTryFrame) {
+        super(paramTypes, resultTypes, parentTryFrame.getSymbolTable(), initialStackSize, (BitSet) parentTryFrame.initializedLocals.clone(), nestedLegacyCatchDepth(parentTryFrame));
+        this.parentTryFrame = parentTryFrame;
     }
 
     @Override
     int[] labelTypes() {
-        return paramTypes();
+        return resultTypes();
     }
 
     @Override
@@ -70,20 +68,26 @@ class LoopFrame extends ControlFrame {
 
     @Override
     void exit(RuntimeBytecodeGen bytecode) {
+        bytecode.addOp(Bytecode.MISC);
+        bytecode.addOp(Bytecode.LEGACY_CATCH_DROP);
     }
 
     @Override
     void addBranch(RuntimeBytecodeGen bytecode, RuntimeBytecodeGen.BranchOp branchOp) {
-        bytecode.addBranch(labelLocation, branchOp);
+        parentTryFrame.addBranch(bytecode, branchOp);
     }
 
     @Override
     void addBranchTableItem(RuntimeBytecodeGen bytecode) {
-        bytecode.patchLocation(bytecode.addBranchTableItemLocation(), labelLocation);
+        parentTryFrame.addBranchTableItem(bytecode);
     }
 
     @Override
-    void addExceptionHandler(ExceptionHandler handler) {
-        handler.setLabelTarget(labelLocation);
+    void addExceptionHandler(ExceptionHandler exceptionHandler) {
+        parentTryFrame.addExceptionHandler(exceptionHandler);
+    }
+
+    LegacyTryFrame parentTryFrame() {
+        return parentTryFrame;
     }
 }

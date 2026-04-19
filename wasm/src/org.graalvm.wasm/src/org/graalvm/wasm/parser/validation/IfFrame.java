@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -61,7 +61,7 @@ class IfFrame extends ControlFrame {
     private boolean elseBranch;
 
     IfFrame(int[] paramTypes, int[] resultTypes, int initialStackSize, ControlFrame parentFrame, int falseJumpLocation) {
-        super(paramTypes, resultTypes, parentFrame.getSymbolTable(), initialStackSize, (BitSet) parentFrame.initializedLocals.clone());
+        super(paramTypes, resultTypes, parentFrame.getSymbolTable(), initialStackSize, (BitSet) parentFrame.initializedLocals.clone(), nestedLegacyCatchDepth(parentFrame));
         this.branchTargets = new IntArrayList();
         this.exceptionHandlers = new ArrayList<>();
         this.parentFrame = parentFrame;
@@ -81,7 +81,7 @@ class IfFrame extends ControlFrame {
         bytecode.patchLocation(falseJumpLocation, bytecode.location());
         falseJumpLocation = location;
         elseBranch = true;
-        state.checkStackAfterFrameExit(this, resultTypes());
+        state.checkStackAfterFrameExit(this);
         // Since else is a separate block the unreachable state has to be reset.
         resetUnreachable();
     }
@@ -103,13 +103,13 @@ class IfFrame extends ControlFrame {
         if (branchTargets.size() == 0 && exceptionHandlers.isEmpty()) {
             bytecode.patchLocation(falseJumpLocation, bytecode.location());
         } else {
-            final int location = bytecode.addLabel(resultTypeLength(), initialStackSize(), commonResultType());
+            final int location = bytecode.addLabel(resultTypeLength(), initialStackSize(), commonResultType(), legacyCatchDepth());
             bytecode.patchLocation(falseJumpLocation, location);
             for (int branchLocation : branchTargets.toArray()) {
                 bytecode.patchLocation(branchLocation, location);
             }
             for (ExceptionHandler catchEntry : exceptionHandlers) {
-                catchEntry.setTarget(location);
+                catchEntry.setLabelTarget(location);
             }
         }
     }

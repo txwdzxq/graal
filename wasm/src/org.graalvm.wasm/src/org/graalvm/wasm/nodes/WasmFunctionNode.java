@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2019, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -143,6 +143,11 @@ import java.io.Serial;
 public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNode {
 
     private static final int REPORT_LOOP_STRIDE = 1 << 8;
+    private static final int EXCEPTION_HANDLER_TO_OFFSET = 4;
+    private static final int EXCEPTION_HANDLER_TYPE_OFFSET = 8;
+    private static final int EXCEPTION_HANDLER_TAG_OFFSET = 9;
+    private static final int EXCEPTION_HANDLER_TARGET_OFFSET = 13;
+    private static final int EXCEPTION_HANDLER_SIZE = 17;
 
     static {
         assert Integer.bitCount(REPORT_LOOP_STRIDE) == 1 : "must be a power of 2";
@@ -284,7 +289,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
     }
 
     public void execute(VirtualFrame frame, WasmInstance instance) {
-        executeBodyFromOffset(instance, frame, bytecodeStartOffset, codeEntry.localCount(), -1);
+        executeBodyFromOffset(instance, frame, bytecodeStartOffset, codeEntry.stackBase(), -1);
     }
 
     private static final class VirtualState {
@@ -301,7 +306,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
 
         @EarlyInline
         State(WasmFunctionNode<?> thiz, BackEdgeCounter backEdgeCounter, int interpreterBackEdgeCounter, byte[] bytecode, int lineIndex, WasmMemory zeroMemory, WasmMemoryLibrary zeroMemoryLib,
-                        int localCount, WasmInstance instance) {
+                        int localCount, int maxLegacyCatchDepth, WasmInstance instance) {
             this.thiz = thiz;
             this.backEdgeCounter = backEdgeCounter;
             this.interpreterBackEdgeCounter = interpreterBackEdgeCounter;
@@ -309,19 +314,22 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
             this.lineIndex = lineIndex;
             this.zeroMemory = zeroMemory;
             this.zeroMemoryLib = zeroMemoryLib;
-            this.localCount = localCount;
+            this.legacyCatchBase = localCount;
+            this.stackBase = localCount + maxLegacyCatchDepth;
             this.instance = instance;
             this.module = thiz.module;
             this.language = WasmLanguage.get(thiz);
             this.memoryLibs = thiz.memoryLibs;
             this.notifyFunction = thiz.notifyFunction;
             this.exceptionOffset = 0;
+            this.activeLegacyCatchCount = 0;
         }
 
         final WasmFunctionNode<?> thiz;
         final byte[] bytecode;
         int lineIndex;
-        final int localCount;
+        final int legacyCatchBase;
+        final int stackBase;
         int interpreterBackEdgeCounter;
         final BackEdgeCounter backEdgeCounter;
         final WasmMemory zeroMemory;
@@ -336,6 +344,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
          * before calls (and unset after) and at throws and unset if caught.
          */
         int exceptionOffset;
+        int activeLegacyCatchCount;
     }
 
     @BytecodeInterpreterSwitch
@@ -350,6 +359,8 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
     public Object executeBodyFromOffset(WasmInstance instance, VirtualFrame virtualFrame, int startOffset, int startStackPointer, int startLineIndex) {
         FrameWithoutBoxing frame = (FrameWithoutBoxing) virtualFrame;
         final int localCount = codeEntry.localCount();
+        final int maxLegacyCatchDepth = codeEntry.maxLegacyCatchDepth();
+        final int stackBase = codeEntry.stackBase();
         final byte[] bytecode = this.bytecode;
 
         // The back edge count is stored in an object, since else the MERGE_EXPLODE policy would
@@ -369,8 +380,10 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
 
         check(bytecode.length, (1 << 31) - 1);
 
-        final State state = new State(this, backEdgeCounter, 0, bytecode, startLineIndex, zeroMemory, zeroMemoryLib, localCount, instance);
+        final State state = new State(this, backEdgeCounter, 0, bytecode, startLineIndex, zeroMemory, zeroMemoryLib, localCount, maxLegacyCatchDepth, instance);
+        CompilerDirectives.ensureVirtualized(state);
         final VirtualState virtualState = new VirtualState(startStackPointer);
+        CompilerDirectives.ensureVirtualized(virtualState);
 
         int opcode = Bytecode.UNREACHABLE;
         loop: while (true) {
@@ -414,8 +427,8 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
                             }
                         }
                         final int resultCount = codeEntry.resultCount();
-                        unwindStack(frame, virtualState.stackPointer, localCount, resultCount);
-                        dropStack(frame, virtualState.stackPointer, localCount + resultCount);
+                        unwindStack(frame, virtualState.stackPointer, stackBase, resultCount);
+                        dropStack(frame, virtualState.stackPointer, stackBase + resultCount);
                         return WasmConstant.RETURN_VALUE;
                     }
                     case Bytecode.LABEL_U8: {
@@ -1432,6 +1445,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
                 CompilerAsserts.partialEvaluationConstant(state.exceptionOffset);
 
                 int exceptionTableOffset = this.exceptionTableOffset;
+                int handlerLookupOffset = state.exceptionOffset;
 
                 if (exceptionTableOffset == BytecodeBitEncoding.INVALID_EXCEPTION_TABLE_OFFSET) {
                     // no exception table, directly throw to the next function on the call stack
@@ -1439,9 +1453,9 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
                 }
 
                 /*
-                 * The exception table is encoded in the following format:
+                 * The exception table is encoded as:
                  *
-                 * from | to | type | tag index (optional) | target
+                 * from | to | type | tag index | target
                  *
                  * The values from (exclusive) and to (inclusive) define a range. If source is
                  * inside this range, the entry defines a possible exception handler for the
@@ -1452,53 +1466,63 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
                  * The catch and catch_ref types push the fields of the exception onto the stack,
                  * catch_ref also pushes a reference to the exception itself, while catch_all_ref
                  * only pushes the reference, and catch_all doesn't push anything onto the stack.
-                 *
-                 * If we find a matching entry, execution continues at the label defined by target.
-                 *
-                 * If the current entry doesn't match, we continue to the next, until we reach a
-                 * match or the end of the table. If we reach the end of the table, we rethrow the
-                 * exception to the next function on the call stack.
+                 * Legacy catches additionally keep the caught exception active for rethrow inside
+                 * the catch body, while delegate continues lookup from the delegated label.
                  */
                 while (true) {
+                    final int handlerOffset = exceptionTableOffset;
                     final int from = rawPeekI32(bytecode, exceptionTableOffset);
                     if (from == -1) {
                         // we reached the end of the table
                         break;
                     }
-                    exceptionTableOffset += 4;
-                    final int to = rawPeekI32(bytecode, exceptionTableOffset);
-                    exceptionTableOffset += 4;
+                    final int to = exceptionHandlerTo(handlerOffset);
+                    exceptionTableOffset = nextExceptionHandlerOffset(handlerOffset);
 
-                    /*
-                     * offset is the source of the exception, i.e., the throw or throw_ref raising
-                     * the exception or the call that forwarded the exception.
-                     */
-                    if (from < state.exceptionOffset && state.exceptionOffset <= to) {
-                        final int catchType = rawPeekU8(bytecode, exceptionTableOffset);
-                        exceptionTableOffset++;
-                        final int tagIndex;
-                        if (catchType == ExceptionHandlerType.CATCH || catchType == ExceptionHandlerType.CATCH_REF) {
-                            tagIndex = rawPeekI32(bytecode, exceptionTableOffset);
-                            exceptionTableOffset += 4;
-                            if (e.tag() != instance.tag(tagIndex)) {
-                                // skip target
-                                exceptionTableOffset += 4;
-                                continue;
-                            }
-                        } else {
-                            assert catchType == ExceptionHandlerType.CATCH_ALL || catchType == ExceptionHandlerType.CATCH_ALL_REF : catchType;
-                            // skip 0 tag
-                            tagIndex = -1;
-                            exceptionTableOffset += 4;
-                        }
-                        virtualState.stackPointer = pushExceptionFieldsAndReference(frame, e, virtualState.stackPointer, catchType, tagIndex);
-                        // load target
-                        offset = rawPeekI32(bytecode, exceptionTableOffset);
-                        continue loop;
-                    } else {
-                        // skip the entry
-                        exceptionTableOffset += 9;
+                    if (handlerLookupOffset <= from || handlerLookupOffset > to) {
+                        continue;
                     }
+
+                    final int catchType = exceptionHandlerType(handlerOffset);
+                    final int tagIndex;
+                    if (catchType == ExceptionHandlerType.CATCH || catchType == ExceptionHandlerType.CATCH_REF || catchType == ExceptionHandlerType.LEGACY_CATCH) {
+                        tagIndex = exceptionHandlerTagIndex(handlerOffset);
+                        if (e.tag() != instance.tag(tagIndex)) {
+                            continue;
+                        }
+                    } else {
+                        tagIndex = -1;
+                        assert catchType == ExceptionHandlerType.CATCH_ALL || catchType == ExceptionHandlerType.CATCH_ALL_REF ||
+                                        catchType == ExceptionHandlerType.LEGACY_CATCH_ALL || catchType == ExceptionHandlerType.DELEGATE : catchType;
+                    }
+
+                    final int target = exceptionHandlerTarget(handlerOffset);
+                    if (catchType == ExceptionHandlerType.DELEGATE) {
+                        // Legacy try tables are serialized inner-to-outer, so delegate continues by
+                        // scanning the remaining handlers with the delegated lookup offset. No
+                        // earlier entry can become visible again, because delegation only moves the
+                        // search to an enclosing try.
+                        handlerLookupOffset = target;
+                        continue;
+                    }
+
+                    if (isLegacyCatchType(catchType)) {
+                        // Legacy catch labels encode the final number of active legacy catches
+                        // that must remain inside the catch body. Unwind first so entering an
+                        // enclosing catch from a nested catch does not transiently exceed the
+                        // reserved frame slots before the target label's helper runs.
+                        final int targetDepth = legacyCatchTargetDepth(target);
+                        state.activeLegacyCatchCount = unwindLegacyCatchesToDepth(frame, state.legacyCatchBase, state.activeLegacyCatchCount, targetDepth - 1);
+                        assert state.legacyCatchBase + state.activeLegacyCatchCount < state.stackBase : "Exceeded reserved legacy catch slots";
+                        // Legacy catch bodies keep the caught exception in the reserved frame area
+                        // so rethrow and scope-exit cleanup can find it without using the operand
+                        // stack layout.
+                        pushReference(frame, state.legacyCatchBase + state.activeLegacyCatchCount, e);
+                        state.activeLegacyCatchCount++;
+                    }
+                    virtualState.stackPointer = pushExceptionFieldsAndReference(frame, e, virtualState.stackPointer, catchType, tagIndex);
+                    offset = target;
+                    continue loop;
                 }
                 throw e;
             }
@@ -1864,7 +1888,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
         final int resultType = rawPeekU8(state.bytecode, offset + 1);
         final int resultCount = rawPeekI32(state.bytecode, offset + 2);
         final int stackSize = rawPeekI32(state.bytecode, offset + 6);
-        final int targetStackPointer = stackSize + state.localCount;
+        final int targetStackPointer = stackSize + state.stackBase;
         switch (resultType) {
             case BytecodeBitEncoding.LABEL_RESULT_TYPE_NUM:
                 unwindPrimitiveStack(frame, virtualState.stackPointer, targetStackPointer, resultCount);
@@ -1889,7 +1913,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
         final int stackSize = rawPeekU8(state.bytecode, offset + 2);
         final int resultCount = (value & BytecodeBitEncoding.LABEL_U16_RESULT_VALUE);
         final int resultType = (value & BytecodeBitEncoding.LABEL_U16_RESULT_TYPE_MASK);
-        final int targetStackPointer = stackSize + state.localCount;
+        final int targetStackPointer = stackSize + state.stackBase;
         switch (resultType) {
             case BytecodeBitEncoding.LABEL_U16_RESULT_TYPE_NUM:
                 unwindPrimitiveStack(frame, virtualState.stackPointer, targetStackPointer, resultCount);
@@ -1912,7 +1936,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
     private static int labelU8Handler(int offset, State state, VirtualState virtualState, FrameWithoutBoxing frame) {
         final int value = rawPeekU8(state.bytecode, offset + 1);
         final int stackSize = (value & BytecodeBitEncoding.LABEL_U8_STACK_VALUE);
-        final int targetStackPointer = stackSize + state.localCount;
+        final int targetStackPointer = stackSize + state.stackBase;
         switch ((value & BytecodeBitEncoding.LABEL_U8_RESULT_MASK)) {
             case BytecodeBitEncoding.LABEL_U8_RESULT_NUM:
                 WasmFrame.copyPrimitive(frame, virtualState.stackPointer - 1, targetStackPointer);
@@ -4543,6 +4567,35 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
                 state.exceptionOffset = offset + 2;
                 throw (WasmRuntimeException) exception;
             }
+            case Bytecode.RETHROW: {
+                state.thiz.codeEntry.exceptionBranch();
+                final int catchDepth = rawPeekI32(state.bytecode, offset + 2);
+                assert catchDepth >= 0 && catchDepth < state.activeLegacyCatchCount : "Invalid active legacy catch depth";
+                final WasmRuntimeException exception = (WasmRuntimeException) frame.getObjectStatic(state.legacyCatchBase + state.activeLegacyCatchCount - 1 - catchDepth);
+                // Rethrow selects the active legacy exception by depth, then dispatches it like a
+                // normal throw from the current bytecode location.
+                state.exceptionOffset = offset + 6;
+                throw exception;
+            }
+            case Bytecode.LEGACY_CATCH_DROP: {
+                assert state.activeLegacyCatchCount > 0 : "Missing active legacy catch";
+                state.activeLegacyCatchCount--;
+                WasmFrame.dropObject(frame, state.legacyCatchBase + state.activeLegacyCatchCount);
+                return offset + 2;
+            }
+            case Bytecode.LEGACY_CATCH_UNWIND: {
+                state.activeLegacyCatchCount = unwindLegacyCatchesToDepth(frame, state.legacyCatchBase, state.activeLegacyCatchCount, rawPeekI32(state.bytecode, offset + 2));
+                return offset + 6;
+            }
+            case Bytecode.LEGACY_SKIP_LABEL_U8: {
+                return offset + 10;
+            }
+            case Bytecode.LEGACY_SKIP_LABEL_U16: {
+                return offset + 11;
+            }
+            case Bytecode.LEGACY_SKIP_LABEL_I32: {
+                return offset + 18;
+            }
             case Bytecode.BR_ON_NULL_U8: {
                 Object reference = popReference(frame, --virtualState.stackPointer);
                 if (profileCondition(state.bytecode, offset + 3, reference == WasmConstant.NULL)) {
@@ -4657,7 +4710,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
 
     private int pushExceptionFieldsAndReference(VirtualFrame frame, WasmRuntimeException e, int sourceStackPointer, int catchType, int tagIndex) {
         int stackPointer = sourceStackPointer;
-        if (catchType == ExceptionHandlerType.CATCH || catchType == ExceptionHandlerType.CATCH_REF) {
+        if (catchType == ExceptionHandlerType.CATCH || catchType == ExceptionHandlerType.CATCH_REF || catchType == ExceptionHandlerType.LEGACY_CATCH) {
             final int functionTypeIndex = module.tagTypeIndex(tagIndex);
             final int numFields = module.functionTypeParamCount(functionTypeIndex);
             if (numFields != 0) {
@@ -7940,6 +7993,74 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
     @TruffleBoundary
     private WasmRuntimeException createException(WasmTag tag, Object[] fields) {
         return new WasmRuntimeException(this, tag, fields);
+    }
+
+    private int exceptionHandlerTo(int handlerOffset) {
+        return rawPeekI32(bytecode, handlerOffset + EXCEPTION_HANDLER_TO_OFFSET);
+    }
+
+    private int exceptionHandlerType(int handlerOffset) {
+        return rawPeekU8(bytecode, handlerOffset + EXCEPTION_HANDLER_TYPE_OFFSET);
+    }
+
+    private int exceptionHandlerTagIndex(int handlerOffset) {
+        return rawPeekI32(bytecode, handlerOffset + EXCEPTION_HANDLER_TAG_OFFSET);
+    }
+
+    private int exceptionHandlerTarget(int handlerOffset) {
+        return rawPeekI32(bytecode, handlerOffset + EXCEPTION_HANDLER_TARGET_OFFSET);
+    }
+
+    private static boolean isLegacyCatchType(int catchType) {
+        return catchType == ExceptionHandlerType.LEGACY_CATCH || catchType == ExceptionHandlerType.LEGACY_CATCH_ALL;
+    }
+
+    private int legacyCatchTargetDepth(int target) {
+        CompilerAsserts.partialEvaluationConstant(target);
+        final int opcode = rawPeekU8(bytecode, target);
+        final int unwindOffset;
+        switch (opcode) {
+            case Bytecode.LABEL_U8:
+                unwindOffset = target + 2;
+                break;
+            case Bytecode.LABEL_U16:
+                unwindOffset = target + 3;
+                break;
+            case Bytecode.LABEL_I32:
+                unwindOffset = target + 10;
+                break;
+            default:
+                throw CompilerDirectives.shouldNotReachHere("Legacy catch target must point to a label");
+        }
+        assert rawPeekU8(bytecode, unwindOffset) == Bytecode.MISC : "Missing legacy catch unwind helper";
+        assert rawPeekU8(bytecode, unwindOffset + 1) == Bytecode.LEGACY_CATCH_UNWIND : "Missing legacy catch unwind helper";
+        final int targetDepth = rawPeekI32(bytecode, unwindOffset + 2);
+        assert targetDepth > 0 : "Legacy catch target depth must include the entered catch";
+        return targetDepth;
+    }
+
+    private static int nextExceptionHandlerOffset(int handlerOffset) {
+        return handlerOffset + EXCEPTION_HANDLER_SIZE;
+    }
+
+    /**
+     * Unwinds active legacy catches until the requested nesting depth remains in the reserved
+     * legacy-catch frame slots.
+     *
+     * @param frame the frame holding the reserved legacy-catch slots
+     * @param legacyCatchBase the first legacy-catch slot in the frame
+     * @param activeLegacyCatchCount the current number of active legacy catches
+     * @param targetDepth the number of active legacy catches that should remain after unwinding
+     */
+    private static int unwindLegacyCatchesToDepth(VirtualFrame frame, int legacyCatchBase, int activeLegacyCatchCount, int targetDepth) {
+        CompilerAsserts.partialEvaluationConstant(targetDepth);
+        int currentDepth = activeLegacyCatchCount;
+        while (currentDepth > targetDepth) {
+            currentDepth--;
+            WasmFrame.dropObject(frame, legacyCatchBase + currentDepth);
+        }
+        assert currentDepth == targetDepth : "Missing active legacy catches";
+        return currentDepth;
     }
 
     @ExplodeLoop

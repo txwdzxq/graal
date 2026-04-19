@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -44,38 +44,31 @@ package org.graalvm.wasm.parser.validation;
 import java.util.ArrayList;
 import java.util.BitSet;
 
-import org.graalvm.wasm.SymbolTable;
-import org.graalvm.wasm.WasmType;
 import org.graalvm.wasm.collection.IntArrayList;
 import org.graalvm.wasm.exception.Failure;
 import org.graalvm.wasm.exception.WasmException;
 import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
 
-/**
- * Representation of a wasm block during module validation.
- */
-class BlockFrame extends ControlFrame {
+public final class LegacyTryFrame extends ControlFrame {
+    /** Branch locations that target the legacy try label. */
     private final IntArrayList branches;
-    private final ArrayList<ExceptionHandler> exceptionHandlers;
+    /** Exception handlers that branch to the label after the protected region. */
+    private final ArrayList<ExceptionHandler> labelExceptionHandlers;
+    /** Exception handlers guarding the protected region of the legacy try. */
+    private final ArrayList<ExceptionHandler> protectedRegionHandlers;
+    /** First bytecode offset protected by this try. */
+    private final int protectedRegionStart;
+    /** First bytecode offset after the protected region. */
+    private int protectedRegionEnd = -1;
+    /** Bytecode label reached by branches targeting the try label. */
+    private int exitLabelLocation = -1;
 
-    private BlockFrame(int[] paramTypes, int[] resultTypes, SymbolTable symbolTable, int initialStackSize, BitSet initializedLocals, int legacyCatchDepth) {
-        super(paramTypes, resultTypes, symbolTable, initialStackSize, initializedLocals, legacyCatchDepth);
-        branches = new IntArrayList();
-        exceptionHandlers = new ArrayList<>();
-    }
-
-    BlockFrame(int[] paramTypes, int[] resultTypes, int initialStackSize, ControlFrame parentFrame) {
-        this(paramTypes, resultTypes, parentFrame.getSymbolTable(), initialStackSize, (BitSet) parentFrame.initializedLocals.clone(), nestedLegacyCatchDepth(parentFrame));
-    }
-
-    static BlockFrame createFunctionFrame(int[] paramTypes, int[] resultTypes, int[] locals, SymbolTable symbolTable) {
-        BitSet initializedLocals = new BitSet(locals.length);
-        for (int localIndex = 0; localIndex < locals.length; localIndex++) {
-            if (localIndex < paramTypes.length || WasmType.hasDefaultValue(locals[localIndex])) {
-                initializedLocals.set(localIndex);
-            }
-        }
-        return new BlockFrame(paramTypes, resultTypes, symbolTable, 0, initializedLocals, 0);
+    LegacyTryFrame(int[] paramTypes, int[] resultTypes, int initialStackSize, ControlFrame parentFrame, int protectedRegionStart) {
+        super(paramTypes, resultTypes, parentFrame.getSymbolTable(), initialStackSize, (BitSet) parentFrame.initializedLocals.clone(), nestedLegacyCatchDepth(parentFrame));
+        this.branches = new IntArrayList();
+        this.labelExceptionHandlers = new ArrayList<>();
+        this.protectedRegionHandlers = new ArrayList<>();
+        this.protectedRegionStart = protectedRegionStart;
     }
 
     @Override
@@ -90,15 +83,21 @@ class BlockFrame extends ControlFrame {
 
     @Override
     void exit(RuntimeBytecodeGen bytecode) {
-        if (branches.size() == 0 && exceptionHandlers.isEmpty()) {
+        assert protectedRegionEnd != -1 : "legacy try protected region not closed";
+        if (branches.size() == 0 && labelExceptionHandlers.isEmpty()) {
+            exitLabelLocation = bytecode.location();
             return;
         }
-        final int location = bytecode.addLabel(resultTypeLength(), initialStackSize(), commonResultType(), legacyCatchDepth());
-        for (int branchLocation : branches.toArray()) {
-            bytecode.patchLocation(branchLocation, location);
+        if (branches.size() == 0) {
+            exitLabelLocation = bytecode.location();
+        } else {
+            exitLabelLocation = bytecode.addLabel(resultTypeLength(), initialStackSize(), commonResultType(), legacyCatchDepth());
+            for (int branchLocation : branches.toArray()) {
+                bytecode.patchLocation(branchLocation, exitLabelLocation);
+            }
         }
-        for (ExceptionHandler catchEntry : exceptionHandlers) {
-            catchEntry.setLabelTarget(location);
+        for (ExceptionHandler handler : labelExceptionHandlers) {
+            handler.setTarget(protectedRegionEnd);
         }
     }
 
@@ -114,6 +113,35 @@ class BlockFrame extends ControlFrame {
 
     @Override
     void addExceptionHandler(ExceptionHandler handler) {
-        exceptionHandlers.add(handler);
+        if (protectedRegionEnd != -1) {
+            handler.setTarget(protectedRegionEnd);
+        }
+        labelExceptionHandlers.add(handler);
+    }
+
+    void closeProtectedRegion(int endOffset) {
+        assert protectedRegionEnd == -1 : "legacy try protected region already closed";
+        protectedRegionEnd = endOffset;
+        for (ExceptionHandler handler : labelExceptionHandlers) {
+            handler.setLabelTarget(endOffset);
+        }
+    }
+
+    void addProtectedRegionHandler(ExceptionHandler handler) {
+        protectedRegionHandlers.add(handler);
+    }
+
+    ExceptionTable createExceptionTable() {
+        if (protectedRegionHandlers.isEmpty()) {
+            return null;
+        }
+        assert protectedRegionEnd != -1 : "legacy try handler range not closed";
+        ExceptionTable table = new ExceptionTable(protectedRegionStart, protectedRegionHandlers.toArray(ExceptionHandler[]::new));
+        table.setTo(protectedRegionEnd);
+        return table;
+    }
+
+    int exitLabelLocation() {
+        return exitLabelLocation;
     }
 }

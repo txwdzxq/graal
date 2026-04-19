@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2025, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -56,6 +56,7 @@ public abstract class ControlFrame {
     private final SymbolTable symbolTable;
 
     private final int initialStackSize;
+    private final int legacyCatchDepth;
     private boolean unreachable;
     private final int commonResultType;
     protected BitSet initializedLocals;
@@ -69,14 +70,22 @@ public abstract class ControlFrame {
      * @param initializedLocals The set of locals which are already initialized at the start of this
      *            function
      */
-    ControlFrame(int[] paramTypes, int[] resultTypes, SymbolTable symbolTable, int initialStackSize, BitSet initializedLocals) {
+    ControlFrame(int[] paramTypes, int[] resultTypes, SymbolTable symbolTable, int initialStackSize, BitSet initializedLocals, int legacyCatchDepth) {
         this.paramTypes = paramTypes;
         this.resultTypes = resultTypes;
         this.symbolTable = symbolTable;
         this.initialStackSize = initialStackSize;
+        this.legacyCatchDepth = legacyCatchDepth;
         this.unreachable = false;
         commonResultType = WasmType.getCommonValueType(resultTypes);
         this.initializedLocals = (BitSet) initializedLocals.clone();
+    }
+
+    static int nestedLegacyCatchDepth(ControlFrame parentFrame) {
+        if (parentFrame == null) {
+            return 0;
+        }
+        return parentFrame.legacyCatchDepth() + (parentFrame instanceof LegacyCatchFrame ? 1 : 0);
     }
 
     protected int[] paramTypes() {
@@ -113,6 +122,10 @@ public abstract class ControlFrame {
 
     int initialStackSize() {
         return initialStackSize;
+    }
+
+    int legacyCatchDepth() {
+        return legacyCatchDepth;
     }
 
     void setUnreachable() {

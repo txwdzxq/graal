@@ -50,6 +50,7 @@ import org.graalvm.wasm.SymbolTable;
 import org.graalvm.wasm.WasmType;
 import org.graalvm.wasm.collection.IntArrayList;
 import org.graalvm.wasm.constants.Bytecode;
+import org.graalvm.wasm.constants.ExceptionHandlerType;
 import org.graalvm.wasm.exception.Failure;
 import org.graalvm.wasm.exception.WasmException;
 import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
@@ -68,6 +69,7 @@ public class ParserState {
     private final SymbolTable symbolTable;
 
     private int maxStackSize;
+    private int maxLegacyCatchDepth;
     private boolean usesMemoryZero;
 
     public ParserState(RuntimeBytecodeGen bytecode, SymbolTable symbolTable) {
@@ -78,6 +80,7 @@ public class ParserState {
         this.symbolTable = symbolTable;
 
         this.maxStackSize = 0;
+        this.maxLegacyCatchDepth = 0;
     }
 
     /**
@@ -304,8 +307,9 @@ public class ParserState {
      * @param resultTypes The result types of the loop that was entered.
      */
     public void enterLoop(int[] paramTypes, int[] resultTypes) {
-        final int label = bytecode.addLoopLabel(paramTypes.length, valueStack.size(), WasmType.getCommonValueType(resultTypes));
-        ControlFrame frame = new LoopFrame(paramTypes, resultTypes, valueStack.size(), controlStack.peek(), label);
+        final ControlFrame parentFrame = controlStack.peek();
+        final int label = bytecode.addLoopLabel(paramTypes.length, valueStack.size(), WasmType.getCommonValueType(resultTypes), ControlFrame.nestedLegacyCatchDepth(parentFrame));
+        ControlFrame frame = new LoopFrame(paramTypes, resultTypes, valueStack.size(), parentFrame, label);
         controlStack.push(frame);
         pushAll(paramTypes);
     }
@@ -348,6 +352,12 @@ public class ParserState {
         exceptionTables.add(frame.table());
     }
 
+    public void enterLegacyTry(int[] paramTypes, int[] resultTypes) {
+        final LegacyTryFrame frame = new LegacyTryFrame(paramTypes, resultTypes, valueStack.size(), controlStack.peek(), bytecode.location());
+        controlStack.push(frame);
+        pushAll(paramTypes);
+    }
+
     /**
      * Creates a new catch frame that holds information about the current catch clause and pushes it
      * onto the control frame stack.
@@ -369,6 +379,90 @@ public class ParserState {
         return e;
     }
 
+    public int[] enterLegacyCatch(int opcode, int tag, int[] paramTypes, boolean multiValue) {
+        final ControlFrame currentFrame = controlStack.peek();
+        final LegacyTryFrame tryFrame = finishCurrentLegacyClause(currentFrame, "Unexpected catch in legacy try.");
+        if (currentFrame instanceof LegacyTryFrame) {
+            tryFrame.closeProtectedRegion(bytecode.location());
+        }
+        tryFrame.addBranch(bytecode, BranchOp.BR);
+        final ExceptionHandler handler = new ExceptionHandler(opcode, tag);
+        final LegacyCatchFrame catchFrame = new LegacyCatchFrame(paramTypes, tryFrame.resultTypes(), valueStack.size(), tryFrame);
+        controlStack.push(catchFrame);
+        final int catchDepth = ControlFrame.nestedLegacyCatchDepth(catchFrame);
+        maxLegacyCatchDepth = Math.max(maxLegacyCatchDepth, catchDepth);
+        final int catchLabel = bytecode.addLabel(paramTypes.length, tryFrame.initialStackSize(), WasmType.getCommonValueType(paramTypes), catchDepth);
+        handler.setTarget(catchLabel);
+        tryFrame.addProtectedRegionHandler(handler);
+        pushAll(paramTypes);
+        if (!multiValue) {
+            Assert.assertIntLessOrEqual(tryFrame.resultTypeLength(), 1, Failure.INVALID_RESULT_ARITY);
+        }
+        return catchFrame.resultTypes();
+    }
+
+    public int[] exitLegacyTry(boolean multiValue) {
+        final ControlFrame currentFrame = controlStack.peek();
+        final LegacyTryFrame tryFrame = finishCurrentLegacyClause(currentFrame, "Unexpected end of legacy try.");
+        if (currentFrame instanceof LegacyTryFrame) {
+            tryFrame.closeProtectedRegion(bytecode.location());
+        }
+        return exitLegacyTry(tryFrame, multiValue);
+    }
+
+    private int[] exitLegacyTry(LegacyTryFrame tryFrame, boolean multiValue) {
+        final int[] resultTypes = tryFrame.resultTypes();
+        tryFrame.exit(bytecode);
+        controlStack.pop();
+        final ExceptionTable table = tryFrame.createExceptionTable();
+        if (table != null) {
+            exceptionTables.add(table);
+        }
+        if (!multiValue) {
+            Assert.assertIntLessOrEqual(resultTypes.length, 1, "A block cannot return more than one value.", Failure.INVALID_RESULT_ARITY);
+        }
+        return resultTypes;
+    }
+
+    public int[] delegateLegacyTry(int delegateLabel, boolean multiValue) {
+        final ControlFrame currentFrame = controlStack.peek();
+        if (!(currentFrame instanceof LegacyTryFrame tryFrame)) {
+            throw WasmException.create(Failure.UNSPECIFIED_MALFORMED, "Unexpected delegate opcode.");
+        }
+        final int targetLabel = delegateLabel + 1;
+        checkLabelExists(targetLabel);
+        final ExceptionHandler handler = new ExceptionHandler(ExceptionHandlerType.DELEGATE, -1);
+        getFrame(targetLabel).addExceptionHandler(handler);
+        tryFrame.addProtectedRegionHandler(handler);
+        return exitLegacyTry(multiValue);
+    }
+
+    public int getLegacyRethrowDepth(int label) {
+        checkLabelExists(label);
+        int visibleLabel = -1;
+        int catchDepth = -1;
+        ControlFrame previousFrame = null;
+        for (int i = 0; i < controlStack.size(); i++) {
+            final ControlFrame frame = getFrame(i);
+            if (frame instanceof LegacyTryFrame tryFrame && previousFrame instanceof LegacyCatchFrame catchFrame && catchFrame.parentTryFrame() == tryFrame) {
+                previousFrame = frame;
+                continue;
+            }
+            visibleLabel++;
+            if (frame instanceof LegacyCatchFrame) {
+                catchDepth++;
+            }
+            if (visibleLabel == label) {
+                if (!(frame instanceof LegacyCatchFrame)) {
+                    throw WasmException.format(Failure.INVALID_RETHROW_LABEL, null, "Rethrow label %d does not target a catch label.", label);
+                }
+                return catchDepth;
+            }
+            previousFrame = frame;
+        }
+        throw WasmException.format(Failure.INVALID_RETHROW_LABEL, null, "Rethrow label %d does not target a catch label.", label);
+    }
+
     /**
      * @return Whether the function contains any exception handlers.
      */
@@ -381,7 +475,7 @@ public class ParserState {
      * entries in the format:
      * 
      * <pre>
-     *     from (4 byte) | to (4 byte) | opcode (1 byte) | tag (4 byte) (optional) | target (4 byte)
+     *     from (4 byte) | to (4 byte) | opcode (1 byte) | tag (4 byte) | target (4 byte) | target depth (4 byte)
      * </pre>
      *
      * The exception table has a single 4 byte entry (0xffff_ffff) to indicate the end of the table.
@@ -737,10 +831,13 @@ public class ParserState {
      */
     public int[] exit(boolean multiValue) {
         Assert.assertTrue(!controlStack.isEmpty(), Failure.UNEXPECTED_END_OF_BLOCK);
-        ControlFrame frame = controlStack.peek();
-        int[] resultTypes = frame.resultTypes();
-        frame.exit(bytecode);
-        checkStackAfterFrameExit(frame, resultTypes);
+        final ControlFrame currentFrame = controlStack.peek();
+        if (currentFrame instanceof LegacyTryFrame || currentFrame instanceof LegacyCatchFrame) {
+            return exitLegacyTry(multiValue);
+        }
+        final int[] resultTypes = currentFrame.resultTypes();
+        currentFrame.exit(bytecode);
+        checkStackAfterFrameExit(currentFrame);
 
         controlStack.pop();
         if (!multiValue) {
@@ -753,9 +850,9 @@ public class ParserState {
      * Checks that the expected return types are actually on the value stack.
      *
      * @param frame The frame that is exited.
-     * @param resultTypes The expected return types of the frame.
      */
-    void checkStackAfterFrameExit(ControlFrame frame, int[] resultTypes) {
+    void checkStackAfterFrameExit(ControlFrame frame) {
+        final int[] resultTypes = frame.resultTypes();
         if (availableStackSize() > resultTypes.length) {
             int[] actualTypes = popAvailableUnchecked();
             if (isTypeMismatch(resultTypes, actualTypes)) {
@@ -771,6 +868,20 @@ public class ParserState {
      */
     public ControlFrame getFrame(int index) {
         return controlStack.get(index);
+    }
+
+    private LegacyTryFrame finishCurrentLegacyClause(ControlFrame currentFrame, String errorMessage) {
+        if (currentFrame instanceof LegacyCatchFrame catchFrame) {
+            checkStackAfterFrameExit(catchFrame);
+            catchFrame.exit(bytecode);
+            controlStack.pop();
+            return catchFrame.parentTryFrame();
+        } else if (currentFrame instanceof LegacyTryFrame legacyTryFrame) {
+            checkStackAfterFrameExit(legacyTryFrame);
+            return legacyTryFrame;
+        } else {
+            throw WasmException.create(Failure.UNSPECIFIED_MALFORMED, errorMessage);
+        }
     }
 
     /**
@@ -857,6 +968,10 @@ public class ParserState {
 
     public int maxStackSize() {
         return maxStackSize;
+    }
+
+    public int maxLegacyCatchDepth() {
+        return maxLegacyCatchDepth;
     }
 
     private void markMemoryUsed(int memoryIndex) {

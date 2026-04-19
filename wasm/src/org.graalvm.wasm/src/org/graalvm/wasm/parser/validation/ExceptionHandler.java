@@ -45,13 +45,26 @@ import org.graalvm.wasm.constants.ExceptionHandlerType;
 
 /**
  * Representation of an exception handler during parsing.
+ *
+ * <pre>
+ * Encoded exception-table layout:
+ *
+ *   from | to | type | tag | target
+ *
+ * Field meanings by handler kind:
+ *   CATCH, CATCH_REF, CATCH_ALL, CATCH_ALL_REF, LEGACY_CATCH, LEGACY_CATCH_ALL:
+ *     target = catch entry offset
+ *
+ *   DELEGATE:
+ *     target = exception-table search continuation offset
+ * </pre>
  */
 public final class ExceptionHandler {
     /** {@link ExceptionHandlerType}. */
     private final int type;
-    /** Tag index. */
+    /** Tag index expected by typed catches, or {@code -1} when no tag match is required. */
     private final int tag;
-    /** Target label bytecode offset. */
+    /** Catch entry offset, or delegate search continuation offset for {@code delegate}. */
     private int target = -1;
 
     public ExceptionHandler(int type, int tag) {
@@ -59,10 +72,16 @@ public final class ExceptionHandler {
         this.tag = tag;
     }
 
+    /**
+     * Returns the encoded handler kind.
+     */
     public int type() {
         return type;
     }
 
+    /**
+     * Returns the tag index matched by typed catches, or {@code -1} for untyped handlers.
+     */
     public int tag() {
         return tag;
     }
@@ -73,6 +92,14 @@ public final class ExceptionHandler {
 
     public void setTarget(int target) {
         this.target = target;
+    }
+
+    /**
+     * Sets the target selected by a control-flow label. This is stored in the same {@code target}
+     * field used for catch entry offsets and delegate search continuation offsets.
+     */
+    public void setLabelTarget(int labelTarget) {
+        this.target = labelTarget;
     }
 
     @Override
