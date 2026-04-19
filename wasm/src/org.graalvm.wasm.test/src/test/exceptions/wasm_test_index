@@ -17,3 +17,4 @@ legacy_rethrow_recatch
 legacy_simple_catch
 legacy_disabled
 legacy_catch_drop_cleanup
+mixed_eh_invalid

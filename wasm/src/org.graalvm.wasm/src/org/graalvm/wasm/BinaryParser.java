@@ -161,6 +161,8 @@ public class BinaryParser extends BinaryStreamParser {
     private final boolean tagBasedExceptionHandling;
     private final boolean typedFunctionReferences;
     private final boolean gc;
+    private boolean usesCurrentExceptionHandling;
+    private boolean usesLegacyExceptionHandling;
 
     @TruffleBoundary
     public BinaryParser(WasmModule module, WasmContext context, byte[] data) {
@@ -187,6 +189,8 @@ public class BinaryParser extends BinaryStreamParser {
         this.tagBasedExceptionHandling = exceptions || legacyExceptions;
         this.typedFunctionReferences = contextOptions.supportTypedFunctionReferences();
         this.gc = contextOptions.supportGC();
+        this.usesCurrentExceptionHandling = false;
+        this.usesLegacyExceptionHandling = false;
     }
 
     @TruffleBoundary
@@ -2879,10 +2883,12 @@ public class BinaryParser extends BinaryStreamParser {
 
     private void checkLegacyExceptionHandlingSupport(int opcode) {
         checkContextOption(legacyExceptions, "Legacy exception handling is not enabled (opcode: 0x%02x)", opcode);
+        noteLegacyExceptionHandlingUsage();
     }
 
     private void checkExceptionHandlingSupport(int opcode) {
         checkContextOption(exceptions, "Exception handling is not enabled (opcode: 0x%02x)", opcode);
+        noteCurrentExceptionHandlingUsage();
     }
 
     private void checkTagSupport(int opcode) {
@@ -2895,6 +2901,20 @@ public class BinaryParser extends BinaryStreamParser {
 
     private void checkGCSupport(int opcode) {
         checkContextOption(gc, "Garbage collected types are not enabled (opcode: 0x%02x)", opcode);
+    }
+
+    private void noteLegacyExceptionHandlingUsage() {
+        if (usesCurrentExceptionHandling) {
+            throw fail(Failure.UNSPECIFIED_INVALID, "module uses a mix of legacy and new exception handling instructions");
+        }
+        usesLegacyExceptionHandling = true;
+    }
+
+    private void noteCurrentExceptionHandlingUsage() {
+        if (usesLegacyExceptionHandling) {
+            throw fail(Failure.UNSPECIFIED_INVALID, "module uses a mix of legacy and new exception handling instructions");
+        }
+        usesCurrentExceptionHandling = true;
     }
 
     private void store(ParserState state, int type, int n, long[] result) {
@@ -3680,10 +3700,15 @@ public class BinaryParser extends BinaryStreamParser {
             }
             case EXNREF_TYPE -> {
                 Assert.assertTrue(exceptions, Failure.MALFORMED_VALUE_TYPE);
+                noteCurrentExceptionHandlingUsage();
                 yield type;
             }
             case NULLEXNREF_TYPE, NULLFUNCREF_TYPE, NULLEXTERNREF_TYPE, NULLREF_TYPE, ANYREF_TYPE, EQREF_TYPE, I31REF_TYPE, STRUCTREF_TYPE, ARRAYREF_TYPE -> {
                 Assert.assertTrue(gc, Failure.MALFORMED_VALUE_TYPE);
+                if (type == NULLEXNREF_TYPE) {
+                    Assert.assertTrue(exceptions, Failure.MALFORMED_VALUE_TYPE);
+                    noteCurrentExceptionHandlingUsage();
+                }
                 yield type;
             }
             case REF_NULL_TYPE_HEADER -> {
@@ -3740,11 +3765,16 @@ public class BinaryParser extends BinaryStreamParser {
             }
             case EXNREF_TYPE -> {
                 Assert.assertTrue(exceptions, Failure.MALFORMED_VALUE_TYPE);
+                noteCurrentExceptionHandlingUsage();
                 result[0] = type;
                 result[1] = BLOCK_TYPE_VALTYPE;
             }
             case NULLEXNREF_TYPE, NULLFUNCREF_TYPE, NULLEXTERNREF_TYPE, NULLREF_TYPE, ANYREF_TYPE, EQREF_TYPE, I31REF_TYPE, STRUCTREF_TYPE, ARRAYREF_TYPE -> {
                 Assert.assertTrue(gc, Failure.MALFORMED_VALUE_TYPE);
+                if (type == NULLEXNREF_TYPE) {
+                    Assert.assertTrue(exceptions, Failure.MALFORMED_VALUE_TYPE);
+                    noteCurrentExceptionHandlingUsage();
+                }
                 result[0] = type;
                 result[1] = BLOCK_TYPE_VALTYPE;
             }
@@ -3959,10 +3989,15 @@ public class BinaryParser extends BinaryStreamParser {
             case FUNCREF_TYPE, EXTERNREF_TYPE -> refType;
             case EXNREF_TYPE -> {
                 assertTrue(exceptions, Failure.MALFORMED_REFERENCE_TYPE);
+                noteCurrentExceptionHandlingUsage();
                 yield refType;
             }
             case NULLEXNREF_TYPE, NULLFUNCREF_TYPE, NULLEXTERNREF_TYPE, NULLREF_TYPE, ANYREF_TYPE, EQREF_TYPE, I31REF_TYPE, STRUCTREF_TYPE, ARRAYREF_TYPE -> {
                 assertTrue(gc, Failure.MALFORMED_REFERENCE_TYPE);
+                if (refType == NULLEXNREF_TYPE) {
+                    assertTrue(exceptions, Failure.MALFORMED_REFERENCE_TYPE);
+                    noteCurrentExceptionHandlingUsage();
+                }
                 yield refType;
             }
             case REF_NULL_TYPE_HEADER -> {
@@ -3983,10 +4018,15 @@ public class BinaryParser extends BinaryStreamParser {
             case FUNC_HEAPTYPE, EXTERN_HEAPTYPE -> heapType;
             case EXN_HEAPTYPE -> {
                 assertTrue(exceptions, Failure.MALFORMED_HEAP_TYPE);
+                noteCurrentExceptionHandlingUsage();
                 yield heapType;
             }
             case NOEXN_HEAPTYPE, NOFUNC_HEAPTYPE, NOEXTERN_HEAPTYPE, NONE_HEAPTYPE, ANY_HEAPTYPE, EQ_HEAPTYPE, I31_HEAPTYPE, STRUCT_HEAPTYPE, ARRAY_HEAPTYPE -> {
                 assertTrue(gc, Failure.MALFORMED_HEAP_TYPE);
+                if (heapType == NOEXN_HEAPTYPE) {
+                    assertTrue(exceptions, Failure.MALFORMED_HEAP_TYPE);
+                    noteCurrentExceptionHandlingUsage();
+                }
                 yield heapType;
             }
             default -> {
