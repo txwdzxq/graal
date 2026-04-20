@@ -123,7 +123,7 @@ public final class LegacyTryFrame extends ControlFrame {
         assert protectedRegionEnd == -1 : "legacy try protected region already closed";
         protectedRegionEnd = endOffset;
         for (ExceptionHandler handler : labelExceptionHandlers) {
-            handler.setLabelTarget(endOffset);
+            handler.setTarget(endOffset);
         }
     }
 

@@ -84,6 +84,6 @@ class LoopFrame extends ControlFrame {
 
     @Override
     void addExceptionHandler(ExceptionHandler handler) {
-        handler.setLabelTarget(labelLocation);
+        handler.setTarget(labelLocation);
     }
 }

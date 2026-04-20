@@ -109,7 +109,7 @@ class IfFrame extends ControlFrame {
                 bytecode.patchLocation(branchLocation, location);
             }
             for (ExceptionHandler catchEntry : exceptionHandlers) {
-                catchEntry.setLabelTarget(location);
+                catchEntry.setTarget(location);
             }
         }
     }

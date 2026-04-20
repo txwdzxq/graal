@@ -53,7 +53,7 @@ import org.graalvm.wasm.constants.ExceptionHandlerType;
  *
  * Field meanings by handler kind:
  *   CATCH, CATCH_REF, CATCH_ALL, CATCH_ALL_REF, LEGACY_CATCH, LEGACY_CATCH_ALL:
- *     target = catch entry offset
+ *     target = transfer destination bytecode offset
  *
  *   LEGACY_DELEGATE:
  *     target = exception-table search continuation offset
@@ -64,7 +64,7 @@ public final class ExceptionHandler {
     private final int type;
     /** Tag index expected by typed catches, or {@code -1} when no tag match is required. */
     private final int tag;
-    /** Catch entry offset, or delegate search continuation offset for {@code delegate}. */
+    /** Transfer destination bytecode offset, or exception-table continuation offset. */
     private int target = -1;
 
     public ExceptionHandler(int type, int tag) {
@@ -92,14 +92,6 @@ public final class ExceptionHandler {
 
     public void setTarget(int target) {
         this.target = target;
-    }
-
-    /**
-     * Sets the target selected by a control-flow label. This is stored in the same {@code target}
-     * field used for catch entry offsets and delegate search continuation offsets.
-     */
-    public void setLabelTarget(int labelTarget) {
-        this.target = labelTarget;
     }
 
     @Override
