@@ -2658,8 +2658,7 @@ final class BuilderElement extends AbstractElement {
         for (VariableElement e : ElementFilter.fieldsIn(parent.abstractBytecodeNode.getEnclosedElements())) {
             b.defaultDeclaration(e.asType(), e.getSimpleName().toString() + "_");
         }
-        String sourceBits = parent.configEncoder.encodeSourceBits("parseSources", "parseSourceContent");
-        b.startAssign("configEncoding_").string(parent.configEncoder.encode(sourceBits, "instrumentations", "tags")).end();
+        b.startAssign("configEncoding_").tree(parent.configEncoder.encode("parseSources", "parseSourceContent", "instrumentations", "tags", "state.continuationsIndex != 0")).end();
 
         b.statement("doEmitRootSourceInfo(", operationStack.read(model.rootOperation, operationFields.index), ")");
         b.startIf().string("parseSources").end().startBlock();
@@ -2717,7 +2716,7 @@ final class BuilderElement extends AbstractElement {
 
         b.startIf().string("parseBytecodes").end().startBlock();
         b.declaration(parent.abstractBytecodeNode.asType(), "oldBytecodeNode", "result.bytecode");
-        b.statement("assert result.maxLocals == " + maxLocals());
+        b.statement("assert result.stackBase == " + stackBase());
         b.statement("assert result.nodes == this.nodes");
         b.startAssert();
         b.string("result.getFrameDescriptor().getNumberOfSlots() == ");
@@ -2804,7 +2803,7 @@ final class BuilderElement extends AbstractElement {
         b.string("language");
         b.string("frameDescriptorBuilder");
         b.string("nodes"); // BytecodeRootNodesImpl
-        b.string(maxLocals());
+        b.string(stackBase());
         if (model.usesBoxingElimination()) {
             b.string("state.numLocals");
         }
@@ -2822,7 +2821,7 @@ final class BuilderElement extends AbstractElement {
             b.declaration(type(int.class), "constantPoolIndex", "continuations[i + CONTINUATION_OFFSET_CPI]");
             b.declaration(type(int.class), "continuationBci", "continuations[i + CONTINUATION_OFFSET_BCI]");
             // Convert the relative sp to an absolute index in the frame.
-            b.declaration(type(int.class), "continuationSp", "continuations[i + CONTINUATION_OFFSET_SP] + " + maxLocals());
+            b.declaration(type(int.class), "continuationSp", "continuations[i + CONTINUATION_OFFSET_SP] + " + stackBase());
 
             b.declaration(types.BytecodeLocation, "location");
             b.startIf().string("continuationBci == -1").end().startBlock();
@@ -2833,7 +2832,6 @@ final class BuilderElement extends AbstractElement {
 
             b.startDeclaration(parent.continuationRootNodeImpl.asType(), "continuationRootNode").startNew(parent.continuationRootNodeImpl.asType());
             b.string("language");
-            b.string("result.getFrameDescriptor()");
             b.string("result");
             b.string("continuationSp");
             b.string("location");
@@ -2864,10 +2862,10 @@ final class BuilderElement extends AbstractElement {
     }
 
     private void buildFrameSize(CodeTreeBuilder b) {
-        b.string("state.maxStackHeight + ").string(maxLocals());
+        b.string("state.maxStackHeight + ").string(stackBase());
     }
 
-    private String maxLocals() {
+    private String stackBase() {
         if (model.enableBlockScoping) {
             return "state.maxLocals + USER_LOCALS_START_INDEX";
         } else {
