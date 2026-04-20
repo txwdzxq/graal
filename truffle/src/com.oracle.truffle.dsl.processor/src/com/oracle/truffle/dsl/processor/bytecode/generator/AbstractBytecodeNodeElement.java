@@ -176,7 +176,8 @@ final class AbstractBytecodeNodeElement extends AbstractElement {
         this.add(createValidateBytecodes());
         this.add(createDumpInvalid());
 
-        this.add(new CodeExecutableElement(Set.of(ABSTRACT), this.asType(), "cloneUninitialized"));
+        CodeExecutableElement cloneUninitialized = this.add(new CodeExecutableElement(Set.of(ABSTRACT), this.asType(), "cloneUninitialized"));
+        cloneUninitialized.addParameter(new CodeVariableElement(parent.asType(), "clonedRoot"));
         this.add(new CodeExecutableElement(Set.of(ABSTRACT), arrayOf(types.Node), "getCachedNodes"));
         this.add(new CodeExecutableElement(Set.of(ABSTRACT), arrayOf(type(int.class)), "getBranchProfiles"));
         if (parent.model.usesBoxingElimination()) {
