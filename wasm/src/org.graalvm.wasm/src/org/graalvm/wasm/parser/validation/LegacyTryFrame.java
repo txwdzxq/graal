@@ -60,8 +60,6 @@ public final class LegacyTryFrame extends ControlFrame {
     private final int protectedRegionStart;
     /** First bytecode offset after the protected region. */
     private int protectedRegionEnd = -1;
-    /** Bytecode label reached by branches targeting the try label. */
-    private int exitLabelLocation = -1;
 
     LegacyTryFrame(int[] paramTypes, int[] resultTypes, int initialStackSize, ControlFrame parentFrame, int protectedRegionStart) {
         super(paramTypes, resultTypes, parentFrame.getSymbolTable(), initialStackSize, (BitSet) parentFrame.initializedLocals.clone(), nestedLegacyCatchDepth(parentFrame));
@@ -84,14 +82,9 @@ public final class LegacyTryFrame extends ControlFrame {
     @Override
     void exit(RuntimeBytecodeGen bytecode) {
         assert protectedRegionEnd != -1 : "legacy try protected region not closed";
-        if (branches.size() == 0 && labelExceptionHandlers.isEmpty()) {
-            exitLabelLocation = bytecode.location();
-            return;
-        }
-        if (branches.size() == 0) {
-            exitLabelLocation = bytecode.location();
-        } else {
-            exitLabelLocation = bytecode.addLabel(resultTypeLength(), initialStackSize(), commonResultType(), legacyCatchDepth());
+        if (branches.size() > 0) {
+            // bytecode label reached by branches targeting the try label
+            int exitLabelLocation = bytecode.addLabel(resultTypeLength(), initialStackSize(), commonResultType(), legacyCatchDepth());
             for (int branchLocation : branches.toArray()) {
                 bytecode.patchLocation(branchLocation, exitLabelLocation);
             }
@@ -139,9 +132,5 @@ public final class LegacyTryFrame extends ControlFrame {
         ExceptionTable table = new ExceptionTable(protectedRegionStart, protectedRegionHandlers.toArray(ExceptionHandler[]::new));
         table.setTo(protectedRegionEnd);
         return table;
-    }
-
-    int exitLabelLocation() {
-        return exitLabelLocation;
     }
 }
