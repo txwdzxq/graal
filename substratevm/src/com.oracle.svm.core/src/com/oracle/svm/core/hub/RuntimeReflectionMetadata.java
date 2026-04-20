@@ -122,8 +122,7 @@ public final class RuntimeReflectionMetadata implements ReflectionMetadata {
                         resolvedJavaMethod.getName().intern(),
                         parameterTypes,
                         toClassOrThrow(resolvedJavaMethod.getSignature().getReturnType(type), type),
-                        /* (GR-69097) resolvedJavaMethod.getDeclaredExceptions() */
-                        toClassArrayOrThrow(new JavaType[0], type),
+                        toClassArrayOrThrow(resolvedJavaMethod.getDeclaredExceptions(), type),
                         resolvedJavaMethod.getModifiers(),
                         resolvedJavaMethod.getGenericSignature(),
                         resolvedJavaMethod.getRawAnnotations(),
@@ -154,8 +153,7 @@ public final class RuntimeReflectionMetadata implements ReflectionMetadata {
                         RuntimeDynamicAccessMetadata.unmodifiableEmptyMetadata(),
                         DynamicHub.toClass(declaringClass),
                         parameterTypes,
-                        /* (GR-69097) resolvedConstructor.getDeclaredExceptions() */
-                        toClassArrayOrThrow(new JavaType[0], type),
+                        toClassArrayOrThrow(resolvedConstructor.getDeclaredExceptions(), type),
                         resolvedConstructor.getModifiers(),
                         resolvedConstructor.getGenericSignature(),
                         resolvedConstructor.getRawAnnotations(),

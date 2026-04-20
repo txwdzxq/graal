@@ -35,12 +35,12 @@ import com.oracle.svm.espresso.classfile.ParserMethod;
 import com.oracle.svm.espresso.classfile.attributes.Attribute;
 import com.oracle.svm.espresso.classfile.attributes.AttributedElement;
 import com.oracle.svm.espresso.classfile.attributes.CodeAttribute;
+import com.oracle.svm.espresso.classfile.attributes.ExceptionsAttribute;
 import com.oracle.svm.espresso.classfile.attributes.MethodParametersAttribute;
 import com.oracle.svm.espresso.classfile.attributes.SignatureAttribute;
 import com.oracle.svm.espresso.classfile.descriptors.ParserSymbols;
 import com.oracle.svm.espresso.classfile.descriptors.Symbol;
 import com.oracle.svm.espresso.classfile.descriptors.Type;
-import com.oracle.svm.shared.util.VMError;
 
 import jdk.vm.ci.meta.JavaType;
 import jdk.vm.ci.meta.ResolvedJavaType;
@@ -126,8 +126,17 @@ public final class CremaResolvedJavaMethodImpl extends InterpreterResolvedJavaMe
 
     @Override
     public JavaType[] getDeclaredExceptions() {
-        // (GR-69097)
-        throw VMError.unimplemented("getCheckedExceptions");
+        ExceptionsAttribute exceptionsAttribute = getAttribute(ExceptionsAttribute.NAME, ExceptionsAttribute.class);
+        if (exceptionsAttribute == null || exceptionsAttribute.entryCount() == 0) {
+            return new JavaType[0];
+        }
+        JavaType[] declaredExceptions = new JavaType[exceptionsAttribute.entryCount()];
+        InterpreterConstantPool constantPool = getConstantPool();
+        InterpreterResolvedObjectType declaringClass = getDeclaringClass();
+        for (int i = 0; i < declaredExceptions.length; i++) {
+            declaredExceptions[i] = constantPool.resolvedTypeAt(declaringClass, exceptionsAttribute.entryAt(i));
+        }
+        return declaredExceptions;
     }
 
     @Override
