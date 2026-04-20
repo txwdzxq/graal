@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2020, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2020, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -34,6 +34,7 @@ import com.oracle.truffle.tools.dap.types.Variable;
 import com.oracle.truffle.tools.dap.types.VariablesArguments;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 public final class VariablesHandler {
@@ -86,7 +87,20 @@ public final class VariablesHandler {
                 }
             }
         }
-        return vars;
+        Integer startArg = args.getStart();
+        int start = startArg != null ? startArg : 0;
+        if (start <= 0) {
+            start = 0;
+        }
+        if (start >= vars.size()) {
+            return Collections.emptyList();
+        }
+        Integer countArg = args.getCount();
+        if (countArg == null || countArg <= 0) {
+            return start == 0 ? vars : vars.subList(start, vars.size());
+        }
+        int end = Math.min(vars.size(), start + countArg);
+        return start == 0 && end == vars.size() ? vars : vars.subList(start, end);
     }
 
     public static Variable setVariable(ThreadsHandler.SuspendedThreadInfo info, SetVariableArguments args) throws DebugException {
