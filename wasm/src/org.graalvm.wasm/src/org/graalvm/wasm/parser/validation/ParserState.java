@@ -429,6 +429,10 @@ public class ParserState {
         if (!(currentFrame instanceof LegacyTryFrame tryFrame)) {
             throw WasmException.create(Failure.UNSPECIFIED_MALFORMED, "Unexpected delegate opcode.");
         }
+        // delegateLabel is relative to the scope outside the current try (i.e. delegateLabel == 0
+        // corresponds to the label outside the current try). In our implementation, the frame at
+        // level 0 is the legacy-try frame and the innermost label is the frame at level 1, so we
+        // need to increment the delegateLabel by 1 before reading from our control stack.
         final int targetLabel = delegateLabel + 1;
         checkLabelExists(targetLabel);
         final ExceptionHandler handler = new ExceptionHandler(ExceptionHandlerType.LEGACY_DELEGATE, -1);
