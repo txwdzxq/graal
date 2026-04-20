@@ -1512,12 +1512,15 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
                         // enclosing catch from a nested catch does not transiently exceed the
                         // reserved frame slots before the target label's helper runs.
                         final int targetDepth = legacyCatchTargetDepth(target);
-                        state.activeLegacyCatchCount = unwindLegacyCatchesToDepth(frame, state.legacyCatchBase, state.activeLegacyCatchCount, targetDepth - 1);
-                        assert state.legacyCatchBase + state.activeLegacyCatchCount < state.stackBase : "Exceeded reserved legacy catch slots";
+                        final int catchEntryDepth = targetDepth - 1;
+                        state.activeLegacyCatchCount = unwindLegacyCatchesToDepth(frame, state.legacyCatchBase, state.stackBase, state.activeLegacyCatchCount, catchEntryDepth);
                         // Legacy catch bodies keep the caught exception in the reserved frame area
                         // so rethrow and scope-exit cleanup can find it without using the operand
                         // stack layout.
-                        pushReference(frame, state.legacyCatchBase + state.activeLegacyCatchCount, e);
+                        final int exceptionSlot = state.legacyCatchBase + state.activeLegacyCatchCount;
+                        assert exceptionSlot >= state.legacyCatchBase && exceptionSlot < state.stackBase : "Exceeded reserved legacy catch slots";
+                        CompilerDirectives.isPartialEvaluationConstant(exceptionSlot);
+                        pushReference(frame, exceptionSlot, e);
                         state.activeLegacyCatchCount++;
                     }
                     virtualState.stackPointer = pushExceptionFieldsAndReference(frame, e, virtualState.stackPointer, catchType, tagIndex);
@@ -4571,7 +4574,10 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
                 state.thiz.codeEntry.exceptionBranch();
                 final int catchDepth = rawPeekI32(state.bytecode, offset + 2);
                 assert catchDepth >= 0 && catchDepth < state.activeLegacyCatchCount : "Invalid active legacy catch depth";
-                final WasmRuntimeException exception = (WasmRuntimeException) frame.getObjectStatic(state.legacyCatchBase + state.activeLegacyCatchCount - 1 - catchDepth);
+                final int exceptionSlot = state.legacyCatchBase + state.activeLegacyCatchCount - 1 - catchDepth;
+                assert exceptionSlot >= state.legacyCatchBase && exceptionSlot < state.stackBase;
+                CompilerAsserts.partialEvaluationConstant(exceptionSlot);
+                final WasmRuntimeException exception = (WasmRuntimeException) frame.getObjectStatic(exceptionSlot);
                 // Rethrow selects the active legacy exception by depth, then dispatches it like a
                 // normal throw from the current bytecode location.
                 state.exceptionOffset = offset + 6;
@@ -4580,11 +4586,15 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
             case Bytecode.LEGACY_CATCH_DROP: {
                 assert state.activeLegacyCatchCount > 0 : "Missing active legacy catch";
                 state.activeLegacyCatchCount--;
-                WasmFrame.dropObject(frame, state.legacyCatchBase + state.activeLegacyCatchCount);
+                final int exceptionSlot = state.legacyCatchBase + state.activeLegacyCatchCount;
+                assert exceptionSlot >= state.legacyCatchBase && exceptionSlot < state.stackBase;
+                CompilerAsserts.partialEvaluationConstant(exceptionSlot);
+                WasmFrame.dropObject(frame, exceptionSlot);
                 return offset + 2;
             }
             case Bytecode.LEGACY_CATCH_UNWIND: {
-                state.activeLegacyCatchCount = unwindLegacyCatchesToDepth(frame, state.legacyCatchBase, state.activeLegacyCatchCount, rawPeekI32(state.bytecode, offset + 2));
+                final int targetDepth = rawPeekI32(state.bytecode, offset + 2);
+                state.activeLegacyCatchCount = unwindLegacyCatchesToDepth(frame, state.legacyCatchBase, state.stackBase, state.activeLegacyCatchCount, targetDepth);
                 return offset + 6;
             }
             case Bytecode.LEGACY_SKIP_LABEL_U8: {
@@ -8045,22 +8055,27 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
 
     /**
      * Unwinds active legacy catches until the requested nesting depth remains in the reserved
-     * legacy-catch frame slots.
+     * legacy-catch frame slots. Does so by clearing all legacy catch slots above the target depth.
+     * This makes the set of updated slots static, allowing the compiler to see consistent frame
+     * states regardless of from which state (legacy catch depth) we enter this point.
      *
      * @param frame the frame holding the reserved legacy-catch slots
      * @param legacyCatchBase the first legacy-catch slot in the frame
+     * @param stackBase the first slot after the legacy-catch slots in the frame
      * @param activeLegacyCatchCount the current number of active legacy catches
      * @param targetDepth the number of active legacy catches that should remain after unwinding
      */
-    private static int unwindLegacyCatchesToDepth(VirtualFrame frame, int legacyCatchBase, int activeLegacyCatchCount, int targetDepth) {
+    @ExplodeLoop(kind = ExplodeLoop.LoopExplosionKind.MERGE_EXPLODE)
+    private static int unwindLegacyCatchesToDepth(VirtualFrame frame, int legacyCatchBase, int stackBase, int activeLegacyCatchCount, int targetDepth) {
+        CompilerAsserts.partialEvaluationConstant(legacyCatchBase);
+        CompilerAsserts.partialEvaluationConstant(stackBase);
         CompilerAsserts.partialEvaluationConstant(targetDepth);
-        int currentDepth = activeLegacyCatchCount;
-        while (currentDepth > targetDepth) {
-            currentDepth--;
-            WasmFrame.dropObject(frame, legacyCatchBase + currentDepth);
+        assert activeLegacyCatchCount >= targetDepth;
+        for (int slot = legacyCatchBase + targetDepth; slot < stackBase; slot++) {
+            CompilerAsserts.partialEvaluationConstant(slot);
+            WasmFrame.dropObject(frame, slot);
         }
-        assert currentDepth == targetDepth : "Missing active legacy catches";
-        return currentDepth;
+        return targetDepth;
     }
 
     @ExplodeLoop
