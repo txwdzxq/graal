@@ -36,7 +36,6 @@ import org.graalvm.word.UnsignedWord;
 
 import com.oracle.svm.core.BuildPhaseProvider;
 import com.oracle.svm.core.FrameAccess;
-import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.code.CodeInfoQueryResult;
 import com.oracle.svm.core.code.FrameInfoQueryResult;
 import com.oracle.svm.core.code.FrameSourceInfo;
@@ -48,7 +47,6 @@ import com.oracle.svm.core.heap.ObjectReferenceVisitor;
 import com.oracle.svm.core.heap.RestrictHeapAccess;
 import com.oracle.svm.core.heap.UnknownPrimitiveField;
 import com.oracle.svm.core.log.Log;
-import com.oracle.svm.shared.AlwaysInline;
 import com.oracle.svm.shared.Uninterruptible;
 
 import jdk.graal.compiler.api.replacements.Fold;
@@ -131,8 +129,6 @@ public abstract class InterpreterSupport {
      * <pre>
      *     1. base address of outgoing stack args
      *     2. variable stack size
-     *     3. GC reference map
-     *     4. padding
      * </pre>
      */
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
@@ -140,34 +136,6 @@ public abstract class InterpreterSupport {
         Pointer start = (Pointer) singleton().leaveStubPointer;
         Pointer end = start.add(singleton().leaveStubLength);
         return start.belowOrEqual((UnsignedWord) ip) && end.aboveOrEqual((UnsignedWord) ip);
-    }
-
-    /**
-     * GC helper to visit stack slots of a leaveInterpreterStub frame. Frames of this stub require
-     * special handling, as they do not have a fixed frame map. The reference map of each frame is
-     * part of the frame itself.
-     */
-    @AlwaysInline("GC performance")
-    @Uninterruptible(reason = "Called by GC walker", mayBeInlined = true)
-    public static void walkInterpreterLeaveStubFrame(ObjectReferenceVisitor visitor, Pointer actualSP, Pointer sp) {
-        int wordSize = SubstrateTarget.getWordSize();
-        long gcReferenceMap = actualSP.readLong(2 * wordSize);
-
-        /* Visit object references passed on the stack */
-        int referenceIndex = 0;
-        while (gcReferenceMap != 0) {
-            int trail0 = Long.numberOfTrailingZeros(gcReferenceMap);
-            referenceIndex += trail0;
-            gcReferenceMap >>= trail0;
-
-            /* Constant offset due to "deopt slot" */
-            int baseOffset = wordSize;
-            Pointer objRef = sp.add(baseOffset + wordSize * referenceIndex);
-            callVisitor(visitor, objRef, 1);
-
-            referenceIndex++;
-            gcReferenceMap >>= 1;
-        }
     }
 
     @Uninterruptible(reason = "Bridge between uninterruptible and potentially interruptible code.", mayBeInlined = true, calleeMustBe = false)
