@@ -57,7 +57,7 @@ import com.oracle.truffle.api.nodes.Node;
  */
 @SuppressWarnings({"serial", "static-method"})
 @ExportLibrary(InteropLibrary.class)
-public class WasmRuntimeException extends AbstractTruffleException implements EmbedderDataHolder {
+public final class WasmRuntimeException extends AbstractTruffleException implements EmbedderDataHolder {
     private final WasmTag tag;
     private final Object[] fields;
 
