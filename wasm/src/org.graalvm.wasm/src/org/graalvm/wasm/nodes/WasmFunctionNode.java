@@ -8065,7 +8065,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
      * @param activeLegacyCatchCount the current number of active legacy catches
      * @param targetDepth the number of active legacy catches that should remain after unwinding
      */
-    @ExplodeLoop(kind = ExplodeLoop.LoopExplosionKind.MERGE_EXPLODE)
+    @ExplodeLoop
     private static int unwindLegacyCatchesToDepth(VirtualFrame frame, int legacyCatchBase, int stackBase, int activeLegacyCatchCount, int targetDepth) {
         CompilerAsserts.partialEvaluationConstant(legacyCatchBase);
         CompilerAsserts.partialEvaluationConstant(stackBase);
