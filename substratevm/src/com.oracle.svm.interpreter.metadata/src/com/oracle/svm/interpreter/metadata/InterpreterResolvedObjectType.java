@@ -65,7 +65,7 @@ import jdk.vm.ci.meta.ResolvedJavaType;
  */
 public class InterpreterResolvedObjectType extends InterpreterResolvedJavaType {
     // Important note: This is, in general, NOT equal to `getHub().getModifiers()`.
-    private final int modifiers;
+    private final char modifiers;
     private final InterpreterResolvedJavaType componentType;
     private final InterpreterResolvedObjectType superclass;
     private final InterpreterResolvedObjectType[] interfaces;
@@ -104,7 +104,8 @@ public class InterpreterResolvedObjectType extends InterpreterResolvedJavaType {
                     JavaConstant clazzConstant,
                     boolean isWordType, String sourceFileName) {
         super(type, clazzConstant, isWordType);
-        this.modifiers = modifiers;
+        assert (char) modifiers == modifiers;
+        this.modifiers = (char) modifiers;
         this.componentType = componentType;
         this.superclass = superclass;
         this.interfaces = interfaces;
@@ -120,7 +121,8 @@ public class InterpreterResolvedObjectType extends InterpreterResolvedJavaType {
                     boolean isWordType) {
         super(type, javaClass, isWordType);
         assert isWordType == WordBase.class.isAssignableFrom(javaClass);
-        this.modifiers = modifiers;
+        assert (char) modifiers == modifiers;
+        this.modifiers = (char) modifiers;
         this.superclass = superclass;
         this.interfaces = interfaces;
         this.componentType = componentType;
@@ -135,8 +137,9 @@ public class InterpreterResolvedObjectType extends InterpreterResolvedJavaType {
                     Class<?> javaClass,
                     String sourceFileName) {
         super(type, javaClass);
+        assert (char) modifiers == modifiers;
         this.originalType = originalType;
-        this.modifiers = modifiers;
+        this.modifiers = (char) modifiers;
         this.componentType = componentType;
         this.superclass = superclass;
         this.interfaces = interfaces;
@@ -224,8 +227,12 @@ public class InterpreterResolvedObjectType extends InterpreterResolvedJavaType {
     }
 
     @Override
-    public boolean isHidden() {
-        throw VMError.unimplemented("isHidden");
+    public final boolean isHidden() {
+        if (clazz == null) {
+            throw VMError.unimplemented("isHidden with no class");
+        } else {
+            return clazz.isHidden();
+        }
     }
 
     @Override

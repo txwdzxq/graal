@@ -97,7 +97,7 @@ public class CremaResolvedJavaFieldImpl extends InterpreterResolvedJavaField imp
 
     @Override
     public boolean isTrustedFinal() {
-        return isFinal() && (isStatic() || Record.class.isAssignableFrom(getDeclaringClass().getJavaClass()) /*- GR-69549: || getDeclaringClass().isHidden() */);
+        return isFinal() && (isStatic() || Record.class.isAssignableFrom(getDeclaringClass().getJavaClass()) || getDeclaringClass().isHidden());
     }
 
     @Override
