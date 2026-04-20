@@ -200,7 +200,7 @@ public class NativeImage {
                         .collect(Collectors.joining("\n"));
     }
 
-    static class ArgumentQueue {
+    static class ArgumentQueue implements DriverPathOptions.ArgumentCursor {
 
         private final ArrayDeque<String> queue;
         public final String argumentOrigin;
@@ -215,6 +215,7 @@ public class NativeImage {
             queue.add(arg);
         }
 
+        @Override
         public String poll() {
             return queue.poll();
         }
@@ -223,10 +224,12 @@ public class NativeImage {
             queue.push(arg);
         }
 
+        @Override
         public String peek() {
             return queue.peek();
         }
 
+        @Override
         public boolean isEmpty() {
             return queue.isEmpty();
         }
