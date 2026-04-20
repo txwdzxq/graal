@@ -1493,11 +1493,11 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
                     } else {
                         tagIndex = -1;
                         assert catchType == ExceptionHandlerType.CATCH_ALL || catchType == ExceptionHandlerType.CATCH_ALL_REF ||
-                                        catchType == ExceptionHandlerType.LEGACY_CATCH_ALL || catchType == ExceptionHandlerType.DELEGATE : catchType;
+                                        catchType == ExceptionHandlerType.LEGACY_CATCH_ALL || catchType == ExceptionHandlerType.LEGACY_DELEGATE : catchType;
                     }
 
                     final int target = exceptionHandlerTarget(handlerOffset);
-                    if (catchType == ExceptionHandlerType.DELEGATE) {
+                    if (catchType == ExceptionHandlerType.LEGACY_DELEGATE) {
                         // Legacy try tables are serialized inner-to-outer, so delegate continues by
                         // scanning the remaining handlers with the delegated lookup offset. No
                         // earlier entry can become visible again, because delegation only moves the

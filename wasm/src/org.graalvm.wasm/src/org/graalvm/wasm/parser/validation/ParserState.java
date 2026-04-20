@@ -431,7 +431,7 @@ public class ParserState {
         }
         final int targetLabel = delegateLabel + 1;
         checkLabelExists(targetLabel);
-        final ExceptionHandler handler = new ExceptionHandler(ExceptionHandlerType.DELEGATE, -1);
+        final ExceptionHandler handler = new ExceptionHandler(ExceptionHandlerType.LEGACY_DELEGATE, -1);
         getFrame(targetLabel).addExceptionHandler(handler);
         tryFrame.addProtectedRegionHandler(handler);
         return exitLegacyTry(multiValue);

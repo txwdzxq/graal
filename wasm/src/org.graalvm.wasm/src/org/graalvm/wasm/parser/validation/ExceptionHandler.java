@@ -55,7 +55,7 @@ import org.graalvm.wasm.constants.ExceptionHandlerType;
  *   CATCH, CATCH_REF, CATCH_ALL, CATCH_ALL_REF, LEGACY_CATCH, LEGACY_CATCH_ALL:
  *     target = catch entry offset
  *
- *   DELEGATE:
+ *   LEGACY_DELEGATE:
  *     target = exception-table search continuation offset
  * </pre>
  */
