@@ -96,25 +96,9 @@ public final class TruffleAPIFeature implements Feature {
     }
 
     @Override
-    public void duringAnalysis(DuringAnalysisAccess access) {
-        /*
-         * Polyglot must be initialized after TruffleFeature#beforeAnalysis. Otherwise,
-         * EnterpriseTruffle#supportsEnterpriseExtensions will not function correctly, and
-         * EnterprisePolyglotImpl will not be used.
-         *
-         * All involved types originate from java.base and are therefore already included in the
-         * analysis, so re-running the analysis is unnecessary.
-         *
-         * TODO GR-74134: Move to beforeAnalysis.
-         */
-        if (!polyglotOptionPresetCalled) {
-            polyglotOptionPresetCalled = true;
-            DefaultRuntimeAccessor.ENGINE.collectNativeImagePresetOptions();
-            access.requireAnalysisIteration();
-        }
+    public void beforeAnalysis(BeforeAnalysisAccess access) {
+        DefaultRuntimeAccessor.ENGINE.collectNativeImagePresetOptions();
     }
-
-    private boolean polyglotOptionPresetCalled;
 
     private static String doVersionCheck() {
         if (TruffleVersions.isVersionCheckEnabled()) {

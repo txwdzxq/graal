@@ -876,8 +876,6 @@ public abstract class Accessor {
 
         public abstract boolean isUntrustedCodeMitigationPolicySoftware(Enum<?> policy);
 
-        public abstract void collectDefaultEngineOptions();
-
         public abstract void collectNativeImagePresetOptions();
     }
 
@@ -1593,7 +1591,7 @@ public abstract class Accessor {
         public abstract boolean isIsolateHost();
 
         public abstract Engine buildIsolatedEngine(AbstractPolyglotImpl polyglot, Engine localEngine, String[] isolateLanguages, String[] permittedLanguages, SandboxPolicy sandboxPolicy,
-                        OutputStream out, OutputStream err, InputStream in, Map<String, String> options,
+                        OutputStream out, OutputStream err, InputStream in, Map<String, String> options, Map<String, String> systemPropertiesOptions, boolean useSystemProperties,
                         boolean allowExperimentalOptions, boolean boundEngine, MessageTransport messageInterceptor, boolean registerInActiveEngines, boolean externalProcess, long stackHeadRoom,
                         String isolateLibrary, String isolateLauncher);
 

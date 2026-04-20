@@ -2452,11 +2452,6 @@ final class EngineAccessor extends Accessor {
         }
 
         @Override
-        public void collectDefaultEngineOptions() {
-            PolyglotImpl.findInstance().getAPIAccess().collectDefaultEngineOptions();
-        }
-
-        @Override
         public void collectNativeImagePresetOptions() {
             if (!ImageInfo.inImageBuildtimeCode()) {
                 throw new AssertionError("CollectNativeImagePresetOptions can be called only in image build time");

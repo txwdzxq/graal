@@ -151,13 +151,13 @@ public class ConstantOptionTest {
                         option("engine.WarnInterpreterOnly", "false").//
                         option(optionName, "test");
         AbstractPolyglotTest.assertFails(engineBuilder::build, IllegalArgumentException.class, (e) -> {
-            assertTrue(e.getMessage().contains("is constant and cannot be overridden using Builder.option()"));
+            assertTrue(e.getMessage().contains("is constant and is already fixed"));
         });
 
         Context.Builder builder = Context.newBuilder().//
                         option(optionName, "test");
         AbstractPolyglotTest.assertFails(builder::build, IllegalArgumentException.class, (e) -> {
-            assertTrue(e.getMessage().contains("is constant and cannot be overridden using Builder.option()"));
+            assertTrue(e.getMessage().contains("is constant and is already fixed"));
         });
     }
 
@@ -241,6 +241,50 @@ public class ConstantOptionTest {
 
         try (Context context = Context.newBuilder().build()) {
             AbstractExecutableTestLanguage.evalTestLanguage(context, ConstantOptionsLanguage.class, "", "PreSetOption", "configuredValue");
+        }
+    }
+
+    @Test
+    public void testPreSetOptionOverriddenByBuilder() {
+        Assume.assumeTrue("Pre-set polyglot options are supported only in native-image", ImageInfo.inImageRuntimeCode());
+
+        Engine.Builder engineBuilder = Engine.newBuilder().//
+                        useSystemProperties(configuration.useSystemProperties()).//
+                        option("engine.WarnInterpreterOnly", "false").option("ConstantOptionsLanguage.PreSetOption", "runtimeValue");
+        try (Engine engine = engineBuilder.build()) {
+            try (Context context = Context.newBuilder().engine(engine).build()) {
+                AbstractExecutableTestLanguage.evalTestLanguage(context, ConstantOptionsLanguage.class, "", "PreSetOption", "runtimeValue");
+            }
+        }
+
+        try (Context context = Context.newBuilder().//
+                        option("ConstantOptionsLanguage.PreSetOption", "runtimeValue").build()) {
+            AbstractExecutableTestLanguage.evalTestLanguage(context, ConstantOptionsLanguage.class, "", "PreSetOption", "runtimeValue");
+        }
+    }
+
+    @Test
+    public void testPreSetOptionOverriddenBySystemProperties() {
+        Assume.assumeTrue("Pre-set polyglot options are supported only in native-image", ImageInfo.inImageRuntimeCode());
+
+        String propertyName = "polyglot." + ConstantOptionsLanguage.ID + ".PreSetOption";
+        String previousValue = System.getProperty(propertyName);
+        try {
+            System.setProperty(propertyName, "runtimeValue");
+            Engine.Builder engineBuilder = Engine.newBuilder().//
+                            useSystemProperties(configuration.useSystemProperties()).//
+                            option("engine.WarnInterpreterOnly", "false");
+            try (Engine engine = engineBuilder.build()) {
+                try (Context context = Context.newBuilder().engine(engine).build()) {
+                    AbstractExecutableTestLanguage.evalTestLanguage(context, ConstantOptionsLanguage.class, "", "PreSetOption",
+                                    configuration.useSystemProperties() ? "runtimeValue" : "configuredValue");
+                }
+            }
+        } finally {
+            System.clearProperty(propertyName);
+            if (previousValue != null) {
+                System.setProperty(propertyName, previousValue);
+            }
         }
     }
 
