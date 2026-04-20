@@ -1067,7 +1067,7 @@ public final class SimpleLanguageDAPTest {
         tester.compareReceivedMessages("{\"success\":true,\"type\":\"response\",\"request_seq\":4,\"command\":\"setExceptionBreakpoints\",\"seq\":6}");
         tester.sendMessage("{\"command\":\"configurationDone\",\"type\":\"request\",\"seq\":5}");
         tester.compareReceivedMessages("{\"success\":true,\"type\":\"response\",\"request_seq\":5,\"command\":\"configurationDone\",\"seq\":7}");
-        tester.eval(source);
+        tester.eval(source, false);
         tester.compareReceivedMessages("{\"event\":\"thread\",\"body\":{\"threadId\":1,\"reason\":\"started\"},\"type\":\"event\",\"seq\":8}");
         tester.compareReceivedMessages(
                 "{\"event\":\"loadedSource\",\"body\":{\"reason\":\"new\",\"source\":{\"sourceReference\":1,\"name\":\"SL builtin\"}},\"type\":\"event\",\"seq\":9}",
