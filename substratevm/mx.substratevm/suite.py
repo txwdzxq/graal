@@ -2726,6 +2726,21 @@ suite = {
             "testDistribution" : True,
         },
 
+        "SVM_DRIVER_TESTS" : {
+          "subDir": "src",
+          "relpath" : True,
+          "dependencies" : [
+            "com.oracle.svm.driver.test",
+          ],
+          "unittestConfig" : "svm-driver-unittest",
+          "distDependencies": [
+            "mx:JUNIT_TOOL",
+            "sdk:NATIVEIMAGE",
+            "SVM_DRIVER",
+          ],
+          "testDistribution" : True,
+        },
+
         "SVM_TESTS" : {
           "subDir": "src",
           "relpath" : True,
