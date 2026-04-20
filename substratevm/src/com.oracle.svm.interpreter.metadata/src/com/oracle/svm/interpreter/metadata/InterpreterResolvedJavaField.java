@@ -42,6 +42,7 @@ import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.crema.CremaSupport;
 import com.oracle.svm.core.hub.registry.SymbolsSupport;
 import com.oracle.svm.core.invoke.ResolvedMember;
+import com.oracle.svm.espresso.classfile.ClassfileParser;
 import com.oracle.svm.core.meta.SharedField;
 import com.oracle.svm.espresso.classfile.Constants;
 import com.oracle.svm.espresso.classfile.descriptors.Name;
@@ -358,7 +359,9 @@ public class InterpreterResolvedJavaField extends InterpreterAnnotated implement
 
     @Override
     public final boolean shouldEnforceInitializerCheck() {
-        throw VMError.unimplemented("shouldEnforceInitializerCheck");
+        // Match HotSpot's bytecode rule: enforce final-field initializer writes for Java 9+ class
+        // files.
+        return getDeclaringClass().getConstantPool().getMajorVersion() >= ClassfileParser.JAVA_9_VERSION;
     }
 
     @Override
