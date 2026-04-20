@@ -60,107 +60,121 @@ public final class SimpleLanguageDAPTest {
 
     @Parameter(0) public Boolean useBytecode;
 
-    private static final String FACTORIAL = "function factorial(n) {\n" +
-                    "  f = 1;\n" +
-                    "  i = 2;\n" +
-                    "  while (i <= n) {\n" +
-                    "    f2 = f * i;\n" +
-                    "    i = i + 1;\n" +
-                    "    f = f2;\n" +
-                    "  }\n" +
-                    "  return f;\n" +
-                    "}";
-    private static final String CODE1 = "function main() {\n" +
-                    "  a = 10;\n" +
-                    "  b = factorial(a/2) / 60;\n" +
-                    "  while (b > 0) {\n" +
-                    "    c = a + b;\n" +
-                    "    b = b - c/10;\n" +
-                    "  }\n" +
-                    "  return b;\n" +
-                    "}\n" + FACTORIAL;
-    private static final String CODE2 = "function main() {\n" +
-                    "  n = 10;\n" +
-                    "  i = 0;\n" +
-                    "  while (i < n) {\n" +
-                    "    fceWithBP(i);\n" +
-                    "    i = i + 1;\n" +
-                    "  }\n" +
-                    "}\n" +
-                    "function fceWithBP(i) {\n" +
-                    "  i2 = i*i;\n" +
-                    "  return i2;\n" +
-                    "}";
-    private static final String CODE3 = "function main() {\n" +
-                    "  n = 10;\n" +
-                    "  testLocations(n);\n" +
-                    "}\n" +
-                    "function testLocations(n) {\n" +
-                    "  \n" +
-                    "  x =\n" +
-                    "    n * n;\n" +
-                    "  y =\n" +
-                    "    n / 2;\n" +
-                    "  \n" +
-                    "  x = x + y; y = x / y; return x * y;\n" +
-                    "  \n" +
-                    "}";
-    private static final String CODE_RET_VAL = "function main() {\n" +
-                    "  a = addThem(1, 2);\n" +
-                    "  println(a);\n" +
-                    "}\n" +
-                    "function addThem(a, b) {\n" +
-                    "  a = fn(a);\n" +
-                    "  b = fn(b);\n" +
-                    "  return a + b;\n" +
-                    "}\n" +
-                    "\n" +
-                    "function fn(n) {\n" +
-                    "  return n;\n" +
-                    "}\n";
-    private static final String CODE_THROW = "function main() {\n" +
-                    "  i = \"0\";\n" +
-                    "  return invert(i);\n" +
-                    "}\n" +
-                    "function invert(n) {\n" +
-                    "  x = 10 / n;\n" +
-                    "  return x;\n" +
-                    "}\n";
-    private static final String CODE_VARS = "function main() {\n" +
-                    "  n = 2;\n" +
-                    "  m = 2 * n;\n" +
-                    "  b = n > 0;\n" +
-                    "  bb = m > 0;\n" +
-                    "  big = 12345678901234567890;\n" +
-                    "  str = \"A String\";\n" +
-                    "  //obj = new();\n" +
-                    "  f = fn;\n" +
-                    "  f2 = 0;\n" +
-                    "  while (b) {\n" +
-                    "    n = n - 1;\n" +
-                    "    //obj.a = n;\n" +
-                    "    big = big * big;\n" +
-                    "    b = n > 0;\n" +
-                    "    b;\n" +
-                    "  }\n" +
-                    "  return b;\n" +
-                    "}\n" +
-                    "\n" +
-                    "function fn() {\n" +
-                    "  return 2;\n" +
-                    "}\n";
-    private static final String GUEST_FUNCTIONS = "function main() {\n" +
-                    "  foo0();\n" +
-                    "  foo1();\n" +
-                    "  foo0();\n" +
-                    "  foo1();\n" +
-                    "}\n" +
-                    "function foo0() {\n" +
-                    "  n = 0;" +
-                    "}\n" +
-                    "function foo1() {\n" +
-                    "  n = 1;" +
-                    "}\n";
+    private static final String CODE1 = """
+                    function main() {
+                      a = 10;
+                      b = factorial(a/2) / 60;
+                      while (b > 0) {
+                        c = a + b;
+                        b = b - c/10;
+                      }
+                      return b;
+                    }
+                    function factorial(n) {
+                      f = 1;
+                      i = 2;
+                      while (i <= n) {
+                        f2 = f * i;
+                        i = i + 1;
+                        f = f2;
+                      }
+                      return f;
+                    }
+                    """;
+    private static final String CODE2 = """
+                    function main() {
+                      n = 10;
+                      i = 0;
+                      while (i < n) {
+                        fceWithBP(i);
+                        i = i + 1;
+                      }
+                    }
+                    function fceWithBP(i) {
+                      i2 = i*i;
+                      return i2;
+                    }
+                    """;
+    private static final String CODE3 = """
+                    function main() {
+                      n = 10;
+                      testLocations(n);
+                    }
+                    function testLocations(n) {
+                    \s\s
+                      x =
+                        n * n;
+                      y =
+                        n / 2;
+                    \s\s
+                      x = x + y; y = x / y; return x * y;
+                    \s\s
+                    }
+                    """;
+    private static final String CODE_RET_VAL = """
+                    function main() {
+                      a = addThem(1, 2);
+                      println(a);
+                    }
+                    function addThem(a, b) {
+                      a = fn(a);
+                      b = fn(b);
+                      return a + b;
+                    }
+
+                    function fn(n) {
+                      return n;
+                    }
+                    """;
+    private static final String CODE_THROW = """
+                    function main() {
+                      i = "0";
+                      return invert(i);
+                    }
+                    function invert(n) {
+                      x = 10 / n;
+                      return x;
+                    }
+                    """;
+    private static final String CODE_VARS = """
+                    function main() {
+                      n = 2;
+                      m = 2 * n;
+                      b = n > 0;
+                      bb = m > 0;
+                      big = 12345678901234567890;
+                      str = "A String";
+                      //obj = new();
+                      f = fn;
+                      f2 = 0;
+                      while (b) {
+                        n = n - 1;
+                        //obj.a = n;
+                        big = big * big;
+                        b = n > 0;
+                        b;
+                      }
+                      return b;
+                    }
+
+                    function fn() {
+                      return 2;
+                    }
+                    """;
+    private static final String GUEST_FUNCTIONS = """
+                    function main() {
+                      foo0();
+                      foo1();
+                      foo0();
+                      foo1();
+                    }
+                    function foo0() {
+                      n = 0;
+                    }
+                    function foo1() {
+                      n = 1;
+                    }
+                    """;
     private static final String CODE_IMPORTED_ARRAY = """
                     function main() {
                       arr = import("arr");
@@ -168,14 +182,16 @@ public final class SimpleLanguageDAPTest {
                       return x;
                     }
                     """;
-    private static final String BUILTIN_FUNCTIONS = "function main() {\n" +
-                    "  isExecutable(a);\n" +
-                    "  nanoTime();\n" +
-                    "  isNull(a);\n" +
-                    "  isExecutable(a);\n" +
-                    "  isNull(b);\n" +
-                    "  nanoTime();\n" +
-                    "}\n";
+    private static final String BUILTIN_FUNCTIONS = """
+                    function main() {
+                      isExecutable(a);
+                      nanoTime();
+                      isNull(a);
+                      isExecutable(a);
+                      isNull(b);
+                      nanoTime();
+                    }
+                    """;
 
     private static final URI testURI = URI.create("file:///test/SLTest.sl");
     private static final File testFile = new File(testURI);
