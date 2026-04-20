@@ -60,7 +60,7 @@ class IfFrame extends ControlFrame {
     private boolean elseBranch;
 
     IfFrame(int[] paramTypes, int[] resultTypes, int initialStackSize, ControlFrame parentFrame, int falseJumpLocation) {
-        super(paramTypes, resultTypes, parentFrame.getSymbolTable(), initialStackSize, (BitSet) parentFrame.initializedLocals.clone(), nestedLegacyCatchDepth(parentFrame));
+        super(paramTypes, resultTypes, parentFrame.getSymbolTable(), initialStackSize, (BitSet) parentFrame.initializedLocals.clone(), parentFrame.legacyCatchDepth());
         this.labelFixups = new ArrayList<>();
         this.parentFrame = parentFrame;
         this.falseJumpLocation = falseJumpLocation;
@@ -72,7 +72,6 @@ class IfFrame extends ControlFrame {
         return resultTypes();
     }
 
-    @Override
     void enterElse(ParserState state, RuntimeBytecodeGen bytecode) {
         initializedLocals = (BitSet) parentFrame.initializedLocals.clone();
         final int location = bytecode.addBranchLocation(RuntimeBytecodeGen.BranchOp.BR);
@@ -85,7 +84,7 @@ class IfFrame extends ControlFrame {
     }
 
     @Override
-    void exit(RuntimeBytecodeGen bytecode) {
+    void exit(ParserState state, RuntimeBytecodeGen bytecode) {
         if (!elseBranch) {
             if (resultTypes().length != paramTypes().length) {
                 throw WasmException.create(Failure.TYPE_MISMATCH, "Expected else branch. If with incompatible param and result types requires else branch.");

@@ -44,8 +44,8 @@ package org.graalvm.wasm.parser.validation;
 import java.util.ArrayList;
 import java.util.BitSet;
 
-import org.graalvm.wasm.exception.Failure;
-import org.graalvm.wasm.exception.WasmException;
+import org.graalvm.wasm.WasmType;
+import org.graalvm.wasm.constants.Bytecode;
 import org.graalvm.wasm.parser.bytecode.BytecodeFixup;
 import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
 
@@ -56,16 +56,21 @@ public final class LegacyTryFrame extends ControlFrame {
     private final ArrayList<BytecodeFixup> delegateLabelFixups;
     /** Exception handlers guarding the protected region of the legacy try. */
     private final ArrayList<ExceptionHandler> protectedRegionHandlers;
+    /** Parent frame used to reset local-initialized status. */
+    private final ControlFrame parentFrame;
     /** First bytecode offset protected by this try. */
     private final int protectedRegionStart;
     /** First bytecode offset after the protected region. */
     private int protectedRegionEnd = -1;
+    /** Whether we are currently in a catch clause. */
+    private boolean inCatchClause = false;
 
     LegacyTryFrame(int[] paramTypes, int[] resultTypes, int initialStackSize, ControlFrame parentFrame, int protectedRegionStart) {
-        super(paramTypes, resultTypes, parentFrame.getSymbolTable(), initialStackSize, (BitSet) parentFrame.initializedLocals.clone(), nestedLegacyCatchDepth(parentFrame));
+        super(paramTypes, resultTypes, parentFrame.getSymbolTable(), initialStackSize, (BitSet) parentFrame.initializedLocals.clone(), parentFrame.legacyCatchDepth());
         this.branchLabelFixups = new ArrayList<>();
         this.delegateLabelFixups = new ArrayList<>();
         this.protectedRegionHandlers = new ArrayList<>();
+        this.parentFrame = parentFrame;
         this.protectedRegionStart = protectedRegionStart;
     }
 
@@ -74,19 +79,34 @@ public final class LegacyTryFrame extends ControlFrame {
         return resultTypes();
     }
 
-    @Override
-    void enterElse(ParserState state, RuntimeBytecodeGen bytecode) {
-        throw WasmException.create(Failure.TYPE_MISMATCH, "Expected then branch. Else branch requires preceding then branch.");
+    boolean inCatchClause() {
+        return inCatchClause;
     }
 
     @Override
-    void exit(RuntimeBytecodeGen bytecode) {
+    int legacyCatchDepth() {
+        return super.legacyCatchDepth() + (inCatchClause() ? 1 : 0);
+    }
+
+    @Override
+    void exit(ParserState state, RuntimeBytecodeGen bytecode) {
+        if (inCatchClause()) {
+            exitCatchClause(state, bytecode, false);
+        } else {
+            exitProtectedRegion(state, bytecode, false);
+        }
+
         if (!branchLabelFixups.isEmpty()) {
             // bytecode label reached by branches targeting the try label
             int exitLabelLocation = bytecode.addLabel(resultTypeLength(), initialStackSize(), commonResultType(), legacyCatchDepth());
             for (BytecodeFixup labelFixup : branchLabelFixups) {
                 labelFixup.patch(exitLabelLocation);
             }
+        }
+
+        final ExceptionTable table = createExceptionTable();
+        if (table != null) {
+            state.registerExceptionTable(table);
         }
     }
 
@@ -104,12 +124,45 @@ public final class LegacyTryFrame extends ControlFrame {
         }
     }
 
-    void closeProtectedRegion(int endOffset) {
+    void exitProtectedRegion(ParserState state, RuntimeBytecodeGen bytecode, boolean hasMoreClauses) {
         assert protectedRegionEnd == -1 : "legacy try protected region already closed";
-        protectedRegionEnd = endOffset;
-        for (BytecodeFixup labelFixup : delegateLabelFixups) {
-            labelFixup.patch(endOffset);
+        if (hasMoreClauses) {
+            state.checkStackAfterFrameExit(this);
+            addLabelFixup(state.createBranchFixup(RuntimeBytecodeGen.BranchOp.BR));
         }
+        protectedRegionEnd = bytecode.location();
+        for (BytecodeFixup labelFixup : delegateLabelFixups) {
+            labelFixup.patch(protectedRegionEnd);
+        }
+    }
+
+    void enterCatchClause(ParserState state, RuntimeBytecodeGen bytecode, int opcode, int tag, int[] paramTypes) {
+        if (!inCatchClause()) {
+            // Entering first catch.
+            exitProtectedRegion(state, bytecode, true);
+        } else {
+            exitCatchClause(state, bytecode, true);
+        }
+        initializedLocals = (BitSet) parentFrame.initializedLocals.clone();
+        inCatchClause = true;
+        final int catchLabel = bytecode.addLabel(paramTypes.length, initialStackSize(), WasmType.getCommonValueType(paramTypes), legacyCatchDepth());
+        final ExceptionHandler handler = new ExceptionHandler(opcode, tag, catchLabel);
+        addProtectedRegionHandler(handler);
+        // Since catch is a separate block the unreachable state has to be reset.
+        resetUnreachable();
+    }
+
+    void exitCatchClause(ParserState state, RuntimeBytecodeGen bytecode, boolean hasMoreClauses) {
+        assert inCatchClause() : "legacy try catch clause not active";
+        if (hasMoreClauses) {
+            state.checkStackAfterFrameExit(this);
+        }
+        bytecode.addOp(Bytecode.MISC);
+        bytecode.addOp(Bytecode.LEGACY_CATCH_DROP);
+        if (hasMoreClauses) {
+            addLabelFixup(state.createBranchFixup(RuntimeBytecodeGen.BranchOp.BR));
+        }
+        inCatchClause = false;
     }
 
     void addProtectedRegionHandler(ExceptionHandler handler) {
@@ -121,8 +174,7 @@ public final class LegacyTryFrame extends ControlFrame {
             return null;
         }
         assert protectedRegionEnd != -1 : "legacy try handler range not closed";
-        ExceptionTable table = new ExceptionTable(protectedRegionStart, protectedRegionHandlers.toArray(ExceptionHandler[]::new));
-        table.setTo(protectedRegionEnd);
+        ExceptionTable table = new ExceptionTable(protectedRegionStart, protectedRegionEnd, protectedRegionHandlers.toArray(ExceptionHandler[]::new));
         return table;
     }
 }

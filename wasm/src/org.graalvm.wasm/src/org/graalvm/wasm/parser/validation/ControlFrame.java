@@ -45,7 +45,6 @@ import org.graalvm.wasm.SymbolTable;
 import org.graalvm.wasm.WasmType;
 import org.graalvm.wasm.parser.bytecode.BytecodeFixup;
 import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
-
 import java.util.BitSet;
 
 /**
@@ -80,13 +79,6 @@ public abstract class ControlFrame {
         this.unreachable = false;
         commonResultType = WasmType.getCommonValueType(resultTypes);
         this.initializedLocals = (BitSet) initializedLocals.clone();
-    }
-
-    static int nestedLegacyCatchDepth(ControlFrame parentFrame) {
-        if (parentFrame == null) {
-            return 0;
-        }
-        return parentFrame.legacyCatchDepth() + (parentFrame instanceof LegacyCatchFrame ? 1 : 0);
     }
 
     protected int[] paramTypes() {
@@ -150,19 +142,9 @@ public abstract class ControlFrame {
     }
 
     /**
-     * Performs checks and actions when entering an else branch.
-     * 
-     * @param state The current parser state.
-     * @param bytecode The current extra data array.
-     */
-    abstract void enterElse(ParserState state, RuntimeBytecodeGen bytecode);
-
-    /**
      * Performs checks and actions when exiting a frame.
-     * 
-     * @param bytecode The current extra data array.
      */
-    abstract void exit(RuntimeBytecodeGen bytecode);
+    abstract void exit(ParserState state, RuntimeBytecodeGen bytecode);
 
     /**
      * Adds a fixup that targets this control frame's label. The fixup is patched immediately when

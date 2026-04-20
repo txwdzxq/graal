@@ -1067,7 +1067,7 @@ public class BinaryParser extends BinaryStreamParser {
                 case Instructions.DELEGATE: {
                     checkLegacyExceptionHandlingSupport(opcode);
                     final int delegateLabel = readTargetOffset();
-                    final int[] delegateResultTypes = state.delegateLegacyTry(delegateLabel, multiValue);
+                    final int[] delegateResultTypes = state.legacyDelegate(delegateLabel, multiValue);
                     state.pushAll(delegateResultTypes);
                     break;
                 }

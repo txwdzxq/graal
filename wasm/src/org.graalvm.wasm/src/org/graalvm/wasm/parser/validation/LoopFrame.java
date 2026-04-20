@@ -41,8 +41,6 @@
 
 package org.graalvm.wasm.parser.validation;
 
-import org.graalvm.wasm.exception.Failure;
-import org.graalvm.wasm.exception.WasmException;
 import org.graalvm.wasm.parser.bytecode.BytecodeFixup;
 import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
 
@@ -55,7 +53,7 @@ class LoopFrame extends ControlFrame {
     private final int labelLocation;
 
     LoopFrame(int[] paramTypes, int[] resultTypes, int initialStackSize, ControlFrame parentFrame, int labelLocation) {
-        super(paramTypes, resultTypes, parentFrame.getSymbolTable(), initialStackSize, (BitSet) parentFrame.initializedLocals.clone(), nestedLegacyCatchDepth(parentFrame));
+        super(paramTypes, resultTypes, parentFrame.getSymbolTable(), initialStackSize, (BitSet) parentFrame.initializedLocals.clone(), parentFrame.legacyCatchDepth());
         this.labelLocation = labelLocation;
     }
 
@@ -65,12 +63,7 @@ class LoopFrame extends ControlFrame {
     }
 
     @Override
-    void enterElse(ParserState state, RuntimeBytecodeGen bytecode) {
-        throw WasmException.create(Failure.TYPE_MISMATCH, "Expected then branch. Else branch requires preceding then branch.");
-    }
-
-    @Override
-    void exit(RuntimeBytecodeGen bytecode) {
+    void exit(ParserState state, RuntimeBytecodeGen bytecode) {
     }
 
     @Override

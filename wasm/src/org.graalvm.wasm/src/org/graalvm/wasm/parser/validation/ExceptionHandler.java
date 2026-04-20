@@ -73,6 +73,11 @@ public final class ExceptionHandler implements BytecodeFixup {
         this.tag = tag;
     }
 
+    public ExceptionHandler(int type, int tag, int target) {
+        this(type, tag);
+        this.target = target;
+    }
+
     /**
      * Returns the encoded handler kind.
      */
@@ -91,13 +96,9 @@ public final class ExceptionHandler implements BytecodeFixup {
         return target;
     }
 
-    public void setTarget(int target) {
-        this.target = target;
-    }
-
     @Override
     public void patch(int targetOffset) {
-        setTarget(targetOffset);
+        this.target = targetOffset;
     }
 
     @Override

@@ -46,8 +46,6 @@ import java.util.BitSet;
 
 import org.graalvm.wasm.SymbolTable;
 import org.graalvm.wasm.WasmType;
-import org.graalvm.wasm.exception.Failure;
-import org.graalvm.wasm.exception.WasmException;
 import org.graalvm.wasm.parser.bytecode.BytecodeFixup;
 import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
 
@@ -63,7 +61,7 @@ class BlockFrame extends ControlFrame {
     }
 
     BlockFrame(int[] paramTypes, int[] resultTypes, int initialStackSize, ControlFrame parentFrame) {
-        this(paramTypes, resultTypes, parentFrame.getSymbolTable(), initialStackSize, (BitSet) parentFrame.initializedLocals.clone(), nestedLegacyCatchDepth(parentFrame));
+        this(paramTypes, resultTypes, parentFrame.getSymbolTable(), initialStackSize, (BitSet) parentFrame.initializedLocals.clone(), parentFrame.legacyCatchDepth());
     }
 
     static BlockFrame createFunctionFrame(int[] paramTypes, int[] resultTypes, int[] locals, SymbolTable symbolTable) {
@@ -82,12 +80,7 @@ class BlockFrame extends ControlFrame {
     }
 
     @Override
-    void enterElse(ParserState state, RuntimeBytecodeGen bytecode) {
-        throw WasmException.create(Failure.TYPE_MISMATCH, "Expected then branch. Else branch requires preceding then branch.");
-    }
-
-    @Override
-    void exit(RuntimeBytecodeGen bytecode) {
+    void exit(ParserState state, RuntimeBytecodeGen bytecode) {
         if (labelFixups.isEmpty()) {
             return;
         }
