@@ -475,7 +475,7 @@ public class ParserState {
      * entries in the format:
      * 
      * <pre>
-     *     from (4 byte) | to (4 byte) | opcode (1 byte) | tag (4 byte) | target (4 byte) | target depth (4 byte)
+     *     from (4 byte) | to (4 byte) | type (1 byte) | tag (4 byte) | target (4 byte)
      * </pre>
      *
      * The exception table has a single 4 byte entry (0xffff_ffff) to indicate the end of the table.
