@@ -24,25 +24,31 @@
  */
 package com.oracle.truffle.tools.dap.test;
 
+import static com.oracle.truffle.tools.dap.test.DAPTester.getFilePath;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.Collections;
-import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.graalvm.polyglot.Source;
-
+import org.graalvm.polyglot.Value;
+import org.graalvm.polyglot.proxy.ProxyArray;
+import org.graalvm.polyglot.proxy.ProxyObject;
+import org.graalvm.shadowed.org.json.JSONArray;
+import org.graalvm.shadowed.org.json.JSONObject;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
-
-import static com.oracle.truffle.tools.dap.test.DAPTester.getFilePath;
 
 @RunWith(Parameterized.class)
 public final class SimpleLanguageDAPTest {
@@ -155,6 +161,13 @@ public final class SimpleLanguageDAPTest {
                     "function foo1() {\n" +
                     "  n = 1;" +
                     "}\n";
+    private static final String CODE_IMPORTED_ARRAY = """
+                    function main() {
+                      arr = import("arr");
+                      x = 1;
+                      return x;
+                    }
+                    """;
     private static final String BUILTIN_FUNCTIONS = "function main() {\n" +
                     "  isExecutable(a);\n" +
                     "  nanoTime();\n" +
@@ -1192,6 +1205,109 @@ public final class SimpleLanguageDAPTest {
     }
 
     @Test
+    public void testVariablesArrayFilters() throws Exception {
+        tester = DAPTester.start(false,
+                        context -> context.getPolyglotBindings().putMember("arr", new ArrayWithMembersProxy(
+                                        new Object[]{10L, 20L, 30L, 40L},
+                                        Map.of("0", "zero-prop", "1", "one-prop", "foo", "bar"))),
+                        Collections.emptyList(), Map.of("sl.UseBytecode", useBytecode.toString()));
+        File sourceFile = createTemporaryFile(CODE_IMPORTED_ARRAY);
+        Source source = Source.newBuilder("sl", sourceFile).build();
+        String sourceJson = "{\"name\":\"" + sourceFile.getName() + "\",\"path\":\"" + getFilePath(sourceFile) + "\"}";
+        tester.sendMessage("{\"command\":\"initialize\",\"arguments\":{\"clientID\":\"DAPTester\",\"clientName\":\"DAP Tester\",\"adapterID\":\"graalvm\",\"pathFormat\":\"path\",\"linesStartAt1\":true,\"columnsStartAt1\":true,\"supportsVariableType\":true,\"supportsVariablePaging\":true,\"supportsRunInTerminalRequest\":true,\"locale\":\"en-us\",\"supportsProgressReporting\":true},\"type\":\"request\",\"seq\":1}");
+        tester.compareReceivedMessages(
+                "{\"event\":\"initialized\",\"type\":\"event\"}",
+                "{\"success\":true,\"type\":\"response\",\"body\":{\"supportsConditionalBreakpoints\":true,\"supportsLoadedSourcesRequest\":true,\"supportsFunctionBreakpoints\":true,\"supportsExceptionInfoRequest\":true,\"supportsBreakpointLocationsRequest\":true,\"supportsHitConditionalBreakpoints\":true,\"supportsLogPoints\":true,\"supportsSetVariable\":true,\"supportsConfigurationDoneRequest\":true,\"exceptionBreakpointFilters\":[{\"filter\":\"all\",\"label\":\"All Exceptions\"},{\"filter\":\"uncaught\",\"label\":\"Uncaught Exceptions\"}]},\"request_seq\":1,\"command\":\"initialize\"}"
+        );
+        tester.sendMessage("{\"command\":\"attach\",\"arguments\":{\"type\":\"graalvm\",\"request\":\"attach\",\"name\":\"Attach\",\"port\":9229,\"protocol\":\"chromeDevTools\"},\"type\":\"request\",\"seq\":2}");
+        tester.compareReceivedMessages("{\"event\":\"output\",\"body\":{\"output\":\"Debugger attached.\",\"category\":\"stderr\"},\"type\":\"event\"}", "{\"success\":true,\"type\":\"response\",\"request_seq\":2,\"command\":\"attach\"}");
+        tester.sendMessage("{\"command\":\"loadedSources\",\"type\":\"request\",\"seq\":3}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"sources\":[]},\"type\":\"response\",\"request_seq\":3,\"command\":\"loadedSources\",\"seq\":5}");
+        tester.sendMessage("{\"command\":\"setBreakpoints\",\"arguments\":{\"source\":" + sourceJson + ",\"lines\":[3],\"breakpoints\":[{\"line\":3}],\"sourceModified\":false},\"type\":\"request\",\"seq\":4}");
+        tester.compareReceivedMessages("{\"success\":true,\"body\":{\"breakpoints\":[{\"line\":3,\"verified\":false,\"id\":1}]},\"type\":\"response\",\"request_seq\":4,\"command\":\"setBreakpoints\",\"seq\":6}");
+        tester.sendMessage("{\"command\":\"configurationDone\",\"type\":\"request\",\"seq\":5}");
+        tester.compareReceivedMessages("{\"success\":true,\"type\":\"response\",\"request_seq\":5,\"command\":\"configurationDone\",\"seq\":7}");
+        tester.eval(source);
+        JSONObject threadEvent = new JSONObject(tester.getMessage());
+        Assert.assertEquals("thread", threadEvent.getString("event"));
+        Assert.assertEquals("started", threadEvent.getJSONObject("body").getString("reason"));
+        int threadId = threadEvent.getJSONObject("body").getInt("threadId");
+        tester.compareReceivedMessages(
+                "{\"event\":\"loadedSource\",\"body\":{\"reason\":\"new\",\"source\":{\"sourceReference\":1,\"name\":\"SL builtin\"}},\"type\":\"event\",\"seq\":9}",
+                "{\"event\":\"loadedSource\",\"body\":{\"reason\":\"new\",\"source\":" + sourceJson + "},\"type\":\"event\",\"seq\":10}"
+        );
+        JSONObject breakpointEvent = new JSONObject(tester.getMessage());
+        Assert.assertEquals("breakpoint", breakpointEvent.getString("event"));
+        Assert.assertEquals("changed", breakpointEvent.getJSONObject("body").getString("reason"));
+        JSONObject stoppedEvent = new JSONObject(tester.getMessage());
+        Assert.assertEquals("stopped", stoppedEvent.getString("event"));
+        Assert.assertEquals("breakpoint", stoppedEvent.getJSONObject("body").getString("reason"));
+        tester.sendMessage("{\"command\":\"threads\",\"type\":\"request\",\"seq\":6}");
+        JSONArray threads = new JSONObject(tester.getMessage()).getJSONObject("body").getJSONArray("threads");
+        boolean foundThread = false;
+        for (int i = 0; i < threads.length(); i++) {
+            JSONObject thread = threads.getJSONObject(i);
+            if (thread.getInt("id") == threadId && "testRunner".equals(thread.getString("name"))) {
+                foundThread = true;
+                break;
+            }
+        }
+        Assert.assertTrue(foundThread);
+        tester.sendMessage("{\"command\":\"stackTrace\",\"arguments\":{\"threadId\":" + threadId + "},\"type\":\"request\",\"seq\":7}");
+        JSONObject stackTraceResponse = new JSONObject(tester.getMessage());
+        JSONObject stackFrame = stackTraceResponse.getJSONObject("body").getJSONArray("stackFrames").getJSONObject(0);
+        Assert.assertEquals(3, stackFrame.getInt("line"));
+        Assert.assertEquals("main", stackFrame.getString("name"));
+        int frameId = stackFrame.getInt("id");
+        tester.sendMessage("{\"command\":\"scopes\",\"arguments\":{\"frameId\":" + frameId + "},\"type\":\"request\",\"seq\":8}");
+        JSONArray scopes = new JSONObject(tester.getMessage()).getJSONObject("body").getJSONArray("scopes");
+        JSONObject localScope = scopes.getJSONObject(0);
+        Assert.assertEquals(useBytecode ? "Block" : "Local", localScope.getString("name"));
+        int localScopeReference = localScope.getInt("variablesReference");
+        tester.sendMessage("{\"command\":\"variables\",\"arguments\":{\"variablesReference\":" + localScopeReference + "},\"type\":\"request\",\"seq\":9}");
+        JSONObject scopeVariablesResponse = new JSONObject(tester.getMessage());
+        JSONArray scopeVariables = scopeVariablesResponse.getJSONObject("body").getJSONArray("variables");
+        Assert.assertEquals(1, scopeVariables.length());
+        JSONObject arrayVariable = scopeVariables.getJSONObject(0);
+        Assert.assertEquals("arr", arrayVariable.getString("name"));
+        Assert.assertEquals(4, arrayVariable.getInt("indexedVariables"));
+        Assert.assertEquals(1, arrayVariable.getInt("namedVariables"));
+        int arrayReference = arrayVariable.getInt("variablesReference");
+        Assert.assertTrue(arrayReference > 0);
+        tester.sendMessage("{\"command\":\"variables\",\"arguments\":{\"variablesReference\":" + arrayReference + ",\"filter\":\"indexed\",\"start\":1,\"count\":2},\"type\":\"request\",\"seq\":10}");
+        JSONArray indexedVariables = new JSONObject(tester.getMessage()).getJSONObject("body").getJSONArray("variables");
+        assertVariable(indexedVariables.getJSONObject(0), "1", "20");
+        assertVariable(indexedVariables.getJSONObject(1), "2", "30");
+        tester.sendMessage("{\"command\":\"variables\",\"arguments\":{\"variablesReference\":" + arrayReference + ",\"filter\":\"named\"},\"type\":\"request\",\"seq\":11}");
+        JSONArray namedVariables = new JSONObject(tester.getMessage()).getJSONObject("body").getJSONArray("variables");
+        Assert.assertEquals(1, namedVariables.length());
+        assertVariable(namedVariables.getJSONObject(0), "foo", "bar");
+        tester.sendMessage("{\"command\":\"variables\",\"arguments\":{\"variablesReference\":" + arrayReference + "},\"type\":\"request\",\"seq\":12}");
+        JSONArray allVariables = new JSONObject(tester.getMessage()).getJSONObject("body").getJSONArray("variables");
+        Assert.assertEquals(5, allVariables.length());
+        assertVariable(allVariables.getJSONObject(0), "0", "10");
+        assertVariable(allVariables.getJSONObject(1), "1", "20");
+        assertVariable(allVariables.getJSONObject(2), "2", "30");
+        assertVariable(allVariables.getJSONObject(3), "3", "40");
+        assertVariable(allVariables.getJSONObject(4), "foo", "bar");
+        tester.sendMessage("{\"command\":\"setBreakpoints\",\"arguments\":{\"source\":" + sourceJson + ",\"lines\":[],\"breakpoints\":[],\"sourceModified\":false},\"type\":\"request\",\"seq\":13}");
+        JSONObject clearBreakpointsResponse = new JSONObject(tester.getMessage());
+        Assert.assertTrue(clearBreakpointsResponse.getBoolean("success"));
+        Assert.assertEquals("setBreakpoints", clearBreakpointsResponse.getString("command"));
+        Assert.assertEquals(0, clearBreakpointsResponse.getJSONObject("body").getJSONArray("breakpoints").length());
+        tester.sendMessage("{\"command\":\"continue\",\"arguments\":{\"threadId\":" + threadId + "},\"type\":\"request\",\"seq\":14}");
+        JSONObject firstContinueMessage = new JSONObject(tester.getMessage());
+        JSONObject secondContinueMessage = new JSONObject(tester.getMessage());
+        JSONObject continuedEvent = "continued".equals(firstContinueMessage.optString("event")) ? firstContinueMessage : secondContinueMessage;
+        JSONObject continueResponse = firstContinueMessage.has("success") ? firstContinueMessage : secondContinueMessage;
+        Assert.assertEquals("continued", continuedEvent.getString("event"));
+        Assert.assertEquals(threadId, continuedEvent.getJSONObject("body").getInt("threadId"));
+        Assert.assertTrue(continueResponse.getBoolean("success"));
+        Assert.assertEquals("continue", continueResponse.getString("command"));
+        tester.finish();
+    }
+
+    @Test
     public void testEval() throws Exception {
         tester = startDAPTester(false);
         File sourceFile = createTemporaryFile(CODE1);
@@ -1275,6 +1391,11 @@ public final class SimpleLanguageDAPTest {
     // @formatter:on
     // CheckStyle: resume line length check
 
+    private static void assertVariable(JSONObject variable, String name, String value) {
+        Assert.assertEquals(name, variable.getString("name"));
+        Assert.assertEquals(value, variable.getString("value"));
+    }
+
     private static File createTemporaryFile(String content) throws IOException {
         File file = File.createTempFile("test", ".sl");
         file.deleteOnExit();
@@ -1284,5 +1405,51 @@ public final class SimpleLanguageDAPTest {
 
     private static String replaceNewLines(String nl) {
         return nl.replace("\n", "\\n").replace("\r", "\\r");
+    }
+
+    private static final class ArrayWithMembersProxy implements ProxyObject, ProxyArray {
+
+        private final Object[] array;
+        private final Map<String, Object> members;
+
+        private ArrayWithMembersProxy(Object[] array, Map<String, Object> members) {
+            this.array = array;
+            this.members = new LinkedHashMap<>(members);
+        }
+
+        @Override
+        public Object get(long index) {
+            return array[(int) index];
+        }
+
+        @Override
+        public void set(long index, Value value) {
+            array[(int) index] = value.isHostObject() ? value.asHostObject() : value;
+        }
+
+        @Override
+        public long getSize() {
+            return array.length;
+        }
+
+        @Override
+        public Object getMember(String key) {
+            return members.get(key);
+        }
+
+        @Override
+        public Object getMemberKeys() {
+            return members.keySet().toArray(new String[0]);
+        }
+
+        @Override
+        public boolean hasMember(String key) {
+            return members.containsKey(key);
+        }
+
+        @Override
+        public void putMember(String key, Value value) {
+            members.put(key, value.isHostObject() ? value.asHostObject() : value);
+        }
     }
 }
