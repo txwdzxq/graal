@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025, 2026, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -39,69 +39,9 @@
  * SOFTWARE.
  */
 
-package org.graalvm.wasm.parser.validation;
+package org.graalvm.wasm.parser.bytecode;
 
-import org.graalvm.wasm.constants.ExceptionHandlerType;
-import org.graalvm.wasm.parser.bytecode.BytecodeFixup;
+public interface BytecodeFixup {
 
-/**
- * Representation of an exception handler during parsing.
- *
- * <pre>
- * Encoded exception-table layout:
- *
- *   from | to | type | tag | target
- *
- * Field meanings by handler kind:
- *   CATCH, CATCH_REF, CATCH_ALL, CATCH_ALL_REF, LEGACY_CATCH, LEGACY_CATCH_ALL:
- *     target = transfer destination bytecode offset
- *
- *   LEGACY_DELEGATE:
- *     target = exception-table search continuation offset
- * </pre>
- */
-public final class ExceptionHandler implements BytecodeFixup {
-    /** {@link ExceptionHandlerType}. */
-    private final int type;
-    /** Tag index expected by typed catches, or {@code -1} when no tag match is required. */
-    private final int tag;
-    /** Transfer destination bytecode offset, or exception-table continuation offset. */
-    private int target = -1;
-
-    public ExceptionHandler(int type, int tag) {
-        this.type = type;
-        this.tag = tag;
-    }
-
-    /**
-     * Returns the encoded handler kind.
-     */
-    public int type() {
-        return type;
-    }
-
-    /**
-     * Returns the tag index matched by typed catches, or {@code -1} for untyped handlers.
-     */
-    public int tag() {
-        return tag;
-    }
-
-    public int target() {
-        return target;
-    }
-
-    public void setTarget(int target) {
-        this.target = target;
-    }
-
-    @Override
-    public void patch(int targetOffset) {
-        setTarget(targetOffset);
-    }
-
-    @Override
-    public String toString() {
-        return ExceptionHandlerType.toString(type) + (tag != -1 ? "(tag=" + tag + ")" : "") + "->" + target;
-    }
+    void patch(int targetOffset);
 }

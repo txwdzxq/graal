@@ -44,9 +44,9 @@ package org.graalvm.wasm.parser.validation;
 import java.util.ArrayList;
 import java.util.BitSet;
 
-import org.graalvm.wasm.collection.IntArrayList;
 import org.graalvm.wasm.exception.Failure;
 import org.graalvm.wasm.exception.WasmException;
+import org.graalvm.wasm.parser.bytecode.BytecodeFixup;
 import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
 
 /**
@@ -54,16 +54,14 @@ import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
  */
 class IfFrame extends ControlFrame {
 
-    private final IntArrayList branchTargets;
-    private final ArrayList<ExceptionHandler> exceptionHandlers;
+    private final ArrayList<BytecodeFixup> labelFixups;
     private final ControlFrame parentFrame;
     private int falseJumpLocation;
     private boolean elseBranch;
 
     IfFrame(int[] paramTypes, int[] resultTypes, int initialStackSize, ControlFrame parentFrame, int falseJumpLocation) {
         super(paramTypes, resultTypes, parentFrame.getSymbolTable(), initialStackSize, (BitSet) parentFrame.initializedLocals.clone(), nestedLegacyCatchDepth(parentFrame));
-        this.branchTargets = new IntArrayList();
-        this.exceptionHandlers = new ArrayList<>();
+        this.labelFixups = new ArrayList<>();
         this.parentFrame = parentFrame;
         this.falseJumpLocation = falseJumpLocation;
         this.elseBranch = false;
@@ -100,32 +98,19 @@ class IfFrame extends ControlFrame {
                 }
             }
         }
-        if (branchTargets.size() == 0 && exceptionHandlers.isEmpty()) {
+        if (labelFixups.isEmpty()) {
             bytecode.patchLocation(falseJumpLocation, bytecode.location());
         } else {
             final int location = bytecode.addLabel(resultTypeLength(), initialStackSize(), commonResultType(), legacyCatchDepth());
             bytecode.patchLocation(falseJumpLocation, location);
-            for (int branchLocation : branchTargets.toArray()) {
-                bytecode.patchLocation(branchLocation, location);
-            }
-            for (ExceptionHandler catchEntry : exceptionHandlers) {
-                catchEntry.setTarget(location);
+            for (BytecodeFixup labelFixup : labelFixups) {
+                labelFixup.patch(location);
             }
         }
     }
 
     @Override
-    void addBranch(RuntimeBytecodeGen bytecode, RuntimeBytecodeGen.BranchOp branchOp) {
-        branchTargets.add(bytecode.addBranchLocation(branchOp));
-    }
-
-    @Override
-    void addBranchTableItem(RuntimeBytecodeGen bytecode) {
-        branchTargets.add(bytecode.addBranchTableItemLocation());
-    }
-
-    @Override
-    void addExceptionHandler(ExceptionHandler handler) {
-        exceptionHandlers.add(handler);
+    void addLabelFixup(BytecodeFixup fixup) {
+        labelFixups.add(fixup);
     }
 }

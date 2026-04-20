@@ -43,6 +43,7 @@ package org.graalvm.wasm.parser.validation;
 
 import org.graalvm.wasm.SymbolTable;
 import org.graalvm.wasm.WasmType;
+import org.graalvm.wasm.parser.bytecode.BytecodeFixup;
 import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
 
 import java.util.BitSet;
@@ -164,27 +165,26 @@ public abstract class ControlFrame {
     abstract void exit(RuntimeBytecodeGen bytecode);
 
     /**
-     * Adds a branch targeting this control frame. Automatically patches the branch target as soon
-     * as it is available.
+     * Adds a fixup that targets this control frame's label. The fixup is patched immediately when
+     * the label is already available, or deferred until the frame emits its label.
      * 
-     * @param bytecode The bytecode of the current control frame.
+     * @param fixup The fixup that targets this frame's label.
      */
-    abstract void addBranch(RuntimeBytecodeGen bytecode, RuntimeBytecodeGen.BranchOp branchOp);
+    abstract void addLabelFixup(BytecodeFixup fixup);
 
     /**
-     * Adds a branch table item targeting this control frame. Automatically patches the branch
-     * target as soon as it is available.
-     * 
-     * @param bytecode The bytecode of the current control frame.
+     * Adds a fixup used by legacy {@code delegate} to target this control frame. The fixup is
+     * patched with the bytecode location where exception dispatch should continue once control is
+     * delegated to this frame.
+     *
+     * For most frame kinds, delegation resumes at the same location as ordinary control transfer to
+     * the frame label, so the default implementation forwards to
+     * {@link #addLabelFixup(BytecodeFixup)}. Frames whose delegate target differs from their normal
+     * label target override this method.
+     *
+     * @param fixup The fixup to patch with this frame's delegate continuation location.
      */
-
-    abstract void addBranchTableItem(RuntimeBytecodeGen bytecode);
-
-    /**
-     * Adds an exception handler targeting this control frame. Automatically patches the exception
-     * handler target as soon as it is available.
-     * 
-     * @param handler The exception handler that targets the frame.
-     */
-    abstract void addExceptionHandler(ExceptionHandler handler);
+    void addDelegateFixup(BytecodeFixup fixup) {
+        addLabelFixup(fixup);
+    }
 }

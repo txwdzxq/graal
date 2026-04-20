@@ -46,22 +46,20 @@ import java.util.BitSet;
 
 import org.graalvm.wasm.SymbolTable;
 import org.graalvm.wasm.WasmType;
-import org.graalvm.wasm.collection.IntArrayList;
 import org.graalvm.wasm.exception.Failure;
 import org.graalvm.wasm.exception.WasmException;
+import org.graalvm.wasm.parser.bytecode.BytecodeFixup;
 import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
 
 /**
  * Representation of a wasm block during module validation.
  */
 class BlockFrame extends ControlFrame {
-    private final IntArrayList branches;
-    private final ArrayList<ExceptionHandler> exceptionHandlers;
+    private final ArrayList<BytecodeFixup> labelFixups;
 
     private BlockFrame(int[] paramTypes, int[] resultTypes, SymbolTable symbolTable, int initialStackSize, BitSet initializedLocals, int legacyCatchDepth) {
         super(paramTypes, resultTypes, symbolTable, initialStackSize, initializedLocals, legacyCatchDepth);
-        branches = new IntArrayList();
-        exceptionHandlers = new ArrayList<>();
+        labelFixups = new ArrayList<>();
     }
 
     BlockFrame(int[] paramTypes, int[] resultTypes, int initialStackSize, ControlFrame parentFrame) {
@@ -90,30 +88,17 @@ class BlockFrame extends ControlFrame {
 
     @Override
     void exit(RuntimeBytecodeGen bytecode) {
-        if (branches.size() == 0 && exceptionHandlers.isEmpty()) {
+        if (labelFixups.isEmpty()) {
             return;
         }
         final int location = bytecode.addLabel(resultTypeLength(), initialStackSize(), commonResultType(), legacyCatchDepth());
-        for (int branchLocation : branches.toArray()) {
-            bytecode.patchLocation(branchLocation, location);
-        }
-        for (ExceptionHandler catchEntry : exceptionHandlers) {
-            catchEntry.setTarget(location);
+        for (BytecodeFixup labelFixup : labelFixups) {
+            labelFixup.patch(location);
         }
     }
 
     @Override
-    void addBranch(RuntimeBytecodeGen bytecode, RuntimeBytecodeGen.BranchOp branchOp) {
-        branches.add(bytecode.addBranchLocation(branchOp));
-    }
-
-    @Override
-    void addBranchTableItem(RuntimeBytecodeGen bytecode) {
-        branches.add(bytecode.addBranchTableItemLocation());
-    }
-
-    @Override
-    void addExceptionHandler(ExceptionHandler handler) {
-        exceptionHandlers.add(handler);
+    void addLabelFixup(BytecodeFixup fixup) {
+        labelFixups.add(fixup);
     }
 }

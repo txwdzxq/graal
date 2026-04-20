@@ -43,6 +43,7 @@ package org.graalvm.wasm.parser.validation;
 
 import org.graalvm.wasm.exception.Failure;
 import org.graalvm.wasm.exception.WasmException;
+import org.graalvm.wasm.parser.bytecode.BytecodeFixup;
 import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
 
 import java.util.BitSet;
@@ -73,17 +74,7 @@ class LoopFrame extends ControlFrame {
     }
 
     @Override
-    void addBranch(RuntimeBytecodeGen bytecode, RuntimeBytecodeGen.BranchOp branchOp) {
-        bytecode.addBranch(labelLocation, branchOp);
-    }
-
-    @Override
-    void addBranchTableItem(RuntimeBytecodeGen bytecode) {
-        bytecode.patchLocation(bytecode.addBranchTableItemLocation(), labelLocation);
-    }
-
-    @Override
-    void addExceptionHandler(ExceptionHandler handler) {
-        handler.setTarget(labelLocation);
+    void addLabelFixup(BytecodeFixup fixup) {
+        fixup.patch(labelLocation);
     }
 }

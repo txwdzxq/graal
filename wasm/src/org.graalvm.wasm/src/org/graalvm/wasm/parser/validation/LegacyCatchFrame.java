@@ -46,6 +46,7 @@ import java.util.BitSet;
 import org.graalvm.wasm.constants.Bytecode;
 import org.graalvm.wasm.exception.Failure;
 import org.graalvm.wasm.exception.WasmException;
+import org.graalvm.wasm.parser.bytecode.BytecodeFixup;
 import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
 
 public final class LegacyCatchFrame extends ControlFrame {
@@ -73,18 +74,13 @@ public final class LegacyCatchFrame extends ControlFrame {
     }
 
     @Override
-    void addBranch(RuntimeBytecodeGen bytecode, RuntimeBytecodeGen.BranchOp branchOp) {
-        parentTryFrame.addBranch(bytecode, branchOp);
+    void addLabelFixup(BytecodeFixup fixup) {
+        parentTryFrame.addLabelFixup(fixup);
     }
 
     @Override
-    void addBranchTableItem(RuntimeBytecodeGen bytecode) {
-        parentTryFrame.addBranchTableItem(bytecode);
-    }
-
-    @Override
-    void addExceptionHandler(ExceptionHandler exceptionHandler) {
-        parentTryFrame.addExceptionHandler(exceptionHandler);
+    void addDelegateFixup(BytecodeFixup fixup) {
+        parentTryFrame.addDelegateFixup(fixup);
     }
 
     LegacyTryFrame parentTryFrame() {

@@ -53,6 +53,7 @@ import org.graalvm.wasm.constants.Bytecode;
 import org.graalvm.wasm.constants.ExceptionHandlerType;
 import org.graalvm.wasm.exception.Failure;
 import org.graalvm.wasm.exception.WasmException;
+import org.graalvm.wasm.parser.bytecode.BytecodeFixup;
 import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
 import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen.BranchOp;
 import org.graalvm.wasm.vector.Vector128;
@@ -375,7 +376,7 @@ public class ParserState {
         final ControlFrame frame = new BlockFrame(WasmType.VOID_TYPE_ARRAY, labelFrame.labelTypes(), labelFrame.initialStackSize(), controlStack.peek());
         controlStack.push(frame);
         final ExceptionHandler e = new ExceptionHandler(opcode, tag);
-        labelFrame.addExceptionHandler(e);
+        labelFrame.addLabelFixup(e);
         return e;
     }
 
@@ -385,7 +386,7 @@ public class ParserState {
         if (currentFrame instanceof LegacyTryFrame) {
             tryFrame.closeProtectedRegion(bytecode.location());
         }
-        tryFrame.addBranch(bytecode, BranchOp.BR);
+        tryFrame.addLabelFixup(createBranchFixup(BranchOp.BR));
         final ExceptionHandler handler = new ExceptionHandler(opcode, tag);
         final LegacyCatchFrame catchFrame = new LegacyCatchFrame(paramTypes, tryFrame.resultTypes(), valueStack.size(), tryFrame);
         controlStack.push(catchFrame);
@@ -436,7 +437,7 @@ public class ParserState {
         final int targetLabel = delegateLabel + 1;
         checkLabelExists(targetLabel);
         final ExceptionHandler handler = new ExceptionHandler(ExceptionHandlerType.LEGACY_DELEGATE, -1);
-        getFrame(targetLabel).addExceptionHandler(handler);
+        getFrame(targetLabel).addDelegateFixup(handler);
         tryFrame.addProtectedRegionHandler(handler);
         return exitLegacyTry(multiValue);
     }
@@ -512,7 +513,7 @@ public class ParserState {
         final int[] labelTypes = frame.labelTypes();
         popAll(labelTypes);
         pushAll(labelTypes);
-        frame.addBranch(bytecode, BranchOp.BR_IF);
+        frame.addLabelFixup(createBranchFixup(BranchOp.BR_IF));
     }
 
     /**
@@ -526,7 +527,7 @@ public class ParserState {
         ControlFrame frame = getFrame(branchLabel);
         final int[] labelTypes = frame.labelTypes();
         popAll(labelTypes);
-        frame.addBranch(bytecode, BranchOp.BR);
+        frame.addLabelFixup(createBranchFixup(BranchOp.BR));
     }
 
     public void addBranchOnNull(int branchLabel) {
@@ -535,7 +536,7 @@ public class ParserState {
         final int[] labelTypes = frame.labelTypes();
         popAll(labelTypes);
         pushAll(labelTypes);
-        frame.addBranch(bytecode, BranchOp.BR_ON_NULL);
+        frame.addLabelFixup(createBranchFixup(BranchOp.BR_ON_NULL));
     }
 
     public void addBranchOnNonNull(int branchLabel, int referenceType) {
@@ -554,7 +555,7 @@ public class ParserState {
         for (int i = 0; i < labelTypes.length - 1; i++) {
             push(labelTypes[i]);
         }
-        frame.addBranch(bytecode, BranchOp.BR_ON_NON_NULL);
+        frame.addLabelFixup(createBranchFixup(BranchOp.BR_ON_NON_NULL));
     }
 
     public void addBranchOnCast(int branchLabel, int topReferenceType, int jumpReferenceType, int noJumpReferenceType, BranchOp branchOp) {
@@ -576,7 +577,7 @@ public class ParserState {
             push(labelTypes[i]);
         }
         push(noJumpReferenceType);
-        frame.addBranch(bytecode, branchOp);
+        frame.addLabelFixup(createBranchFixup(branchOp));
     }
 
     /**
@@ -604,9 +605,19 @@ public class ParserState {
             } catch (WasmException e) {
                 throw ValidationErrors.createLabelTypesMismatch(branchLabelReturnTypes, otherBranchLabelReturnTypes);
             }
-            frame.addBranchTableItem(bytecode);
+            frame.addLabelFixup(createBranchTableItemFixup());
         }
         popAll(branchLabelReturnTypes);
+    }
+
+    private BytecodeFixup createBranchFixup(BranchOp branchOp) {
+        final int location = bytecode.addBranchLocation(branchOp);
+        return targetOffset -> bytecode.patchLocation(location, targetOffset);
+    }
+
+    private BytecodeFixup createBranchTableItemFixup() {
+        final int location = bytecode.addBranchTableItemLocation();
+        return targetOffset -> bytecode.patchLocation(location, targetOffset);
     }
 
     /**

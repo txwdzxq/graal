@@ -44,16 +44,16 @@ package org.graalvm.wasm.parser.validation;
 import java.util.ArrayList;
 import java.util.BitSet;
 
-import org.graalvm.wasm.collection.IntArrayList;
 import org.graalvm.wasm.exception.Failure;
 import org.graalvm.wasm.exception.WasmException;
+import org.graalvm.wasm.parser.bytecode.BytecodeFixup;
 import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
 
 public final class LegacyTryFrame extends ControlFrame {
-    /** Branch locations that target the legacy try label. */
-    private final IntArrayList branches;
-    /** Exception handlers that branch to the label after the protected region. */
-    private final ArrayList<ExceptionHandler> labelExceptionHandlers;
+    /** Fixups that transfer normal control to the legacy try label. */
+    private final ArrayList<BytecodeFixup> branchLabelFixups;
+    /** Fixups that resume exception lookup at the legacy try label. */
+    private final ArrayList<BytecodeFixup> delegateLabelFixups;
     /** Exception handlers guarding the protected region of the legacy try. */
     private final ArrayList<ExceptionHandler> protectedRegionHandlers;
     /** First bytecode offset protected by this try. */
@@ -63,8 +63,8 @@ public final class LegacyTryFrame extends ControlFrame {
 
     LegacyTryFrame(int[] paramTypes, int[] resultTypes, int initialStackSize, ControlFrame parentFrame, int protectedRegionStart) {
         super(paramTypes, resultTypes, parentFrame.getSymbolTable(), initialStackSize, (BitSet) parentFrame.initializedLocals.clone(), nestedLegacyCatchDepth(parentFrame));
-        this.branches = new IntArrayList();
-        this.labelExceptionHandlers = new ArrayList<>();
+        this.branchLabelFixups = new ArrayList<>();
+        this.delegateLabelFixups = new ArrayList<>();
         this.protectedRegionHandlers = new ArrayList<>();
         this.protectedRegionStart = protectedRegionStart;
     }
@@ -81,42 +81,34 @@ public final class LegacyTryFrame extends ControlFrame {
 
     @Override
     void exit(RuntimeBytecodeGen bytecode) {
-        assert protectedRegionEnd != -1 : "legacy try protected region not closed";
-        if (branches.size() > 0) {
+        if (!branchLabelFixups.isEmpty()) {
             // bytecode label reached by branches targeting the try label
             int exitLabelLocation = bytecode.addLabel(resultTypeLength(), initialStackSize(), commonResultType(), legacyCatchDepth());
-            for (int branchLocation : branches.toArray()) {
-                bytecode.patchLocation(branchLocation, exitLabelLocation);
+            for (BytecodeFixup labelFixup : branchLabelFixups) {
+                labelFixup.patch(exitLabelLocation);
             }
         }
-        for (ExceptionHandler handler : labelExceptionHandlers) {
-            handler.setTarget(protectedRegionEnd);
+    }
+
+    @Override
+    void addLabelFixup(BytecodeFixup fixup) {
+        branchLabelFixups.add(fixup);
+    }
+
+    @Override
+    void addDelegateFixup(BytecodeFixup fixup) {
+        if (protectedRegionEnd == -1) {
+            delegateLabelFixups.add(fixup);
+        } else {
+            fixup.patch(protectedRegionEnd);
         }
-    }
-
-    @Override
-    void addBranch(RuntimeBytecodeGen bytecode, RuntimeBytecodeGen.BranchOp branchOp) {
-        branches.add(bytecode.addBranchLocation(branchOp));
-    }
-
-    @Override
-    void addBranchTableItem(RuntimeBytecodeGen bytecode) {
-        branches.add(bytecode.addBranchTableItemLocation());
-    }
-
-    @Override
-    void addExceptionHandler(ExceptionHandler handler) {
-        if (protectedRegionEnd != -1) {
-            handler.setTarget(protectedRegionEnd);
-        }
-        labelExceptionHandlers.add(handler);
     }
 
     void closeProtectedRegion(int endOffset) {
         assert protectedRegionEnd == -1 : "legacy try protected region already closed";
         protectedRegionEnd = endOffset;
-        for (ExceptionHandler handler : labelExceptionHandlers) {
-            handler.setTarget(endOffset);
+        for (BytecodeFixup labelFixup : delegateLabelFixups) {
+            labelFixup.patch(endOffset);
         }
     }
 
