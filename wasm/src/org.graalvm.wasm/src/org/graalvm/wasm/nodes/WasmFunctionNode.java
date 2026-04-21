@@ -228,6 +228,10 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
     }
 
     // region OSR support
+
+    record OSRInterpreterState(int lineNumber, int activeLegacyCatchCount) {
+    }
+
     /**
      * Prepare for OSR. An interpreter that uses {@code long} targets must override this method.
      */
@@ -246,8 +250,10 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
         WasmInstance instance = ((WasmRootNode) getRootNode()).instance(osrFrame);
         int offset = (int) target;
         int stackPointer = (int) (target >>> 32);
-        int line = (int) interpreterState;
-        return executeBodyFromOffset(instance, osrFrame, offset, stackPointer, line);
+        OSRInterpreterState osrInterpreterState = (OSRInterpreterState) interpreterState;
+        int line = osrInterpreterState.lineNumber();
+        int activeLegacyCatchCount = osrInterpreterState.activeLegacyCatchCount();
+        return executeBodyFromOffset(instance, osrFrame, offset, stackPointer, line, activeLegacyCatchCount);
     }
 
     @Override
@@ -289,7 +295,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
     }
 
     public void execute(VirtualFrame frame, WasmInstance instance) {
-        executeBodyFromOffset(instance, frame, bytecodeStartOffset, codeEntry.stackBase(), -1);
+        executeBodyFromOffset(instance, frame, bytecodeStartOffset, codeEntry.stackBase(), -1, 0);
     }
 
     private static final class VirtualState {
@@ -306,7 +312,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
 
         @EarlyInline
         State(WasmFunctionNode<?> thiz, BackEdgeCounter backEdgeCounter, int interpreterBackEdgeCounter, byte[] bytecode, int lineIndex, WasmMemory zeroMemory, WasmMemoryLibrary zeroMemoryLib,
-                        int localCount, int maxLegacyCatchDepth, WasmInstance instance) {
+                        int localCount, int maxLegacyCatchDepth, WasmInstance instance, int activeLegacyCatchCount) {
             this.thiz = thiz;
             this.backEdgeCounter = backEdgeCounter;
             this.interpreterBackEdgeCounter = interpreterBackEdgeCounter;
@@ -322,7 +328,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
             this.memoryLibs = thiz.memoryLibs;
             this.notifyFunction = thiz.notifyFunction;
             this.exceptionOffset = 0;
-            this.activeLegacyCatchCount = 0;
+            this.activeLegacyCatchCount = activeLegacyCatchCount;
         }
 
         final WasmFunctionNode<?> thiz;
@@ -356,7 +362,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
                     @Argument(expand = Argument.ExpansionKind.MATERIALIZED, fields = {@Argument.Field(name = "bytecode")}),
                     @Argument(expand = Argument.ExpansionKind.VIRTUAL),
                     @Argument(expand = Argument.ExpansionKind.MATERIALIZED, fields = {@Argument.Field(name = "indexedLocals"), @Argument.Field(name = "indexedPrimitiveLocals")})})
-    public Object executeBodyFromOffset(WasmInstance instance, VirtualFrame virtualFrame, int startOffset, int startStackPointer, int startLineIndex) {
+    public Object executeBodyFromOffset(WasmInstance instance, VirtualFrame virtualFrame, int startOffset, int startStackPointer, int startLineIndex, int startActiveLegacyCatchCount) {
         FrameWithoutBoxing frame = (FrameWithoutBoxing) virtualFrame;
         final int localCount = codeEntry.localCount();
         final int maxLegacyCatchDepth = codeEntry.maxLegacyCatchDepth();
@@ -380,7 +386,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
 
         check(bytecode.length, (1 << 31) - 1);
 
-        final State state = new State(this, backEdgeCounter, 0, bytecode, startLineIndex, zeroMemory, zeroMemoryLib, localCount, maxLegacyCatchDepth, instance);
+        final State state = new State(this, backEdgeCounter, 0, bytecode, startLineIndex, zeroMemory, zeroMemoryLib, localCount, maxLegacyCatchDepth, instance, startActiveLegacyCatchCount);
         CompilerDirectives.ensureVirtualized(state);
         final VirtualState virtualState = new VirtualState(startStackPointer);
         CompilerDirectives.ensureVirtualized(virtualState);
@@ -1554,7 +1560,8 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
                 TruffleSafepoint.poll(state.thiz);
                 LoopNode.reportLoopCount(state.thiz, REPORT_LOOP_STRIDE);
                 if (CompilerDirectives.inInterpreter() && BytecodeOSRNode.pollOSRBackEdge(state.thiz, REPORT_LOOP_STRIDE)) {
-                    Object result = BytecodeOSRNode.tryOSR(state.thiz, offset + 1 | ((long) virtualState.stackPointer << 32), state.lineIndex, null, frame);
+                    OSRInterpreterState osrInterpreterState = new OSRInterpreterState(state.lineIndex, state.activeLegacyCatchCount);
+                    Object result = BytecodeOSRNode.tryOSR(state.thiz, offset + 1 | ((long) virtualState.stackPointer << 32), osrInterpreterState, null, frame);
                     if (result != null) {
                         throw new WasmOSRException(result);
                     }
