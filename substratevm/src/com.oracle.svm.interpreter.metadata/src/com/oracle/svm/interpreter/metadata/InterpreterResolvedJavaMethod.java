@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -953,8 +953,23 @@ public class InterpreterResolvedJavaMethod extends InterpreterAnnotated implemen
 
     @Override
     public final StackTraceElement asStackTraceElement(int bci) {
-        // TODO GR-71255
-        return new StackTraceElement(getDeclaringClass().getName(), getName(), null, bci);
+        int lineNumber;
+        if (Modifier.isNative(getModifiers())) {
+            // StackTraceElement uses -2 to mark native methods distinctly from "line unknown".
+            lineNumber = -2;
+        } else {
+            LineNumberTable methodLineNumberTable = getLineNumberTable();
+            if (methodLineNumberTable == null || bci < 0) {
+                /*
+                 * Missing line-table metadata or an unknown BCI means the source line is
+                 * unavailable, not that the method metadata is corrupt.
+                 */
+                lineNumber = -1;
+            } else {
+                lineNumber = methodLineNumberTable.getLineNumber(bci);
+            }
+        }
+        return new StackTraceElement(getDeclaringClass().toJavaName(), getName(), getDeclaringClass().getSourceFileName(), lineNumber);
     }
 
     @Override
