@@ -973,7 +973,7 @@ def _polyglot_isolate_unittest(isolate_mode):
             # Run with default options using optimized Truffle runtime
             [],
             # Run using fallback Truffle runtime
-            ["-Dtruffle.UseFallbackRuntime=true"]
+            ["-Dtruffle.UseFallbackRuntime=true", "-Dpolyglot.engine.WarnInterpreterOnly=false"]
         ]
 
         for truffle_runtime_options in truffle_runtime_modes:
@@ -986,12 +986,22 @@ def _polyglot_isolate_unittest(isolate_mode):
             mx_unittest.unittest(
                 unittest_args_tck + extra_vm_arguments_isolate_library + isolate_mode_vm_options + truffle_runtime_options + extra_vm_arguments_spawn_isolate + tests)
 
-        # Run PolyglotIsolateTest in native-to-native with external truffle isolate library
-        tests = ['com.oracle.truffle.api.test.polyglot.isolate']
-        truffle_isolate_options = truffle_isolate_common_options
-        vm_telemetry_options = ['--enable-monitoring=jvmstat', '--enable-monitoring=threaddump']
-        args = tests + ['--build-args'] + vm_telemetry_options + truffle_isolate_options + isolate_mode_vm_options + ['--run-args'] + extra_vm_arguments_isolate_library + isolate_mode_vm_options
-        mx_truffle.native_truffle_unittest(args)
+            # Run PolyglotIsolateTest in native-to-native with external truffle isolate library
+            truffle_isolate_options = truffle_isolate_common_options
+            vm_telemetry_options = ['--enable-monitoring=jvmstat', '--enable-monitoring=threaddump']
+            args = [
+                'com.oracle.truffle.api.test.polyglot.isolate',
+                '--build-args',
+                *vm_telemetry_options,
+                *truffle_isolate_options,
+                *isolate_mode_vm_options,
+                *truffle_runtime_options,
+                '--run-args',
+                *extra_vm_arguments_isolate_library,
+                *isolate_mode_vm_options,
+                *truffle_runtime_options,
+            ]
+            mx_truffle.native_truffle_unittest(args)
     finally:
         if not mx._opts.verbose:
             mx.rmtree(svmbuild)

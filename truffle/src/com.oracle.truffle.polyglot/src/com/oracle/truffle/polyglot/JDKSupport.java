@@ -459,8 +459,6 @@ final class JDKSupport {
 
             @Override
             public <T> ThreadLocal<T> createTerminatingThreadLocal(Supplier<T> initialValue, Consumer<T> onThreadTermination) {
-                Objects.requireNonNull(initialValue, "initialValue must be non null.");
-                Objects.requireNonNull(onThreadTermination, "onThreadTermination must be non null.");
                 return new TerminatingThreadLocal<>() {
 
                     @Override
@@ -722,6 +720,12 @@ final class JDKSupport {
             // Load the class from the module layer
             Class<?> generatedClass = layer.findLoader(moduleName).loadClass(modulesClassName);
             this.targetModule = generatedClass.getModule();
+            /*
+             * We need to add export for TerminatingThreadLocal's enclosing package before we link
+             * the generated class. Otherwise, the superclass access check fails on
+             * GeneratedTerminatingThreadLocal.
+             */
+            addExports0(ModuleLayer.boot().findModule("java.base").orElseThrow(), "jdk.internal.misc", targetModule);
 
             MethodHandles.Lookup l = MethodHandles.lookup();
             l.accessClass(generatedClass);

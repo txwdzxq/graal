@@ -65,8 +65,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
+import com.oracle.svm.core.stack.StackOverflowCheck;
+import com.oracle.svm.shared.util.ModuleSupport;
+import jdk.internal.misc.TerminatingThreadLocal;
 import org.graalvm.collections.EconomicMap;
 import org.graalvm.collections.EconomicSet;
 import org.graalvm.collections.Pair;
@@ -237,7 +241,14 @@ public final class TruffleBaseFeature implements InternalFeature {
     public static final class IsEnabled implements BooleanSupplier {
         @Override
         public boolean getAsBoolean() {
-            return ImageSingletons.contains(TruffleBaseFeature.class);
+            boolean enabled = ImageSingletons.contains(TruffleBaseFeature.class);
+            if (enabled) {
+                // Workaround for GR-75049: @SVMTest does not correctly process
+                // META-INF/native-image.properties directives
+                Module javaBase = ModuleLayer.boot().findModule("java.base").orElseThrow();
+                ModuleSupport.accessModuleByClass(ModuleSupport.Access.EXPORT, TruffleBaseFeature.class, javaBase, "jdk.internal.misc");
+            }
+            return enabled;
         }
     }
 
@@ -1755,4 +1766,29 @@ final class Target_com_oracle_truffle_api_dsl_InlineSupport_UnsafeField {
         }
     }
 
+}
+
+@TargetClass(className = "com.oracle.truffle.api.impl.DefaultTruffleRuntime", onlyWith = TruffleBaseFeature.IsEnabled.class)
+final class Target_com_oracle_truffle_api_impl_DefaultTruffleRuntime {
+
+    @Substitute
+    static <T> ThreadLocal<T> createTerminatingThreadLocal(Supplier<T> initialValue, Consumer<T> onThreadTermination) {
+        return new TerminatingThreadLocal<>() {
+
+            @Override
+            protected T initialValue() {
+                return initialValue.get();
+            }
+
+            @Override
+            protected void threadTerminated(T value) {
+                onThreadTermination.accept(value);
+            }
+        };
+    }
+
+    @Substitute
+    static long getStackOverflowLimit() {
+        return ImageSingletons.lookup(StackOverflowCheck.class).getStackOverflowBoundary().rawValue();
+    }
 }

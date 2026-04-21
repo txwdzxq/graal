@@ -47,6 +47,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.util.concurrent.Callable;
 
+import com.oracle.truffle.api.Truffle;
+import com.oracle.truffle.api.impl.DefaultTruffleRuntime;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.SandboxPolicy;
@@ -241,7 +243,7 @@ public class PolyglotIsolateSandboxPolicyTest {
      */
     private static boolean isInterpreterCallStackHeadRoomSupported() {
         Runtime.Version jdkVersion = Runtime.version();
-        return (TruffleTestAssumptions.isIsolateEncapsulation() || TruffleOptions.AOT) && jdkVersion.feature() >= 23;
+        return (TruffleTestAssumptions.isIsolateEncapsulation() || (TruffleOptions.AOT && !(Truffle.getRuntime() instanceof DefaultTruffleRuntime))) && jdkVersion.feature() >= 23;
     }
 
     @Test
@@ -405,7 +407,12 @@ public class PolyglotIsolateSandboxPolicyTest {
         }
         if (!isInterpreterCallStackHeadRoomSupported()) {
             AbstractPolyglotTest.assertFails(() -> Context.newBuilder("triste").option("engine.InterpreterCallStackHeadRoom", "42B").build(), IllegalArgumentException.class, (iae) -> {
-                assertTrue(iae.getMessage().contains("The engine.InterpreterCallStackHeadRoom option is set to a non-zero value, but the option is not supported on the current VM."));
+                String message = iae.getMessage();
+                boolean incompatibleVm = message.contains("The engine.InterpreterCallStackHeadRoom option is set to a non-zero value, but the option is not supported on the current VM.");
+                boolean incompatibleRuntime = message.contains(
+                                "The engine.InterpreterCallStackHeadRoom option is set to a non-zero value, but the option is not supported on the fallback Truffle runtime.");
+                assertTrue(incompatibleVm || incompatibleRuntime);
+                assertTrue(!incompatibleRuntime || Truffle.getRuntime() instanceof DefaultTruffleRuntime);
             });
         } else {
             Context.newBuilder("triste").option("engine.InterpreterCallStackHeadRoom", "42B").build().close();

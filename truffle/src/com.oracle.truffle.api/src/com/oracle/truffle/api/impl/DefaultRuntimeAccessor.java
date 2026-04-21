@@ -309,7 +309,7 @@ final class DefaultRuntimeAccessor extends Accessor {
 
         @Override
         public <T> ThreadLocal<T> createTerminatingThreadLocal(Supplier<T> initialValue, Consumer<T> onThreadTermination) {
-            return ENGINE.getModulesAccessor().getJavaLangSupport().createTerminatingThreadLocal(initialValue, onThreadTermination);
+            return DefaultTruffleRuntime.createTerminatingThreadLocal(initialValue, onThreadTermination);
         }
 
         @Override
@@ -329,7 +329,7 @@ final class DefaultRuntimeAccessor extends Accessor {
 
         @Override
         public long getStackOverflowLimit() {
-            return StackLimitSupport.getStackOverflowLimit();
+            return DefaultTruffleRuntime.getStackOverflowLimit();
         }
 
     }

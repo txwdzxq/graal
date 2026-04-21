@@ -90,9 +90,9 @@ local graal_common = import '../../../ci/ci_common/common.jsonnet';
       local explicit_capabilities = if platform.os == 'windows' && mode == 'external' then { capabilities: ['windows_11'] } else {};
       local timelimit =
         # Darwin builders are highly affected by system load; gate times vary from ~13 minutes up to ~124 minutes.
-        if platform.os == 'darwin' then  '2:15:00'
-        else if platform.os == 'windows' then '1:30:00'
-        else '1:00:00';
+        if platform.os == 'darwin' then  '3:15:00'
+        else if platform.os == 'windows' then '2:30:00'
+        else '2:00:00';
       local jdk_hint = if platform.os == 'windows' then 'Latest' else null;
       vm.vm_java_Latest + vm_common.vm_base(platform.os, platform.arch, explicit_target, jdk_hint=jdk_hint)  + self.truffleisolate_gate(mode, timelimit) + explicit_capabilities + {
         name: explicit_target + '-vm-truffleisolate-' + mode + '-latest-' + platform.os + '-' + platform.arch,
