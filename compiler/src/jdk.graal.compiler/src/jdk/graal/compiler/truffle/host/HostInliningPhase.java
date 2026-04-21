@@ -206,6 +206,15 @@ public class HostInliningPhase extends AbstractInliningPhase {
     }
 
     @Override
+    protected boolean shouldVerifyForceInlinedInvokes(StructuredGraph graph) {
+        /*
+         * Host inlining is a domain-specific exploration phase and may leave force-inlined invokes
+         * to later general inlining phases.
+         */
+        return false;
+    }
+
+    @Override
     @SuppressWarnings("try")
     protected final void runInlining(StructuredGraph graph, HighTierContext highTierContext) {
         ResolvedJavaMethod method = graph.method();
