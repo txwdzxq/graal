@@ -610,7 +610,7 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
         int referenceMapCompressedOffset = RuntimeInstanceReferenceMapSupport.singleton().getOrCreateReferenceMap(metadataSuperHub, monitorOffset, declaredInstanceReferenceFieldOffsets);
 
         /* Write fields in defining order. */
-        writeObject(hub, dynamicHubOffsets.getNameOffset(), name);
+        writeObject(hub, dynamicHubOffsets.getNameOffset(), name.intern());
         writeByte(hub, dynamicHubOffsets.getHubTypeOffset(), hubType);
         writeByte(hub, dynamicHubOffsets.getReferenceTypeOffset(), referenceType.getValue());
 
