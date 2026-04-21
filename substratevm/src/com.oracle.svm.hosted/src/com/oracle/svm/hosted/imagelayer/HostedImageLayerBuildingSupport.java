@@ -67,7 +67,6 @@ import com.oracle.svm.hosted.option.HostedOptionParser;
 import com.oracle.svm.shaded.org.capnproto.ReaderOptions;
 import com.oracle.svm.shaded.org.capnproto.Serialize;
 import com.oracle.svm.shared.collections.ConcurrentIdentityHashMap;
-import com.oracle.svm.shared.option.HostedOptionKey;
 import com.oracle.svm.shared.option.HostedOptionValues;
 import com.oracle.svm.shared.option.LayerVerifiedOption;
 import com.oracle.svm.shared.option.LocatableMultiOptionValue.ValueWithOrigin;
@@ -360,15 +359,7 @@ public final class HostedImageLayerBuildingSupport extends ImageLayerBuildingSup
              */
             LayeredImageOptions.ApplicationLayerInitializedClasses.update(values, Module.class.getName());
 
-            setOptionIfHasNotBeenSet(values, SubstrateOptions.ConcealedOptions.RelativeCodePointers, true);
-
             classLoaderSupport.initializePathDigests(digestIgnorePath);
-        }
-    }
-
-    private static void setOptionIfHasNotBeenSet(EconomicMap<OptionKey<?>, Object> values, HostedOptionKey<Boolean> option, boolean boxedValue) {
-        if (!values.containsKey(option)) {
-            option.update(values, boxedValue);
         }
     }
 

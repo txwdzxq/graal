@@ -1234,7 +1234,7 @@ public class SubstrateOptions {
 
         @Option(help = "Avoid linker relocations for code and instead emit address computations.", type = OptionType.Expert) //
         @LayerVerifiedOption(severity = Severity.Error, kind = Kind.Changed, positional = false) //
-        public static final HostedOptionKey<Boolean> RelativeCodePointers = new HostedOptionKey<>(false, SubstrateOptions::validateRelativeCodePointers);
+        public static final HostedOptionKey<Boolean> RelativeCodePointers = new HostedOptionKey<>(true, SubstrateOptions::validateRelativeCodePointers);
 
         /** Use {@link SubstrateOptions#getTearDownWarningNanos()} instead. */
         @Option(help = "The number of seconds that the isolate teardown can take before warnings are printed. Disabled if less or equal to 0.")//
@@ -1637,18 +1637,23 @@ public class SubstrateOptions {
 
     @Fold
     public static boolean useRelativeCodePointers() {
-        return ConcealedOptions.RelativeCodePointers.getValue();
+        return ConcealedOptions.RelativeCodePointers.getValue() &&
+                        (Platform.includedIn(PLATFORM_JNI.class) || Platform.includedIn(NATIVE_ONLY.class)) &&
+                        !useLLVMBackend();
     }
 
+    /** @see #useRelativeCodePointers() */
     private static void validateRelativeCodePointers(HostedOptionKey<Boolean> optionKey) {
-        if (optionKey.getValue()) {
-            String enabledOption = SubstrateOptionsParser.commandArgument(optionKey, "+");
-
-            UserError.guarantee(Platform.includedIn(PLATFORM_JNI.class) || Platform.includedIn(NATIVE_ONLY.class), "%s is supported only with hardware target platforms.", enabledOption);
-
-            // The concept of a code base would need to be introduced in the LLVM backend first.
-            UserError.guarantee(!useLLVMBackend(), "%s is currently not supported with the LLVM backend.", enabledOption);
+        if (!optionKey.hasBeenSet() || !optionKey.getValue()) {
+            return;
         }
+
+        String enabledOption = SubstrateOptionsParser.commandArgument(optionKey, "+");
+
+        UserError.guarantee(Platform.includedIn(PLATFORM_JNI.class) || Platform.includedIn(NATIVE_ONLY.class), "%s is supported only with hardware target platforms.", enabledOption);
+
+        // The concept of a code base would need to be introduced in the LLVM backend first.
+        UserError.guarantee(!useLLVMBackend(), "%s is currently not supported with the LLVM backend.", enabledOption);
     }
 
     public static boolean hasDumpRuntimeCompiledMethodsSupport() {
