@@ -691,6 +691,7 @@ suite = {
             "subDir": "src",
             "sourceDirs": ["src"],
             "dependencies": [
+                "com.oracle.graal.pointsto.standalone.test.classes",
                 "mx:JUNIT_TOOL",
                 "sdk:NATIVEIMAGE",
                 "STANDALONE_POINTSTO",
@@ -713,6 +714,20 @@ suite = {
                 "compiler:GRAAL_PROCESSOR",
             ],
             "javaCompliance" : "21+",
+            "jacoco" : "exclude",
+        },
+
+        "com.oracle.graal.pointsto.standalone.test.classes": {
+            "subDir": "src",
+            "sourceDirs": ["src"],
+            "dependencies": [
+                "compiler:GRAAL",
+            ],
+            "checkstyle": "com.oracle.svm.test",
+            "workingSets": "SVM,Test",
+            "annotationProcessors": [],
+            "javaCompliance" : "21+",
+            "testProject": True,
             "jacoco" : "exclude",
         },
 

@@ -24,31 +24,38 @@
  * questions.
  */
 
-package com.oracle.graal.pointsto.standalone.test;
+package com.oracle.graal.pointsto.standalone.test.classes;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
+import java.lang.reflect.Array;
 
-public class StandaloneConstantScanDynamicCase {
-    private static final VarHandle STATUS;
-
-    static {
-        try {
-            MethodHandles.Lookup l = MethodHandles.lookup();
-            STATUS = l.findVarHandle(StandaloneConstantScanDynamicTest.class, "status", int.class);
-        } catch (ReflectiveOperationException e) {
-            throw new ExceptionInInitializerError(e);
-        }
-    }
-
-    private int status;
-
+/**
+ * This case exercises the array-allocation plugin registered by
+ * {@link jdk.graal.compiler.replacements.StandardGraphBuilderPlugins}.
+ */
+public class ArrayNewInstancePluginCase {
+    /**
+     * Exercises reflective array allocation so standalone analysis must rely on the registered
+     * graph-builder plugin instead of treating the reflective helper as a normal reachable method.
+     */
     public static void main(String[] args) {
-        StandaloneConstantScanDynamicCase t = new StandaloneConstantScanDynamicCase();
-        t.run();
+        int size = 3;
+        C[] newArray = (C[]) Array.newInstance(C.class, size);
+        for (int i = 0; i < size; i++) {
+            newArray[i] = new C();
+        }
+        newArray[0].foo();
     }
 
-    public void run() {
-        STATUS.compareAndSet(this, status, 1);
+    /**
+     * Element type used to make the plugin-driven allocation and element dispatch observable to the
+     * reachability assertions.
+     */
+    public static class C {
+        /**
+         * Target method that becomes reachable once the plugin models the newly allocated array
+         * contents precisely enough.
+         */
+        public void foo() {
+        }
     }
 }

@@ -24,8 +24,14 @@
  * questions.
  */
 
-package com.oracle.graal.pointsto.standalone.test;
+package com.oracle.graal.pointsto.standalone.test.classes;
 
+/**
+ * Fixture for constant-field analysis in standalone mode.
+ *
+ * The test guards that the analysis models the class initializer and the referenced constant field
+ * through normal reachability rather than folding the field away as an already computed constant.
+ */
 public class ConstantFieldCase {
     public static final ConstantType constantField = new ConstantType();
     /*
@@ -34,11 +40,21 @@ public class ConstantFieldCase {
      */
     @SuppressWarnings("unused") private static volatile int sink;
 
+    /**
+     * Entry point that triggers the call through {@link #constantField}.
+     */
     public static void main(String[] args) {
         constantField.foo();
     }
 
-    static class ConstantType {
+    /**
+     * Value type stored in the static final field that is expected to stay visible to analysis.
+     */
+    public static class ConstantType {
+        /**
+         * Performs calls whose reachability depends on the constant field being analyzed instead of
+         * collapsed away.
+         */
         public void foo() {
             consume("first");
             consume("second");
