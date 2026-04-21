@@ -906,7 +906,7 @@ public class CremaSupportImpl implements CremaSupport {
     }
 
     private static boolean isSealed(ParserKlass parsed) {
-        PermittedSubclassesAttribute permittedSubclasses = (PermittedSubclassesAttribute) parsed.getAttribute(PermittedSubclassesAttribute.NAME);
+        PermittedSubclassesAttribute permittedSubclasses = parsed.getAttribute(PermittedSubclassesAttribute.NAME, PermittedSubclassesAttribute.class);
         return permittedSubclasses != null && permittedSubclasses.getClasses().length > 0;
     }
 
