@@ -1129,6 +1129,24 @@ suite = {
             "jacoco" : "exclude",
         },
 
+        "com.oracle.svm.driver.test": {
+            "subDir": "src",
+            "sourceDirs": ["src"],
+            "dependencies": [
+                "mx:JUNIT_TOOL",
+                "com.oracle.svm.driver",
+            ],
+            "checkstyle": "com.oracle.svm.test",
+            "workingSets": "SVM",
+            "annotationProcessors": [
+                "compiler:GRAAL_PROCESSOR",
+                "SVM_PROCESSOR",
+            ],
+            "javaCompliance": "24+",
+            "jacoco": "exclude",
+            "testProject": True,
+        },
+
         "com.oracle.svm.libjvm": {
             "subDir": "src",
             "sourceDirs": [
@@ -2730,6 +2748,21 @@ suite = {
                 "SVM_GUEST_STAGING",
             ],
             "testDistribution" : True,
+        },
+
+        "SVM_DRIVER_TESTS" : {
+          "subDir": "src",
+          "relpath" : True,
+          "dependencies" : [
+            "com.oracle.svm.driver.test",
+          ],
+          "unittestConfig" : "svm-driver-unittest",
+          "distDependencies": [
+            "mx:JUNIT_TOOL",
+            "sdk:NATIVEIMAGE",
+            "SVM_DRIVER",
+          ],
+          "testDistribution" : True,
         },
 
         "SVM_TESTS" : {
