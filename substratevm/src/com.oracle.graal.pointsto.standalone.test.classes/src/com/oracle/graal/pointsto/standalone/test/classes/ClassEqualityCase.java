@@ -24,18 +24,36 @@
  * questions.
  */
 
-package com.oracle.graal.pointsto.standalone.test;
+package com.oracle.graal.pointsto.standalone.test.classes;
 
+/**
+ * Fixture for class-literal equality handling.
+ *
+ * The test checks that comparing a runtime class value against a constant class literal keeps the
+ * matching branch reachable.
+ */
 public class ClassEqualityCase {
-    static class C {
+    /**
+     * Nested target type whose method becomes reachable through the successful equality branch.
+     */
+    public static class C {
+        /**
+         * Reachability marker for the class-equality branch.
+         */
         public static void foo() {
         }
     }
 
+    /**
+     * Entry point that feeds a constant class literal into the equality check.
+     */
     public static void main(String[] args) {
         equals(C.class);
     }
 
+    /**
+     * Performs the class-literal equality test that should resolve to the reachable branch.
+     */
     private static void equals(Class<?> clazz) {
         if (clazz == C.class) {
             C.foo();

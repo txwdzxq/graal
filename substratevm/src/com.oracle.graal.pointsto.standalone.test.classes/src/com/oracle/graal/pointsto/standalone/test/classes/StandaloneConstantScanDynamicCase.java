@@ -24,30 +24,46 @@
  * questions.
  */
 
-package com.oracle.graal.pointsto.standalone.test;
+package com.oracle.graal.pointsto.standalone.test.classes;
 
-import java.lang.reflect.Array;
-
-import jdk.graal.compiler.nodes.graphbuilderconf.InvocationPlugins;
-import jdk.graal.compiler.nodes.spi.Replacements;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 
 /**
- * This case is for
- * {@link jdk.graal.compiler.replacements.StandardGraphBuilderPlugins#registerArrayPlugins(InvocationPlugins, Replacements)}.
+ * Fixture for dynamic constant scanning through a {@link VarHandle}.
+ *
+ * The static initializer resolves the handle reflectively so the analysis must keep the dynamic
+ * constant-scanning path working in standalone mode.
  */
-@SuppressWarnings({"javadoc"})
-public class ArrayNewInstancePluginCase {
-    public static void main(String[] args) {
-        int size = 3;
-        C[] newArray = (C[]) Array.newInstance(C.class, size);
-        for (int i = 0; i < size; i++) {
-            newArray[i] = new C();
+public class StandaloneConstantScanDynamicCase {
+    private static final VarHandle STATUS;
+
+    /**
+     * Resolves the {@link VarHandle} used by {@link #run()}.
+     */
+    static {
+        try {
+            MethodHandles.Lookup l = MethodHandles.lookup();
+            STATUS = l.findVarHandle(StandaloneConstantScanDynamicCase.class, "status", int.class);
+        } catch (ReflectiveOperationException e) {
+            throw new ExceptionInInitializerError(e);
         }
-        newArray[0].foo();
     }
 
-    static class C {
-        public void foo() {
-        }
+    private int status;
+
+    /**
+     * Entry point that invokes the dynamically resolved {@link VarHandle}.
+     */
+    public static void main(String[] args) {
+        StandaloneConstantScanDynamicCase t = new StandaloneConstantScanDynamicCase();
+        t.run();
+    }
+
+    /**
+     * Exercises the resolved {@link VarHandle} so the test can assert this method stays reachable.
+     */
+    public void run() {
+        STATUS.compareAndSet(this, status, 1);
     }
 }
