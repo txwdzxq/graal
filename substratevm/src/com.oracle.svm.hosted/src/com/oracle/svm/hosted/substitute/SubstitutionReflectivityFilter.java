@@ -55,8 +55,9 @@ import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.hosted.FeatureImpl.DuringSetupAccessImpl;
 import com.oracle.svm.util.AnnotationUtil;
-import com.oracle.svm.util.OriginalFieldProvider;
+import com.oracle.svm.util.OriginalClassProvider;
 import com.oracle.svm.util.OriginalMethodProvider;
+import com.oracle.svm.util.JVMCIReflectionUtil;
 
 import jdk.graal.compiler.api.replacements.Fold;
 import jdk.vm.ci.meta.ResolvedJavaField;
@@ -273,7 +274,8 @@ public class SubstitutionReflectivityFilter implements InternalFeature {
             return true;
         }
         ResolvedJavaMethod originalMethod = OriginalMethodProvider.getOriginalMethod(method);
-        return originalMethod != null && !AnnotationUtil.isAnnotationPresent(originalMethod.getDeclaringClass(), TargetClass.class);
+        ResolvedJavaType originalDeclaringType = originalMethod == null ? null : OriginalClassProvider.getOriginalType(originalMethod.getDeclaringClass());
+        return originalDeclaringType != null && !AnnotationUtil.isAnnotationPresent(originalDeclaringType, TargetClass.class);
     }
 
     private static boolean hasOriginalTargetField(AnalysisField field) {
@@ -283,7 +285,12 @@ public class SubstitutionReflectivityFilter implements InternalFeature {
         if (AnnotationUtil.isAnnotationPresent(field, Alias.class)) {
             return true;
         }
-        ResolvedJavaField originalField = OriginalFieldProvider.getOriginalField(field);
-        return originalField != null && !AnnotationUtil.isAnnotationPresent(originalField.getDeclaringClass(), TargetClass.class);
+        /*
+         * Substituted fields can unwrap to the implementation-side field on the substitution type
+         * instead of the original field on the target class. Match by name on the original target
+         * type so real target fields such as Class.componentType remain visible.
+         */
+        ResolvedJavaType originalDeclaringType = OriginalClassProvider.getOriginalType(field.getDeclaringClass());
+        return JVMCIReflectionUtil.getUniqueDeclaredField(true, originalDeclaringType, field.getName()) != null;
     }
 }
