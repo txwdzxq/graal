@@ -74,19 +74,18 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.oracle.svm.core.BuilderUtil;
 import org.graalvm.nativeimage.ImageInfo;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.ProcessProperties;
 
 import com.oracle.graal.pointsto.api.PointstoOptions;
 import com.oracle.graal.pointsto.reports.ReportUtils;
+import com.oracle.svm.core.BuilderUtil;
 import com.oracle.svm.core.JavaVersionUtil;
 import com.oracle.svm.core.NativeImageClassLoaderOptions;
 import com.oracle.svm.core.OS;
 import com.oracle.svm.core.SharedConstants;
 import com.oracle.svm.core.SubstrateOptions;
-import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.core.VM;
 import com.oracle.svm.core.imagelayer.LayeredImageOptions;
 import com.oracle.svm.core.util.ArchiveSupport;
@@ -109,6 +108,7 @@ import com.oracle.svm.shared.option.OptionOrigin;
 import com.oracle.svm.shared.option.OptionUtils;
 import com.oracle.svm.shared.util.LogUtils;
 import com.oracle.svm.shared.util.StringUtil;
+import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.util.HostedModuleSupport;
@@ -1319,7 +1319,7 @@ public class NativeImage {
         if (!limitModules.isEmpty()) {
             imageBuilderJavaArgs.add("-D" + HostedModuleSupport.PROPERTY_IMAGE_EXPLICITLY_LIMITED_MODULES + "=" + String.join(",", limitModules));
         }
-        if (!finalImageClasspath.isEmpty()) {
+        if (!finalImageClasspath.isEmpty() || layerCreate()) {
             imageBuilderJavaArgs.add(DefaultOptionHandler.addModulesOption + "=ALL-DEFAULT");
         }
         // allow native access for all modules on the image builder module path
@@ -1463,6 +1463,10 @@ public class NativeImage {
         return Boolean.TRUE.equals(getHostedOptionBooleanArgumentValue(imageBuilderArgs, COMPATIBILITY_MODE_FLAG_NAME));
     }
 
+    private boolean layerCreate() {
+        return !getHostedOptionArgumentValues(imageBuilderArgs, oHLayerCreate).isEmpty();
+    }
+
     private boolean shouldAddCWDToCP() {
         if (printFlagsOptionQuery != null || printFlagsWithExtraHelpOptionQuery != null) {
             return false;
@@ -1476,6 +1480,10 @@ public class NativeImage {
 
         if (useBundle() && bundleSupport.loadBundle) {
             /* If bundle was loaded we have valid -cp and/or -p from within the bundle */
+            return false;
+        }
+
+        if (layerCreate()) {
             return false;
         }
 
