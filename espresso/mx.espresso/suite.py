@@ -513,7 +513,6 @@ suite = {
             # - espresso:ESPRESSO_RUNTIME_RESOURCES or espresso-tests:ESPRESSO_RUNTIME_RESOURCES
             "dynamicDependencies": "javavm_deps",
             "build_args": [
-                '-Dpolyglot.java.GuestFieldOffsetStrategy=graal',
                 '-R:+EnableSignalHandling',
                 '-R:+InstallSegfaultHandler',
                 '-H:+UnlockExperimentalVMOptions', '-H:-JNIExportSymbols', '-H:-UnlockExperimentalVMOptions',

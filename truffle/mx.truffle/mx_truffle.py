@@ -359,12 +359,19 @@ class TruffleUnittestConfig(mx_unittest.MxUnittestConfig):
 
         # Disable VirtualThread warning
         vmArgs = [*vmArgs, "-Dpolyglot.engine.WarnVirtualThreadSupport=false"]
+        append_unittest_image_build_time_options(vmArgs)
         enable_truffle_native_access(vmArgs)
         enable_sun_misc_unsafe(vmArgs)
         return (vmArgs, mainClass, mainClassArgs)
 
 
 mx_unittest.register_unittest_config(TruffleUnittestConfig())
+
+
+def append_unittest_image_build_time_options(vmArgs):
+    # Command line arguments for com.oracle.truffle.api.test.option.ConstantOptionTest
+    vmArgs.append('-Dpolyglot.ConstantOptionsLanguage.ConstantOption1=configuredValue')
+    return vmArgs
 
 
 class _DisableOptimizedRuntimeAction(Action):
@@ -1158,7 +1165,10 @@ def truffle_native_unit_tests_gate(use_optimized_runtime=True, build_args=None):
             else ["--enable-monitoring=threaddump"]
         )
         + ["-Dpolyglot.engine.AllowExperimentalOptions=true"]
+        # Command line arguments for pre-set polyglot option in com.oracle.truffle.api.test.option.ConstantOptionTest
+        + ['-Dpolyglot.ConstantOptionsLanguage.PreSetOption=configuredValue']
     )
+    append_unittest_image_build_time_options(build_args)
     run_args = (
         run_truffle_runtime_args
         + (["-Xss1m"] if is_libc_musl else [])
