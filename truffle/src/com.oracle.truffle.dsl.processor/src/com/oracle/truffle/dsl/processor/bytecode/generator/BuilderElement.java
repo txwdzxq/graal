@@ -1409,12 +1409,12 @@ final class BuilderElement extends AbstractElement {
         for (OperationArgument arg : operation.operationBeginArguments) {
             ex.addParameter(arg.toVariableElement());
         }
-        ex.setVarArgs(operation.operationBeginArgumentVarArgs);
         addBeginOrEmitOperationDoc(operation, ex);
 
         CodeTreeBuilder b = ex.createBuilder();
 
         if (operation.kind == OperationKind.TAG) {
+            ex.setVarArgs(true);
             b.startIf().string("newTags.length == 0").end().startBlock();
             b.startThrow().startCall("state.failArgument").doubleQuote("The tags parameter for beginTag must not be empty. Please specify at least one tag.").end().end();
             b.end();
@@ -3282,7 +3282,6 @@ final class BuilderElement extends AbstractElement {
     private CodeExecutableElement createEmit(OperationModel operation) {
         Modifier visibility = operation.isPrivate ? PRIVATE : PUBLIC;
         CodeExecutableElement ex = new CodeExecutableElement(Set.of(visibility), type(void.class), "emit" + operation.builderName);
-        ex.setVarArgs(operation.operationBeginArgumentVarArgs);
 
         for (OperationArgument arg : operation.operationBeginArguments) {
             ex.addParameter(arg.toVariableElement());
