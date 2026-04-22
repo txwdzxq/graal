@@ -55,6 +55,8 @@ import java.lang.invoke.MethodType;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Executable;
+import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -94,6 +96,7 @@ import com.oracle.svm.core.hub.registry.AbstractClassRegistry;
 import com.oracle.svm.core.hub.registry.ClassRegistries;
 import com.oracle.svm.core.hub.registry.SymbolsSupport;
 import com.oracle.svm.core.hub.registry.TypeIDs;
+import com.oracle.svm.core.invoke.ResolvedMember;
 import com.oracle.svm.core.invoke.Target_java_lang_invoke_MemberName;
 import com.oracle.svm.core.log.Log;
 import com.oracle.svm.core.metaspace.Metaspace;
@@ -132,6 +135,8 @@ import com.oracle.svm.espresso.shared.vtable.VTable;
 import com.oracle.svm.hosted.substitute.DeletedElementException;
 import com.oracle.svm.interpreter.fieldlayout.FieldLayout;
 import com.oracle.svm.interpreter.metadata.AccessChecks;
+import com.oracle.svm.interpreter.metadata.CremaFieldAccess;
+import com.oracle.svm.interpreter.metadata.CremaMethodAccess;
 import com.oracle.svm.interpreter.metadata.CremaResolvedJavaFieldImpl;
 import com.oracle.svm.interpreter.metadata.CremaResolvedJavaMethodImpl;
 import com.oracle.svm.interpreter.metadata.CremaResolvedObjectType;
@@ -1434,6 +1439,18 @@ public class CremaSupportImpl implements CremaSupport {
                         accessingType, m, callSiteFromRefKind(refKind), holder);
         plantResolvedMethod(mn, resolvedCall);
         return mn;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T extends ResolvedJavaMethod & ResolvedMember> T toJVMCI(Executable executable) {
+        return (T) CremaMethodAccess.toJVMCI(executable);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T extends ResolvedJavaField & ResolvedMember> T toJVMCI(Field field) {
+        return (T) CremaFieldAccess.toJVMCI(field);
     }
 
     private static void plantResolvedMethod(Target_java_lang_invoke_MemberName mn,

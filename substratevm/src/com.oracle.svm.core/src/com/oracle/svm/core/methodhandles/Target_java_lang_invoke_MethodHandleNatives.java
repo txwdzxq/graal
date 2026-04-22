@@ -93,6 +93,9 @@ public final class Target_java_lang_invoke_MethodHandleNatives {
             /* The code calling this expects a getter, and will change it to a setter if needed */
             refKind = Modifier.isStatic(field.getModifiers()) ? Target_java_lang_invoke_MethodHandleNatives_Constants.REF_getStatic
                             : Target_java_lang_invoke_MethodHandleNatives_Constants.REF_getField;
+            if (RuntimeClassLoading.isSupported()) {
+                self.resolved = CremaSupport.singleton().toJVMCI(field);
+            }
         } else if (member instanceof Method) {
             Method method = (Method) member;
             Object[] typeInfo = new Object[2];
@@ -108,6 +111,9 @@ public final class Target_java_lang_invoke_MethodHandleNatives {
             } else {
                 refKind = Target_java_lang_invoke_MethodHandleNatives_Constants.REF_invokeVirtual;
             }
+            if (RuntimeClassLoading.isSupported()) {
+                self.resolved = CremaSupport.singleton().toJVMCI(method);
+            }
         } else if (member instanceof Constructor) {
             Constructor<?> constructor = (Constructor<?>) member;
             Object[] typeInfo = new Object[2];
@@ -116,6 +122,9 @@ public final class Target_java_lang_invoke_MethodHandleNatives {
             type = typeInfo;
             flags = Target_java_lang_invoke_MethodHandleNatives_Constants.MN_IS_CONSTRUCTOR | constructor.getModifiers();
             refKind = Target_java_lang_invoke_MethodHandleNatives_Constants.REF_newInvokeSpecial;
+            if (RuntimeClassLoading.isSupported()) {
+                self.resolved = CremaSupport.singleton().toJVMCI(constructor);
+            }
         } else {
             throw new InternalError("Unknown member type: " + member.getClass());
         }
