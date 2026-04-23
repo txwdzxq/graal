@@ -717,6 +717,8 @@ public class GenerateInlineTest extends AbstractPolyglotTest {
     @SuppressWarnings("unused")
     public abstract static class GenericInlineFieldNode extends Node {
 
+        private static int inlineMethodInvocations;
+
         abstract Object execute(Node node, int arg);
 
         @Specialization
@@ -728,6 +730,7 @@ public class GenerateInlineTest extends AbstractPolyglotTest {
         public static GenericInlineFieldNode inline(
                         @RequiredField(value = StateField.class, bits = 1) //
                         @RequiredField(value = InlineSupport.ReferenceField.class, type = Node.class) InlineTarget target) {
+            inlineMethodInvocations++;
             return GenericInlineFieldNodeGen.inline(target);
         }
 
@@ -751,6 +754,7 @@ public class GenerateInlineTest extends AbstractPolyglotTest {
     public void testGenericCustomInlineNodeFieldTypesRemainCompatible() {
         GenericInlineFieldUsageNode node = adoptNode(GenericInlineFieldUsageNodeGen.create()).get();
 
+        assertEquals("expected handwritten GenericInlineFieldNode.inline(...) to be used", 1, GenericInlineFieldNode.inlineMethodInvocations);
         assertEquals(42, node.execute(42));
     }
 
