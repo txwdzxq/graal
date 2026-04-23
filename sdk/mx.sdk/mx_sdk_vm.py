@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2019, 2025, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2019, 2026, Oracle and/or its affiliates. All rights reserved.
 # DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
 #
 # The Universal Permissive License (UPL), Version 1.0
@@ -218,7 +218,7 @@ class LanguageLibraryConfig(LibraryConfig):
         self.launchers = [mx_subst.path_substitutions.substitute(l) for l in launchers] if launchers else []
         self.option_vars = [] if option_vars is None else option_vars
         self.default_vm_args = [] if default_vm_args is None else default_vm_args
-        assert all(arg.startswith("--vm.") for arg in self.default_vm_args)
+        assert all(arg.startswith("--vm.") for arg in [mx_subst.string_substitutions.substitute(arg) for arg in self.default_vm_args if mx_subst.string_substitutions.substitute(arg)])
 
         if set_default_relative_home_path:
             # Ensure the language launcher can always find the language home

@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2025, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2025, 2026, Oracle and/or its affiliates. All rights reserved.
 # DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
 #
 # The Universal Permissive License (UPL), Version 1.0
@@ -748,8 +748,9 @@ class ThinLauncherProject(mx_native.DefaultNativeProject):
                 '-DLAUNCHER_EXTRACTED_LIB_PATHS="{\\"' + '\\", \\"'.join(extracted_lib_paths) + '\\"}"',
                 ]
 
-        if len(self.default_vm_args) > 0:
-            _dynamic_cflags += ['-DLAUNCHER_DEFAULT_VM_ARGS="{\\"' + '\\", \\"'.join(self.default_vm_args) + '\\"}"']
+        default_vm_args = [arg for arg in [mx_subst.string_substitutions.substitute(arg) for arg in self.default_vm_args] if arg]
+        if len(default_vm_args) > 0:
+            _dynamic_cflags += ['-DLAUNCHER_DEFAULT_VM_ARGS="{\\"' + '\\", \\"'.join(default_vm_args) + '\\"}"']
 
         return super().cflags + _dynamic_cflags
 
