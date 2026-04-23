@@ -30,6 +30,7 @@ import java.util.List;
 
 import org.graalvm.collections.EconomicMap;
 
+import jdk.graal.compiler.core.common.calc.CanonicalCondition;
 import jdk.graal.compiler.core.common.type.ArithmeticOpTable;
 import jdk.graal.compiler.core.common.type.IntegerStamp;
 import jdk.graal.compiler.core.common.type.ObjectStamp;
@@ -59,6 +60,7 @@ import jdk.graal.compiler.vector.nodes.simd.SimdConstant;
 import jdk.graal.compiler.vector.nodes.simd.SimdCutNode;
 import jdk.graal.compiler.vector.nodes.simd.SimdInsertNode;
 import jdk.graal.compiler.vector.nodes.simd.SimdPermuteWithVectorIndicesNode;
+import jdk.graal.compiler.vector.nodes.simd.SimdPrimitiveCompareNode;
 import jdk.graal.compiler.vector.nodes.simd.SimdStamp;
 import jdk.graal.compiler.vector.replacements.vectorapi.VectorAPIOperations;
 import jdk.vm.ci.meta.Constant;
@@ -89,6 +91,8 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
     private static final int VECTOR_OP_REVERSE = vectorOpcode("VECTOR_OP_REVERSE");
     private static final int VECTOR_OP_REVERSE_BYTES = vectorOpcode("VECTOR_OP_REVERSE_BYTES");
     private static final int VECTOR_OP_BIT_COUNT = vectorOpcode("VECTOR_OP_BIT_COUNT");
+    private static final int VECTOR_OP_TZ_COUNT = vectorOpcode("VECTOR_OP_TZ_COUNT");
+    private static final int VECTOR_OP_LZ_COUNT = vectorOpcode("VECTOR_OP_LZ_COUNT");
 
     /* Indices into the macro argument list for relevant input values. */
     private static final int OPRID_ARG_INDEX = 0;
@@ -185,6 +189,14 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
         return operationCode == VECTOR_OP_BIT_COUNT;
     }
 
+    private static boolean isTrailingZerosCount(int operationCode) {
+        return operationCode == VECTOR_OP_TZ_COUNT;
+    }
+
+    private static boolean isLeadingZerosCount(int operationCode) {
+        return operationCode == VECTOR_OP_LZ_COUNT;
+    }
+
     @Override
     public Iterable<ValueNode> vectorInputs() {
         return List.of(getVector(), mask());
@@ -225,7 +237,9 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
         boolean bitReverse = isBitReverse(opcode);
         boolean reverseBytes = isReverseBytes(opcode);
         boolean bitCount = isBitCount(opcode);
-        if (!((ObjectStamp) stamp).isExactType() || vectorStamp == null || (op == null && !bitReverse && !reverseBytes && !bitCount)) {
+        boolean trailingZeros = isTrailingZerosCount(opcode);
+        boolean leadingZeros = isLeadingZerosCount(opcode);
+        if (!((ObjectStamp) stamp).isExactType() || vectorStamp == null || (op == null && !bitReverse && !reverseBytes && !bitCount && !trailingZeros && !leadingZeros)) {
             return false;
         }
         Stamp elementStamp = vectorStamp.getComponent(0);
@@ -241,6 +255,12 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
         }
         if (bitCount) {
             return canExpandBitCount(vectorArch, elementStamp, vectorLength);
+        }
+        if (trailingZeros) {
+            return canExpandTrailingZerosCount(vectorArch, elementStamp, vectorLength);
+        }
+        if (leadingZeros) {
+            return canExpandLeadingZerosCount(vectorArch, elementStamp, vectorLength);
         }
         return vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, op) == vectorLength;
     }
@@ -263,6 +283,10 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
             result = expandBitReverse(vectorArch, value, elementStamp, vectorLength);
         } else if (isBitCount(opcode)) {
             result = expandBitCount(vectorArch, value, elementStamp, vectorLength);
+        } else if (isTrailingZerosCount(opcode)) {
+            result = expandTrailingZerosCount(vectorArch, value, elementStamp, vectorLength);
+        } else if (isLeadingZerosCount(opcode)) {
+            result = expandLeadingZerosCount(vectorArch, value, elementStamp, vectorLength);
         } else if (value.stamp(NodeView.DEFAULT).isIntegerStamp()) {
             result = UnaryArithmeticNode.unaryIntegerOp(value, NodeView.DEFAULT, op);
         } else {
@@ -593,5 +617,207 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
             }
         }
         return mask;
+    }
+
+    private static boolean canExpandTrailingZerosCount(VectorArchitecture vectorArch, Stamp elementStamp, int vectorLength) {
+        if (!(elementStamp instanceof IntegerStamp integerStamp)) {
+            return false;
+        }
+        if (PrimitiveStamp.getBits(integerStamp) == Byte.SIZE) {
+            return canTrailingZerosWithBitCount(vectorArch, integerStamp, vectorLength) ||
+                            canZeroCountByteViaNibbleLookup(vectorArch, integerStamp, vectorLength);
+        } else {
+            return canTrailingZerosWithBitCount(vectorArch, integerStamp, vectorLength);
+        }
+    }
+
+    private static boolean canExpandLeadingZerosCount(VectorArchitecture vectorArch, Stamp elementStamp, int vectorLength) {
+        if (!(elementStamp instanceof IntegerStamp integerStamp)) {
+            return false;
+        }
+        if (PrimitiveStamp.getBits(integerStamp) == Byte.SIZE) {
+            return canLeadingZerosWithBitCount(vectorArch, integerStamp, vectorLength) ||
+                            canZeroCountByteViaNibbleLookup(vectorArch, integerStamp, vectorLength);
+        } else {
+            return canLeadingZerosWithBitCount(vectorArch, integerStamp, vectorLength);
+        }
+    }
+
+    private static boolean canTrailingZerosWithBitCount(VectorArchitecture vectorArch, IntegerStamp elementStamp, int vectorLength) {
+        return canBitCountWithMasks(vectorArch, elementStamp, vectorLength);
+    }
+
+    private static boolean canLeadingZerosWithBitCount(VectorArchitecture vectorArch, IntegerStamp elementStamp, int vectorLength) {
+        return canBitCountWithMasks(vectorArch, elementStamp, vectorLength) &&
+                        vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, IntegerStamp.OPS.getOr()) == vectorLength;
+    }
+
+    private static boolean canZeroCountByteViaNibbleLookup(VectorArchitecture vectorArch, IntegerStamp byteStamp, int vectorLength) {
+        if (!needsPaddedNibbleLookupInput(vectorLength)) {
+            return canZeroCountByteViaDirectNibbleLookup(vectorArch, byteStamp, vectorLength);
+        } else {
+            return canZeroCountByteViaDirectNibbleLookup(vectorArch, byteStamp, vectorLength * 2) &&
+                            canPadNibbleLookupInput(vectorArch, byteStamp, vectorLength);
+        }
+    }
+
+    private static boolean canZeroCountByteViaDirectNibbleLookup(VectorArchitecture vectorArch, IntegerStamp byteStamp, int vectorLength) {
+        return !needsPaddedNibbleLookupInput(vectorLength) &&
+                        canExtractByteNibblesViaShortOps(vectorArch, vectorLength) &&
+                        vectorArch.getSupportedVectorPermuteLength(byteStamp, vectorLength) == vectorLength &&
+                        vectorArch.getSupportedVectorArithmeticLength(byteStamp, vectorLength, IntegerStamp.OPS.getAdd()) == vectorLength &&
+                        vectorArch.getSupportedVectorComparisonLength(byteStamp, CanonicalCondition.EQ, vectorLength) == vectorLength &&
+                        vectorArch.getSupportedVectorBlendLength(byteStamp, vectorLength) == vectorLength;
+    }
+
+    private ValueNode expandTrailingZerosCount(VectorArchitecture vectorArch, ValueNode inputVector, Stamp elementStamp, int vectorLength) {
+        IntegerStamp integerStamp = (IntegerStamp) elementStamp;
+        int elementBits = PrimitiveStamp.getBits(integerStamp);
+        if (elementBits == Byte.SIZE && !canTrailingZerosWithBitCount(vectorArch, integerStamp, vectorLength)) {
+            GraalError.guarantee(canZeroCountByteViaNibbleLookup(vectorArch, integerStamp, vectorLength), "unexpected byte TZ_COUNT shape: %s x %s", integerStamp, vectorLength);
+            return trailingZerosByteViaNibbleLookup(vectorArch, inputVector, vectorLength);
+        } else {
+            return trailingZerosWithBitCount(inputVector, elementBits, vectorLength, elementBits);
+        }
+    }
+
+    /**
+     * Counts trailing zeros in byte lanes via nibble lookup:
+     * <ul>
+     * <li>if low nibble is non-zero, use its 4-bit trailing-zero count,</li>
+     * <li>otherwise use {@code 4 + tzcnt(highNibble)}.</li>
+     * </ul>
+     */
+    private ValueNode trailingZerosByteViaNibbleLookup(VectorArchitecture vectorArch, ValueNode inputVector, int byteVectorLength) {
+        return zeroCountByteViaNibbleLookup(vectorArch, inputVector, byteVectorLength);
+    }
+
+    /**
+     * Builds a byte lookup-table vector where each element is the trailing-zero count of its low
+     * nibble. Values are repeated across the whole vector so indices in [0, 15] are always valid.
+     */
+    private ValueNode trailingZeroNibbleLookupTable(int byteVectorLength) {
+        Constant[] values = new Constant[byteVectorLength];
+        for (int i = 0; i < byteVectorLength; i++) {
+            int nibble = i & 0x0F;
+            int tzcnt = (nibble == 0) ? 4 : Integer.numberOfTrailingZeros(nibble);
+            values[i] = JavaConstant.forByte((byte) tzcnt);
+        }
+        SimdStamp byteVectorStamp = SimdStamp.broadcast(IntegerStamp.create(Byte.SIZE), byteVectorLength);
+        return graph().unique(ConstantNode.forConstant(byteVectorStamp, new SimdConstant(values), null));
+    }
+
+    /**
+     * Counts trailing zeros in each lane using {@code ctz(x) = popcount((x & -x) - 1)}. This
+     * identity naturally returns the lane width when {@code x == 0}.
+     */
+    private ValueNode trailingZerosWithBitCount(ValueNode inputVector, int elementBits, int vectorLength, int bitsToCount) {
+        ValueNode zero = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forIntegerBits(elementBits, 0), vectorLength));
+        ValueNode one = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forIntegerBits(elementBits, 1), vectorLength));
+        ValueNode negative = BinaryArithmeticNode.sub(zero, inputVector, NodeView.DEFAULT);
+        ValueNode isolatedLowBit = BinaryArithmeticNode.and(inputVector, negative);
+        ValueNode lowMask = BinaryArithmeticNode.sub(isolatedLowBit, one, NodeView.DEFAULT);
+        return bitCountWithMasks(lowMask, elementBits, vectorLength, bitsToCount);
+    }
+
+    private ValueNode expandLeadingZerosCount(VectorArchitecture vectorArch, ValueNode inputVector, Stamp elementStamp, int vectorLength) {
+        IntegerStamp integerStamp = (IntegerStamp) elementStamp;
+        int elementBits = PrimitiveStamp.getBits(integerStamp);
+        if (elementBits == Byte.SIZE && !canLeadingZerosWithBitCount(vectorArch, integerStamp, vectorLength)) {
+            GraalError.guarantee(canZeroCountByteViaNibbleLookup(vectorArch, integerStamp, vectorLength), "unexpected byte LZ_COUNT shape: %s x %s", integerStamp, vectorLength);
+            return leadingZerosByteViaNibbleLookup(vectorArch, inputVector, vectorLength);
+        } else {
+            return leadingZerosWithBitCount(inputVector, elementBits, vectorLength, elementBits);
+        }
+    }
+
+    /**
+     * Counts leading zeros in byte lanes via nibble lookup:
+     * <ul>
+     * <li>if high nibble is non-zero, use its 4-bit leading-zero count,</li>
+     * <li>otherwise use {@code 4 + lzcnt(lowNibble)}.</li>
+     * </ul>
+     */
+    private ValueNode leadingZerosByteViaNibbleLookup(VectorArchitecture vectorArch, ValueNode inputVector, int byteVectorLength) {
+        return zeroCountByteViaNibbleLookup(vectorArch, inputVector, byteVectorLength);
+    }
+
+    private ValueNode zeroCountByteViaNibbleLookup(VectorArchitecture vectorArch, ValueNode inputVector, int byteVectorLength) {
+        IntegerStamp byteStamp = IntegerStamp.create(Byte.SIZE);
+        if (needsPaddedNibbleLookupInput(byteVectorLength)) {
+            ValueNode paddedInput = padNibbleLookupInput(vectorArch, inputVector, byteStamp, byteVectorLength);
+            ValueNode paddedResult = graph().addOrUniqueWithInputs(zeroCountByteViaDirectNibbleLookup(vectorArch, paddedInput, byteVectorLength * 2));
+            return graph().addOrUnique(new SimdCutNode(paddedResult, 0, byteVectorLength));
+        } else {
+            return zeroCountByteViaDirectNibbleLookup(vectorArch, inputVector, byteVectorLength);
+        }
+    }
+
+    /**
+     * Counts byte-lane trailing or leading zeros via nibble lookup, depending on this node's
+     * opcode. Trailing-zero count uses the low nibble as the primary nibble and otherwise falls
+     * back to {@code 4 + tzcnt(highNibble)}; leading-zero count uses the high nibble as the primary
+     * nibble and otherwise falls back to {@code 4 + lzcnt(lowNibble)}.
+     */
+    private ValueNode zeroCountByteViaDirectNibbleLookup(VectorArchitecture vectorArch, ValueNode inputVector, int byteVectorLength) {
+        ValueNode[] args = toArgumentArray();
+        int opcode = operationCode(args);
+        boolean trailingZeros = opcode == VECTOR_OP_TZ_COUNT;
+        GraalError.guarantee(trailingZeros || opcode == VECTOR_OP_LZ_COUNT, "unexpected zero-count opcode: %s", opcode);
+        ValueNode[] lowHighNibbleVectors = extractByteNibblesWithShortOps(inputVector, byteVectorLength);
+        ValueNode lowNibbles = lowHighNibbleVectors[0];
+        ValueNode highNibbles = lowHighNibbleVectors[1];
+        ValueNode nibbleLut = trailingZeros ? trailingZeroNibbleLookupTable(byteVectorLength) : leadingZeroNibbleLookupTable(byteVectorLength);
+        ValueNode lowCounts = SimdPermuteWithVectorIndicesNode.create(nibbleLut, lowNibbles);
+        ValueNode highCounts = SimdPermuteWithVectorIndicesNode.create(nibbleLut, highNibbles);
+        ValueNode primaryNibbles = trailingZeros ? lowNibbles : highNibbles;
+        ValueNode primaryCounts = trailingZeros ? lowCounts : highCounts;
+        ValueNode secondaryCounts = trailingZeros ? highCounts : lowCounts;
+        ValueNode zero = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forIntegerBits(Byte.SIZE, 0), byteVectorLength));
+        ValueNode four = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forIntegerBits(Byte.SIZE, 4), byteVectorLength));
+        ValueNode primaryNibblesAreZero = SimdPrimitiveCompareNode.simdCompare(CanonicalCondition.EQ, primaryNibbles, zero, false, vectorArch);
+        ValueNode secondaryCountsPlusFour = BinaryArithmeticNode.add(secondaryCounts, four, NodeView.DEFAULT);
+        return VectorAPIBlendNode.expandBlendHelper(primaryNibblesAreZero, primaryCounts, secondaryCountsPlusFour);
+    }
+
+    /**
+     * Builds a byte lookup-table vector where each element is the leading-zero count of its low
+     * nibble. Values are repeated across the whole vector so indices in [0, 15] are always valid.
+     */
+    private ValueNode leadingZeroNibbleLookupTable(int byteVectorLength) {
+        Constant[] values = new Constant[byteVectorLength];
+        for (int i = 0; i < byteVectorLength; i++) {
+            int nibble = i & 0x0F;
+            int lzcnt = (nibble == 0) ? 4 : Integer.numberOfLeadingZeros(nibble) - (Integer.SIZE - 4);
+            values[i] = JavaConstant.forByte((byte) lzcnt);
+        }
+        SimdStamp byteVectorStamp = SimdStamp.broadcast(IntegerStamp.create(Byte.SIZE), byteVectorLength);
+        return graph().unique(ConstantNode.forConstant(byteVectorStamp, new SimdConstant(values), null));
+    }
+
+    /**
+     * Counts leading zeros in each lane by spreading the highest set bit to the right and then
+     * subtracting the resulting popcount from the lane width.
+     *
+     * For 32-bit lanes, this computes:
+     *
+     * <pre>
+     * x |= x >>> 1
+     * x |= x >>> 2
+     * x |= x >>> 4
+     * x |= x >>> 8
+     * x |= x >>> 16
+     * return 32 - popcount(x)
+     * </pre>
+     */
+    private ValueNode leadingZerosWithBitCount(ValueNode inputVector, int elementBits, int vectorLength, int bitsToCount) {
+        ValueNode spreadBits = inputVector;
+        for (int shift = 1; shift < bitsToCount; shift <<= 1) {
+            ValueNode shifted = ShiftNode.shiftOp(spreadBits, ConstantNode.forInt(shift), NodeView.DEFAULT, IntegerStamp.OPS.getUShr());
+            spreadBits = BinaryArithmeticNode.or(spreadBits, shifted);
+        }
+        ValueNode setBits = bitCountWithMasks(spreadBits, elementBits, vectorLength, bitsToCount);
+        ValueNode laneWidth = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forIntegerBits(elementBits, bitsToCount), vectorLength));
+        return BinaryArithmeticNode.sub(laneWidth, setBits, NodeView.DEFAULT);
     }
 }
