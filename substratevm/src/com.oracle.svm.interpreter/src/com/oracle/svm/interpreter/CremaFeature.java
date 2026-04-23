@@ -162,7 +162,7 @@ public class CremaFeature implements InternalFeature {
         FeatureImpl.AfterCompilationAccessImpl accessImpl = (FeatureImpl.AfterCompilationAccessImpl) access;
         BuildTimeInterpreterUniverse iUniverse = BuildTimeInterpreterUniverse.singleton();
         for (HostedType type : accessImpl.getUniverse().getTypes()) {
-            if (type.isPrimitive() || type.isArray() || type.isInterface()) {
+            if (type.isPrimitive() || type.isArray()) {
                 continue;
             }
             InterpreterResolvedJavaType iType = iUniverse.getType(type.getWrapped());
@@ -173,11 +173,13 @@ public class CremaFeature implements InternalFeature {
 
             // Setup fields info
             InterpreterResolvedObjectType objectType = (InterpreterResolvedObjectType) iType;
+            initializeInterpreterFields(iUniverse, (HostedField[]) type.getStaticFields());
+            if (type.isInterface()) {
+                continue;
+            }
             HostedInstanceClass instanceClass = (HostedInstanceClass) type;
             objectType.setAfterFieldsOffset(instanceClass.getAfterFieldsOffset());
-
             initializeInterpreterFields(iUniverse, instanceClass.getInstanceFields(false));
-            initializeInterpreterFields(iUniverse, (HostedField[]) instanceClass.getStaticFields());
         }
     }
 
