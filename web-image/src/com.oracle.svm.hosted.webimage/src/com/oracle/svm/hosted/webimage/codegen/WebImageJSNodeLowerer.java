@@ -47,6 +47,7 @@ import com.oracle.svm.core.graal.stackvalue.StackValueNode;
 import com.oracle.svm.core.graal.thread.LoadVMThreadLocalNode;
 import com.oracle.svm.core.graal.thread.StoreVMThreadLocalNode;
 import com.oracle.svm.core.hub.DynamicHub;
+import com.oracle.svm.core.meta.SubstrateMethodRefStamp;
 import com.oracle.svm.core.nodes.CFunctionEpilogueNode;
 import com.oracle.svm.core.nodes.CFunctionPrologueNode;
 import com.oracle.svm.core.snippets.SnippetRuntime;
@@ -1128,13 +1129,21 @@ public class WebImageJSNodeLowerer extends NodeLowerer {
             OffsetAddressNode address = (OffsetAddressNode) node.getAddress();
             Emitter base = Emitter.of(node.getAddress().getBase());
             Emitter offset = Emitter.of(address.getOffset());
-            MetaAccessProvider metaAccess = codeGenTool.getProviders().getMetaAccess();
-            JavaKind kind = node.getAccessStamp(NodeView.DEFAULT).javaType(metaAccess).getJavaKind();
+            JavaKind kind = getMemoryKind(node.getAccessStamp(NodeView.DEFAULT));
             Emitter type = Emitter.of(JSBootImageHeapLowerer.getKindNum(kind));
             Runtime.UNSAFE_LOAD_RUNTIME.emitCall(codeGenTool, base, offset, type);
         } else {
             JVMCIError.shouldNotReachHere("Method " + location.graph().method().toString() + " contains node " + location);
         }
+    }
+
+    private JavaKind getMemoryKind(Stamp accessStamp) {
+        if (accessStamp instanceof SubstrateMethodRefStamp) {
+            return codeGenTool.getProviders().getWordTypes().getWordKind();
+        }
+
+        MetaAccessProvider metaAccess = codeGenTool.getProviders().getMetaAccess();
+        return accessStamp.javaType(metaAccess).getJavaKind();
     }
 
     @Override

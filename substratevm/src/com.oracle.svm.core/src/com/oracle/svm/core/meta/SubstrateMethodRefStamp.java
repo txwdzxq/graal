@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2021, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -35,34 +35,63 @@ import jdk.vm.ci.meta.MemoryAccessProvider;
 import jdk.vm.ci.meta.MetaAccessProvider;
 import jdk.vm.ci.meta.ResolvedJavaType;
 
-public class SubstrateMethodPointerStamp extends AbstractPointerStamp {
+public final class SubstrateMethodRefStamp extends AbstractPointerStamp {
 
-    private static final SubstrateMethodPointerStamp METHOD_NON_NULL = new SubstrateMethodPointerStamp(true, false);
-    private static final SubstrateMethodPointerStamp METHOD_ALWAYS_NULL = new SubstrateMethodPointerStamp(false, true);
-    private static final SubstrateMethodPointerStamp METHOD = new SubstrateMethodPointerStamp(false, false);
+    private enum Kind {
+        POINTER("SVMMethod*"),
+        OFFSET("SVMMethodOffset");
 
-    protected SubstrateMethodPointerStamp(boolean nonNull, boolean alwaysNull) {
+        private final String description;
+        private final SubstrateMethodRefStamp nullableStamp;
+        private final SubstrateMethodRefStamp nonNullStamp;
+        private final SubstrateMethodRefStamp alwaysNullStamp;
+
+        Kind(String description) {
+            this.description = description;
+            this.nullableStamp = new SubstrateMethodRefStamp(this, false, false);
+            this.nonNullStamp = new SubstrateMethodRefStamp(this, true, false);
+            this.alwaysNullStamp = new SubstrateMethodRefStamp(this, false, true);
+        }
+
+        boolean isCompatibleConstant(Constant constant) {
+            return switch (this) {
+                case POINTER -> constant instanceof SubstrateMethodPointerConstant;
+                case OFFSET -> constant instanceof SubstrateMethodOffsetConstant;
+            };
+        }
+
+        SubstrateMethodRefStamp forFlags(boolean nonNull, boolean alwaysNull) {
+            assert !(nonNull && alwaysNull);
+            return nonNull ? nonNullStamp : (alwaysNull ? alwaysNullStamp : nullableStamp);
+        }
+    }
+
+    private final Kind kind;
+
+    private SubstrateMethodRefStamp(Kind kind, boolean nonNull, boolean alwaysNull) {
         super(nonNull, alwaysNull);
+        this.kind = kind;
     }
 
-    public static SubstrateMethodPointerStamp methodNonNull() {
-        return METHOD_NON_NULL;
+    public static SubstrateMethodRefStamp pointerNonNull() {
+        return Kind.POINTER.nonNullStamp;
     }
 
-    public static SubstrateMethodPointerStamp methodAlwaysNull() {
-        return METHOD_ALWAYS_NULL;
+    public static SubstrateMethodRefStamp pointerAlwaysNull() {
+        return Kind.POINTER.alwaysNullStamp;
+    }
+
+    public static SubstrateMethodRefStamp offsetNonNull() {
+        return Kind.OFFSET.nonNullStamp;
     }
 
     @Override
     protected AbstractPointerStamp copyWith(boolean newNonNull, boolean newAlwaysNull) {
-        if (newNonNull) {
-            assert !newAlwaysNull;
-            return METHOD_NON_NULL;
-        } else if (newAlwaysNull) {
-            return METHOD_ALWAYS_NULL;
-        } else {
-            return METHOD;
-        }
+        return kind.forFlags(newNonNull, newAlwaysNull);
+    }
+
+    public boolean isOffset() {
+        return kind == Kind.OFFSET;
     }
 
     @Override
@@ -88,21 +117,21 @@ public class SubstrateMethodPointerStamp extends AbstractPointerStamp {
     @Override
     public Stamp constant(Constant c, MetaAccessProvider meta) {
         if (JavaConstant.NULL_POINTER.equals(c)) {
-            return METHOD_ALWAYS_NULL;
+            return kind.alwaysNullStamp;
         } else {
-            assert c instanceof SubstrateMethodPointerConstant;
-            return METHOD_NON_NULL;
+            assert kind.isCompatibleConstant(c);
+            return kind.nonNullStamp;
         }
     }
 
     @Override
     public boolean isCompatible(Stamp other) {
-        return other instanceof SubstrateMethodPointerStamp;
+        return other instanceof SubstrateMethodRefStamp that && kind == that.kind;
     }
 
     @Override
     public boolean isCompatible(Constant constant) {
-        return JavaConstant.NULL_POINTER.equals(constant) || constant instanceof SubstrateMethodPointerConstant;
+        return JavaConstant.NULL_POINTER.equals(constant) || kind.isCompatibleConstant(constant);
     }
 
     @Override
@@ -117,6 +146,6 @@ public class SubstrateMethodPointerStamp extends AbstractPointerStamp {
 
     @Override
     public String toString() {
-        return "SVMMethod*";
+        return kind.description;
     }
 }

@@ -30,6 +30,7 @@ import java.nio.ByteOrder;
 import org.graalvm.word.WordBase;
 
 import com.oracle.svm.core.hub.DynamicHub;
+import com.oracle.svm.core.meta.SubstrateMethodRefStamp;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.core.common.type.AbstractObjectStamp;
@@ -268,6 +269,9 @@ public abstract class WasmUtil {
      *         given stamp.
      */
     public WasmStorageType storageTypeForStamp(Stamp stamp) {
+        if (isMethodRefStamp(stamp)) {
+            return storageTypeForKind(methodRefKind());
+        }
         return switch (stamp) {
             case AbstractObjectStamp objectStamp -> storageTypeForObjectStamp(objectStamp);
             case PrimitiveStamp primitiveStamp -> storageTypeForPrimitiveStamp(primitiveStamp);
@@ -289,6 +293,9 @@ public abstract class WasmUtil {
      * appropriate {@link WasmValType} using {@link #mapType(JavaKind)}.
      */
     protected JavaKind kindForStamp(Stamp stamp) {
+        if (isMethodRefStamp(stamp)) {
+            return methodRefKind();
+        }
         JavaKind kind = stamp.getStackKind();
         return switch (kind) {
             case Boolean, Byte, Short, Char, Int -> JavaKind.Int;
@@ -360,9 +367,23 @@ public abstract class WasmUtil {
                 case 64 -> JavaKind.Double;
                 default -> throw GraalError.shouldNotReachHere(accessStamp.toString());
             };
+        } else if (isMethodRefStamp(accessStamp)) {
+            return methodRefKind();
         } else {
             throw GraalError.shouldNotReachHere(accessStamp.toString());
         }
+    }
+
+    /**
+     * SVM uses pointer stamps of type {@link SubstrateMethodRefStamp} for vtable loads to enable
+     * optimizations. We treat these as plain word accesses, which matches their storage.
+     */
+    protected boolean isMethodRefStamp(Stamp stamp) {
+        return stamp instanceof SubstrateMethodRefStamp;
+    }
+
+    private JavaKind methodRefKind() {
+        return providers.getWordTypes().getWordKind();
     }
 
     public JavaKind memoryKind(JavaKind kind) {

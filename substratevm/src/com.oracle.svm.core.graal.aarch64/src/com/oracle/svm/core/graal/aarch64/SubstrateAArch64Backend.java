@@ -78,8 +78,10 @@ import com.oracle.svm.core.heap.SubstrateReferenceMapBuilder;
 import com.oracle.svm.core.imagelayer.ImageLayerBuildingSupport;
 import com.oracle.svm.core.interpreter.InterpreterSupport;
 import com.oracle.svm.core.meta.CompressedNullConstant;
+import com.oracle.svm.core.meta.MethodRef;
 import com.oracle.svm.core.meta.SharedField;
 import com.oracle.svm.core.meta.SharedMethod;
+import com.oracle.svm.core.meta.SubstrateMethodOffsetConstant;
 import com.oracle.svm.core.meta.SubstrateMethodPointerConstant;
 import com.oracle.svm.core.meta.SubstrateObjectConstant;
 import com.oracle.svm.core.nodes.SafepointCheckNode;
@@ -1275,15 +1277,17 @@ public class SubstrateAArch64Backend extends SubstrateBackendWithAssembler<Subst
             }
         }
 
-        public AArch64LIRInstruction createLoadMethodPointerConstant(AllocatableValue dst, SubstrateMethodPointerConstant constant) {
+        private static void checkLoadMethodRef(Constant constant) {
             if (ImageLayerBuildingSupport.buildingExtensionLayer()) {
-                if (constant.pointer().getMethod() instanceof SharedMethod sharedMethod && sharedMethod.forceIndirectCall()) {
-                    // GR-53498 AArch64 layered image support
+                MethodRef ref = switch (constant) {
+                    case SubstrateMethodPointerConstant c -> c.pointer();
+                    case SubstrateMethodOffsetConstant c -> c.offset();
+                    default -> throw VMError.shouldNotReachHereUnexpectedInput(constant);
+                };
+                if (ref.getMethod() instanceof SharedMethod method && method.forceIndirectCall()) {
                     throw VMError.unimplemented("AArch64 does not currently support layered images.");
                 }
             }
-
-            return new AArch64LoadMethodPointerConstantOp(dst, constant);
         }
 
         @Override
@@ -1293,7 +1297,11 @@ public class SubstrateAArch64Backend extends SubstrateBackendWithAssembler<Subst
             } else if (src instanceof CompressibleConstant constant) {
                 return loadObjectConstant(dst, constant);
             } else if (src instanceof SubstrateMethodPointerConstant constant) {
-                return createLoadMethodPointerConstant(dst, constant);
+                checkLoadMethodRef(constant);
+                return new AArch64LoadMethodRefConstantOp(dst, constant);
+            } else if (src instanceof SubstrateMethodOffsetConstant constant) {
+                checkLoadMethodRef(constant);
+                return new AArch64LoadMethodRefConstantOp(dst, constant);
             }
             return super.createLoad(dst, src);
         }
@@ -1304,8 +1312,12 @@ public class SubstrateAArch64Backend extends SubstrateBackendWithAssembler<Subst
                 return super.createStackLoad(dst, getZeroConstant(dst));
             } else if (src instanceof CompressibleConstant constant) {
                 return loadObjectConstant(dst, constant);
+            } else if (src instanceof SubstrateMethodOffsetConstant constant) {
+                checkLoadMethodRef(constant);
+                return new AArch64LoadMethodRefConstantOp(dst, constant);
             } else if (src instanceof SubstrateMethodPointerConstant constant) {
-                return createLoadMethodPointerConstant(dst, constant);
+                checkLoadMethodRef(constant);
+                return new AArch64LoadMethodRefConstantOp(dst, constant);
             }
             return super.createStackLoad(dst, src);
         }

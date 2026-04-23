@@ -245,7 +245,7 @@ public class WasmGCUtil extends WasmUtil {
 
     @Override
     protected JavaKind kindForStamp(Stamp stamp) {
-        if (stamp.isNonObjectPointerStamp()) {
+        if (stamp.isNonObjectPointerStamp() && !isMethodRefStamp(stamp)) {
             throw GraalError.shouldNotReachHere("Pointer stamps are not supported in the WasmGC backend: " + stamp);
         }
 
@@ -275,7 +275,7 @@ public class WasmGCUtil extends WasmUtil {
     public JavaKind memoryKind(Stamp accessStamp) {
         if (accessStamp instanceof AbstractObjectStamp) {
             return JavaKind.Object;
-        } else if (accessStamp instanceof AbstractPointerStamp) {
+        } else if (accessStamp instanceof AbstractPointerStamp && !isMethodRefStamp(accessStamp)) {
             throw GraalError.unimplemented("AbstractPointerStamp: " + accessStamp);
         } else {
             return super.memoryKind(accessStamp);

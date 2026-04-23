@@ -36,6 +36,7 @@ import com.oracle.svm.core.graal.nodes.LoweredDeadEndNode;
 import com.oracle.svm.core.graal.nodes.ReadExceptionObjectNode;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.DynamicHubCompanion;
+import com.oracle.svm.core.meta.SubstrateMethodRefStamp;
 import com.oracle.svm.core.snippets.SnippetRuntime;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.hosted.meta.HostedType;
@@ -346,10 +347,16 @@ public class WebImageWasmGCNodeLowerer extends WebImageWasmNodeLowerer {
     }
 
     private Instruction optionalDowncast(Instruction original, ValueNode node, Stamp fromStamp, ResolvedJavaType toType) {
+        if (!fromStamp.isObjectStamp() || !toType.getJavaKind().isObject()) {
+            return original;
+        }
         return optionalDowncast(original, node, fromStamp.javaType(masm.getProviders().getMetaAccess()), toType);
     }
 
     private Instruction optionalDowncast(Instruction original, ValueNode node, ResolvedJavaType fromType, Stamp toStamp) {
+        if (!toStamp.isObjectStamp() || !fromType.getJavaKind().isObject()) {
+            return original;
+        }
         return optionalDowncast(original, node, fromType, toStamp.javaType(masm.getProviders().getMetaAccess()));
     }
 
@@ -1134,6 +1141,10 @@ public class WebImageWasmGCNodeLowerer extends WebImageWasmNodeLowerer {
 
     @Override
     protected Instruction lowerWordCast(WordCastNode n) {
+        if (n.getInput().stamp(NodeView.DEFAULT) instanceof SubstrateMethodRefStamp) {
+            // This turns into a cast between words, i.e., integer primitives.
+            return super.lowerWordCast(n);
+        }
         // TODO GR-60168 Eliminate WordCastNodes completely. They are fundamentally not supportable
         // under WasmGC
         logError("This method should never be reached and cannot be supported.");

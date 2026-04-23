@@ -28,7 +28,13 @@ import static jdk.graal.compiler.lir.LIRInstruction.OperandFlag.HINT;
 import static jdk.graal.compiler.lir.LIRInstruction.OperandFlag.REG;
 import static jdk.vm.ci.code.ValueUtil.asRegister;
 
+import com.oracle.svm.core.ReservedRegisters;
+import com.oracle.svm.core.meta.MethodOffset;
+import com.oracle.svm.core.meta.MethodPointer;
+import com.oracle.svm.core.meta.SubstrateMethodOffsetConstant;
 import com.oracle.svm.core.meta.SubstrateMethodPointerConstant;
+import com.oracle.svm.shared.util.SubstrateUtil;
+import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.asm.aarch64.AArch64MacroAssembler;
 import jdk.graal.compiler.lir.LIRInstructionClass;
@@ -39,12 +45,20 @@ import jdk.vm.ci.code.Register;
 import jdk.vm.ci.meta.AllocatableValue;
 import jdk.vm.ci.meta.Constant;
 
-public final class AArch64LoadMethodPointerConstantOp extends AArch64LIRInstruction implements StandardOp.LoadConstantOp {
-    public static final LIRInstructionClass<AArch64LoadMethodPointerConstantOp> TYPE = LIRInstructionClass.create(AArch64LoadMethodPointerConstantOp.class);
-    private final SubstrateMethodPointerConstant constant;
+public final class AArch64LoadMethodRefConstantOp extends AArch64LIRInstruction implements StandardOp.LoadConstantOp {
+    public static final LIRInstructionClass<AArch64LoadMethodRefConstantOp> TYPE = LIRInstructionClass.create(AArch64LoadMethodRefConstantOp.class);
+    private final Constant constant;
     @Def({REG, HINT}) private AllocatableValue result;
 
-    AArch64LoadMethodPointerConstantOp(AllocatableValue result, SubstrateMethodPointerConstant constant) {
+    AArch64LoadMethodRefConstantOp(AllocatableValue result, SubstrateMethodPointerConstant constant) {
+        this(result, (Constant) constant);
+    }
+
+    AArch64LoadMethodRefConstantOp(AllocatableValue result, SubstrateMethodOffsetConstant constant) {
+        this(result, (Constant) constant);
+    }
+
+    private AArch64LoadMethodRefConstantOp(AllocatableValue result, Constant constant) {
         super(TYPE);
         this.constant = constant;
         this.result = result;
@@ -52,9 +66,23 @@ public final class AArch64LoadMethodPointerConstantOp extends AArch64LIRInstruct
 
     @Override
     protected void emitCode(CompilationResultBuilder crb, AArch64MacroAssembler masm) {
+        if (!SubstrateUtil.HOSTED) {
+            throw VMError.shouldNotReachHere("Method reference constants must not be emitted at runtime.");
+        }
         Register resultReg = asRegister(result);
-        crb.recordInlineDataInCode(constant);
+        crb.recordInlineDataInCode(asMethodPointerConstant(constant));
         masm.adrpAdd(resultReg);
+        if (constant instanceof SubstrateMethodOffsetConstant) {
+            masm.sub(64, resultReg, resultReg, ReservedRegisters.singleton().getCodeBaseRegister());
+        }
+    }
+
+    private static SubstrateMethodPointerConstant asMethodPointerConstant(Constant constant) {
+        if (constant instanceof SubstrateMethodOffsetConstant offsetConstant) {
+            MethodOffset offset = offsetConstant.offset();
+            return new SubstrateMethodPointerConstant(new MethodPointer(offset.getMethod(), offset.permitsRewriteToPLT()));
+        }
+        return (SubstrateMethodPointerConstant) constant;
     }
 
     @Override

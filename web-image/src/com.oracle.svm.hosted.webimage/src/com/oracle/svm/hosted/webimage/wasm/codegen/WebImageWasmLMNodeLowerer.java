@@ -45,9 +45,9 @@ import static com.oracle.svm.webimage.wasm.types.WasmPrimitiveType.i64;
 
 import java.util.Set;
 
-import com.oracle.svm.core.graal.code.CGlobalDataDirectReference;
 import org.graalvm.nativeimage.ImageSingletons;
 
+import com.oracle.svm.core.graal.code.CGlobalDataDirectReference;
 import com.oracle.svm.core.graal.nodes.CGlobalDataLoadAddressNode;
 import com.oracle.svm.core.graal.nodes.FloatingWordCastNode;
 import com.oracle.svm.core.graal.nodes.LoweredDeadEndNode;
@@ -484,8 +484,9 @@ public class WebImageWasmLMNodeLowerer extends WebImageWasmNodeLowerer {
             }
 
             if (n instanceof ReadNode read) {
-                JavaKind stackKind = read.getStackKind();
-                int accessBits = stackKind == JavaKind.Object ? WasmLMUtil.POINTER_KIND.getBitCount() : read.getAccessBits();
+                JavaKind stackKind = util.kindForNode(read);
+                JavaKind accessKind = (stackKind == JavaKind.Object) ? WasmLMUtil.POINTER_KIND
+                                : util.memoryKind(read.getAccessStamp(NodeView.DEFAULT));
                 MemoryExtendKind extendKind = read.getExtendKind();
 
                 /*
@@ -500,7 +501,7 @@ public class WebImageWasmLMNodeLowerer extends WebImageWasmNodeLowerer {
 
                 WasmValType stackType = util.mapType(stackKind);
                 assert stackType instanceof WasmPrimitiveType : "Attempt to read non-primitive value from memory: " + n;
-                return new Load((WasmPrimitiveType) stackType, offsetInstr, address, accessBits, signExtend);
+                return new Load((WasmPrimitiveType) stackType, offsetInstr, address, accessKind.getBitCount(), signExtend);
             } else {
                 WriteNode write = (WriteNode) n;
                 ValueNode value = write.value();

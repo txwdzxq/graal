@@ -95,10 +95,9 @@ public class WasmLMUtil extends WasmUtil {
 
     @Override
     protected JavaKind kindForStamp(Stamp stamp) {
-        if (stamp.isPointerStamp()) {
+        if (stamp.isPointerStamp() && !isMethodRefStamp(stamp)) {
             return POINTER_KIND;
         }
-
         return super.kindForStamp(stamp);
     }
 
@@ -107,7 +106,7 @@ public class WasmLMUtil extends WasmUtil {
      */
     @Override
     public JavaKind memoryKind(Stamp accessStamp) {
-        if (accessStamp instanceof AbstractPointerStamp) {
+        if (accessStamp instanceof AbstractPointerStamp && !isMethodRefStamp(accessStamp)) {
             return POINTER_KIND;
         } else {
             return super.memoryKind(accessStamp);
