@@ -1618,6 +1618,8 @@ public abstract class Accessor {
         public abstract void triggerIsolateGC(Object engine);
 
         public abstract Path dumpIsolateHeap(Object engine, Path folder) throws IOException;
+
+        public abstract long getHostStackHeadRoom(Object engine);
     }
 
     public final void transferOSRFrameStaticSlot(FrameWithoutBoxing sourceFrame, FrameWithoutBoxing targetFrame, int slot) {

@@ -188,5 +188,14 @@ final class PolyglotIsolateAccessor extends Accessor {
             invokeCleaners();
             foreignEngine.getPolyglotIsolateServices().triggerGC();
         }
+
+        @Override
+        public long getHostStackHeadRoom(Object engine) {
+            Object receiver = PolyglotIsolateHostSupport.getPolyglot().getAPIAccess().getEngineReceiver(engine);
+            if (!(receiver instanceof ForeignEngine foreignEngine)) {
+                throw new IllegalStateException("Not an isolated engine.");
+            }
+            return foreignEngine.getHostStackHeadRoom();
+        }
     }
 }

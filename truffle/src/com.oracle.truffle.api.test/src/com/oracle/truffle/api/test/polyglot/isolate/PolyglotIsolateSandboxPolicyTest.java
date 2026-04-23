@@ -40,6 +40,7 @@
  */
 package com.oracle.truffle.api.test.polyglot.isolate;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -49,7 +50,9 @@ import java.util.concurrent.Callable;
 
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.impl.DefaultTruffleRuntime;
+import com.oracle.truffle.api.test.TestAPIAccessor;
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.PolyglotException;
 import org.graalvm.polyglot.SandboxPolicy;
 import org.junit.AfterClass;
@@ -83,6 +86,23 @@ public class PolyglotIsolateSandboxPolicyTest {
     public static void tearDownClass() {
         if (originalDynamicCompilationThresholds != null) {
             System.setProperty("polyglot.engine.DynamicCompilationThresholds", originalDynamicCompilationThresholds);
+        }
+    }
+
+    @Test
+    public void testSandboxPolicyDefault() {
+        if (!TruffleTestAssumptions.isExternalIsolate()) {
+            try (Context context = Context.newBuilder("triste").//
+                            option("engine.SpawnIsolate", "true").//
+                            build()) {
+                assertHostCallStackHeadRoomConfigured(context.getEngine(), 0L);
+            }
+            try (Context context = Context.newBuilder("triste").//
+                            option("engine.SpawnIsolate", "true").//
+                            option("engine.HostCallStackHeadRoom", "256KB").//
+                            build()) {
+                assertHostCallStackHeadRoomConfigured(context.getEngine(), 256L * 1024L);
+            }
         }
     }
 
@@ -143,6 +163,17 @@ public class PolyglotIsolateSandboxPolicyTest {
         }, IllegalArgumentException.class, (iae) -> {
             assertTrue(iae.getMessage().contains("The engine.HostCallStackHeadRoom option is set to 65536B, but must be set to at least 128KB."));
         });
+        if (!TruffleTestAssumptions.isExternalIsolate()) {
+            try (Context context = newIsolatedContextBuilder("triste").sandbox(SandboxPolicy.ISOLATED).build()) {
+                assertHostCallStackHeadRoomConfigured(context.getEngine(), 128L * 1024L);
+            }
+            try (Context context = newIsolatedContextBuilder("triste").//
+                            sandbox(SandboxPolicy.ISOLATED).//
+                            option("engine.HostCallStackHeadRoom", "256KB").//
+                            build()) {
+                assertHostCallStackHeadRoomConfigured(context.getEngine(), 256L * 1024L);
+            }
+        }
         AbstractPolyglotTest.assertFails(() -> {
             newIsolatedContextBuilder("triste").sandbox(SandboxPolicy.ISOLATED) //
                             .option("engine.IsolateOption.Xmx", "1GB") //
@@ -211,6 +242,15 @@ public class PolyglotIsolateSandboxPolicyTest {
             }, IllegalArgumentException.class, (iae) -> {
                 assertTrue(iae.getMessage().contains("The engine.UntrustedCodeMitigation option is set to hardware, but must be set to software."));
             });
+            try (Context context = newUntrustedContextBuilder("triste").sandbox(SandboxPolicy.UNTRUSTED).build()) {
+                assertHostCallStackHeadRoomConfigured(context.getEngine(), 128L * 1024L);
+            }
+            try (Context context = newUntrustedContextBuilder("triste").//
+                            sandbox(SandboxPolicy.UNTRUSTED).//
+                            option("engine.HostCallStackHeadRoom", "256KB").//
+                            build()) {
+                assertHostCallStackHeadRoomConfigured(context.getEngine(), 256L * 1024L);
+            }
         }
     }
 
@@ -417,6 +457,11 @@ public class PolyglotIsolateSandboxPolicyTest {
         } else {
             Context.newBuilder("triste").option("engine.InterpreterCallStackHeadRoom", "42B").build().close();
         }
+    }
+
+    private static void assertHostCallStackHeadRoomConfigured(Engine engine, long expected) {
+        long headRoom = TestAPIAccessor.ISOLATE.getHostStackHeadRoom(engine);
+        assertEquals("Expected engine.HostCallStackHeadRoom to default to " + expected + "B but was " + headRoom + "B.", expected, headRoom);
     }
 
     private static int getMaxRecursionDepth(boolean untrusted, int maxAstDepth, Integer interpreterCallStackHeadRoomInBytes) {
