@@ -80,9 +80,12 @@ import com.oracle.truffle.api.dsl.NodeField;
 import com.oracle.truffle.api.dsl.ReportPolymorphism;
 import com.oracle.truffle.api.dsl.Specialization;
 import com.oracle.truffle.api.dsl.UnsupportedSpecializationException;
+import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.ConcreteInlineFieldUsageNodeGen;
 import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.CustomInline1NodeGen;
 import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.CustomInline2NodeGen;
 import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.ErrorRuntimeUsageNodeGen;
+import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.GenericInlineFieldNodeGen;
+import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.GenericInlineFieldUsageNodeGen;
 import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.InlineReplaceNodeGen;
 import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.InlineRewriteOnNodeGen;
 import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.InlinedByDefaultCachedNodeGen;
@@ -90,6 +93,8 @@ import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.InlinedUsageNod
 import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.MultiInstanceInlineWithGenericNodeGen;
 import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.MultiInstanceInliningNodeGen;
 import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.MultiInstanceMixedInliningNodeGen;
+import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.NestedConcreteInlineFieldUsageNodeGen;
+import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.NonPublicInlineFieldUsageNodeGen;
 import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.PassNodeAndFrameNodeGen;
 import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.ReplaceNodeGen;
 import com.oracle.truffle.api.dsl.test.GenerateInlineTestFactory.RewriteOnNodeGen;
@@ -548,6 +553,209 @@ public class GenerateInlineTest extends AbstractPolyglotTest {
             return arg;
         }
 
+    }
+
+    @GenerateInline(false)
+    @SuppressWarnings("unused")
+    public abstract static class NonInlinableConcreteChildNode extends Node {
+
+        abstract Object execute(int arg);
+
+        @Specialization
+        static int doDefault(int arg) {
+            return arg;
+        }
+
+    }
+
+    @GenerateInline(false)
+    @SuppressWarnings("unused")
+    abstract static class PackagePrivateConcreteChildNode extends Node {
+
+        abstract Object execute(int arg);
+
+        @Specialization
+        static int doDefault(int arg) {
+            return arg;
+        }
+
+    }
+
+    @GenerateInline
+    @SuppressWarnings("unused")
+    public abstract static class ConcreteInlineFieldNode extends Node {
+
+        abstract Object execute(Node node, int arg);
+
+        @Specialization
+        static Object doDefault(Node node, int arg,
+                        @Cached NonInlinableConcreteChildNode innerNode) {
+            return innerNode.execute(arg);
+        }
+
+    }
+
+    @GenerateInline(false)
+    @SuppressWarnings("unused")
+    public abstract static class ConcreteInlineFieldUsageNode extends Node {
+
+        abstract Object execute(int arg);
+
+        @Specialization
+        Object doDefault(int arg,
+                        @Cached(inline = true) ConcreteInlineFieldNode inlineNode) {
+            return inlineNode.execute(this, arg);
+        }
+
+    }
+
+    @Test
+    public void testConcreteInlinedNodeFieldTypes() {
+        ConcreteInlineFieldUsageNode node = adoptNode(ConcreteInlineFieldUsageNodeGen.create()).get();
+
+        assertEquals(42, node.execute(42));
+
+        Field concreteField = findField(node.getClass(), false, NonInlinableConcreteChildNode.class);
+        assertEquals(NonInlinableConcreteChildNode.class, concreteField.getType());
+
+        for (Field field : node.getClass().getDeclaredFields()) {
+            if (!Modifier.isStatic(field.getModifiers()) && field.getType() == Node.class) {
+                throw new AssertionError("Unexpected generic Node field found " + field);
+            }
+        }
+    }
+
+    @GenerateInline
+    @SuppressWarnings("unused")
+    public abstract static class NestedConcreteInlineFieldNode extends Node {
+
+        abstract Object execute(Node node, int arg);
+
+        @Specialization
+        static Object doDefault(Node node, int arg,
+                        @Cached ConcreteInlineFieldNode innerNode) {
+            return innerNode.execute(node, arg);
+        }
+
+    }
+
+    @GenerateInline(false)
+    @SuppressWarnings("unused")
+    public abstract static class NestedConcreteInlineFieldUsageNode extends Node {
+
+        abstract Object execute(int arg);
+
+        @Specialization
+        Object doDefault(int arg,
+                        @Cached(inline = true) NestedConcreteInlineFieldNode inlineNode) {
+            return inlineNode.execute(this, arg);
+        }
+
+    }
+
+    @Test
+    public void testNestedConcreteInlinedNodeFieldTypes() {
+        NestedConcreteInlineFieldUsageNode node = adoptNode(NestedConcreteInlineFieldUsageNodeGen.create()).get();
+
+        assertEquals(42, node.execute(42));
+
+        Field concreteField = findField(node.getClass(), false, NonInlinableConcreteChildNode.class);
+        assertEquals(NonInlinableConcreteChildNode.class, concreteField.getType());
+
+        for (Field field : node.getClass().getDeclaredFields()) {
+            if (!Modifier.isStatic(field.getModifiers()) && field.getType() == Node.class) {
+                throw new AssertionError("Unexpected generic Node field found " + field);
+            }
+        }
+    }
+
+    @GenerateInline
+    @SuppressWarnings("unused")
+    public abstract static class NonPublicInlineFieldNode extends Node {
+
+        abstract Object execute(Node node, int arg);
+
+        @Specialization
+        static Object doDefault(Node node, int arg,
+                        @Cached PackagePrivateConcreteChildNode innerNode) {
+            return innerNode.execute(arg);
+        }
+
+    }
+
+    @GenerateInline(false)
+    @SuppressWarnings("unused")
+    public abstract static class NonPublicInlineFieldUsageNode extends Node {
+
+        abstract Object execute(int arg);
+
+        @Specialization
+        Object doDefault(int arg,
+                        @Cached(inline = true) NonPublicInlineFieldNode inlineNode) {
+            return inlineNode.execute(this, arg);
+        }
+
+    }
+
+    @Test
+    public void testNonPublicInlinedNodeFieldTypesStayGeneric() {
+        NonPublicInlineFieldUsageNode node = adoptNode(NonPublicInlineFieldUsageNodeGen.create()).get();
+
+        assertEquals(42, node.execute(42));
+
+        Field genericField = findField(node.getClass(), false, Node.class);
+        assertEquals(Node.class, genericField.getType());
+
+        for (Field field : node.getClass().getDeclaredFields()) {
+            if (!Modifier.isStatic(field.getModifiers()) && field.getType() == PackagePrivateConcreteChildNode.class) {
+                throw new AssertionError("Unexpected non-public concrete field found " + field);
+            }
+        }
+    }
+
+    @GenerateInline
+    @SuppressWarnings("unused")
+    public abstract static class GenericInlineFieldNode extends Node {
+
+        private static int inlineMethodInvocations;
+
+        abstract Object execute(Node node, int arg);
+
+        @Specialization
+        static Object doDefault(Node node, int arg,
+                        @Cached NonInlinableConcreteChildNode innerNode) {
+            return innerNode.execute(arg);
+        }
+
+        public static GenericInlineFieldNode inline(
+                        @RequiredField(value = StateField.class, bits = 1) //
+                        @RequiredField(value = InlineSupport.ReferenceField.class, type = Node.class) InlineTarget target) {
+            inlineMethodInvocations++;
+            return GenericInlineFieldNodeGen.inline(target);
+        }
+
+    }
+
+    @GenerateInline(false)
+    @SuppressWarnings("unused")
+    public abstract static class GenericInlineFieldUsageNode extends Node {
+
+        abstract Object execute(int arg);
+
+        @Specialization
+        Object doDefault(int arg,
+                        @Cached(inline = true) GenericInlineFieldNode inlineNode) {
+            return inlineNode.execute(this, arg);
+        }
+
+    }
+
+    @Test
+    public void testGenericCustomInlineNodeFieldTypesRemainCompatible() {
+        GenericInlineFieldUsageNode node = adoptNode(GenericInlineFieldUsageNodeGen.create()).get();
+
+        assertEquals("expected handwritten GenericInlineFieldNode.inline(...) to be used", 1, GenericInlineFieldNode.inlineMethodInvocations);
+        assertEquals(42, node.execute(42));
     }
 
     @Test

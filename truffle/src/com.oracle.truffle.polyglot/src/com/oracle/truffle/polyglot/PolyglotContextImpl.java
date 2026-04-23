@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2024, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * The Universal Permissive License (UPL), Version 1.0
@@ -894,7 +894,7 @@ final class PolyglotContextImpl implements com.oracle.truffle.polyglot.PolyglotI
             PolyglotThreadInfo current = getCurrentThreadInfo();
             LinkedList<Object[]> stack = current.explicitContextStack;
             if (stack.isEmpty() || current.getThread() == null) {
-                throw PolyglotEngineException.illegalState("The context is not entered explicity. A context can only be left if it was previously entered.");
+                throw PolyglotEngineException.illegalState("The context is not entered explicitly. A context can only be left if it was previously entered.");
             }
             engine.leave(stack.removeLast(), this);
             if (current.explicitContextStack.isEmpty()) {
@@ -2949,8 +2949,8 @@ final class PolyglotContextImpl implements com.oracle.truffle.polyglot.PolyglotI
             assert !state.isClosed();
             Object[] prev;
             try {
-                boolean enterMustSuceed = cancelOrExitOperation;
-                prev = this.enterThreadChanged(false, true, enterMustSuceed, null, false);
+                boolean enterMustSucceed = cancelOrExitOperation;
+                prev = this.enterThreadChanged(false, true, enterMustSucceed, null, false);
             } catch (Throwable t) {
                 synchronized (this) {
                     restoreFromClosingState(cancelOrExitOperation);
