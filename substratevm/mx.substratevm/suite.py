@@ -1946,6 +1946,7 @@ suite = {
                             org.graalvm.nativeimage.agent.jvmtibase,
                             org.graalvm.nativeimage.agent.tracing,
                             org.graalvm.nativeimage.agent.diagnostics,
+                            org.graalvm.nativeimage.enterprise.builder.test,
                             org.graalvm.nativeimage.enterprise.testrunner,
                             com.oracle.svm.svm_enterprise,
                             com.oracle.svm.svm_enterprise.llvm,
@@ -1997,6 +1998,7 @@ suite = {
                     "com.oracle.svm.hosted.NativeImageGeneratorRunnerProvider",
                     "java.util.spi.ResourceBundleControlProvider",
                     "com.oracle.svm.core.feature.AutomaticallyRegisteredFeatureServiceRegistration",
+                    "com.oracle.svm.core.singleton.AutomaticallyRegisteredImageSingletonServiceRegistration",
                 ],
                 "requiresConcealed": {
                     "jdk.internal.vm.ci": [
@@ -2069,6 +2071,7 @@ suite = {
                             org.graalvm.nativeimage.builder,
                             org.graalvm.nativeimage.configure,
                             org.graalvm.nativeimage.driver,
+                            org.graalvm.nativeimage.enterprise.builder.test,
                             org.graalvm.nativeimage.enterprise.testrunner,
                             org.graalvm.nativeimage.foreign,
                             org.graalvm.nativeimage.guest,
