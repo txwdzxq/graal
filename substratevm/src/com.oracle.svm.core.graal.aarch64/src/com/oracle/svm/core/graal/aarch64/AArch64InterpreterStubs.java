@@ -421,6 +421,7 @@ public class AArch64InterpreterStubs {
 
             /* Call into target method */
             masm.blr(callTarget);
+            masm.maybeEmitIndirectTargetMarker();
 
             /* Obtain stack size from deopt slot */
             masm.ldr(64, r2, createImmediateAddress(64, IMMEDIATE_UNSIGNED_SCALED, sp, 0));

@@ -76,6 +76,8 @@ import com.oracle.svm.core.ParsingReason;
 import com.oracle.svm.core.RuntimeAssertionsSupport;
 import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.feature.InternalFeature;
+import com.oracle.svm.core.graal.code.SubstrateBackend;
+import com.oracle.svm.core.graal.code.SubstrateBackendWithAssembler;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.util.UserError;
 import com.oracle.svm.graal.hosted.DeoptimizationFeature;
@@ -695,7 +697,12 @@ public class DebuggerFeature implements InternalFeature {
 
         /* create enter stubs */
         InterpreterStubSection stubSection = ImageSingletons.lookup(InterpreterStubSection.class);
-        stubSection.createInterpreterEnterStubSection(accessImpl.getImage(), includedMethods);
+        SubstrateBackend b = accessImpl.getRuntimeConfiguration().getBackendForNormalMethod();
+        if (b instanceof SubstrateBackendWithAssembler<?> bAsm) {
+            stubSection.createInterpreterEnterStubSection(accessImpl.getImage(), includedMethods, bAsm);
+        } else {
+            throw VMError.shouldNotReachHere("Needs a backend with an assembler, it is not available with backend %s", b.getClass());
+        }
 
         /* populate EST */
         enterStubTable.installAdditionalInfoIntoImageObjectFile(accessImpl.getImage(), includedMethods);

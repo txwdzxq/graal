@@ -50,6 +50,7 @@ import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.deopt.Deoptimizer;
 import com.oracle.svm.core.graal.code.InterpreterAccessStubData;
 import com.oracle.svm.core.graal.code.PreparedSignature;
+import com.oracle.svm.core.graal.code.SubstrateBackendWithAssembler;
 import com.oracle.svm.core.graal.code.SubstrateRegisterConfigFactory;
 import com.oracle.svm.core.graal.meta.SubstrateRegisterConfig;
 import com.oracle.svm.core.handles.ThreadLocalHandles;
@@ -118,9 +119,9 @@ public abstract class InterpreterStubSection {
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
-    public void createInterpreterEnterStubSection(AbstractImage image, Collection<InterpreterResolvedJavaMethod> methods) {
+    public void createInterpreterEnterStubSection(AbstractImage image, Collection<InterpreterResolvedJavaMethod> methods, SubstrateBackendWithAssembler<?> backend) {
         ObjectFile objectFile = image.getObjectFile();
-        byte[] stubsBlob = generateEnterStubs(methods);
+        byte[] stubsBlob = generateEnterStubs(backend, methods);
 
         RelocatableBuffer stubsBuffer = new RelocatableBuffer(stubsBlob.length, objectFile.getByteOrder());
         stubsBufferImpl = new BasicProgbitsSectionImpl(stubsBuffer.getBackingArray());
@@ -151,9 +152,9 @@ public abstract class InterpreterStubSection {
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
-    public void createInterpreterVTableEnterStubSection(AbstractImage image) {
+    public void createInterpreterVTableEnterStubSection(AbstractImage image, SubstrateBackendWithAssembler<?> backend) {
         ObjectFile objectFile = image.getObjectFile();
-        byte[] stubsBlob = generateVTableEnterStubs(MAX_VTABLE_STUBS);
+        byte[] stubsBlob = generateVTableEnterStubs(backend, MAX_VTABLE_STUBS);
 
         RelocatableBuffer stubsBuffer = new RelocatableBuffer(stubsBlob.length, objectFile.getByteOrder());
         stubsBufferImpl = new BasicProgbitsSectionImpl(stubsBuffer.getBackingArray());
@@ -185,9 +186,9 @@ public abstract class InterpreterStubSection {
         enterTrampolineOffsets.put(m, position);
     }
 
-    protected abstract byte[] generateEnterStubs(Collection<InterpreterResolvedJavaMethod> methods);
+    protected abstract byte[] generateEnterStubs(SubstrateBackendWithAssembler<?> backend, Collection<InterpreterResolvedJavaMethod> methods);
 
-    protected abstract byte[] generateVTableEnterStubs(int maxVTableIndex);
+    protected abstract byte[] generateVTableEnterStubs(SubstrateBackendWithAssembler<?> backend, int maxVTableIndex);
 
     public abstract int getVTableStubSize();
 

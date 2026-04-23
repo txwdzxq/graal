@@ -1015,11 +1015,14 @@ public class FeatureImpl {
 
     public static class AfterAbstractImageCreationAccessImpl extends HostedFeatureAccessImpl implements InternalFeature.AfterAbstractImageCreationAccess {
         protected final AbstractImage abstractImage;
+        protected final RuntimeConfiguration runtimeConfiguration;
         private final HostedMetaAccess hMetaAccess;
 
-        AfterAbstractImageCreationAccessImpl(FeatureHandler featureHandler, ImageClassLoader imageClassLoader, HostedMetaAccess hMetaAccess, DebugContext debugContext, AbstractImage abstractImage) {
+        AfterAbstractImageCreationAccessImpl(FeatureHandler featureHandler, ImageClassLoader imageClassLoader, HostedMetaAccess hMetaAccess, DebugContext debugContext, AbstractImage abstractImage,
+                        RuntimeConfiguration runtimeConfiguration) {
             super(featureHandler, imageClassLoader, debugContext);
             this.abstractImage = abstractImage;
+            this.runtimeConfiguration = runtimeConfiguration;
             this.hMetaAccess = hMetaAccess;
         }
 
@@ -1030,6 +1033,10 @@ public class FeatureImpl {
         @Override
         public HostedMetaAccess getMetaAccess() {
             return hMetaAccess;
+        }
+
+        public RuntimeConfiguration getRuntimeConfiguration() {
+            return runtimeConfiguration;
         }
     }
 

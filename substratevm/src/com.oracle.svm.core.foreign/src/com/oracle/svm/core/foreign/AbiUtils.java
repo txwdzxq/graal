@@ -60,6 +60,7 @@ import com.oracle.svm.core.foreign.AbiUtils.Adapter.Adaptation;
 import com.oracle.svm.core.graal.code.AssignedLocation;
 import com.oracle.svm.core.graal.code.SubstrateBackendWithAssembler;
 import com.oracle.svm.core.heap.UnknownPrimitiveField;
+import com.oracle.svm.shared.option.HostedOptionValues;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
@@ -849,7 +850,7 @@ class ABIs {
         @Platforms(Platform.HOSTED_ONLY.class)
         @Override
         public void generateTrampolineTemplate(SubstrateBackendWithAssembler<?> backend, TrampolineTemplate template) {
-            AArch64MacroAssembler masm = (AArch64MacroAssembler) backend.createAssemblerNoOptions();
+            AArch64MacroAssembler masm = (AArch64MacroAssembler) backend.createAssembler(HostedOptionValues.singleton().get());
 
             Register mhRegister = upcallSpecialArgumentsRegisters().methodHandle();
             Register isolateRegister = upcallSpecialArgumentsRegisters().isolate();
@@ -1011,7 +1012,7 @@ class ABIs {
         @Override
         public void generateTrampolineTemplate(SubstrateBackendWithAssembler<?> backend, TrampolineTemplate template) {
             // Generate the trampoline
-            AMD64MacroAssembler asm = (AMD64MacroAssembler) backend.createAssemblerNoOptions();
+            AMD64MacroAssembler asm = (AMD64MacroAssembler) backend.createAssembler(HostedOptionValues.singleton().get());
             var odas = new ArrayList<AMD64BaseAssembler.OperandDataAnnotation>(3);
             // Collect the positions of the address in the movq instructions.
             asm.setCodePatchingAnnotationConsumer(ca -> {

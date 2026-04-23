@@ -41,6 +41,8 @@ import com.oracle.graal.pointsto.meta.AnalysisMethod;
 import com.oracle.graal.pointsto.meta.AnalysisType;
 import com.oracle.graal.pointsto.meta.AnalysisUniverse;
 import com.oracle.svm.core.feature.InternalFeature;
+import com.oracle.svm.core.graal.code.SubstrateBackend;
+import com.oracle.svm.core.graal.code.SubstrateBackendWithAssembler;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.core.hub.crema.CremaSupport;
 import com.oracle.svm.core.hub.registry.ClassRegistries;
@@ -195,9 +197,14 @@ public class CremaFeature implements InternalFeature {
     @Override
     public void afterAbstractImageCreation(AfterAbstractImageCreationAccess access) {
         FeatureImpl.AfterAbstractImageCreationAccessImpl accessImpl = ((FeatureImpl.AfterAbstractImageCreationAccessImpl) access);
-
         InterpreterStubSection stubSection = ImageSingletons.lookup(InterpreterStubSection.class);
-        stubSection.createInterpreterVTableEnterStubSection(accessImpl.getImage());
+
+        SubstrateBackend b = accessImpl.getRuntimeConfiguration().getBackendForNormalMethod();
+        if (b instanceof SubstrateBackendWithAssembler<?> bAsm) {
+            stubSection.createInterpreterVTableEnterStubSection(accessImpl.getImage(), bAsm);
+        } else {
+            throw VMError.shouldNotReachHere("Needs a backend with an assembler, it is not available with backend %s", b.getClass());
+        }
     }
 
     @Override
