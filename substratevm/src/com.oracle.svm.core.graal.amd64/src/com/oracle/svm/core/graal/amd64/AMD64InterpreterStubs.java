@@ -427,6 +427,7 @@ public class AMD64InterpreterStubs {
 
             /* Call into target method */
             masm.call(callTarget);
+            masm.maybeEmitIndirectTargetMarker();
 
             /* Obtain stack size from deopt slot */
             masm.movq(AMD64.r12, new AMD64Address(rsp, 0));

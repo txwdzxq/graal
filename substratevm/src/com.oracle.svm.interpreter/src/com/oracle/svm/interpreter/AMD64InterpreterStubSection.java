@@ -36,9 +36,11 @@ import com.oracle.objectfile.ObjectFile;
 import com.oracle.svm.core.SubstrateControlFlowIntegrity;
 import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.graal.amd64.SubstrateAMD64Backend;
+import com.oracle.svm.core.graal.code.SubstrateBackendWithAssembler;
 import com.oracle.svm.hosted.image.NativeImage;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaMethod;
+import com.oracle.svm.shared.option.HostedOptionValues;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.Disallowed;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
@@ -57,15 +59,12 @@ class AMD64InterpreterStubSection extends InterpreterStubSection {
     }
 
     @Override
-    protected byte[] generateEnterStubs(Collection<InterpreterResolvedJavaMethod> methods) {
-        AMD64MacroAssembler masm = new AMD64MacroAssembler(target);
-
-        if (SubstrateControlFlowIntegrity.enabled()) {
-            VMError.unimplemented("GR-63035: Add CFI support for interpreter stubs");
-        }
+    protected byte[] generateEnterStubs(SubstrateBackendWithAssembler<?> backend, Collection<InterpreterResolvedJavaMethod> methods) {
+        AMD64MacroAssembler masm = (AMD64MacroAssembler) backend.createAssembler(HostedOptionValues.singleton().get());
 
         Label interpEnterStub = new Label();
         masm.bind(interpEnterStub);
+        masm.maybeEmitIndirectTargetMarker();
 
         masm.setCodePatchingAnnotationConsumer(this::recordEnterStubForPatching);
         masm.jmp();
@@ -89,20 +88,20 @@ class AMD64InterpreterStubSection extends InterpreterStubSection {
     public int getVTableStubSize() {
         int branchTargetAlignment = SubstrateTarget.getWordSize() * 2;
         int stubSize = 10;
+        if (SubstrateControlFlowIntegrity.enabled()) {
+            stubSize += 4; // endbr64
+        }
 
         return NumUtil.roundUp(stubSize, branchTargetAlignment);
     }
 
     @Override
-    protected byte[] generateVTableEnterStubs(int maxVTableIndex) {
-        AMD64MacroAssembler masm = new AMD64MacroAssembler(target);
-
-        if (SubstrateControlFlowIntegrity.enabled()) {
-            VMError.unimplemented("GR-63035: Add CFI support for interpreter stubs");
-        }
+    protected byte[] generateVTableEnterStubs(SubstrateBackendWithAssembler<?> backend, int maxVTableIndex) {
+        AMD64MacroAssembler masm = (AMD64MacroAssembler) backend.createAssembler(HostedOptionValues.singleton().get());
 
         Label interpEnterStub = new Label();
         masm.bind(interpEnterStub);
+        masm.maybeEmitIndirectTargetMarker();
 
         masm.setCodePatchingAnnotationConsumer(this::recordEnterStubForPatching);
         masm.jmp();
@@ -113,13 +112,15 @@ class AMD64InterpreterStubSection extends InterpreterStubSection {
         for (int vTableIndex = 0; vTableIndex < maxVTableIndex; vTableIndex++) {
             int expectedStubEnd = masm.position() + getVTableStubSize();
 
+            masm.maybeEmitIndirectTargetMarker();
+
             /* pass current vTable index as hidden argument */
             masm.moveInt(SubstrateAMD64Backend.HIDDEN_ARGUMENT_REGISTER, vTableIndex);
 
             masm.jmp(interpEnterStub);
 
             masm.align(getVTableStubSize());
-            assert masm.position() == expectedStubEnd;
+            assert masm.position() == expectedStubEnd : "actual: " + masm.position() + " vs. expected: " + expectedStubEnd;
         }
 
         return masm.close(true);

@@ -105,6 +105,7 @@ import com.oracle.svm.core.nodes.SubstrateIndirectCallTargetNode;
 import com.oracle.svm.core.pltgot.GOTAccess;
 import com.oracle.svm.core.pltgot.PLTGOTConfiguration;
 import com.oracle.svm.core.thread.VMThreads.StatusSupport;
+import com.oracle.svm.shared.option.HostedOptionValues;
 import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.util.VMError;
@@ -2040,7 +2041,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
     }
 
     @Override
-    protected AMD64MacroAssembler createAssembler(OptionValues options) {
+    public AMD64MacroAssembler createAssembler(OptionValues options) {
         return new SubstrateAMD64MacroAssembler(getTarget(), options, true);
     }
 
@@ -2094,7 +2095,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
                     RegisterValue threadArg, int threadIsolateOffset, RegisterValue methodIdArg, int methodObjEntryPointOffset) {
 
         CompilationResult result = new CompilationResult(identifier);
-        AMD64Assembler asm = createAssemblerNoOptions();
+        AMD64Assembler asm = createAssembler(HostedOptionValues.singleton().get());
         if (SubstrateControlFlowIntegrity.enabled()) {
             asm.endbranch();
         }

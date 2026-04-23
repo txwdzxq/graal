@@ -43,6 +43,7 @@ import com.oracle.svm.hosted.image.RelocatableBuffer;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.hosted.pltgot.HostedPLTGOTConfiguration;
 import com.oracle.svm.hosted.pltgot.PLTStubGenerator;
+import com.oracle.svm.shared.option.HostedOptionValues;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.asm.Assembler;
@@ -117,7 +118,7 @@ public class AMD64PLTStubGenerator implements PLTStubGenerator {
         RegisterConfig registerConfig = amd64Backend.getCodeCache().getRegisterConfig();
         Register register = configuration.getGOTPassingRegister(registerConfig);
 
-        AMD64MacroAssembler asm = amd64Backend.createAssemblerNoOptions();
+        AMD64MacroAssembler asm = amd64Backend.createAssembler(HostedOptionValues.singleton().get());
         ResolverPatchState patchState = new ResolverPatchState();
         Map<SharedMethod, Integer> stubStartOffsets = new HashMap<>();
         Map<SharedMethod, Integer> resolverEntryDisplacements = new HashMap<>();
