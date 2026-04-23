@@ -31,8 +31,11 @@ import java.util.List;
 import org.graalvm.collections.EconomicMap;
 
 import jdk.graal.compiler.core.common.type.ArithmeticOpTable;
+import jdk.graal.compiler.core.common.type.IntegerStamp;
 import jdk.graal.compiler.core.common.type.ObjectStamp;
+import jdk.graal.compiler.core.common.type.PrimitiveStamp;
 import jdk.graal.compiler.core.common.type.Stamp;
+import jdk.graal.compiler.debug.GraalError;
 import jdk.graal.compiler.graph.Node;
 import jdk.graal.compiler.graph.NodeClass;
 import jdk.graal.compiler.graph.NodeMap;
@@ -41,14 +44,26 @@ import jdk.graal.compiler.nodes.ConstantNode;
 import jdk.graal.compiler.nodes.FrameState;
 import jdk.graal.compiler.nodes.NodeView;
 import jdk.graal.compiler.nodes.ValueNode;
+import jdk.graal.compiler.nodes.calc.BinaryArithmeticNode;
+import jdk.graal.compiler.nodes.calc.ReinterpretNode;
+import jdk.graal.compiler.nodes.calc.ShiftNode;
 import jdk.graal.compiler.nodes.calc.UnaryArithmeticNode;
 import jdk.graal.compiler.nodes.spi.Canonicalizable;
 import jdk.graal.compiler.nodes.spi.CanonicalizerTool;
 import jdk.graal.compiler.nodes.spi.CoreProviders;
+import jdk.graal.compiler.replacements.nodes.ReverseBytesNode;
 import jdk.graal.compiler.vector.architecture.VectorArchitecture;
+import jdk.graal.compiler.vector.nodes.simd.SimdBroadcastNode;
+import jdk.graal.compiler.vector.nodes.simd.SimdConcatNode;
 import jdk.graal.compiler.vector.nodes.simd.SimdConstant;
+import jdk.graal.compiler.vector.nodes.simd.SimdCutNode;
+import jdk.graal.compiler.vector.nodes.simd.SimdInsertNode;
+import jdk.graal.compiler.vector.nodes.simd.SimdPermuteWithVectorIndicesNode;
 import jdk.graal.compiler.vector.nodes.simd.SimdStamp;
 import jdk.graal.compiler.vector.replacements.vectorapi.VectorAPIOperations;
+import jdk.vm.ci.meta.Constant;
+import jdk.vm.ci.meta.JavaConstant;
+import jdk.vm.ci.meta.JavaKind;
 
 /**
  * Intrinsic node for the {@code VectorSupport.unaryOp} method. This operation applies a unary
@@ -70,6 +85,9 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
 
     private final SimdStamp vectorStamp;
     private final ArithmeticOpTable.UnaryOp<?> op;
+
+    private static final int VECTOR_OP_REVERSE = vectorOpcode("VECTOR_OP_REVERSE");
+    private static final int VECTOR_OP_REVERSE_BYTES = vectorOpcode("VECTOR_OP_REVERSE_BYTES");
 
     /* Indices into the macro argument list for relevant input values. */
     private static final int OPRID_ARG_INDEX = 0;
@@ -103,6 +121,9 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
         }
         int opcode = oprIdAsConstantInt(arguments, OPRID_ARG_INDEX, vectorStamp);
         if (opcode == -1) {
+            return null;
+        }
+        if (vectorStamp == null) {
             return null;
         }
         if (vectorStamp.isIntegerStamp()) {
@@ -143,6 +164,22 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
         return getArgument(MASK_ARG_INDEX);
     }
 
+    private static int operationCode(ValueNode[] arguments) {
+        ValueNode opId = arguments[OPRID_ARG_INDEX];
+        if (!opId.isJavaConstant() || opId.asJavaConstant().getJavaKind() != JavaKind.Int) {
+            return -1;
+        }
+        return opId.asJavaConstant().asInt();
+    }
+
+    private static boolean isBitReverse(int operationCode) {
+        return operationCode == VECTOR_OP_REVERSE;
+    }
+
+    private static boolean isReverseBytes(int operationCode) {
+        return operationCode == VECTOR_OP_REVERSE_BYTES;
+    }
+
     @Override
     public Iterable<ValueNode> vectorInputs() {
         return List.of(getVector(), mask());
@@ -178,14 +215,25 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
         if (isRepresentableSimdConstant(this, vectorArch)) {
             return true;
         }
-        if (!((ObjectStamp) stamp).isExactType() || vectorStamp == null || op == null) {
+        ValueNode[] args = toArgumentArray();
+        int opcode = operationCode(args);
+        boolean bitReverse = isBitReverse(opcode);
+        boolean reverseBytes = isReverseBytes(opcode);
+        if (!((ObjectStamp) stamp).isExactType() || vectorStamp == null || (op == null && !bitReverse && !reverseBytes)) {
             return false;
         }
         Stamp elementStamp = vectorStamp.getComponent(0);
-        if (!mask().isNullConstant() && vectorArch.getSupportedVectorBlendLength(elementStamp, vectorStamp.getVectorLength()) != vectorStamp.getVectorLength()) {
+        int vectorLength = vectorStamp.getVectorLength();
+        if (!mask().isNullConstant() && vectorArch.getSupportedVectorBlendLength(elementStamp, vectorLength) != vectorLength) {
             return false;
         }
-        return vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorStamp.getVectorLength(), op) == vectorStamp.getVectorLength();
+        if (reverseBytes) {
+            return canExpandReverseBytes(vectorArch, elementStamp, vectorLength);
+        }
+        if (bitReverse) {
+            return canExpandBitReverse(vectorArch, elementStamp, vectorLength);
+        }
+        return vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, op) == vectorLength;
     }
 
     @Override
@@ -195,8 +243,16 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
             return new ConstantNode(constantValue, vectorStamp);
         }
         ValueNode value = expanded.get(getVector());
+        Stamp elementStamp = vectorStamp.getComponent(0);
+        int vectorLength = vectorStamp.getVectorLength();
+        ValueNode[] args = toArgumentArray();
+        int opcode = operationCode(args);
         ValueNode result;
-        if (value.stamp(NodeView.DEFAULT).isIntegerStamp()) {
+        if (isReverseBytes(opcode)) {
+            result = expandReverseBytes(value, elementStamp);
+        } else if (isBitReverse(opcode)) {
+            result = expandBitReverse(vectorArch, value, elementStamp, vectorLength);
+        } else if (value.stamp(NodeView.DEFAULT).isIntegerStamp()) {
             result = UnaryArithmeticNode.unaryIntegerOp(value, NodeView.DEFAULT, op);
         } else {
             result = UnaryArithmeticNode.unaryFloatOp(value, NodeView.DEFAULT, op);
@@ -206,5 +262,168 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
             result = VectorAPIBlendNode.expandBlendHelper(mask, value, result);
         }
         return result;
+    }
+
+    private static boolean canExpandReverseBytes(VectorArchitecture vectorArch, Stamp elementStamp, int vectorLength) {
+        if (!(elementStamp instanceof IntegerStamp integerStamp)) {
+            return false;
+        } else if (PrimitiveStamp.getBits(integerStamp) == Byte.SIZE) {
+            return true;
+        } else {
+            int byteVectorLength = vectorLength * (PrimitiveStamp.getBits(integerStamp) / Byte.SIZE);
+            IntegerStamp byteStamp = IntegerStamp.create(Byte.SIZE);
+            return vectorArch.getSupportedVectorPermuteLength(byteStamp, byteVectorLength) == byteVectorLength;
+        }
+    }
+
+    private ValueNode expandReverseBytes(ValueNode inputVector, Stamp elementStamp) {
+        if (PrimitiveStamp.getBits(elementStamp) == Byte.SIZE) {
+            return inputVector;
+        } else {
+            return graph().addOrUniqueWithInputs(new ReverseBytesNode(inputVector));
+        }
+    }
+
+    private static boolean canExpandBitReverse(VectorArchitecture vectorArch, Stamp elementStamp, int vectorLength) {
+        if (!(elementStamp instanceof IntegerStamp integerStamp)) {
+            return false;
+        } else {
+            return canBitReverseViaDirectNibbleLookup(vectorArch, integerStamp, vectorLength) ||
+                            canBitReverseViaPaddedNibbleLookup(vectorArch, integerStamp, vectorLength);
+        }
+    }
+
+    private static int vectorSizeInBytes(IntegerStamp elementStamp, int vectorLength) {
+        return vectorLength * (PrimitiveStamp.getBits(elementStamp) / Byte.SIZE);
+    }
+
+    /**
+     * Direct nibble lookup needs at least 16 input bytes because the lookup table has 16 entries
+     * and every nibble value in [0, 15] must also be a legal byte-lane index for the permute.
+     * Smaller vectors are padded to 128 bits first.
+     */
+    private static boolean needsPaddedNibbleLookupInput(int vectorSizeInBytes) {
+        return vectorSizeInBytes < 16;
+    }
+
+    private static boolean canBitReverseViaDirectNibbleLookup(VectorArchitecture vectorArch, IntegerStamp elementStamp, int vectorLength) {
+        int byteVectorLength = vectorSizeInBytes(elementStamp, vectorLength);
+        if (needsPaddedNibbleLookupInput(byteVectorLength)) {
+            return false;
+        } else {
+            int shortVectorLength = byteVectorLength / (Short.SIZE / Byte.SIZE);
+            IntegerStamp byteStamp = IntegerStamp.create(Byte.SIZE);
+            IntegerStamp shortStamp = IntegerStamp.create(Short.SIZE);
+            return canExpandReverseBytes(vectorArch, elementStamp, vectorLength) &&
+                            vectorArch.getSupportedVectorPermuteLength(byteStamp, byteVectorLength) == byteVectorLength &&
+                            vectorArch.getSupportedVectorShiftWithScalarCount(shortStamp, shortVectorLength, IntegerStamp.OPS.getShl()) == shortVectorLength &&
+                            vectorArch.getSupportedVectorShiftWithScalarCount(shortStamp, shortVectorLength, IntegerStamp.OPS.getUShr()) == shortVectorLength &&
+                            vectorArch.getSupportedVectorArithmeticLength(shortStamp, shortVectorLength, IntegerStamp.OPS.getAnd()) == shortVectorLength &&
+                            vectorArch.getSupportedVectorArithmeticLength(shortStamp, shortVectorLength, IntegerStamp.OPS.getOr()) == shortVectorLength;
+        }
+    }
+
+    private static boolean canBitReverseViaPaddedNibbleLookup(VectorArchitecture vectorArch, IntegerStamp elementStamp, int vectorLength) {
+        if (!needsPaddedNibbleLookupInput(vectorSizeInBytes(elementStamp, vectorLength))) {
+            return false;
+        } else {
+            return canBitReverseViaDirectNibbleLookup(vectorArch, elementStamp, vectorLength * 2) &&
+                            canPadNibbleLookupInput(vectorArch, elementStamp, vectorLength);
+        }
+    }
+
+    private static boolean canPadNibbleLookupInput(VectorArchitecture vectorArch, IntegerStamp elementStamp, int vectorLength) {
+        int vectorSizeInBytes = vectorSizeInBytes(elementStamp, vectorLength);
+        SimdStamp paddedStamp = SimdStamp.broadcast(elementStamp, vectorLength * 2);
+        SimdStamp narrowStamp = SimdStamp.broadcast(elementStamp, vectorLength);
+        return vectorArch.supportsVectorConcat(vectorSizeInBytes) || vectorArch.supportsVectorInsert(paddedStamp, narrowStamp, 0);
+    }
+
+    private ValueNode expandBitReverse(VectorArchitecture vectorArch, ValueNode inputVector, Stamp elementStamp, int vectorLength) {
+        IntegerStamp integerStamp = (IntegerStamp) elementStamp;
+        if (canBitReverseViaDirectNibbleLookup(vectorArch, integerStamp, vectorLength)) {
+            return bitReverseViaDirectNibbleLookup(inputVector, integerStamp, vectorLength);
+        } else {
+            GraalError.guarantee(canBitReverseViaPaddedNibbleLookup(vectorArch, integerStamp, vectorLength), "unexpected bit reverse shape: %s x %s", integerStamp, vectorLength);
+            ValueNode paddedInput = padNibbleLookupInput(vectorArch, inputVector, integerStamp, vectorLength);
+            ValueNode paddedResult = bitReverseViaDirectNibbleLookup(paddedInput, integerStamp, vectorLength * 2);
+            return graph().addOrUnique(new SimdCutNode(paddedResult, 0, vectorLength));
+        }
+    }
+
+    /**
+     * Implements bit reversal in two stages:
+     *
+     * <pre>
+     * shorts = reinterpret(input as short[])
+     * lowNibbles = shorts & 0x0F0F
+     * highNibbles = (shorts >>> 4) & 0x0F0F
+     * bitReversedBytes = (lut[lowNibbles] << 4) | lut[highNibbles]
+     * return reverseBytes(reinterpret(bitReversedBytes as the original element type))
+     * </pre>
+     *
+     * The nibble extraction and merge run in short lanes because the vector backends expose the
+     * needed shifts for short lanes, while byte-lane shifts are generally not available.
+     */
+    private ValueNode bitReverseViaDirectNibbleLookup(ValueNode inputVector, IntegerStamp elementStamp, int vectorLength) {
+        int byteVectorLength = vectorSizeInBytes(elementStamp, vectorLength);
+        int shortVectorLength = byteVectorLength / (Short.SIZE / Byte.SIZE);
+        SimdStamp shortVectorStamp = SimdStamp.broadcast(IntegerStamp.create(Short.SIZE), shortVectorLength);
+        SimdStamp byteVectorStamp = SimdStamp.broadcast(IntegerStamp.create(Byte.SIZE), byteVectorLength);
+
+        ValueNode inputShorts = ReinterpretNode.create(shortVectorStamp, inputVector, NodeView.DEFAULT);
+        ValueNode lowNibbleMask = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forIntegerBits(Short.SIZE, 0x0F0F), shortVectorLength));
+        ValueNode lowNibbles = BinaryArithmeticNode.and(inputShorts, lowNibbleMask);
+        ValueNode highNibbles = BinaryArithmeticNode.and(
+                        ShiftNode.shiftOp(inputShorts, ConstantNode.forInt(4), NodeView.DEFAULT, IntegerStamp.OPS.getUShr()),
+                        lowNibbleMask);
+
+        ValueNode lowNibbleIndices = ReinterpretNode.create(byteVectorStamp, lowNibbles, NodeView.DEFAULT);
+        ValueNode highNibbleIndices = ReinterpretNode.create(byteVectorStamp, highNibbles, NodeView.DEFAULT);
+        ValueNode bitReverseNibbleLut = bitReverseNibbleLookupTable(byteVectorLength);
+        ValueNode reversedLowNibbles = SimdPermuteWithVectorIndicesNode.create(bitReverseNibbleLut, lowNibbleIndices);
+        ValueNode reversedHighNibbles = SimdPermuteWithVectorIndicesNode.create(bitReverseNibbleLut, highNibbleIndices);
+
+        ValueNode reversedLowNibblesShort = ReinterpretNode.create(shortVectorStamp, reversedLowNibbles, NodeView.DEFAULT);
+        ValueNode reversedHighNibblesShort = ReinterpretNode.create(shortVectorStamp, reversedHighNibbles, NodeView.DEFAULT);
+        ValueNode bitReversedBytesShort = BinaryArithmeticNode.or(
+                        ShiftNode.shiftOp(reversedLowNibblesShort, ConstantNode.forInt(4), NodeView.DEFAULT, IntegerStamp.OPS.getShl()),
+                        reversedHighNibblesShort);
+        ValueNode reversedElements = graph().addOrUniqueWithInputs(ReinterpretNode.create(SimdStamp.broadcast(elementStamp, vectorLength), bitReversedBytesShort, NodeView.DEFAULT));
+        return expandReverseBytes(reversedElements, elementStamp);
+    }
+
+    /**
+     * Pads the input vector with zero lanes in the upper half so nibble-lookup expansions can run
+     * on a 16-byte vector and then cut the original lanes back out.
+     */
+    private ValueNode padNibbleLookupInput(VectorArchitecture vectorArch, ValueNode inputVector, IntegerStamp elementStamp, int vectorLength) {
+        int elementBits = PrimitiveStamp.getBits(elementStamp);
+        int vectorSizeInBytes = vectorSizeInBytes(elementStamp, vectorLength);
+        SimdStamp paddedStamp = SimdStamp.broadcast(elementStamp, vectorLength * 2);
+        SimdStamp narrowStamp = SimdStamp.broadcast(elementStamp, vectorLength);
+        ValueNode zeroHalf = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forIntegerBits(elementBits, 0), vectorLength));
+        if (vectorArch.supportsVectorConcat(vectorSizeInBytes)) {
+            return graph().addOrUnique(new SimdConcatNode(inputVector, zeroHalf));
+        } else {
+            GraalError.guarantee(vectorArch.supportsVectorInsert(paddedStamp, narrowStamp, 0), "unsupported padded nibble lookup input on %s", vectorArch.getClass().getSimpleName());
+            ValueNode zeroVector = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forIntegerBits(elementBits, 0), vectorLength * 2));
+            return graph().addOrUnique(SimdInsertNode.create(zeroVector, inputVector, 0));
+        }
+    }
+
+    /**
+     * Builds a byte lookup-table vector where every element is the 4-bit reverse of its low nibble.
+     * Values are repeated across the whole vector so indices in [0, 15] are always valid.
+     */
+    private ValueNode bitReverseNibbleLookupTable(int byteVectorLength) {
+        Constant[] values = new Constant[byteVectorLength];
+        for (int i = 0; i < byteVectorLength; i++) {
+            int nibble = i & 0x0F;
+            int reversed = Integer.reverse(nibble) >>> (Integer.SIZE - 4);
+            values[i] = JavaConstant.forByte((byte) reversed);
+        }
+        SimdStamp byteVectorStamp = SimdStamp.broadcast(IntegerStamp.create(Byte.SIZE), byteVectorLength);
+        return graph().unique(ConstantNode.forConstant(byteVectorStamp, new SimdConstant(values), null));
     }
 }
