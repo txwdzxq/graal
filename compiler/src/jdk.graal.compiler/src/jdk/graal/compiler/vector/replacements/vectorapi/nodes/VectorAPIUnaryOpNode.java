@@ -88,6 +88,7 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
 
     private static final int VECTOR_OP_REVERSE = vectorOpcode("VECTOR_OP_REVERSE");
     private static final int VECTOR_OP_REVERSE_BYTES = vectorOpcode("VECTOR_OP_REVERSE_BYTES");
+    private static final int VECTOR_OP_BIT_COUNT = vectorOpcode("VECTOR_OP_BIT_COUNT");
 
     /* Indices into the macro argument list for relevant input values. */
     private static final int OPRID_ARG_INDEX = 0;
@@ -180,6 +181,10 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
         return operationCode == VECTOR_OP_REVERSE_BYTES;
     }
 
+    private static boolean isBitCount(int operationCode) {
+        return operationCode == VECTOR_OP_BIT_COUNT;
+    }
+
     @Override
     public Iterable<ValueNode> vectorInputs() {
         return List.of(getVector(), mask());
@@ -219,7 +224,8 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
         int opcode = operationCode(args);
         boolean bitReverse = isBitReverse(opcode);
         boolean reverseBytes = isReverseBytes(opcode);
-        if (!((ObjectStamp) stamp).isExactType() || vectorStamp == null || (op == null && !bitReverse && !reverseBytes)) {
+        boolean bitCount = isBitCount(opcode);
+        if (!((ObjectStamp) stamp).isExactType() || vectorStamp == null || (op == null && !bitReverse && !reverseBytes && !bitCount)) {
             return false;
         }
         Stamp elementStamp = vectorStamp.getComponent(0);
@@ -232,6 +238,9 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
         }
         if (bitReverse) {
             return canExpandBitReverse(vectorArch, elementStamp, vectorLength);
+        }
+        if (bitCount) {
+            return canExpandBitCount(vectorArch, elementStamp, vectorLength);
         }
         return vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, op) == vectorLength;
     }
@@ -252,6 +261,8 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
             result = expandReverseBytes(value, elementStamp);
         } else if (isBitReverse(opcode)) {
             result = expandBitReverse(vectorArch, value, elementStamp, vectorLength);
+        } else if (isBitCount(opcode)) {
+            result = expandBitCount(vectorArch, value, elementStamp, vectorLength);
         } else if (value.stamp(NodeView.DEFAULT).isIntegerStamp()) {
             result = UnaryArithmeticNode.unaryIntegerOp(value, NodeView.DEFAULT, op);
         } else {
@@ -425,5 +436,162 @@ public class VectorAPIUnaryOpNode extends VectorAPIMacroNode implements Canonica
         }
         SimdStamp byteVectorStamp = SimdStamp.broadcast(IntegerStamp.create(Byte.SIZE), byteVectorLength);
         return graph().unique(ConstantNode.forConstant(byteVectorStamp, new SimdConstant(values), null));
+    }
+
+    private static boolean canExpandBitCount(VectorArchitecture vectorArch, Stamp elementStamp, int vectorLength) {
+        if (!(elementStamp instanceof IntegerStamp integerStamp)) {
+            return false;
+        }
+        if (PrimitiveStamp.getBits(integerStamp) == Byte.SIZE) {
+            return canBitCountWithMasks(vectorArch, integerStamp, vectorLength) ||
+                            canBitCountByteViaNibbleLookup(vectorArch, integerStamp, vectorLength);
+        } else {
+            return canBitCountWithMasks(vectorArch, integerStamp, vectorLength);
+        }
+    }
+
+    private static boolean canBitCountByteViaNibbleLookup(VectorArchitecture vectorArch, IntegerStamp byteStamp, int vectorLength) {
+        if (!needsPaddedNibbleLookupInput(vectorLength)) {
+            return canBitCountByteViaDirectNibbleLookup(vectorArch, byteStamp, vectorLength);
+        } else {
+            return canBitCountByteViaDirectNibbleLookup(vectorArch, byteStamp, vectorLength * 2) &&
+                            canPadNibbleLookupInput(vectorArch, byteStamp, vectorLength);
+        }
+    }
+
+    private static boolean canBitCountByteViaDirectNibbleLookup(VectorArchitecture vectorArch, IntegerStamp byteStamp, int vectorLength) {
+        return !needsPaddedNibbleLookupInput(vectorLength) &&
+                        canExtractByteNibblesViaShortOps(vectorArch, vectorLength) &&
+                        vectorArch.getSupportedVectorPermuteLength(byteStamp, vectorLength) == vectorLength &&
+                        vectorArch.getSupportedVectorArithmeticLength(byteStamp, vectorLength, IntegerStamp.OPS.getAdd()) == vectorLength;
+    }
+
+    private static boolean canExtractByteNibblesViaShortOps(VectorArchitecture vectorArch, int byteVectorLength) {
+        int shortVectorLength = byteVectorLength / (Short.SIZE / Byte.SIZE);
+        IntegerStamp shortStamp = IntegerStamp.create(Short.SIZE);
+        return vectorArch.getSupportedVectorArithmeticLength(shortStamp, shortVectorLength, IntegerStamp.OPS.getAnd()) == shortVectorLength &&
+                        vectorArch.getSupportedVectorShiftWithScalarCount(shortStamp, shortVectorLength, IntegerStamp.OPS.getUShr()) == shortVectorLength;
+    }
+
+    private static boolean canBitCountWithMasks(VectorArchitecture vectorArch, IntegerStamp elementStamp, int vectorLength) {
+        return vectorArch.getSupportedVectorShiftWithScalarCount(elementStamp, vectorLength, IntegerStamp.OPS.getUShr()) == vectorLength &&
+                        vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, IntegerStamp.OPS.getAnd()) == vectorLength &&
+                        vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, IntegerStamp.OPS.getAdd()) == vectorLength &&
+                        vectorArch.getSupportedVectorArithmeticLength(elementStamp, vectorLength, IntegerStamp.OPS.getSub()) == vectorLength;
+    }
+
+    private ValueNode expandBitCount(VectorArchitecture vectorArch, ValueNode inputVector, Stamp elementStamp, int vectorLength) {
+        IntegerStamp integerStamp = (IntegerStamp) elementStamp;
+        int elementBits = PrimitiveStamp.getBits(integerStamp);
+        if (elementBits == Byte.SIZE && !canBitCountWithMasks(vectorArch, integerStamp, vectorLength)) {
+            GraalError.guarantee(canBitCountByteViaNibbleLookup(vectorArch, integerStamp, vectorLength), "unexpected byte BIT_COUNT shape: %s x %s", integerStamp, vectorLength);
+            return bitCountViaNibbleLookup(vectorArch, inputVector, vectorLength);
+        } else {
+            return bitCountWithMasks(inputVector, elementBits, vectorLength, elementBits);
+        }
+    }
+
+    /**
+     * Counts set bits in byte lanes via nibble lookup: lookup low/high nibble counts and add.
+     */
+    private ValueNode bitCountViaNibbleLookup(VectorArchitecture vectorArch, ValueNode inputVector, int byteVectorLength) {
+        IntegerStamp byteStamp = IntegerStamp.create(Byte.SIZE);
+        if (needsPaddedNibbleLookupInput(byteVectorLength)) {
+            ValueNode paddedInput = padNibbleLookupInput(vectorArch, inputVector, byteStamp, byteVectorLength);
+            ValueNode paddedResult = bitCountViaDirectNibbleLookup(paddedInput, byteVectorLength * 2);
+            return graph().addOrUnique(new SimdCutNode(paddedResult, 0, byteVectorLength));
+        } else {
+            return bitCountViaDirectNibbleLookup(inputVector, byteVectorLength);
+        }
+    }
+
+    private ValueNode bitCountViaDirectNibbleLookup(ValueNode inputVector, int byteVectorLength) {
+        ValueNode[] lowHighNibbleVectors = extractByteNibblesWithShortOps(inputVector, byteVectorLength);
+        ValueNode nibbleLut = bitCountNibbleLookupTable(byteVectorLength);
+        ValueNode lowCounts = SimdPermuteWithVectorIndicesNode.create(nibbleLut, lowHighNibbleVectors[0]);
+        ValueNode highCounts = SimdPermuteWithVectorIndicesNode.create(nibbleLut, lowHighNibbleVectors[1]);
+        return graph().addOrUniqueWithInputs(BinaryArithmeticNode.add(lowCounts, highCounts, NodeView.DEFAULT));
+    }
+
+    /**
+     * Builds a byte lookup-table vector where each element is the population count of its low
+     * nibble. Values are repeated across the whole vector so indices in [0, 15] are always valid.
+     */
+    private ValueNode bitCountNibbleLookupTable(int byteVectorLength) {
+        Constant[] values = new Constant[byteVectorLength];
+        for (int i = 0; i < byteVectorLength; i++) {
+            int nibble = i & 0x0F;
+            values[i] = JavaConstant.forByte((byte) Integer.bitCount(nibble));
+        }
+        SimdStamp byteVectorStamp = SimdStamp.broadcast(IntegerStamp.create(Byte.SIZE), byteVectorLength);
+        return graph().unique(ConstantNode.forConstant(byteVectorStamp, new SimdConstant(values), null));
+    }
+
+    /**
+     * Extracts low and high nibbles from every byte lane by reinterpreting to shorts and applying
+     * lane-local masks and shifts in 16-bit lanes.
+     */
+    private ValueNode[] extractByteNibblesWithShortOps(ValueNode inputVector, int byteVectorLength) {
+        int shortVectorLength = byteVectorLength / (Short.SIZE / Byte.SIZE);
+        SimdStamp shortVectorStamp = SimdStamp.broadcast(IntegerStamp.create(Short.SIZE), shortVectorLength);
+        SimdStamp byteVectorStamp = SimdStamp.broadcast(IntegerStamp.create(Byte.SIZE), byteVectorLength);
+        ValueNode inputShorts = ReinterpretNode.create(shortVectorStamp, inputVector, NodeView.DEFAULT);
+        ValueNode lowNibbleMask = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forIntegerBits(Short.SIZE, 0x0F0F), shortVectorLength));
+        ValueNode lowNibbles = BinaryArithmeticNode.and(inputShorts, lowNibbleMask);
+        ValueNode highNibbles = BinaryArithmeticNode.and(ShiftNode.shiftOp(inputShorts, ConstantNode.forInt(4), NodeView.DEFAULT, IntegerStamp.OPS.getUShr()), lowNibbleMask);
+        return new ValueNode[]{
+                        ReinterpretNode.create(byteVectorStamp, lowNibbles, NodeView.DEFAULT),
+                        ReinterpretNode.create(byteVectorStamp, highNibbles, NodeView.DEFAULT)
+        };
+    }
+
+    /**
+     * Counts the set bits in each lane using the classic SWAR popcount network.
+     *
+     * For 32-bit lanes, this computes:
+     *
+     * <pre>
+     * x = x - ((x >>> 1) & 0x55555555)
+     * x = (x & 0x33333333) + ((x >>> 2) & 0x33333333)
+     * x = (x + (x >>> 4)) & 0x0f0f0f0f
+     * x = x + (x >>> 8)
+     * x = x + (x >>> 16)
+     * return x & 0x3f
+     * </pre>
+     */
+    private ValueNode bitCountWithMasks(ValueNode inputVector, int elementBits, int vectorLength, int bitsToCount) {
+        ValueNode m1 = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forIntegerBits(elementBits, lowBitMaskPattern(bitsToCount, 1)), vectorLength));
+        ValueNode m2 = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forIntegerBits(elementBits, lowBitMaskPattern(bitsToCount, 2)), vectorLength));
+        ValueNode m4 = graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forIntegerBits(elementBits, lowBitMaskPattern(bitsToCount, 4)), vectorLength));
+        ValueNode result = inputVector;
+        ValueNode halfBits = BinaryArithmeticNode.and(ShiftNode.shiftOp(result, ConstantNode.forInt(1), NodeView.DEFAULT, IntegerStamp.OPS.getUShr()), m1);
+        result = BinaryArithmeticNode.sub(result, halfBits, NodeView.DEFAULT);
+        ValueNode lowPairs = BinaryArithmeticNode.and(result, m2);
+        ValueNode highPairs = BinaryArithmeticNode.and(ShiftNode.shiftOp(result, ConstantNode.forInt(2), NodeView.DEFAULT, IntegerStamp.OPS.getUShr()), m2);
+        result = BinaryArithmeticNode.add(lowPairs, highPairs, NodeView.DEFAULT);
+        ValueNode nibbleSums = BinaryArithmeticNode.add(result, ShiftNode.shiftOp(result, ConstantNode.forInt(4), NodeView.DEFAULT, IntegerStamp.OPS.getUShr()), NodeView.DEFAULT);
+        result = BinaryArithmeticNode.and(nibbleSums, m4);
+        for (int shift = 8; shift < bitsToCount; shift <<= 1) {
+            result = BinaryArithmeticNode.add(result, ShiftNode.shiftOp(result, ConstantNode.forInt(shift), NodeView.DEFAULT, IntegerStamp.OPS.getUShr()), NodeView.DEFAULT);
+        }
+        int resultBitWidth = Integer.SIZE - Integer.numberOfLeadingZeros(bitsToCount);
+        long countMask = (1L << resultBitWidth) - 1;
+        return BinaryArithmeticNode.and(result, graph().addOrUniqueWithInputs(new SimdBroadcastNode(ConstantNode.forIntegerBits(elementBits, countMask), vectorLength)));
+    }
+
+    /**
+     * Builds the repeating low-half mask used by the SWAR popcount stages: for each contiguous
+     * 2*shift-bit group in the low "bits" bits, set the low "shift" bits and clear the high "shift"
+     * bits.
+     */
+    private static long lowBitMaskPattern(int bits, int shift) {
+        long mask = 0;
+        int groupSize = shift << 1;
+        for (int base = 0; base < bits; base += groupSize) {
+            for (int i = 0; i < shift && base + i < bits; i++) {
+                mask |= 1L << (base + i);
+            }
+        }
+        return mask;
     }
 }
