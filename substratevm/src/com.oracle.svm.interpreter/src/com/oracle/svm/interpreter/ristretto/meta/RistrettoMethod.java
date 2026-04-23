@@ -333,6 +333,11 @@ public final class RistrettoMethod extends SubstrateMethod {
     }
 
     @Override
+    public StackTraceElement asStackTraceElement(int bci) {
+        return interpreterMethod.asStackTraceElement(bci);
+    }
+
+    @Override
     public LocalVariableTable getLocalVariableTable() {
         return interpreterMethod.getLocalVariableTable();
     }
