@@ -30,10 +30,10 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.nio.ByteOrder;
 import java.util.Collection;
-import java.util.Map;
-import java.util.Objects;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import org.graalvm.nativeimage.ImageSingletons;
