@@ -31,7 +31,9 @@ import java.lang.annotation.Annotation;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Enumeration;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -93,9 +95,14 @@ public final class ImageClassLoader {
     private final EconomicSet<Class<?>> hostedOnlyClasses = EconomicSet.create();
 
     /**
-     * Modules containing all {@code svm.core} and {@code svm.hosted} classes.
+     * Modules containing all builder classes.
      */
     private Set<ResolvedJavaModule> builderModules;
+
+    /**
+     * Modules containing all {@code svm.core} and {@code svm.hosted} classes.
+     */
+    private Set<ResolvedJavaModule> coreModules;
 
     ImageClassLoader(Platform platform, NativeImageClassLoaderSupport classLoaderSupport) {
         this.platform = platform;
@@ -174,7 +181,7 @@ public final class ImageClassLoader {
 
     public boolean isCoreType(Class<?> clazz) {
         GuestAccess guestAccess = GuestAccess.get();
-        return getBuilderModules().contains(guestAccess.getModule(guestAccess.lookupType(clazz)));
+        return getCoreModules().contains(guestAccess.getModule(guestAccess.lookupType(clazz)));
     }
 
     /**
@@ -454,11 +461,26 @@ public final class ImageClassLoader {
     }
 
     public void initBuilderModules() {
+        GuestAccess guestAccess = GuestAccess.get();
+        var bootModuleLayer = guestAccess.bootModuleLayer();
+        builderModules = new LinkedHashSet<>();
+        for (Module module : NativeImageGeneratorRunner.getNativeImageBuilderModules()) {
+            builderModules.add(bootModuleLayer.findModule(module.getName()).orElseThrow(() -> VMError.shouldNotReachHere("Could not resolve builder module in guest context: " + module.getName())));
+        }
+        builderModules = Collections.unmodifiableSet(builderModules);
+    }
+
+    public Set<ResolvedJavaModule> getCoreModules() {
+        assert coreModules != null : "Core modules not yet initialized.";
+        return coreModules;
+    }
+
+    public void initCoreModules() {
         VMError.guarantee(BuildPhaseProvider.isFeatureRegistrationFinished() && ImageSingletons.contains(VMFeature.class),
-                        "Querying builder modules is only possible after feature registration is finished.");
+                        "Querying core modules is only possible after feature registration is finished.");
         GuestAccess guestAccess = GuestAccess.get();
         ResolvedJavaModule m0 = guestAccess.getModule(guestAccess.lookupType(ImageSingletons.lookup(VMFeature.class).getClass()));
         ResolvedJavaModule m1 = guestAccess.getModule(guestAccess.lookupType(SVMHost.class));
-        builderModules = m0.equals(m1) ? Set.of(m0) : Set.of(m0, m1);
+        coreModules = m0.equals(m1) ? Set.of(m0) : Set.of(m0, m1);
     }
 }

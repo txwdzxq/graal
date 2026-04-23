@@ -571,6 +571,9 @@ public class NativeImageGenerator {
         try (TemporaryBuildDirectoryProviderImpl tempDirectoryProvider = new TemporaryBuildDirectoryProviderImpl(tempDirectoryOptionValue)) {
             var builderTempDir = tempDirectoryProvider.getTemporaryBuildDirectory();
             HostedImageLayerBuildingSupport imageLayerSupport = HostedImageLayerBuildingSupport.initialize(hostedOptionValues, loader, builderTempDir);
+
+            loader.initBuilderModules();
+
             installSingletonRegistries(imageLayerSupport);
 
             setSystemPropertiesForImageLate(k);
@@ -1056,7 +1059,7 @@ public class NativeImageGenerator {
                 featureHandler.registerFeatures(loader, originalMetaAccess, debug);
                 BuildPhaseProvider.markFeatureRegistrationFinished();
 
-                loader.initBuilderModules();
+                loader.initCoreModules();
 
                 ImageSingletons.add(APIDeprecationSupport.class,
                                 new APIDeprecationSupport(ReflectionFeature.Options.TrackDeprecatedRegistrationUsage.getValue()));

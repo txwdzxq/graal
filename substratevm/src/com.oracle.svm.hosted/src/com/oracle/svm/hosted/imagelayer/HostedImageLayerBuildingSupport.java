@@ -74,6 +74,7 @@ import com.oracle.svm.shared.option.LocatableMultiOptionValue.ValueWithOrigin;
 import com.oracle.svm.shared.option.OptionUtils;
 import com.oracle.svm.shared.option.SubstrateOptionsParser;
 import com.oracle.svm.shared.singletons.ImageSingletonsSupportImpl;
+import com.oracle.svm.shared.singletons.ImageSingletonsSupportImpl.HostedManagement.SingletonRegistration;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.DisallowedSingletonTrait;
@@ -86,6 +87,7 @@ import com.oracle.svm.shared.singletons.traits.SingletonTraitKind;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.util.LogUtils;
 import com.oracle.svm.shared.util.VMError;
+import com.oracle.svm.util.GuestAccess;
 import com.oracle.svm.util.TypeResult;
 
 import jdk.graal.compiler.core.common.SuppressFBWarnings;
@@ -94,6 +96,7 @@ import jdk.graal.compiler.options.OptionDescriptors;
 import jdk.graal.compiler.options.OptionKey;
 import jdk.graal.compiler.options.OptionValues;
 import jdk.graal.compiler.options.OptionsContainer;
+import jdk.graal.compiler.vmaccess.ResolvedJavaModule;
 import jdk.vm.ci.meta.ResolvedJavaType;
 
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
@@ -263,9 +266,11 @@ public final class HostedImageLayerBuildingSupport extends ImageLayerBuildingSup
         forbiddenInstallationKinds.add(kind);
     }
 
-    public BiConsumer<Object, ImageSingletonsSupportImpl.SingletonTraitMap> createSingletonValidationCallback() {
-        if (buildingImageLayer) {
-            return (value, traitMap) -> {
+    public BiConsumer<SingletonRegistration, ImageSingletonsSupportImpl.SingletonTraitMap> createSingletonValidationCallback() {
+        return (singletonRegistration, traitMap) -> {
+            Class<?> key = singletonRegistration.key();
+            Object value = singletonRegistration.value();
+            if (buildingImageLayer) {
                 var installationTrait = traitMap.getTrait(LayeredInstallationKindSingletonTrait.class);
                 installationTrait.ifPresent(t -> {
                     if (forbiddenInstallationKinds.contains(t.metadata())) {
@@ -277,9 +282,15 @@ public final class HostedImageLayerBuildingSupport extends ImageLayerBuildingSup
                 traitMap.getTrait(DisallowedSingletonTrait.class).ifPresent(_ -> {
                     throw VMError.shouldNotReachHere("Singleton with %s trait should never be added to a layered build", SingletonTraitKind.DISALLOWED);
                 });
-            };
-        }
-        return null;
+            }
+            GuestAccess guestAccess = GuestAccess.get();
+            ResolvedJavaType singletonType = guestAccess.lookupType(value.getClass());
+            ResolvedJavaModule singletonModule = guestAccess.getModule(singletonType);
+            if (traitMap.isEmpty() && imageClassLoader.getBuilderModules().contains(singletonModule)) {
+                throw VMError.shouldNotReachHere("All singletons should be annotated with @%s. Singleton of value %s with key of %s is not annotated",
+                                guestAccess.lookupType(SingletonTraits.class).toJavaName(), value.getClass(), key);
+            }
+        };
     }
 
     public Function<Class<?>, SingletonTrait<?>[]> getSingletonTraitInjector() {

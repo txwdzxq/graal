@@ -52,8 +52,11 @@ import org.graalvm.collections.EconomicSet;
 import org.graalvm.nativeimage.ImageSingletons;
 
 import com.oracle.graal.pointsto.meta.AnalysisMetaAccess;
-import com.oracle.svm.util.JVMCIReflectionUtil;
+import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
+import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
+import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.util.ReflectionUtil;
+import com.oracle.svm.util.JVMCIReflectionUtil;
 
 import jdk.internal.access.JavaLangAccess;
 import jdk.internal.loader.BuiltinClassLoader;
@@ -69,6 +72,7 @@ import jdk.vm.ci.meta.ResolvedJavaType;
  * Used by {@link com.oracle.svm.hosted.phases.DynamicAccessDetectionPhase} to identify
  * dynamic-access methods during method graph parsing.
  */
+@SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
 public class DynamicAccessMethodLookupSupport {
     public enum DynamicAccessKind {
         Reflection("reflection-calls.json"),

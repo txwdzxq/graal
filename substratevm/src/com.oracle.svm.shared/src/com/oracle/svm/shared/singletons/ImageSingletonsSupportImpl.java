@@ -361,7 +361,7 @@ public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport imp
         /** Callback to be executed before the singleton is published in the registry. */
         private final BiConsumer<Class<?>, SingletonInfo> singletonRegistrationCallback;
         /** Callback to be executed before a singleton is registered. */
-        private final BiConsumer<Object, SingletonTraitMap> singletonValidationCallback;
+        private final BiConsumer<SingletonRegistration, SingletonTraitMap> singletonValidationCallback;
         /** Mechanism to inject additional traits on singleton registration. */
         private final Function<Class<?>, SingletonTrait<?>[]> singletonTraitInjector;
 
@@ -370,7 +370,7 @@ public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport imp
         }
 
         public HostedManagement(AnnotationExtractor extractor, BiConsumer<Class<?>, SingletonInfo> registrationCallback,
-                        BiConsumer<Object, SingletonTraitMap> singletonValidationCallback, Function<Class<?>, SingletonTrait<?>[]> singletonTraitInjector, boolean buildingImageLayer) {
+                        BiConsumer<SingletonRegistration, SingletonTraitMap> singletonValidationCallback, Function<Class<?>, SingletonTrait<?>[]> singletonTraitInjector, boolean buildingImageLayer) {
             this.configObjects = new ConcurrentHashMap<>();
             this.singletonToTraitMap = new ConcurrentIdentityHashMap<>();
             this.singletonRegistrationCallback = registrationCallback;
@@ -384,6 +384,9 @@ public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport imp
             addSingleton(key, value);
         }
 
+        public record SingletonRegistration(Class<?> key, Object value) {
+        }
+
         /**
          * Creates or collects the {@link SingletonTraitMap} associated with this singleton before
          * adding the singleton to the internal map.
@@ -393,7 +396,7 @@ public final class ImageSingletonsSupportImpl extends ImageSingletonsSupport imp
             if (traitMap == null) {
                 traitMap = SingletonTraitMap.getAnnotatedTraits(value.getClass(), extractor, layeredBuild);
                 if (singletonValidationCallback != null) {
-                    singletonValidationCallback.accept(value, traitMap);
+                    singletonValidationCallback.accept(new SingletonRegistration(key, value), traitMap);
                 }
                 /*
                  * We are adding injected traits after checking for forbidden kinds because they do

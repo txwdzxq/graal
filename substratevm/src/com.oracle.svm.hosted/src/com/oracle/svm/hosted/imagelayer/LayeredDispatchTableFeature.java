@@ -135,9 +135,9 @@ public class LayeredDispatchTableFeature implements InternalFeature {
     final BitSet addressesToPatchInHeapRelocs = new BitSet();
 
     /**
-     * Cache of builderModules. Set in {@link #beforeCompilation}.
+     * Cache of coreModules. Set in {@link #beforeCompilation}.
      */
-    private Set<ResolvedJavaModule> builderModules;
+    private Set<ResolvedJavaModule> coreModules;
 
     static final int INVALID_HOSTED_METHOD_INDEX = -1;
 
@@ -165,7 +165,7 @@ public class LayeredDispatchTableFeature implements InternalFeature {
     public void beforeCompilation(Feature.BeforeCompilationAccess a) {
         BeforeCompilationAccessImpl access = (BeforeCompilationAccessImpl) a;
         hUniverse = access.getUniverse();
-        installBuilderModules(access.getImageClassLoader().getBuilderModules());
+        installBuilderModules(access.getImageClassLoader().getCoreModules());
     }
 
     private PriorDispatchMethod createPriorDispatchMethodInfo(int index) {
@@ -249,19 +249,19 @@ public class LayeredDispatchTableFeature implements InternalFeature {
     }
 
     void installBuilderModules(Set<ResolvedJavaModule> newCoreTypes) {
-        assert builderModules == null : builderModules;
-        builderModules = newCoreTypes;
+        assert coreModules == null : coreModules;
+        coreModules = newCoreTypes;
     }
 
     /**
      * Registers a virtual call target which will be added as a root in subsequent layers. Currently
-     * we filter our all calls either originating from or targeting a {@link #builderModules}.
+     * we filter our all calls either originating from or targeting a {@link #coreModules}.
      */
     public void recordVirtualCallTarget(HostedMethod caller, HostedMethod callee) {
         GuestAccess guestAccess = GuestAccess.get();
         ResolvedJavaModule callerModule = guestAccess.getModule(OriginalClassProvider.getOriginalType(caller.getDeclaringClass()));
         ResolvedJavaModule calleeModule = guestAccess.getModule(OriginalClassProvider.getOriginalType(callee.getDeclaringClass()));
-        if (!(builderModules.contains(callerModule) && !isFactoryMethod(caller)) && !builderModules.contains(calleeModule)) {
+        if (!(coreModules.contains(callerModule) && !isFactoryMethod(caller)) && !coreModules.contains(calleeModule)) {
             virtualCallTargets.add(callee);
         }
     }
