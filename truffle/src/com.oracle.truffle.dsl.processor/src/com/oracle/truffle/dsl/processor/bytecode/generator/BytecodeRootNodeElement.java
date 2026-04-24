@@ -518,7 +518,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
 
         }
 
-        if (cloneUninitializedNeedsUnquickenedBytecode()) {
+        if (clonesNeedUnquickenedBytecode()) {
             this.add(createUnquickenBytecode());
         }
 
@@ -1151,7 +1151,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         b.statement("clone.clones = null");
         // The base copy method performs a shallow copy of all fields.
         // Some fields should be manually reinitialized to default values.
-        b.statement("clone.bytecode = insert(this.bytecode.cloneUninitialized())");
+        b.statement("clone.bytecode = insert(this.bytecode.cloneUninitialized(clone))");
         b.declaration(generic(types.BytecodeSupport_CloneReferenceList, this.asType()), "localClones", "this.clones");
         b.startIf().string("localClones == null").end().startBlock();
         b.startStatement().string("this.clones = localClones = ").startNew(generic(types.BytecodeSupport_CloneReferenceList, this.asType())).end().end();
@@ -1530,30 +1530,19 @@ public final class BytecodeRootNodeElement extends AbstractElement {
             b.end();
 
             if (model.hasYieldOperation()) {
-                if (model.enableInstructionTracing) {
-                    b.declaration(type(int.class), "oldConstantOffset", "oldBytecode.isInstructionTracingEnabled() ? 1 : 0");
-                    b.declaration(type(int.class), "newConstantOffset", "newBytecode.isInstructionTracingEnabled() ? 1 : 0");
-                }
-
                 // We need to patch the BytecodeNodes for continuations.
                 b.startFor().string("int i = 0; i < continuationsIndex; i = i + CONTINUATION_LENGTH").end().startBlock();
                 b.declaration(type(int.class), "constantPoolIndex", "continuations[i + CONTINUATION_OFFSET_CPI]");
                 b.declaration(type(int.class), "continuationBci", "continuations[i + CONTINUATION_OFFSET_BCI]");
 
                 if (model.enableInstructionTracing) {
-                    b.lineComment("The constant offset is 1 with instruction tracing enabled. See INSTRUCTION_TRACER_CONSTANT_INDEX.");
-                    b.lineComment("We need to align constant indices for the continuation root node updates.");
-                    b.declaration(type(int.class), "oldConstantPoolIndex", "constantPoolIndex - newConstantOffset + oldConstantOffset");
-                } else {
-                    b.declaration(type(int.class), "oldConstantPoolIndex", "constantPoolIndex");
+                    b.startAssert().string("oldBytecode.constants[continuations[i + CONTINUATION_OFFSET_OLD_CPI]] == newBytecode.constants[constantPoolIndex]").end();
                 }
 
                 b.startDeclaration(continuationRootNodeImpl.asType(), "continuationRootNode");
                 b.cast(continuationRootNodeImpl.asType());
-                b.string("oldBytecode.constants[oldConstantPoolIndex]");
+                b.string("newBytecode.constants[constantPoolIndex]");
                 b.end();
-
-                b.startAssert().string("oldBytecode.constants[oldConstantPoolIndex] == newBytecode.constants[constantPoolIndex]").end();
 
                 b.lineComment("locations may become null if they are no longer reachable.");
                 b.declaration(types.BytecodeLocation, "newLocation", "continuationBci == -1 ? null : newBytecode.getBytecodeLocation(continuationBci)");
@@ -1576,6 +1565,35 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         b.startStatement();
         b.string("cloneReferences.forEach((clone) -> ").startBlock();
 
+        if (model.hasYieldOperation()) {
+            b.declaration(arrayOf(type(Object.class)), "clonedConstants", "constants_");
+            b.startIf().string("bytecodes_ != null && continuationsIndex != 0").end().startBlock();
+            b.declaration(abstractBytecodeNode.asType(), "clonedBytecode", "clone.bytecode");
+            b.statement("clonedConstants = Arrays.copyOf(clonedConstants, clonedConstants.length)");
+            b.lineComment("Preserve clone-owned continuation roots when installing reparsed constants.");
+            b.startFor().string("int i = 0; i < continuationsIndex; i = i + CONTINUATION_LENGTH").end().startBlock();
+            b.declaration(type(int.class), "constantPoolIndex", "continuations[i + CONTINUATION_OFFSET_CPI]");
+            if (model.enableInstructionTracing) {
+                b.declaration(type(int.class), "oldConstantPoolIndex", "continuations[i + CONTINUATION_OFFSET_OLD_CPI]");
+                b.startDeclaration(continuationRootNodeImpl.asType(), "continuationRootNode");
+                b.cast(continuationRootNodeImpl.asType());
+                b.string("clonedBytecode.constants[oldConstantPoolIndex]");
+                b.end();
+            } else {
+                b.startDeclaration(continuationRootNodeImpl.asType(), "continuationRootNode");
+                b.cast(continuationRootNodeImpl.asType());
+                b.string("clonedBytecode.constants[constantPoolIndex]");
+                b.end();
+            }
+            b.startStatement().startCall("ACCESS.writeObject");
+            b.string("clonedConstants");
+            b.string("constantPoolIndex");
+            b.string("continuationRootNode");
+            b.end(2);
+            b.end();
+            b.end();
+        }
+
         b.startStatement();
 
         b.startCall("clone", "updateBytecode");
@@ -1584,7 +1602,8 @@ public final class BytecodeRootNodeElement extends AbstractElement {
                 case "bytecodes_":
                     b.startGroup();
                     b.string("bytecodes_ != null ? ");
-                    if (model.enableQuickening) {
+                    if (clonesNeedUnquickenedBytecode()) {
+                        // The bytecode was already published, so it may already be quickened.
                         b.startCall("unquickenBytecode");
                         b.variable(var);
                         b.end();
@@ -1601,8 +1620,15 @@ public final class BytecodeRootNodeElement extends AbstractElement {
                     b.string("tagRoot_.deepCopy() : null");
                     b.end();
                     break;
+                case "constants_":
+                    if (model.hasYieldOperation()) {
+                        b.string("clonedConstants");
+                    } else {
+                        b.variable(var);
+                    }
+                    break;
                 default:
-                    b.string(var.getSimpleName().toString());
+                    b.variable(var);
                     break;
             }
         }
@@ -1689,9 +1715,10 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         return ex;
     }
 
-    boolean cloneUninitializedNeedsUnquickenedBytecode() {
-        // If the node supports BE/quickening, cloneUninitialized should unquicken the bytecode.
-        // Uncached nodes don't rewrite bytecode, so we only need to unquicken if cached.
+    /**
+     * If the node supports BE/quickening, clones should receive an unquickened copy of bytecode.
+     */
+    boolean clonesNeedUnquickenedBytecode() {
         return (model.usesBoxingElimination() || model.enableQuickening);
     }
 

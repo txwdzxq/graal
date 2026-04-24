@@ -878,22 +878,36 @@ final class BytecodeNodeElement extends AbstractElement {
     }
 
     private CodeExecutableElement createCloneUninitialized() {
-        CodeExecutableElement ex = GeneratorUtils.override((DeclaredType) parent.abstractBytecodeNode.asType(), "cloneUninitialized");
+        CodeExecutableElement ex = GeneratorUtils.override(ElementUtils.findInstanceMethod(parent.abstractBytecodeNode, "cloneUninitialized", new TypeMirror[]{parent.asType()}));
         CodeTreeBuilder b = ex.createBuilder();
-        b.startReturn();
+        if (parent.model.hasYieldOperation()) {
+            b.declaration(type(boolean.class), "hasYields", parent.configEncoder.checkHasYieldsBit("this.configEncoding"));
+            b.declaration(arrayOf(type(Object.class)), "clonedConstants", "this.constants");
+            b.startIf().string("hasYields").end().startBlock();
+            b.lineComment("We will overwrite continuation roots in the constants table; create a fresh copy.");
+            b.startAssign("clonedConstants").startStaticCall(type(Arrays.class), "copyOf");
+            b.string("clonedConstants").string("clonedConstants.length");
+            b.end().end();
+            b.end();
+        }
+
+        b.startDeclaration(this.asType(), "cloned");
         b.startNew(tier.friendlyName + "BytecodeNode");
         for (VariableElement var : ElementFilter.fieldsIn(parent.abstractBytecodeNode.getEnclosedElements())) {
             b.startGroup();
             if (var.getSimpleName().contentEquals("tagRoot")) {
                 b.string("tagRoot != null ? ").cast(parent.tagRootNode.asType()).string("tagRoot.deepCopy() : null");
             } else if (var.getSimpleName().contentEquals("bytecodes")) {
-                if (tier.isCached() && parent.cloneUninitializedNeedsUnquickenedBytecode()) {
+                if (tier.isCached() && parent.clonesNeedUnquickenedBytecode()) {
+                    // Uncached nodes don't rewrite bytecode, so only unquicken if cached.
                     b.startCall("unquickenBytecode").string("this.bytecodes").end();
                 } else {
                     b.startStaticCall(type(Arrays.class), "copyOf");
                     b.string("this.bytecodes").string("this.bytecodes.length");
                     b.end();
                 }
+            } else if (var.getSimpleName().contentEquals("constants") && parent.model.hasYieldOperation()) {
+                b.string("clonedConstants");
             } else {
                 b.string("this.", var.getSimpleName().toString());
             }
@@ -903,8 +917,21 @@ final class BytecodeNodeElement extends AbstractElement {
         if (tier.isCached() && parent.model.usesBoxingElimination()) {
             b.string("createCachedTags(this.localTags_.length)");
         }
-        b.end();
-        b.end();
+        b.end(2);
+
+        if (parent.model.hasYieldOperation()) {
+            b.startIf().string("hasYields").end().startBlock();
+            b.lineComment("Patch the constants table with new continuation roots using the cloned root and bytecode.");
+            b.startFor().string("int i = 0; i < clonedConstants.length; i++").end().startBlock();
+            b.startIf().string("this.constants[i] instanceof ").type(parent.continuationRootNodeImpl.asType()).string(" continuation").end().startBlock();
+            b.declaration(types.BytecodeLocation, "clonedLocation", "continuation.getLocation() == null ? null : cloned.findLocation(continuation.getLocation().getBytecodeIndex())");
+            b.statement("clonedConstants[i] = continuation.createClone(clonedRoot, clonedLocation)");
+            b.end();
+            b.end();
+            b.end();
+        }
+
+        b.startReturn().string("cloned").end();
         return ex;
     }
 

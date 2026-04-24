@@ -2735,23 +2735,25 @@ final class BuilderElement extends AbstractElement {
                 b.statement("assert constants_.length == oldBytecodeNode.constants.length");
             }
 
-            /**
+            /*
              * Copy ContinuationRootNodes into new constant array *before* we update the new
              * bytecode, otherwise a racy thread may read it as null
              */
+            b.lineComment("Patch the existing continuation roots into the new constant pool.");
             b.startFor().string("int i = 0; i < continuationsIndex; i = i + CONTINUATION_LENGTH").end().startBlock();
             b.declaration(type(int.class), "constantPoolIndex", "continuations[i + CONTINUATION_OFFSET_CPI]");
             if (model.enableInstructionTracing) {
-                b.lineComment("The constant offset is 1 with instruction tracing enabled. See INSTRUCTION_TRACER_CONSTANT_INDEX.");
-                b.lineComment("We need to align constant indices for the continuation root node updates.");
+                b.lineComment("The constant pool layout can change when tracing is enabled. See INSTRUCTION_TRACER_CONSTANT_INDEX.");
                 b.declaration(type(int.class), "oldConstantPoolIndex", "constantPoolIndex - newConstantOffset + oldConstantOffset");
+                b.statement("continuations[i + CONTINUATION_OFFSET_OLD_CPI] = oldConstantPoolIndex");
+                b.startDeclaration(parent.continuationRootNodeImpl.asType(), "continuationRootNode");
+                b.cast(parent.continuationRootNodeImpl.asType()).string("oldBytecodeNode.constants[oldConstantPoolIndex]");
+                b.end();
             } else {
-                b.declaration(type(int.class), "oldConstantPoolIndex", "constantPoolIndex");
+                b.startDeclaration(parent.continuationRootNodeImpl.asType(), "continuationRootNode");
+                b.cast(parent.continuationRootNodeImpl.asType()).string("oldBytecodeNode.constants[constantPoolIndex]");
+                b.end();
             }
-            b.startDeclaration(parent.continuationRootNodeImpl.asType(), "continuationRootNode");
-            b.cast(parent.continuationRootNodeImpl.asType()).string("oldBytecodeNode.constants[oldConstantPoolIndex]");
-
-            b.end();
 
             b.startStatement().startCall("ACCESS.writeObject");
             b.string("constants_");
@@ -5552,14 +5554,28 @@ final class BuilderElement extends AbstractElement {
             b.statement("table = this.continuations = Arrays.copyOf(this.continuations, this.continuations.length * 2)");
             b.end();
 
-            b.statement("table[index + CONTINUATION_OFFSET_CPI] = cpi");
             b.statement("table[index + CONTINUATION_OFFSET_BCI] = continuationBci");
             b.statement("table[index + CONTINUATION_OFFSET_SP] = sp");
+            b.statement("table[index + CONTINUATION_OFFSET_CPI] = cpi");
+            if (model.enableInstructionTracing) {
+                /*
+                 * The old class pool index is the same unless tracing was newly enabled. In such a
+                 * case, it will be patched in endRoot.
+                 */
+                b.statement("table[index + CONTINUATION_OFFSET_OLD_CPI] = cpi");
+            }
 
-            parent.add(new CodeVariableElement(Set.of(PRIVATE, STATIC, FINAL), type(int.class), "CONTINUATION_OFFSET_CPI")).createInitBuilder().string("0");
-            parent.add(new CodeVariableElement(Set.of(PRIVATE, STATIC, FINAL), type(int.class), "CONTINUATION_OFFSET_BCI")).createInitBuilder().string("1");
-            parent.add(new CodeVariableElement(Set.of(PRIVATE, STATIC, FINAL), type(int.class), "CONTINUATION_OFFSET_SP")).createInitBuilder().string("2");
-            parent.add(new CodeVariableElement(Set.of(PRIVATE, STATIC, FINAL), type(int.class), "CONTINUATION_LENGTH")).createInitBuilder().string("3");
+            int offset = 0;
+            parent.add(new CodeVariableElement(Set.of(PRIVATE, STATIC, FINAL), type(int.class), "CONTINUATION_OFFSET_BCI")).createInitBuilder().string(Integer.toString(offset++));
+            parent.add(new CodeVariableElement(Set.of(PRIVATE, STATIC, FINAL), type(int.class), "CONTINUATION_OFFSET_SP")).createInitBuilder().string(Integer.toString(offset++));
+            parent.add(new CodeVariableElement(Set.of(PRIVATE, STATIC, FINAL), type(int.class), "CONTINUATION_OFFSET_CPI")).createInitBuilder().string(Integer.toString(offset++));
+            if (model.enableInstructionTracing) {
+                CodeVariableElement continuationOldCpiOffset = parent.add(new CodeVariableElement(Set.of(PRIVATE, STATIC, FINAL), type(int.class), "CONTINUATION_OFFSET_OLD_CPI"));
+                BytecodeRootNodeElement.addJavadoc(continuationOldCpiOffset,
+                                "The corresponding constant pool index for this continuation in the old bytecode (only used during reparsing).");
+                continuationOldCpiOffset.createInitBuilder().string(Integer.toString(offset++));
+            }
+            parent.add(new CodeVariableElement(Set.of(PRIVATE, STATIC, FINAL), type(int.class), "CONTINUATION_LENGTH")).createInitBuilder().string(Integer.toString(offset));
 
             b.statement("this.continuationsIndex += CONTINUATION_LENGTH");
 

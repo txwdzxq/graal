@@ -93,6 +93,7 @@ final class ContinuationRootNodeImplElement extends AbstractElement {
         this.add(createGetSourceRootNode());
         this.add(createGetLocation());
         this.add(createFindFrame());
+        this.add(createClone());
         this.add(createUpdateBytecodeLocation());
         this.add(createToString());
 
@@ -221,6 +222,24 @@ final class ContinuationRootNodeImplElement extends AbstractElement {
         return ex;
     }
 
+    private CodeExecutableElement createClone() {
+        CodeExecutableElement ex = new CodeExecutableElement(Set.of(PRIVATE), this.asType(), "createClone");
+        ex.addParameter(new CodeVariableElement(parent.asType(), "clonedRoot"));
+        ex.addParameter(new CodeVariableElement(types.BytecodeLocation, "clonedLocation"));
+        BytecodeRootNodeElement.addJavadoc(ex, """
+                        Clones a continuation constant when its source root is cloned.
+                        Note: the existence of this method does not imply general cloning support; continuations are not splitting targets.
+                        """);
+        CodeTreeBuilder b = ex.createBuilder();
+        b.startReturn().startNew(this.asType());
+        b.startCall("clonedRoot.nodes", "getLanguage").end();
+        b.string("clonedRoot");
+        b.string("this.sp");
+        b.string("clonedLocation");
+        b.end(2);
+        return ex;
+    }
+
     private CodeExecutableElement createUpdateBytecodeLocation() {
         CodeExecutableElement ex = new CodeExecutableElement(Set.of(PRIVATE), type(void.class), "updateBytecodeLocation");
         ex.addParameter(new CodeVariableElement(types.BytecodeLocation, "newLocation"));
@@ -259,7 +278,8 @@ final class ContinuationRootNodeImplElement extends AbstractElement {
     private CodeExecutableElement createIsCloningAllowed() {
         CodeExecutableElement ex = GeneratorUtils.override(types.RootNode, "isCloningAllowed");
         CodeTreeBuilder b = ex.createBuilder();
-        b.lineComment("Continuations are unique.");
+        b.lineComment("Continuation roots are not splitting targets. Their lifecycle is managed by the source root node.");
+        b.lineComment("When the source root is cloned, continuation constants are cloned with createClone().");
         b.startReturn();
         b.string("false");
         b.end();
@@ -269,7 +289,8 @@ final class ContinuationRootNodeImplElement extends AbstractElement {
     private CodeExecutableElement createIsCloneUninitializedSupported() {
         CodeExecutableElement ex = GeneratorUtils.override(types.RootNode, "isCloneUninitializedSupported");
         CodeTreeBuilder b = ex.createBuilder();
-        b.lineComment("Continuations are unique.");
+        b.lineComment("Continuation roots are not splitting targets. Their lifecycle is managed by the source root node.");
+        b.lineComment("When the source root is cloned, continuation constants are cloned with createClone().");
         b.startReturn();
         b.string("false");
         b.end();
