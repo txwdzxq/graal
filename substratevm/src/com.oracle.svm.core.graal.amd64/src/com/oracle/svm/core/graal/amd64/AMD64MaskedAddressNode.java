@@ -219,5 +219,13 @@ final class AMD64MaskAddressOp extends AMD64LIRInstruction {
             masm.movq(asRegister(result), mask);
             masm.andq(asRegister(result), asRegister(indexTmp));
         }
+
+        assert AMD64MemoryMaskingAndFencing.isEnabled() : "masked addresses must only be emitted when memory masking and fencing is enabled";
+
+        /*
+         * The next source-memory operand consumes the masked offset produced here, so the backend
+         * must not add an additional fallback fence for that dereference.
+         */
+        ((SubstrateAMD64MacroAssembler) masm).markProtectedMemorySourceAddress();
     }
 }
