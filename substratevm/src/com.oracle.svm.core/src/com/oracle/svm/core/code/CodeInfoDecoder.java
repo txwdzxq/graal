@@ -72,12 +72,12 @@ import jdk.graal.compiler.options.Option;
  * </pre>
  *
  * The first byte, entryFlags, encodes which of the optional data fields are present and what size
- * they have. For image code, a few reserved values are used as escape markers and are followed by
- * an extra flag byte that allows smaller FI_INFO_ONLY payloads and FI_DEFAULT entries that omit
- * their payload when the chunk default side table already provides the same frame info index. The
- * size of the whole entry can be computed from the decoded flags, which allows fast iteration of
- * the table. The deltaIP is the difference of the IP for this entry and the next entry. The first
- * entry always corresponds to IP zero.
+ * they have. For image code, three otherwise valid entryFlags values are reserved to signal that
+ * the real flags are stored in an extra flag byte. This allows smaller FI_INFO_ONLY payloads and
+ * FI_DEFAULT entries that omit their payload when the chunk default side table already provides the
+ * same frame info index. The size of the whole entry can be computed from the decoded flags, which
+ * allows fast iteration of the table. The deltaIP is the difference of the IP for this entry and
+ * the next entry. The first entry always corresponds to IP zero.
  *
  * This table structure allows linear search for the entry of a given IP. An
  * {@linkplain #loadEntryOffset index} is used to turn this into a constant time lookup. The index
@@ -85,14 +85,19 @@ import jdk.graal.compiler.options.Option;
  * granularity}.
  */
 public final class CodeInfoDecoder {
+    static final int CODE_INFO_INDEX_RUNTIME_ENTRY_BYTES = Integer.BYTES;
+    static final int CODE_INFO_INDEX_COMPRESSED_ENTRIES_PER_BLOCK = 8;
+    private static final int CODE_INFO_INDEX_COMPRESSED_RESIDUAL_BYTES = Short.BYTES;
+    private static final int CODE_INFO_INDEX_COMPRESSED_BLOCK_BYTES = CODE_INFO_INDEX_RUNTIME_ENTRY_BYTES +
+                    (CODE_INFO_INDEX_COMPRESSED_ENTRIES_PER_BLOCK - 1) * CODE_INFO_INDEX_COMPRESSED_RESIDUAL_BYTES;
     private static final int RAW_ENTRY_FLAGS_MASK = 0xFF;
-    private static final int EXTENDED_ENTRY_MASK = 1 << 8;
+    static final int EXTENDED_ENTRY_MASK = 1 << 8;
     private static final int EXTENDED_ENTRY_MODE_SHIFT = 9;
-    private static final int EXTENDED_ENTRY_MODE_MASK = 0b11 << EXTENDED_ENTRY_MODE_SHIFT;
-    private static final int EXTENDED_ENTRY_LEGACY = 0 << EXTENDED_ENTRY_MODE_SHIFT;
-    private static final int EXTENDED_ENTRY_FI_INFO_ONLY_S1 = 1 << EXTENDED_ENTRY_MODE_SHIFT;
-    private static final int EXTENDED_ENTRY_FI_INFO_ONLY_S2 = 2 << EXTENDED_ENTRY_MODE_SHIFT;
-    private static final int EXTENDED_ENTRY_FI_DEFAULT = 3 << EXTENDED_ENTRY_MODE_SHIFT;
+    static final int EXTENDED_ENTRY_MODE_MASK = 0b11 << EXTENDED_ENTRY_MODE_SHIFT;
+    static final int EXTENDED_ENTRY_LEGACY = 0 << EXTENDED_ENTRY_MODE_SHIFT;
+    static final int EXTENDED_ENTRY_FI_INFO_ONLY_S1 = 1 << EXTENDED_ENTRY_MODE_SHIFT;
+    static final int EXTENDED_ENTRY_FI_INFO_ONLY_S2 = 2 << EXTENDED_ENTRY_MODE_SHIFT;
+    static final int EXTENDED_ENTRY_FI_DEFAULT = 3 << EXTENDED_ENTRY_MODE_SHIFT;
     static final int EXTENDED_ENTRY_LEGACY_MARKER = 0xFD;
     static final int EXTENDED_ENTRY_FI_INFO_ONLY_S1_MARKER = 0xFE;
     static final int EXTENDED_ENTRY_FI_INFO_ONLY_S2_MARKER = 0xFF;
@@ -101,6 +106,28 @@ public final class CodeInfoDecoder {
     public static class Options {
         @Option(help = "The granularity of the index for looking up code metadata. Should be a power of 2. Larger values make the index smaller, but access slower.")//
         public static final HostedOptionKey<Integer> CodeInfoIndexGranularity = new HostedOptionKey<>(256);
+    }
+
+    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+    private static long loadEntryOffset(NonmovableArray<Byte> data, long index, int entriesPerBlock) {
+        if (entriesPerBlock == 1) {
+            return NonmovableByteArrayReader.getU4(data, index * CODE_INFO_INDEX_RUNTIME_ENTRY_BYTES);
+        }
+
+        VMError.guarantee(entriesPerBlock == CODE_INFO_INDEX_COMPRESSED_ENTRIES_PER_BLOCK, "Unexpected code info index block size");
+        long blockIndex = Long.divideUnsigned(index, entriesPerBlock);
+        int lane = (int) Long.remainderUnsigned(index, entriesPerBlock);
+        long blockOffset = blockIndex * CODE_INFO_INDEX_COMPRESSED_BLOCK_BYTES;
+        long base = NonmovableByteArrayReader.getU4(data, blockOffset);
+        if (lane == 0) {
+            return base;
+        }
+        long residualOffset = blockOffset + CODE_INFO_INDEX_RUNTIME_ENTRY_BYTES + (long) (lane - 1) * CODE_INFO_INDEX_COMPRESSED_RESIDUAL_BYTES;
+        return base + NonmovableByteArrayReader.getU2(data, residualOffset);
+    }
+
+    private static int codeInfoIndexBlockCount(int entryCount, int entriesPerBlock) {
+        return (entryCount + entriesPerBlock - 1) / entriesPerBlock;
     }
 
     private CodeInfoDecoder() {
@@ -291,7 +318,9 @@ public final class CodeInfoDecoder {
     private static long loadEntryOffset(CodeInfo info, long relativeIP) {
         counters().lookupEntryOffsetCount.inc();
         long index = Long.divideUnsigned(relativeIP, indexGranularity());
-        return NonmovableByteArrayReader.getU4(CodeInfoAccess.getCodeInfoIndex(info), index * Integer.BYTES);
+        NonmovableArray<Byte> codeInfoIndex = CodeInfoAccess.getCodeInfoIndex(info);
+        int entriesPerBlock = CodeInfoAccess.getCodeInfoIndexEntriesPerBlock(info);
+        return loadEntryOffset(codeInfoIndex, index, entriesPerBlock);
     }
 
     @AlwaysInline("Make IP-lookup loop call free")

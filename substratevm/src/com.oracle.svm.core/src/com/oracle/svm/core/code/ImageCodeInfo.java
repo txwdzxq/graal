@@ -24,6 +24,7 @@
  */
 package com.oracle.svm.core.code;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.graalvm.nativeimage.Platform;
@@ -64,6 +65,8 @@ public class ImageCodeInfo {
     @UnknownPrimitiveField(availability = AfterCompilation.class) private UnsignedWord codeAndDataMemorySize;
     @UnknownPrimitiveField(availability = AfterCompilation.class) private UnsignedWord relativeIPOffset;
     @UnknownPrimitiveField(availability = AfterCompilation.class) private int methodTableFirstId;
+    @UnknownPrimitiveField(availability = AfterCompilation.class) private int codeInfoIndexEntriesPerBlock = 1;
+
     private final Object[] objectFields;
     @UnknownObjectField(availability = AfterCompilation.class) byte[] codeInfoIndex;
     @UnknownObjectField(availability = AfterCompilation.class) byte[] codeInfoEncodings;
@@ -113,6 +116,7 @@ public class ImageCodeInfo {
         infoImpl.setRelativeIPOffset(imageCodeInfo.relativeIPOffset);
         infoImpl.setCodeInfoIndex(NonmovableArrays.fromImageHeap(imageCodeInfo.codeInfoIndex));
         infoImpl.setCodeInfoEncodings(NonmovableArrays.fromImageHeap(imageCodeInfo.codeInfoEncodings));
+        infoImpl.setCodeInfoIndexEntriesPerBlock(imageCodeInfo.codeInfoIndexEntriesPerBlock);
         infoImpl.setCodeInfoDefaultFrameInfos(NonmovableArrays.fromImageHeap(imageCodeInfo.codeInfoDefaultFrameInfos));
         infoImpl.setStackReferenceMapEncoding(NonmovableArrays.fromImageHeap(imageCodeInfo.referenceMapEncoding));
         infoImpl.setFrameInfoEncodings(NonmovableArrays.fromImageHeap(imageCodeInfo.frameInfoEncodings));
@@ -158,11 +162,20 @@ public class ImageCodeInfo {
     }
 
     public List<Integer> getTotalByteArrayLengths() {
-        return List.of(codeInfoIndex.length, codeInfoEncodings.length, byteArrayLength(codeInfoDefaultFrameInfos), referenceMapEncoding.length, frameInfoEncodings.length, methodTable.length);
+        List<Integer> lengths = new ArrayList<>(6);
+        addByteArrayLength(lengths, codeInfoIndex);
+        addByteArrayLength(lengths, codeInfoEncodings);
+        addByteArrayLength(lengths, codeInfoDefaultFrameInfos);
+        addByteArrayLength(lengths, referenceMapEncoding);
+        addByteArrayLength(lengths, frameInfoEncodings);
+        addByteArrayLength(lengths, methodTable);
+        return lengths;
     }
 
-    private static int byteArrayLength(byte[] array) {
-        return array == null ? 0 : array.length;
+    private static void addByteArrayLength(List<Integer> lengths, byte[] array) {
+        if (array != null) {
+            lengths.add(array.length);
+        }
     }
 
     /**
@@ -264,6 +277,16 @@ public class ImageCodeInfo {
         @Override
         public void setCodeInfoEncodings(NonmovableArray<Byte> array) {
             codeInfoEncodings = NonmovableArrays.getHostedArray(array);
+        }
+
+        @Override
+        public int getCodeInfoIndexEntriesPerBlock() {
+            return codeInfoIndexEntriesPerBlock;
+        }
+
+        @Override
+        public void setCodeInfoIndexEntriesPerBlock(int entriesPerBlock) {
+            codeInfoIndexEntriesPerBlock = entriesPerBlock;
         }
 
         @Override

@@ -343,11 +343,12 @@ public final class CodeInfoAccess {
         impl.setFrameInfoEncodings(encodings);
     }
 
-    public static void setCodeInfo(CodeInfo info, NonmovableArray<Byte> index, NonmovableArray<Byte> encodings, NonmovableArray<Byte> defaultFrameInfos,
-                    NonmovableArray<Byte> referenceMapEncoding) {
+    public static void setCodeInfo(CodeInfo info, NonmovableArray<Byte> index, NonmovableArray<Byte> encodings, int indexEntriesPerBlock,
+                    NonmovableArray<Byte> defaultFrameInfos, NonmovableArray<Byte> referenceMapEncoding) {
         CodeInfoImpl impl = cast(info);
         impl.setCodeInfoIndex(index);
         impl.setCodeInfoEncodings(encodings);
+        impl.setCodeInfoIndexEntriesPerBlock(indexEntriesPerBlock);
         impl.setCodeInfoDefaultFrameInfos(defaultFrameInfos);
         impl.setStackReferenceMapEncoding(referenceMapEncoding);
     }
@@ -399,6 +400,11 @@ public final class CodeInfoAccess {
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
     public static NonmovableArray<Byte> getCodeInfoEncodings(CodeInfo info) {
         return cast(info).getCodeInfoEncodings();
+    }
+
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    public static int getCodeInfoIndexEntriesPerBlock(CodeInfo info) {
+        return cast(info).getCodeInfoIndexEntriesPerBlock();
     }
 
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)

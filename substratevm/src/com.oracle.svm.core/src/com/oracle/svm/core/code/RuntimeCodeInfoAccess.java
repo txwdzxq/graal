@@ -79,6 +79,7 @@ public final class RuntimeCodeInfoAccess {
         impl.setCodeAndDataMemorySize(Word.unsigned(codeAndDataMemorySize));
         impl.setTier(tier);
         impl.setCodeObserverHandles(observerHandles);
+        impl.setCodeInfoIndexEntriesPerBlock(1);
         impl.setAllObjectsAreInImageHeap(allObjectsAreInImageHeap);
     }
 
