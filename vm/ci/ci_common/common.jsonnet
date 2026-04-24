@@ -263,7 +263,7 @@ local devkits = graal_common.devkits;
     legacy_mx_args:: [],  # `['--force-bash-launcher=true', '--skip-libraries=true']` have been replaced by arguments from `vm.maven_deploy_base_functions.mx_args(os, arch)`
     mx_args(os, arch, reduced):: self.legacy_mx_args + vm.maven_deploy_base_functions.mx_args(os, arch, reduced),
     mx_cmd_base(os, arch, reduced):: ['mx'] + vm.maven_deploy_base_functions.dynamic_imports(os, arch) + self.mx_args(os, arch, reduced),
-    mx_cmd_base_only_native(os, arch, reduced):: ['mx', '--dynamicimports', '/substratevm'] + self.mx_args(os, arch, reduced) + ['--native-images=false'],  # `--native-images=false` takes precedence over `self.mx_args(os, arch)`
+    mx_cmd_base_only_native(os, arch, reduced):: ['mx', '--dynamicimports', '/substratevm'] + std.filter(function(arg) !std.startsWith(arg, '--polyglot-isolates'), self.mx_args(os, arch, reduced)) + ['--native-images=false'],  # `--native-images=false` takes precedence over `self.mx_args(os, arch)`
 
     only_native_dists:: 'TRUFFLE_NFI_NATIVE,SVM_HOSTED_NATIVE',
 
@@ -315,7 +315,8 @@ local devkits = graal_common.devkits;
       local mvn_artifacts_snippet =
         # remotely deploy only the suites that are defined in the current repository, to avoid duplicated deployments
         if (vm.maven_deploy_base_functions.edition == 'ce') then
-          self.deploy_ce(os, arch, false, dry_run, [remote_mvn_repo])
+          self.deploy_ce(os, arch, false, dry_run, ['--skip', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', remote_mvn_repo])
+          + self.deploy_ce(os, arch, false, dry_run, ['--only', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch, true)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', remote_mvn_repo])
         else
           self.deploy_ee(os, arch, false, dry_run, ['--dummy-javadoc', '--skip', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', remote_mvn_repo])
           + self.deploy_ee(os, arch, false, dry_run, ['--dummy-javadoc', '--only', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch, true)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', remote_mvn_repo], extra_mx_args=polyglot_isolate_mx_args);
@@ -330,7 +331,8 @@ local devkits = graal_common.devkits;
         + (
           # Locally deploy all relevant suites
           if (vm.maven_deploy_base_functions.edition == 'ce') then
-            self.deploy_ce(os, arch, false, dry_run, [local_repo, '${LOCAL_MAVEN_REPO_URL}'])
+            self.deploy_ce(os, arch, false, dry_run, ['--skip', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', local_repo, '${LOCAL_MAVEN_REPO_URL}'])
+            + self.deploy_ce(os, arch, false, dry_run, ['--only', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', local_repo, '${LOCAL_MAVEN_REPO_URL}'])
           else
             self.deploy_ce(os, arch, false, dry_run, ['--dummy-javadoc', '--skip', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', local_repo, '${LOCAL_MAVEN_REPO_URL}'])
             + self.deploy_ee(os, arch, false, dry_run, ['--dummy-javadoc', '--only', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch)) + ',TOOLS,LANGUAGES,TOOLS_COMMUNITY,LANGUAGES_COMMUNITY', local_repo, '${LOCAL_MAVEN_REPO_URL}'], extra_mx_args=polyglot_isolate_mx_args)
@@ -410,8 +412,9 @@ local devkits = graal_common.devkits;
       ) else (
         (
           if (vm.maven_deploy_base_functions.edition == 'ce') then
-            self.build(os, arch, reduced=false, build_args=['--targets=' + self.only_native_dists + ',{PLATFORM_DEPENDENT_LAYOUT_DIR_DISTRIBUTIONS}']) +
-            self.deploy_only_native(os, arch, reduced=false, dry_run=dry_run, extra_args=[remote_mvn_repo])
+            self.build(os, arch, reduced=false, build_args=['--targets=' + self.only_native_dists + ',' + std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch, true)) + ',{PLATFORM_DEPENDENT_LAYOUT_DIR_DISTRIBUTIONS}']) +
+            self.deploy_only_native(os, arch, reduced=false, dry_run=dry_run, extra_args=[remote_mvn_repo]) +
+            self.deploy_ce(os, arch, false, dry_run, ['--only', std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch, true)), remote_mvn_repo])
           else
             self.build(os, arch, reduced=false, build_args=['--targets=' + self.only_native_dists + ',' + std.join(',', self.polyglot_isolate_distributions(polyglot_isolate_languages, os, arch, true)) + ',{PLATFORM_DEPENDENT_LAYOUT_DIR_DISTRIBUTIONS}']) +
             [['echo', 'Skipping the deployment of ' + self.only_native_dists + ': It is already deployed by the ce job']] +
