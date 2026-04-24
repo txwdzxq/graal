@@ -40,6 +40,11 @@ import jdk.vm.ci.code.TargetDescription;
  */
 public class SubstrateAMD64MacroAssembler extends AMD64MacroAssembler {
 
+    /**
+     * Position of the most recent emitted protection marker, either from an explicit {@code lfence}
+     * or from a source-address computation that was already protected before the dereference. A
+     * value of {@code -1} means that no protection marker has been recorded yet.
+     */
     private int lastMarkedPosition = -1;
 
     public SubstrateAMD64MacroAssembler(TargetDescription target, OptionValues optionValues, boolean hasIntelJccErratum) {
@@ -60,12 +65,11 @@ public class SubstrateAMD64MacroAssembler extends AMD64MacroAssembler {
         }
 
         /**
-         * If the base is a reserved register and the index is invalid, we don't need protection. We
-         * can accept a valid index only if the base is the heap base register since we are sure
-         * that such a case belongs to an address created before lowering.
+         * If the base is a reserved register and the index is invalid, we don't need protection.
+         * Heap-base-relative addresses with a live index are only safe when the lowering or
+         * emission phase explicitly marked the address computation as already protected.
          */
-        if ((ReservedRegisters.singleton().isReservedRegister(addr.getBase()) && !addr.getIndex().isValid()) ||
-                        addr.getBase().equals(ReservedRegisters.singleton().getHeapBaseRegister())) {
+        if (ReservedRegisters.singleton().isReservedRegister(addr.getBase()) && !addr.getIndex().isValid()) {
             return false;
         }
 
@@ -113,6 +117,14 @@ public class SubstrateAMD64MacroAssembler extends AMD64MacroAssembler {
     }
 
     public void markImageHeapConstantLea() {
+        markProtectedMemorySourceAddress();
+    }
+
+    public void markProtectedMemorySourceAddress() {
+        /*
+         * The next source-memory operand uses an address that was already protected by the lowering
+         * or emission phase, so it does not need an additional fallback fence.
+         */
         this.lastMarkedPosition = position();
     }
 }
