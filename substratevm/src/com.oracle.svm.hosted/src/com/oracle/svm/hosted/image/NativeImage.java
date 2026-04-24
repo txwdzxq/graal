@@ -421,11 +421,15 @@ public abstract class NativeImage extends AbstractImage {
         objectFile.createDefinedSymbol(name, section, position, wordSize, false, SubstrateOptions.InternalSymbolsAreGlobal.getValue());
     }
 
-    private void defineRelocationForSymbol(String name, long position) {
-        objectFile.createUndefinedSymbol(name, true);
-        ProgbitsSectionImpl baseSectionImpl = (ProgbitsSectionImpl) rwDataSection.getImpl();
+    public static void markCGlobalDataSymbolReferenceRelocation(ObjectFile objectFile, long position, String symbolName) {
+        String dataSectionName = SectionName.DATA.getFormatDependentName(objectFile.getFormat());
+        Section dataSection = (Section) objectFile.elementForName(dataSectionName);
+        if (objectFile.getOrCreateSymbolTable().getSymbol(symbolName) == null) {
+            objectFile.createUndefinedSymbol(symbolName, true);
+        }
+        ProgbitsSectionImpl dataSectionImpl = (ProgbitsSectionImpl) dataSection.getImpl();
         int offsetInSection = Math.toIntExact(RWDATA_CGLOBALS_PARTITION_OFFSET + position);
-        baseSectionImpl.markRelocationSite(offsetInSection, wordSize == 8 ? RelocationKind.DIRECT_8 : RelocationKind.DIRECT_4, name, 0L);
+        dataSectionImpl.markRelocationSite(offsetInSection, RelocationKind.getDirect(objectFile.getWordSizeInBytes()), symbolName, 0L);
     }
 
     public static String getTextSectionStartSymbol() {
@@ -490,7 +494,7 @@ public abstract class NativeImage extends AbstractImage {
             cGlobals.writeData(rwDataBuffer,
                             (offset, symbolName, isGlobalSymbol) -> objectFile.createDefinedSymbol(symbolName, rwDataSection, offset + RWDATA_CGLOBALS_PARTITION_OFFSET, wordSize, false,
                                             isGlobalSymbol || SubstrateOptions.InternalSymbolsAreGlobal.getValue()),
-                            (offset, symbolName, _) -> defineRelocationForSymbol(symbolName, offset));
+                            (offset, symbolName, _) -> markCGlobalDataSymbolReferenceRelocation(objectFile, offset, symbolName));
 
             // - Write the heap to its own section.
             long imageHeapSize = getImageHeapSize();
@@ -726,12 +730,7 @@ public abstract class NativeImage extends AbstractImage {
             assert isAddendAligned(arch, addend, info.getRelocationKind()) : "improper addend alignment";
             sectionImpl.markRelocationSite(offset, info.getRelocationKind(), rwDataSection.getName(), addend);
             if (dataInfo.isSymbolReference()) { // create relocation for referenced symbol
-                if (objectFile.getSymbolTable().getSymbol(data.symbolName) == null) {
-                    objectFile.createUndefinedSymbol(data.symbolName, true);
-                }
-                ProgbitsSectionImpl baseSectionImpl = (ProgbitsSectionImpl) rwDataSection.getImpl();
-                int offsetInSection = Math.toIntExact(RWDATA_CGLOBALS_PARTITION_OFFSET + dataInfo.getOffset());
-                baseSectionImpl.markRelocationSite(offsetInSection, RelocationKind.getDirect(wordSize), data.symbolName, 0L);
+                markCGlobalDataSymbolReferenceRelocation(objectFile, dataInfo.getOffset(), data.symbolName);
             }
         } else if (target instanceof ConstantReference cr) {
             markConstantReference(buffer, offset, info, cr, arch, heap);
