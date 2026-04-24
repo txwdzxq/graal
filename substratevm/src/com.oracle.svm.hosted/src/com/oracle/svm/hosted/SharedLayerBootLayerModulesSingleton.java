@@ -33,11 +33,11 @@ import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
-import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.core.imagelayer.BuildingInitialLayerPredicate;
-import com.oracle.svm.hosted.imagelayer.CapnProtoAdapters;
 import com.oracle.svm.hosted.imagelayer.SVMImageLayerSingletonLoader;
 import com.oracle.svm.hosted.imagelayer.SVMImageLayerWriter;
+import com.oracle.svm.hosted.snapshot.util.SnapshotAdapters;
+import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.shared.singletons.ImageSingletonLoader;
 import com.oracle.svm.shared.singletons.ImageSingletonWriter;
 import com.oracle.svm.shared.singletons.LayeredPersistFlags;
@@ -94,7 +94,7 @@ public class SharedLayerBootLayerModulesSingleton {
                         moduleNames = Stream.concat(moduleNames, singleton.sharedBootLayerModules.stream());
                     }
 
-                    SVMImageLayerWriter.initStringList(writerImpl.getSnapshotBuilder()::initSharedLayerBootLayerModules, moduleNames);
+                    SVMImageLayerWriter.initStringList(writerImpl.getSnapshotWriter()::initSharedLayerBootLayerModules, moduleNames);
 
                     return LayeredPersistFlags.CREATE;
                 }
@@ -111,7 +111,7 @@ public class SharedLayerBootLayerModulesSingleton {
         @Override
         public SharedLayerBootLayerModulesSingleton createFromLoader(ImageSingletonLoader loader) {
             SVMImageLayerSingletonLoader.ImageSingletonLoaderImpl loaderImpl = (SVMImageLayerSingletonLoader.ImageSingletonLoaderImpl) loader;
-            List<String> moduleNames = CapnProtoAdapters.toCollection(loaderImpl.getSnapshotReader().getSharedLayerBootLayerModules(), ArrayList::new);
+            List<String> moduleNames = SnapshotAdapters.toCollection(loaderImpl.getSnapshotLoader().getSharedLayerBootLayerModules(), ArrayList::new);
             return new SharedLayerBootLayerModulesSingleton(moduleNames);
         }
     }
