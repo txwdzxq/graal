@@ -820,6 +820,8 @@ public abstract class Accessor {
 
         public abstract ModulesAccessor getModulesAccessor();
 
+        public abstract String getModuleAccessorInitializationError();
+
         public abstract Node getUncachedLocation(Object polyglotContext);
 
         public abstract OptionValues parseLanguageSourceOptions(Object polyglotLanguageContext, Source source);

@@ -499,170 +499,38 @@ final class JDKSupport {
             final String terminatingThreadLocalClassName = targetPackage + ".GeneratedTerminatingThreadLocal";
             final String terminatingThreadLocalBinaryClassName = terminatingThreadLocalClassName.replace('.', '/');
 
+            // GeneratedModules
             ClassWriter modulesClassWriter = new ClassWriter(0);
             modulesClassWriter.visit(Opcodes.V1_8, Opcodes.ACC_PUBLIC + Opcodes.ACC_SUPER, modulesBinaryClassName, null, "java/lang/Object", null);
-
             FieldVisitor fv = modulesClassWriter.visitField(Opcodes.ACC_PRIVATE + Opcodes.ACC_STATIC + Opcodes.ACC_FINAL, "javaLangAccess", "Ljdk/internal/access/JavaLangAccess;", null, null);
             fv.visitEnd();
-
-            MethodVisitor clinit = modulesClassWriter.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
-            clinit.visitCode();
-            clinit.visitMethodInsn(Opcodes.INVOKESTATIC, "jdk/internal/access/SharedSecrets", "getJavaLangAccess", "()Ljdk/internal/access/JavaLangAccess;", false);
-            clinit.visitFieldInsn(Opcodes.PUTSTATIC, modulesBinaryClassName, "javaLangAccess", "Ljdk/internal/access/JavaLangAccess;");
-            clinit.visitInsn(Opcodes.RETURN);
-            clinit.visitMaxs(1, 0);
-            clinit.visitEnd();
-
-            MethodVisitor constructor = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
-            constructor.visitCode();
-            constructor.visitVarInsn(Opcodes.ALOAD, 0);
-            constructor.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
-            constructor.visitInsn(Opcodes.RETURN);
-            constructor.visitMaxs(1, 1);
-            constructor.visitEnd();
-
-            MethodVisitor mv1 = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, "addExports",
-                            "(Ljava/lang/Module;Ljava/lang/String;Ljava/lang/Module;)V", null, null);
-            mv1.visitCode();
-            mv1.visitVarInsn(Opcodes.ALOAD, 0); // Load first argument (Module base)
-            mv1.visitVarInsn(Opcodes.ALOAD, 1); // Load second argument (String p)
-            mv1.visitVarInsn(Opcodes.ALOAD, 2); // Load third argument (Module target)
-            mv1.visitMethodInsn(Opcodes.INVOKESTATIC, "jdk/internal/module/Modules", "addExports",
-                            "(Ljava/lang/Module;Ljava/lang/String;Ljava/lang/Module;)V", false);
-            mv1.visitInsn(Opcodes.RETURN);
-            mv1.visitMaxs(3, 3);
-            mv1.visitEnd();
-
-            MethodVisitor mv2 = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, "addExportsToAllUnnamed",
-                            "(Ljava/lang/Module;Ljava/lang/String;)V", null, null);
-            mv2.visitCode();
-            mv2.visitVarInsn(Opcodes.ALOAD, 0); // Load first argument (Module target)
-            mv2.visitVarInsn(Opcodes.ALOAD, 1); // Load second argument (String p)
-            mv2.visitMethodInsn(Opcodes.INVOKESTATIC, "jdk/internal/module/Modules", "addExportsToAllUnnamed",
-                            "(Ljava/lang/Module;Ljava/lang/String;)V", false);
-            mv2.visitInsn(Opcodes.RETURN);
-            mv2.visitMaxs(2, 2);
-            mv2.visitEnd();
-
-            MethodVisitor mv3 = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, "addOpens",
-                            "(Ljava/lang/Module;Ljava/lang/String;Ljava/lang/Module;)V", null, null);
-            mv3.visitCode();
-            mv3.visitVarInsn(Opcodes.ALOAD, 0); // Load first argument (Module base)
-            mv3.visitVarInsn(Opcodes.ALOAD, 1); // Load second argument (String p)
-            mv3.visitVarInsn(Opcodes.ALOAD, 2); // Load third argument (Module target)
-            mv3.visitMethodInsn(Opcodes.INVOKESTATIC, "jdk/internal/module/Modules", "addOpens",
-                            "(Ljava/lang/Module;Ljava/lang/String;Ljava/lang/Module;)V", false);
-            mv3.visitInsn(Opcodes.RETURN);
-            mv3.visitMaxs(3, 3);
-            mv3.visitEnd();
-
-            MethodVisitor mv4 = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, "addOpensToAllUnnamed",
-                            "(Ljava/lang/Module;Ljava/lang/String;)V", null, null);
-            mv4.visitCode();
-            mv4.visitVarInsn(Opcodes.ALOAD, 0); // Load first argument (Module target)
-            mv4.visitVarInsn(Opcodes.ALOAD, 1); // Load second argument (String p)
-            mv4.visitMethodInsn(Opcodes.INVOKESTATIC, "jdk/internal/module/Modules", "addOpensToAllUnnamed",
-                            "(Ljava/lang/Module;Ljava/lang/String;)V", false);
-            mv4.visitInsn(Opcodes.RETURN);
-            mv4.visitMaxs(2, 2);
-            mv4.visitEnd();
-
-            MethodVisitor mv5 = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, "addEnableNativeAccess",
-                            "(Ljava/lang/Module;)V", null, null);
-            mv5.visitCode();
-            if (ADD_ENABLE_NATIVE_ACCESS != null) {
-                mv5.visitMethodInsn(Opcodes.INVOKESTATIC, "jdk/internal/access/SharedSecrets", "getJavaLangAccess",
-                                "()Ljdk/internal/access/JavaLangAccess;", false);
-                mv5.visitVarInsn(Opcodes.ALOAD, 0); // Load first argument (Module module)
-                mv5.visitMethodInsn(Opcodes.INVOKEINTERFACE, "jdk/internal/access/JavaLangAccess", "addEnableNativeAccess",
-                                "(Ljava/lang/Module;)Ljava/lang/Module;", true);
-            }
-            mv5.visitInsn(Opcodes.RETURN);
-            mv5.visitMaxs(2, 2);
-            mv5.visitEnd();
-
-            MethodVisitor mv6 = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, "addEnableNativeAccessToAllUnnamed",
-                            "()V", null, null);
-            mv6.visitCode();
-            if (ADD_ENABLE_NATIVE_ACCESS_TO_ALL_UNNAMED != null) {
-                mv6.visitMethodInsn(Opcodes.INVOKESTATIC, "jdk/internal/access/SharedSecrets", "getJavaLangAccess",
-                                "()Ljdk/internal/access/JavaLangAccess;", false);
-                mv6.visitMethodInsn(Opcodes.INVOKEINTERFACE, "jdk/internal/access/JavaLangAccess", "addEnableNativeAccessToAllUnnamed",
-                                "()V", true);
-            }
-            mv6.visitInsn(Opcodes.RETURN);
-            mv6.visitMaxs(1, 1);
-            mv6.visitEnd();
-
-            MethodVisitor mv7 = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, "currentCarrierThread",
-                            "()Ljava/lang/Thread;", null, null);
-            mv7.visitCode();
-            mv7.visitFieldInsn(Opcodes.GETSTATIC, modulesBinaryClassName, "javaLangAccess", "Ljdk/internal/access/JavaLangAccess;");
-            mv7.visitMethodInsn(Opcodes.INVOKEINTERFACE, "jdk/internal/access/JavaLangAccess", "currentCarrierThread", "()Ljava/lang/Thread;", true);
-            mv7.visitInsn(Opcodes.ARETURN);
-            mv7.visitMaxs(1, 0);
-            mv7.visitEnd();
-
-            MethodVisitor mv8 = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, "createTerminatingThreadLocal",
-                            "(Ljava/util/function/Supplier;Ljava/util/function/Consumer;)Ljava/lang/ThreadLocal;", null, null);
-            mv8.visitCode();
-            mv8.visitTypeInsn(Opcodes.NEW, terminatingThreadLocalBinaryClassName);
-            mv8.visitInsn(Opcodes.DUP);
-            mv8.visitVarInsn(Opcodes.ALOAD, 0);
-            mv8.visitVarInsn(Opcodes.ALOAD, 1);
-            mv8.visitMethodInsn(Opcodes.INVOKESPECIAL, terminatingThreadLocalBinaryClassName, "<init>", "(Ljava/util/function/Supplier;Ljava/util/function/Consumer;)V", false);
-            mv8.visitInsn(Opcodes.ARETURN);
-            mv8.visitMaxs(4, 2);
-            mv8.visitEnd();
-
+            generateModulesClassInit(modulesClassWriter, modulesBinaryClassName);
+            generateModulesConstructor(modulesClassWriter);
+            generateModulesAddExports(modulesClassWriter);
+            generateModulesAddExportsToAllUnnamed(modulesClassWriter);
+            generateModulesAddOpens(modulesClassWriter);
+            generateModulesAddOpensToAllUnnamed(modulesClassWriter);
+            generateModulesAddEnableNativeAccess(modulesClassWriter);
+            generateModulesAddEnableNativeAccessToAllUnnamed(modulesClassWriter);
+            generateModulesCurrentCarrierThread(modulesClassWriter, modulesBinaryClassName);
+            generateModulesCreateTerminatingThreadLocal(modulesClassWriter, terminatingThreadLocalBinaryClassName);
             modulesClassWriter.visitEnd();
 
-            ClassWriter threadLocalClassWriter = new ClassWriter(0);
-            threadLocalClassWriter.visit(Opcodes.V1_8, Opcodes.ACC_FINAL + Opcodes.ACC_SUPER, terminatingThreadLocalBinaryClassName, null, "jdk/internal/misc/TerminatingThreadLocal", null);
-
-            FieldVisitor fv1 = threadLocalClassWriter.visitField(Opcodes.ACC_PRIVATE + Opcodes.ACC_FINAL, "initialValue", "Ljava/util/function/Supplier;", null, null);
+            // GeneratedTerminatingThreadLocal
+            ClassWriter terminatingThreadLocalClassWriter = new ClassWriter(0);
+            terminatingThreadLocalClassWriter.visit(Opcodes.V1_8, Opcodes.ACC_FINAL + Opcodes.ACC_SUPER, terminatingThreadLocalBinaryClassName, null, "jdk/internal/misc/TerminatingThreadLocal", null);
+            FieldVisitor fv1 = terminatingThreadLocalClassWriter.visitField(Opcodes.ACC_PRIVATE + Opcodes.ACC_FINAL, "initialValue", "Ljava/util/function/Supplier;", null, null);
             fv1.visitEnd();
-            FieldVisitor fv2 = threadLocalClassWriter.visitField(Opcodes.ACC_PRIVATE + Opcodes.ACC_FINAL, "onThreadTermination", "Ljava/util/function/Consumer;", null, null);
+            FieldVisitor fv2 = terminatingThreadLocalClassWriter.visitField(Opcodes.ACC_PRIVATE + Opcodes.ACC_FINAL, "onThreadTermination", "Ljava/util/function/Consumer;", null, null);
             fv2.visitEnd();
-
-            MethodVisitor threadLocalConstructor = threadLocalClassWriter.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "(Ljava/util/function/Supplier;Ljava/util/function/Consumer;)V", null, null);
-            threadLocalConstructor.visitCode();
-            threadLocalConstructor.visitVarInsn(Opcodes.ALOAD, 0);
-            threadLocalConstructor.visitMethodInsn(Opcodes.INVOKESPECIAL, "jdk/internal/misc/TerminatingThreadLocal", "<init>", "()V", false);
-            threadLocalConstructor.visitVarInsn(Opcodes.ALOAD, 0);
-            threadLocalConstructor.visitVarInsn(Opcodes.ALOAD, 1);
-            threadLocalConstructor.visitFieldInsn(Opcodes.PUTFIELD, terminatingThreadLocalBinaryClassName, "initialValue", "Ljava/util/function/Supplier;");
-            threadLocalConstructor.visitVarInsn(Opcodes.ALOAD, 0);
-            threadLocalConstructor.visitVarInsn(Opcodes.ALOAD, 2);
-            threadLocalConstructor.visitFieldInsn(Opcodes.PUTFIELD, terminatingThreadLocalBinaryClassName, "onThreadTermination", "Ljava/util/function/Consumer;");
-            threadLocalConstructor.visitInsn(Opcodes.RETURN);
-            threadLocalConstructor.visitMaxs(2, 3);
-            threadLocalConstructor.visitEnd();
-
-            MethodVisitor threadLocalInitialValue = threadLocalClassWriter.visitMethod(Opcodes.ACC_PROTECTED, "initialValue", "()Ljava/lang/Object;", null, null);
-            threadLocalInitialValue.visitCode();
-            threadLocalInitialValue.visitVarInsn(Opcodes.ALOAD, 0);
-            threadLocalInitialValue.visitFieldInsn(Opcodes.GETFIELD, terminatingThreadLocalBinaryClassName, "initialValue", "Ljava/util/function/Supplier;");
-            threadLocalInitialValue.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/function/Supplier", "get", "()Ljava/lang/Object;", true);
-            threadLocalInitialValue.visitInsn(Opcodes.ARETURN);
-            threadLocalInitialValue.visitMaxs(1, 1);
-            threadLocalInitialValue.visitEnd();
-
-            MethodVisitor threadLocalThreadTerminated = threadLocalClassWriter.visitMethod(Opcodes.ACC_PROTECTED, "threadTerminated", "(Ljava/lang/Object;)V", null, null);
-            threadLocalThreadTerminated.visitCode();
-            threadLocalThreadTerminated.visitVarInsn(Opcodes.ALOAD, 0);
-            threadLocalThreadTerminated.visitFieldInsn(Opcodes.GETFIELD, terminatingThreadLocalBinaryClassName, "onThreadTermination", "Ljava/util/function/Consumer;");
-            threadLocalThreadTerminated.visitVarInsn(Opcodes.ALOAD, 1);
-            threadLocalThreadTerminated.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/function/Consumer", "accept", "(Ljava/lang/Object;)V", true);
-            threadLocalThreadTerminated.visitInsn(Opcodes.RETURN);
-            threadLocalThreadTerminated.visitMaxs(2, 2);
-            threadLocalThreadTerminated.visitEnd();
-
-            threadLocalClassWriter.visitEnd();
+            generateTerminatingThreadLocalConstructor(terminatingThreadLocalClassWriter, terminatingThreadLocalBinaryClassName);
+            generateTerminatingThreadLocalInitialValue(terminatingThreadLocalClassWriter, terminatingThreadLocalBinaryClassName);
+            generateTerminatingThreadLocalThreadTerminated(terminatingThreadLocalClassWriter, terminatingThreadLocalBinaryClassName);
+            terminatingThreadLocalClassWriter.visitEnd();
 
             Map<String, byte[]> generatedClasses = new HashMap<>();
             generatedClasses.put(modulesBinaryClassName + ".class", modulesClassWriter.toByteArray());
-            generatedClasses.put(terminatingThreadLocalBinaryClassName + ".class", threadLocalClassWriter.toByteArray());
+            generatedClasses.put(terminatingThreadLocalBinaryClassName + ".class", terminatingThreadLocalClassWriter.toByteArray());
 
             // Create a ModuleDescriptor for the new module
             ModuleDescriptor descriptor = ModuleDescriptor.newModule(moduleName).exports(targetPackage).build();
@@ -737,6 +605,175 @@ final class JDKSupport {
             this.addEnableNativeAccessToAllUnnamed = l.findStatic(generatedClass, "addEnableNativeAccessToAllUnnamed", MethodType.methodType(void.class));
             this.currentCarrierThread = l.findStatic(generatedClass, "currentCarrierThread", MethodType.methodType(Thread.class));
             this.createTerminatingThreadLocal = l.findStatic(generatedClass, "createTerminatingThreadLocal", MethodType.methodType(ThreadLocal.class, Supplier.class, Consumer.class));
+        }
+
+        private static void generateModulesClassInit(ClassWriter modulesClassWriter, String modulesBinaryClassName) {
+            MethodVisitor clinit = modulesClassWriter.visitMethod(Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+            clinit.visitCode();
+            clinit.visitMethodInsn(Opcodes.INVOKESTATIC, "jdk/internal/access/SharedSecrets", "getJavaLangAccess", "()Ljdk/internal/access/JavaLangAccess;", false);
+            clinit.visitFieldInsn(Opcodes.PUTSTATIC, modulesBinaryClassName, "javaLangAccess", "Ljdk/internal/access/JavaLangAccess;");
+            clinit.visitInsn(Opcodes.RETURN);
+            clinit.visitMaxs(1, 0);
+            clinit.visitEnd();
+        }
+
+        private static void generateModulesConstructor(ClassWriter modulesClassWriter) {
+            MethodVisitor constructor = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "()V", null, null);
+            constructor.visitCode();
+            constructor.visitVarInsn(Opcodes.ALOAD, 0);
+            constructor.visitMethodInsn(Opcodes.INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false);
+            constructor.visitInsn(Opcodes.RETURN);
+            constructor.visitMaxs(1, 1);
+            constructor.visitEnd();
+        }
+
+        private static void generateModulesAddExports(ClassWriter modulesClassWriter) {
+            MethodVisitor mv = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, "addExports",
+                            "(Ljava/lang/Module;Ljava/lang/String;Ljava/lang/Module;)V", null, null);
+            mv.visitCode();
+            mv.visitVarInsn(Opcodes.ALOAD, 0); // Load first argument (Module base)
+            mv.visitVarInsn(Opcodes.ALOAD, 1); // Load second argument (String p)
+            mv.visitVarInsn(Opcodes.ALOAD, 2); // Load third argument (Module target)
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "jdk/internal/module/Modules", "addExports",
+                            "(Ljava/lang/Module;Ljava/lang/String;Ljava/lang/Module;)V", false);
+            mv.visitInsn(Opcodes.RETURN);
+            mv.visitMaxs(3, 3);
+            mv.visitEnd();
+        }
+
+        private static void generateModulesAddExportsToAllUnnamed(ClassWriter modulesClassWriter) {
+            MethodVisitor mv = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, "addExportsToAllUnnamed",
+                            "(Ljava/lang/Module;Ljava/lang/String;)V", null, null);
+            mv.visitCode();
+            mv.visitVarInsn(Opcodes.ALOAD, 0); // Load first argument (Module target)
+            mv.visitVarInsn(Opcodes.ALOAD, 1); // Load second argument (String p)
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "jdk/internal/module/Modules", "addExportsToAllUnnamed",
+                            "(Ljava/lang/Module;Ljava/lang/String;)V", false);
+            mv.visitInsn(Opcodes.RETURN);
+            mv.visitMaxs(2, 2);
+            mv.visitEnd();
+        }
+
+        private static void generateModulesAddOpens(ClassWriter modulesClassWriter) {
+            MethodVisitor mv = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, "addOpens",
+                            "(Ljava/lang/Module;Ljava/lang/String;Ljava/lang/Module;)V", null, null);
+            mv.visitCode();
+            mv.visitVarInsn(Opcodes.ALOAD, 0); // Load first argument (Module base)
+            mv.visitVarInsn(Opcodes.ALOAD, 1); // Load second argument (String p)
+            mv.visitVarInsn(Opcodes.ALOAD, 2); // Load third argument (Module target)
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "jdk/internal/module/Modules", "addOpens",
+                            "(Ljava/lang/Module;Ljava/lang/String;Ljava/lang/Module;)V", false);
+            mv.visitInsn(Opcodes.RETURN);
+            mv.visitMaxs(3, 3);
+            mv.visitEnd();
+        }
+
+        private static void generateModulesAddOpensToAllUnnamed(ClassWriter modulesClassWriter) {
+            MethodVisitor mv = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, "addOpensToAllUnnamed",
+                            "(Ljava/lang/Module;Ljava/lang/String;)V", null, null);
+            mv.visitCode();
+            mv.visitVarInsn(Opcodes.ALOAD, 0); // Load first argument (Module target)
+            mv.visitVarInsn(Opcodes.ALOAD, 1); // Load second argument (String p)
+            mv.visitMethodInsn(Opcodes.INVOKESTATIC, "jdk/internal/module/Modules", "addOpensToAllUnnamed",
+                            "(Ljava/lang/Module;Ljava/lang/String;)V", false);
+            mv.visitInsn(Opcodes.RETURN);
+            mv.visitMaxs(2, 2);
+            mv.visitEnd();
+        }
+
+        private static void generateModulesAddEnableNativeAccess(ClassWriter modulesClassWriter) {
+            MethodVisitor mv = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, "addEnableNativeAccess",
+                            "(Ljava/lang/Module;)V", null, null);
+            mv.visitCode();
+            if (ADD_ENABLE_NATIVE_ACCESS != null) {
+                mv.visitMethodInsn(Opcodes.INVOKESTATIC, "jdk/internal/access/SharedSecrets", "getJavaLangAccess",
+                                "()Ljdk/internal/access/JavaLangAccess;", false);
+                mv.visitVarInsn(Opcodes.ALOAD, 0); // Load first argument (Module module)
+                mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, "jdk/internal/access/JavaLangAccess", "addEnableNativeAccess",
+                                "(Ljava/lang/Module;)Ljava/lang/Module;", true);
+            }
+            mv.visitInsn(Opcodes.RETURN);
+            mv.visitMaxs(2, 2);
+            mv.visitEnd();
+        }
+
+        private static void generateModulesAddEnableNativeAccessToAllUnnamed(ClassWriter modulesClassWriter) {
+            MethodVisitor mv = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, "addEnableNativeAccessToAllUnnamed",
+                            "()V", null, null);
+            mv.visitCode();
+            if (ADD_ENABLE_NATIVE_ACCESS_TO_ALL_UNNAMED != null) {
+                mv.visitMethodInsn(Opcodes.INVOKESTATIC, "jdk/internal/access/SharedSecrets", "getJavaLangAccess",
+                                "()Ljdk/internal/access/JavaLangAccess;", false);
+                mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, "jdk/internal/access/JavaLangAccess", "addEnableNativeAccessToAllUnnamed",
+                                "()V", true);
+            }
+            mv.visitInsn(Opcodes.RETURN);
+            mv.visitMaxs(1, 1);
+            mv.visitEnd();
+        }
+
+        private static void generateModulesCurrentCarrierThread(ClassWriter modulesClassWriter, String modulesBinaryClassName) {
+            MethodVisitor mv = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, "currentCarrierThread",
+                            "()Ljava/lang/Thread;", null, null);
+            mv.visitCode();
+            mv.visitFieldInsn(Opcodes.GETSTATIC, modulesBinaryClassName, "javaLangAccess", "Ljdk/internal/access/JavaLangAccess;");
+            mv.visitMethodInsn(Opcodes.INVOKEINTERFACE, "jdk/internal/access/JavaLangAccess", "currentCarrierThread", "()Ljava/lang/Thread;", true);
+            mv.visitInsn(Opcodes.ARETURN);
+            mv.visitMaxs(1, 0);
+            mv.visitEnd();
+        }
+
+        private static void generateModulesCreateTerminatingThreadLocal(ClassWriter modulesClassWriter, String terminatingThreadLocalBinaryClassName) {
+            MethodVisitor mv = modulesClassWriter.visitMethod(Opcodes.ACC_PUBLIC + Opcodes.ACC_STATIC, "createTerminatingThreadLocal",
+                            "(Ljava/util/function/Supplier;Ljava/util/function/Consumer;)Ljava/lang/ThreadLocal;", null, null);
+            mv.visitCode();
+            mv.visitTypeInsn(Opcodes.NEW, terminatingThreadLocalBinaryClassName);
+            mv.visitInsn(Opcodes.DUP);
+            mv.visitVarInsn(Opcodes.ALOAD, 0);
+            mv.visitVarInsn(Opcodes.ALOAD, 1);
+            mv.visitMethodInsn(Opcodes.INVOKESPECIAL, terminatingThreadLocalBinaryClassName, "<init>", "(Ljava/util/function/Supplier;Ljava/util/function/Consumer;)V", false);
+            mv.visitInsn(Opcodes.ARETURN);
+            mv.visitMaxs(4, 2);
+            mv.visitEnd();
+        }
+
+        private static void generateTerminatingThreadLocalConstructor(ClassWriter terminatingThreadLocalClassWriter, String terminatingThreadLocalBinaryClassName) {
+            MethodVisitor mv = terminatingThreadLocalClassWriter.visitMethod(Opcodes.ACC_PUBLIC, "<init>", "(Ljava/util/function/Supplier;Ljava/util/function/Consumer;)V", null, null);
+            mv.visitCode();
+            mv.visitVarInsn(Opcodes.ALOAD, 0);
+            mv.visitMethodInsn(Opcodes.INVOKESPECIAL, "jdk/internal/misc/TerminatingThreadLocal", "<init>", "()V", false);
+            mv.visitVarInsn(Opcodes.ALOAD, 0);
+            mv.visitVarInsn(Opcodes.ALOAD, 1);
+            mv.visitFieldInsn(Opcodes.PUTFIELD, terminatingThreadLocalBinaryClassName, "initialValue", "Ljava/util/function/Supplier;");
+            mv.visitVarInsn(Opcodes.ALOAD, 0);
+            mv.visitVarInsn(Opcodes.ALOAD, 2);
+            mv.visitFieldInsn(Opcodes.PUTFIELD, terminatingThreadLocalBinaryClassName, "onThreadTermination", "Ljava/util/function/Consumer;");
+            mv.visitInsn(Opcodes.RETURN);
+            mv.visitMaxs(2, 3);
+            mv.visitEnd();
+        }
+
+        private static void generateTerminatingThreadLocalInitialValue(ClassWriter terminatingThreadLocalClassWriter, String terminatingThreadLocalBinaryClassName) {
+            MethodVisitor threadLocalInitialValue = terminatingThreadLocalClassWriter.visitMethod(Opcodes.ACC_PROTECTED, "initialValue", "()Ljava/lang/Object;", null, null);
+            threadLocalInitialValue.visitCode();
+            threadLocalInitialValue.visitVarInsn(Opcodes.ALOAD, 0);
+            threadLocalInitialValue.visitFieldInsn(Opcodes.GETFIELD, terminatingThreadLocalBinaryClassName, "initialValue", "Ljava/util/function/Supplier;");
+            threadLocalInitialValue.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/function/Supplier", "get", "()Ljava/lang/Object;", true);
+            threadLocalInitialValue.visitInsn(Opcodes.ARETURN);
+            threadLocalInitialValue.visitMaxs(1, 1);
+            threadLocalInitialValue.visitEnd();
+        }
+
+        private static void generateTerminatingThreadLocalThreadTerminated(ClassWriter terminatingThreadLocalClassWriter, String terminatingThreadLocalBinaryClassName) {
+            MethodVisitor threadLocalThreadTerminated = terminatingThreadLocalClassWriter.visitMethod(Opcodes.ACC_PROTECTED, "threadTerminated", "(Ljava/lang/Object;)V", null, null);
+            threadLocalThreadTerminated.visitCode();
+            threadLocalThreadTerminated.visitVarInsn(Opcodes.ALOAD, 0);
+            threadLocalThreadTerminated.visitFieldInsn(Opcodes.GETFIELD, terminatingThreadLocalBinaryClassName, "onThreadTermination", "Ljava/util/function/Consumer;");
+            threadLocalThreadTerminated.visitVarInsn(Opcodes.ALOAD, 1);
+            threadLocalThreadTerminated.visitMethodInsn(Opcodes.INVOKEINTERFACE, "java/util/function/Consumer", "accept", "(Ljava/lang/Object;)V", true);
+            threadLocalThreadTerminated.visitInsn(Opcodes.RETURN);
+            threadLocalThreadTerminated.visitMaxs(2, 2);
+            threadLocalThreadTerminated.visitEnd();
         }
 
         @Override

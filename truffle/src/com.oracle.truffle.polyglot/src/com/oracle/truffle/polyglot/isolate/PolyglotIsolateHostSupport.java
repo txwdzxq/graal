@@ -99,11 +99,17 @@ final class PolyglotIsolateHostSupport {
 
         if (!ImageInfo.inImageCode() && Truffle.getRuntime() instanceof DefaultTruffleRuntime && PolyglotIsolateAccessor.ENGINE.getModulesAccessor() == null) {
             /*
-             * On HotSpot, polyglot isolates running with the fallback Truffle runtime depend on
-             * libtruffleattach for stack-limit support and terminating thread locals.
+             * On HotSpot, polyglot isolates running with the fallback Truffle runtime require
+             * libtruffleattach to provide stack-limit support and terminating thread locals.
+             * Loading libtruffleattach can fail for several reasons, such as a missing library,
+             * incorrect packaging, loading from multiple class loaders, or missing native-access
+             * permissions. In that case isolate hosting cannot continue, so we abort and include
+             * the original libtruffleattach initialization error in the failure message.
              */
+            String moduleAccessorInitError = PolyglotIsolateAccessor.ENGINE.getModuleAccessorInitializationError();
             throw new IllegalStateException("Polyglot isolates require libtruffleattach when running on HotSpot with the fallback Truffle runtime. " +
-                            "Ensure that libtruffleattach is available, or switch to the optimized Truffle runtime.");
+                            "The libtruffleattach library could not be loaded: " + moduleAccessorInitError + " " +
+                            "Resolve the libtruffleattach loading issue, or switch to the optimized Truffle runtime.");
         }
         APIAccess apiAccess = polyglot.getAPIAccess();
         LibraryConfig libraryConfig = resolveIsolatePaths(apiAccess.getEngineReceiver(localEngine), isolateLibrary, isolateLauncher, permittedLanguages, isolateLanguages);

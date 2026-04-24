@@ -2293,6 +2293,11 @@ final class EngineAccessor extends Accessor {
         }
 
         @Override
+        public String getModuleAccessorInitializationError() {
+            return JDKSupport.getInitializationErrorMessage();
+        }
+
+        @Override
         public Node getUncachedLocation(Object polyglotContext) {
             return ((PolyglotContextImpl) polyglotContext).uncachedLocation;
         }
