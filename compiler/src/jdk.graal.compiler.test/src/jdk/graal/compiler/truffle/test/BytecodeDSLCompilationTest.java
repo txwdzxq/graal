@@ -1086,9 +1086,9 @@ public class BytecodeDSLCompilationTest extends TestWithSynchronousCompiling {
             endYield.accept(b);
 
             if (deoptBeforeWrite) {
-                b.beginDeoptimize();
+                b.beginDeoptimizeHere();
                 b.emitLoadArgument(1);
-                b.endDeoptimize();
+                b.endDeoptimizeHere();
             }
 
             emitStore.accept(b, x);
@@ -1143,9 +1143,9 @@ public class BytecodeDSLCompilationTest extends TestWithSynchronousCompiling {
             b.beginAdd();
             b.beginBlock();
             // Stack operands, locals, arguments should all be preserved if deopt occurs.
-            b.beginDeoptimize();
+            b.beginDeoptimizeHere();
             b.emitLoadArgument(0);
-            b.endDeoptimize();
+            b.endDeoptimizeHere();
             b.emitLoadArgument(1);
             b.endBlock();
             b.emitLoadLocal(x);
@@ -1822,7 +1822,9 @@ public class BytecodeDSLCompilationTest extends TestWithSynchronousCompiling {
         assertEquals(42L, callerTarget.call(true));
 
         assertTrue("Expected transferToInterpreter transition for inlined runtime-compiled method", hasTransitionLog(transitionLogs, "transferToInterpreter"));
-        assertTrue("Expected transition to reference the Deoptimize operation", hasTransitionDetail(transitionLogs, "load.constant"));
+        // The deopt floats to the top of continueAt. The wasCompiled check re-enters before
+        // executing the first instruction.
+        assertTrue("Expected transition to reference the load.argument operation", hasTransitionDetail(transitionLogs, "load.argument"));
         assertNotCompiled(calleeTarget);
     }
 
