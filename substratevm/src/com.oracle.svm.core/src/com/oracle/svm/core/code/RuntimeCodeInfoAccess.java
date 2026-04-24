@@ -311,6 +311,7 @@ public final class RuntimeCodeInfoAccess {
         CodeInfoImpl impl = cast(info);
         action.apply(impl.getCodeInfoIndex());
         action.apply(impl.getCodeInfoEncodings());
+        action.apply(impl.getCodeInfoDefaultFrameInfos());
         action.apply(impl.getStackReferenceMapEncoding());
         action.apply(impl.getFrameInfoEncodings());
         action.apply(impl.getDeoptimizationStartOffsets());

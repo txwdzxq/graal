@@ -237,6 +237,7 @@ public final class CodeInfoAccess {
             size = size.add(NonmovableArrays.byteSizeOf(impl.getObjectFields()))
                             .add(NonmovableArrays.byteSizeOf(impl.getCodeInfoIndex()))
                             .add(NonmovableArrays.byteSizeOf(impl.getCodeInfoEncodings()))
+                            .add(NonmovableArrays.byteSizeOf(impl.getCodeInfoDefaultFrameInfos()))
                             .add(NonmovableArrays.byteSizeOf(impl.getStackReferenceMapEncoding()))
                             .add(NonmovableArrays.byteSizeOf(impl.getFrameInfoEncodings()))
                             .add(NonmovableArrays.byteSizeOf(impl.getObjectConstants()))
@@ -342,10 +343,12 @@ public final class CodeInfoAccess {
         impl.setFrameInfoEncodings(encodings);
     }
 
-    public static void setCodeInfo(CodeInfo info, NonmovableArray<Byte> index, NonmovableArray<Byte> encodings, NonmovableArray<Byte> referenceMapEncoding) {
+    public static void setCodeInfo(CodeInfo info, NonmovableArray<Byte> index, NonmovableArray<Byte> encodings, NonmovableArray<Byte> defaultFrameInfos,
+                    NonmovableArray<Byte> referenceMapEncoding) {
         CodeInfoImpl impl = cast(info);
         impl.setCodeInfoIndex(index);
         impl.setCodeInfoEncodings(encodings);
+        impl.setCodeInfoDefaultFrameInfos(defaultFrameInfos);
         impl.setStackReferenceMapEncoding(referenceMapEncoding);
     }
 
@@ -396,6 +399,16 @@ public final class CodeInfoAccess {
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
     public static NonmovableArray<Byte> getCodeInfoEncodings(CodeInfo info) {
         return cast(info).getCodeInfoEncodings();
+    }
+
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    public static NonmovableArray<Byte> getCodeInfoDefaultFrameInfos(CodeInfo info) {
+        return cast(info).getCodeInfoDefaultFrameInfos();
+    }
+
+    @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+    public static boolean hasCodeInfoDefaultFrameInfos(CodeInfo info) {
+        return cast(info).getCodeInfoDefaultFrameInfos().isNonNull();
     }
 
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)

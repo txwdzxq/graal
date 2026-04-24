@@ -118,7 +118,7 @@ public class WebImageCodeCache extends NativeImageCodeCache {
          */
         ImageCodeInfo.HostedImageCodeInfo imageCodeInfo = CodeInfoTable.getCurrentLayerImageCodeCache().getHostedImageCodeInfo();
         NonmovableArray<Byte> emptyBytes = NonmovableArrays.createByteArray(0, NmtCategory.Code);
-        CodeInfoAccess.setCodeInfo(imageCodeInfo, emptyBytes, emptyBytes, emptyBytes);
+        CodeInfoAccess.setCodeInfo(imageCodeInfo, emptyBytes, emptyBytes, emptyBytes, emptyBytes);
         CodeInfoAccess.setFrameInfo(imageCodeInfo, emptyBytes);
         imageCodeInfo.setMethodTable(NonmovableArrays.createByteArray(0, NmtCategory.Code));
         return null;
