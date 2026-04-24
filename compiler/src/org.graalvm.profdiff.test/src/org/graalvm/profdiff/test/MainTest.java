@@ -219,7 +219,7 @@ public class MainTest {
         assertOutputContains(optLog2.allCompilationIDs());
         Assert.assertTrue(output.contains("compilations are paired only when they have the same compilation ID"));
         Assert.assertFalse(output.contains("compilation fragment"));
-        Assert.assertTrue(output.contains("Compilation unit    10 in experiment 1 vs\n    Compilation unit    10 in experiment 2"));
+        Assert.assertTrue(output.contains("Compilation unit    10 in experiment 1 vs" + System.lineSeparator() + "    Compilation unit    10 in experiment 2"));
         Assert.assertFalse(output.contains("Compilation unit    20 in experiment 1 vs"));
     }
 
