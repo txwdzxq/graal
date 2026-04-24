@@ -24,6 +24,9 @@
  */
 package com.oracle.svm.core.hub.crema;
 
+import java.lang.reflect.Executable;
+import java.lang.reflect.Field;
+
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
@@ -32,6 +35,7 @@ import org.graalvm.nativeimage.c.function.CFunctionPointer;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.RuntimeClassLoading.ClassDefinitionInfo;
 import com.oracle.svm.core.hub.registry.SymbolsSupport;
+import com.oracle.svm.core.invoke.ResolvedMember;
 import com.oracle.svm.core.invoke.Target_java_lang_invoke_MemberName;
 import com.oracle.svm.espresso.classfile.ConstantPool;
 import com.oracle.svm.espresso.classfile.ParserKlass;
@@ -51,6 +55,10 @@ public interface CremaSupport {
     ResolvedJavaType createInterpreterType(DynamicHub hub, ResolvedJavaType analysisType);
 
     Target_java_lang_invoke_MemberName resolveMemberName(Target_java_lang_invoke_MemberName mn, Class<?> caller);
+
+    <T extends ResolvedJavaMethod & ResolvedMember> T toJVMCI(Executable executable);
+
+    <T extends ResolvedJavaField & ResolvedMember> T toJVMCI(Field field);
 
     Object invokeBasic(Target_java_lang_invoke_MemberName memberName, Object methodHandle, Object[] args);
 
