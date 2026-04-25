@@ -35,6 +35,7 @@ import jdk.graal.compiler.nodes.StructuredGraph;
 import jdk.graal.compiler.phases.common.CanonicalizerPhase;
 import jdk.graal.compiler.truffle.nodes.TrufflePreserveFrameStateNode;
 import jdk.graal.compiler.truffle.phases.TrufflePreserveFrameStateCleanupPhase;
+import jdk.vm.ci.meta.JavaKind;
 
 public class TrufflePreserveFrameStateCleanupPhaseTest extends TruffleCompilerImplTest {
 
@@ -64,7 +65,7 @@ public class TrufflePreserveFrameStateCleanupPhaseTest extends TruffleCompilerIm
     }
 
     @Test
-    public void testOnlyFirstMarkerInBlockIsKept() {
+    public void testEquivalentStateMarkersInBlockAreCollapsed() {
         StructuredGraph graph = parseGraph("snippetStraightLine", int.class);
         ReturnNode returnNode = graph.getNodes(ReturnNode.TYPE).first();
         Assert.assertNotNull(returnNode);
@@ -76,6 +77,24 @@ public class TrufflePreserveFrameStateCleanupPhaseTest extends TruffleCompilerIm
         applyCleanup(graph);
 
         Assert.assertEquals(1L, countMarkers(graph));
+    }
+
+    @Test
+    public void testDistinctStateMarkersInBlockAreKept() {
+        StructuredGraph graph = parseGraph("snippetStraightLine", int.class);
+        ReturnNode returnNode = graph.getNodes(ReturnNode.TYPE).first();
+        Assert.assertNotNull(returnNode);
+
+        FrameState originalState = findMarkerState(graph);
+        FrameState distinctState = duplicateWithDifferentBci(graph, originalState);
+
+        insertMarkerBefore(graph, returnNode, originalState);
+        insertMarkerBefore(graph, returnNode, distinctState);
+        Assert.assertEquals(2L, countMarkers(graph));
+
+        applyCleanup(graph);
+
+        Assert.assertEquals(2L, countMarkers(graph));
     }
 
     @Test
@@ -126,11 +145,33 @@ public class TrufflePreserveFrameStateCleanupPhaseTest extends TruffleCompilerIm
     }
 
     private static void insertMarkerBefore(StructuredGraph graph, FixedNode node) {
+        insertMarkerBefore(graph, node, findMarkerState(graph));
+    }
+
+    private static void insertMarkerBefore(StructuredGraph graph, FixedNode node, FrameState state) {
         TrufflePreserveFrameStateNode marker = graph.add(new TrufflePreserveFrameStateNode());
-        FrameState state = graph.getNodes(FrameState.TYPE).first();
         Assert.assertNotNull(state);
         marker.setStateAfter(state);
         graph.addBeforeFixed(node, marker);
+    }
+
+    private static FrameState findMarkerState(StructuredGraph graph) {
+        for (FrameState state : graph.getNodes(FrameState.TYPE)) {
+            if (state.getCode() != null && state.bci >= 0) {
+                return state;
+            }
+        }
+        Assert.fail("expected a parsed frame state");
+        return null;
+    }
+
+    private static FrameState duplicateWithDifferentBci(StructuredGraph graph, FrameState state) {
+        Assert.assertNotNull(state.getCode());
+        Assert.assertTrue(state.getCode().getCodeSize() > 1);
+        int newBci = state.bci == 0 ? 1 : 0;
+        FrameState duplicate = state.duplicateModified(graph, newBci, state.getStackState(), JavaKind.Void, null, null, null);
+        Assert.assertNotEquals(FrameState.toSourcePosition(state), FrameState.toSourcePosition(duplicate));
+        return duplicate;
     }
 
     public static int snippetIfElse(boolean cond) {

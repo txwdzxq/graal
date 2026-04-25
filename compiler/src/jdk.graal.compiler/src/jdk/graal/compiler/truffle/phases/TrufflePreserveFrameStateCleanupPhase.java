@@ -25,8 +25,11 @@
 package jdk.graal.compiler.truffle.phases;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 
+import jdk.graal.compiler.graph.NodeSourcePosition;
 import jdk.graal.compiler.nodes.FixedNode;
+import jdk.graal.compiler.nodes.FrameState;
 import jdk.graal.compiler.nodes.StructuredGraph;
 import jdk.graal.compiler.nodes.cfg.ControlFlowGraph;
 import jdk.graal.compiler.nodes.cfg.HIRBlock;
@@ -37,8 +40,8 @@ import jdk.graal.compiler.truffle.nodes.TrufflePreserveFrameStateNode;
 /**
  * Removes redundant Truffle preserve-frame-state markers introduced by inlining during PE.
  *
- * A marker is redundant if it is dominated by another marker. In each block, only the first marker
- * is considered a candidate keeper.
+ * A marker is redundant if it is dominated by another marker preserving the same logical
+ * deoptimization location.
  */
 public final class TrufflePreserveFrameStateCleanupPhase extends BasePhase<TruffleTierContext> {
 
@@ -52,38 +55,47 @@ public final class TrufflePreserveFrameStateCleanupPhase extends BasePhase<Truff
         cfg.visitDominatorTreeDefault(new RedundantPreserveNodeCleanupVisitor(graph));
     }
 
-    private static final class RedundantPreserveNodeCleanupVisitor implements ControlFlowGraph.RecursiveVisitor<Boolean> {
+    private static final class RedundantPreserveNodeCleanupVisitor implements ControlFlowGraph.RecursiveVisitor<Integer> {
         private final StructuredGraph graph;
-        private boolean markerSeenOnCurrentPath;
+        private final ArrayList<NodeSourcePosition> markerLocationsOnCurrentPath;
+        private final LinkedHashSet<NodeSourcePosition> seenMarkerLocationsOnCurrentPath;
 
         private RedundantPreserveNodeCleanupVisitor(StructuredGraph graph) {
             this.graph = graph;
-            this.markerSeenOnCurrentPath = false;
+            this.markerLocationsOnCurrentPath = new ArrayList<>(4);
+            this.seenMarkerLocationsOnCurrentPath = new LinkedHashSet<>(4);
         }
 
         @Override
-        public Boolean enter(HIRBlock block) {
-            boolean previousMarkerSeenOnPath = markerSeenOnCurrentPath;
-            boolean keepFirstMarkerInBlock = !markerSeenOnCurrentPath;
-            boolean keptMarkerInBlock = false;
+        public Integer enter(HIRBlock block) {
+            int previousDepth = markerLocationsOnCurrentPath.size();
             for (TrufflePreserveFrameStateNode marker : collectMarkers(block)) {
                 if (!marker.isAlive()) {
                     continue;
                 }
-                if (keepFirstMarkerInBlock && !keptMarkerInBlock) {
-                    keptMarkerInBlock = true;
-                    markerSeenOnCurrentPath = true;
+                NodeSourcePosition markerLocation = markerLocation(marker);
+                if (seenMarkerLocationsOnCurrentPath.add(markerLocation)) {
+                    markerLocationsOnCurrentPath.add(markerLocation);
                 } else {
                     graph.removeFixed(marker);
                 }
             }
-            return previousMarkerSeenOnPath;
+            return previousDepth;
         }
 
         @Override
-        public void exit(HIRBlock block, Boolean previousMarkerSeenOnPath) {
-            markerSeenOnCurrentPath = Boolean.TRUE.equals(previousMarkerSeenOnPath);
+        public void exit(HIRBlock block, Integer previousDepth) {
+            while (markerLocationsOnCurrentPath.size() > previousDepth) {
+                NodeSourcePosition markerLocation = markerLocationsOnCurrentPath.remove(markerLocationsOnCurrentPath.size() - 1);
+                seenMarkerLocationsOnCurrentPath.remove(markerLocation);
+            }
         }
+    }
+
+    private static NodeSourcePosition markerLocation(TrufflePreserveFrameStateNode marker) {
+        // Preserve markers are only redundant when they restore the same deoptimization location.
+        FrameState stateAfter = marker.stateAfter();
+        return FrameState.toSourcePosition(stateAfter);
     }
 
     private static ArrayList<TrufflePreserveFrameStateNode> collectMarkers(HIRBlock block) {
