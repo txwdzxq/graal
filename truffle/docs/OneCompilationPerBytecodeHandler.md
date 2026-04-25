@@ -143,6 +143,8 @@ __stub_addHandler(ReceiverType thiz, int pc, int sp, short[] bytecode, Frame fra
 }
 ```
 
+On Native Image, use `-H:Dump=:2 -H:MethodFilter="__stub_*" -H:+TrackNodeSourcePosition` to dump the host compilation graphs for all handlers with source positions.
+
 ### 5. How the Call Site Changes
 
 The original switch case:
