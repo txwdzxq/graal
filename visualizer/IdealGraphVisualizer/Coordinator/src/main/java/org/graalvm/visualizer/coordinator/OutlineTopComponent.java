@@ -91,6 +91,8 @@ public final class OutlineTopComponent extends TopComponent implements ExplorerM
     private static final String EXPAND_ICON = "org/graalvm/visualizer/search/resources/expandTree.png";
     private static final String COLLAPSE_ICON = "org/graalvm/visualizer/search/resources/collapseTree.png";
     private static final String SEARCH_ICON = "org/openide/awt/resources/quicksearch/find.png";
+    private static final String PREVIOUS_MATCH_ICON = "org/graalvm/visualizer/search/resources/prev.png";
+    private static final String NEXT_MATCH_ICON = "org/graalvm/visualizer/search/resources/next.png";
 
     public static OutlineTopComponent instance;
     public static final String PREFERRED_ID = "OutlineTopComponent";
@@ -287,6 +289,15 @@ public final class OutlineTopComponent extends TopComponent implements ExplorerM
         searchStatusLabel.setOpaque(true);
         searchStatusLabel.setBackground(searchStripBackground);
 
+        JPanel searchControlsPanel = new JPanel();
+        searchControlsPanel.setLayout(new BoxLayout(searchControlsPanel, BoxLayout.X_AXIS));
+        searchControlsPanel.setOpaque(true);
+        searchControlsPanel.setBackground(searchStripBackground);
+        searchControlsPanel.add(createSearchNavigationButton(PREVIOUS_MATCH_ICON, "Previous Outline search match (Shift+F3)", () -> searchController.previousMatch()));
+        searchControlsPanel.add(createSearchNavigationButton(NEXT_MATCH_ICON, "Next Outline search match (F3)", () -> searchController.nextMatch()));
+        searchControlsPanel.add(Box.createHorizontalStrut(4));
+        searchControlsPanel.add(searchStatusLabel);
+
         searchStripPanel = new JPanel(new BorderLayout(6, 0));
         searchStripPanel.setOpaque(true);
         searchStripPanel.setBackground(searchStripBackground);
@@ -297,7 +308,7 @@ public final class OutlineTopComponent extends TopComponent implements ExplorerM
         searchStripPanel.setBorder(BorderFactory.createCompoundBorder(
                         BorderFactory.createMatteBorder(0, 0, 1, 0, searchStripSeparator),
                         BorderFactory.createEmptyBorder(0, 4, 0, 4)));
-        searchStripPanel.add(searchStatusLabel, BorderLayout.EAST);
+        searchStripPanel.add(searchControlsPanel, BorderLayout.EAST);
         searchStripPanel.setVisible(false);
         topPanel.add(searchStripPanel, BorderLayout.SOUTH);
 
@@ -315,6 +326,21 @@ public final class OutlineTopComponent extends TopComponent implements ExplorerM
         Icon icon = ImageUtilities.loadImageIcon(iconResource, true);
         JButton button = new JButton(icon);
         button.setToolTipText(toolTipText);
+        button.addActionListener(e -> action.run());
+        return button;
+    }
+
+    private JButton createSearchNavigationButton(String iconResource, String toolTipText, Runnable action) {
+        JButton button = new JButton(ImageUtilities.loadImageIcon(iconResource, true));
+        button.setToolTipText(toolTipText);
+        button.setFocusable(false);
+        button.setBorder(BorderFactory.createEmptyBorder(1, 2, 1, 2));
+        button.setContentAreaFilled(false);
+        button.setOpaque(false);
+        Dimension buttonSize = new Dimension(20, 20);
+        button.setMinimumSize(buttonSize);
+        button.setPreferredSize(buttonSize);
+        button.setMaximumSize(buttonSize);
         button.addActionListener(e -> action.run());
         return button;
     }
