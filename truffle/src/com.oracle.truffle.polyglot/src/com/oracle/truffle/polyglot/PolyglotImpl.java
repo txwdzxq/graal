@@ -418,12 +418,16 @@ public final class PolyglotImpl extends AbstractPolyglotImpl {
                     throw sandboxPolicyException(sandboxPolicy, "The engine.MaxIsolateMemory option is not set, but must be set to maximum polyglot isolate heap size.",
                                     "set Builder.option(\"engine.MaxIsolateMemory\", \"<maximum isolate heap size>\")");
                 }
-                long stackHeadRoom = parseOption(PolyglotEngineOptions.HostCallStackHeadRoom, "engine.HostCallStackHeadRoom", options, systemPropertiesOptions, useSystemProperties);
-                if (stackHeadRoom < 128 * 1024) {
-                    throw sandboxPolicyException(sandboxPolicy,
-                                    String.format("The engine.HostCallStackHeadRoom option is set to %dB, but must be set to at least 128KB.", stackHeadRoom),
-                                    String.format("use the default value by removing Builder.option(\"engine.HostCallStackHeadRoom\", \"%dB\") or increase its value",
-                                                    stackHeadRoom));
+                if (hasBeenSet("engine.HostCallStackHeadRoom", options, systemPropertiesOptions, useSystemProperties)) {
+                    long stackHeadRoom = parseOption(PolyglotEngineOptions.HostCallStackHeadRoom, "engine.HostCallStackHeadRoom", options, systemPropertiesOptions, useSystemProperties);
+                    if (stackHeadRoom < 128 * 1024) {
+                        throw sandboxPolicyException(sandboxPolicy,
+                                        String.format("The engine.HostCallStackHeadRoom option is set to %dB, but must be set to at least 128KB.", stackHeadRoom),
+                                        String.format("use the default value by removing Builder.option(\"engine.HostCallStackHeadRoom\", \"%dB\") or increase its value",
+                                                        stackHeadRoom));
+                    }
+                } else {
+                    optionsWithPresets.put("engine.HostCallStackHeadRoom", "128KB");
                 }
                 String[] spawnIsolate = parseOption(PolyglotEngineOptions.SpawnIsolate, "engine.SpawnIsolate", options, systemPropertiesOptions, useSystemProperties);
                 if (spawnIsolate == null) {

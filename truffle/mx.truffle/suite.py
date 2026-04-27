@@ -235,6 +235,7 @@ suite = {
       ],
       "requires" : [
         "java.logging",
+        "jdk.management",
         "jdk.unsupported", # sun.misc.Unsafe
       ],
       "javaCompliance" : "17+",
@@ -303,6 +304,7 @@ suite = {
         "java.base" : [
           "jdk.internal.module",
           "jdk.internal.access",
+          "jdk.internal.misc",
         ],
       },
       "annotationProcessors" : [
@@ -1417,13 +1419,13 @@ suite = {
         "linux" : {
           "<others>" : {
             "cflags" : ["-g", "-O3", "-Wall", "-Werror", "-D_GNU_SOURCE"],
-            "ldlibs" : ["-ldl"],
+            "ldlibs" : ["-ldl", "-pthread"],
           },
         },
-        "<others>" : {
+        "darwin" : {
           "<others>" : {
-            "cflags" : ["-g", "-O3", "-Wall", "-Werror"],
-            "ldlibs" : ["-ldl"],
+            "cflags" : ["-g", "-O3", "-Wall", "-Werror", "-pthread"],
+            "ldlibs" : ["-ldl", "-pthread"],
           },
         },
       },

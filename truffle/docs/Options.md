@@ -52,7 +52,7 @@ They are useful to users and language and tool implementers.
 - `--engine.BytecodeHistogramInterval` : Print and reset the opcode histogram at a fixed interval while BytecodeHistogram is enabled. Use 0 to disable periodic printing and print only once at shutdown. Examples: 250ms, 2s, 1m.
 - `--engine.BytecodeLanguageFilter` : Limit tracing and statistics to specific language IDs. Provide a comma-separated list of language IDs, for example: `js`, `python`. An empty value includes all languages. Applies to `--engine.TraceBytecode`, `--engine.TraceBytecodeTransition`, and `--engine.BytecodeHistogram`.
 - `--engine.BytecodeMethodFilter` : Limit tracing and statistics to selected methods. Matches against `RootNode.getQualifiedName()`. Provide a comma-separated list of includes, or excludes prefixed with `~`. An empty value means no restriction. Whitespace around commas is ignored. Applies to `--engine.TraceBytecode`, `--engine.TraceBytecodeTransition`, and `--engine.BytecodeHistogram`.
-- `--engine.HostCallStackHeadRoom=[1, inf)<B>|<KB>|<MB>|<GB>` : Stack space headroom for calls to the host.
+- `--engine.HostCallStackHeadRoom=[0, inf)<B>|<KB>|<MB>|<GB>` : Stack space headroom for calls to the host. A value of 0 disables this check.
 - `--engine.InterpreterCallStackHeadRoom=[0, inf)<B>|<KB>|<MB>|<GB>` : Stack space headroom for any interpreter call. Supported only in the AOT mode.
 - `--engine.IsolateMemoryProtection=true|false` : Enable memory protection for the isolate.
 - `--engine.IsolateOption.<key>=<value>` : Isolate VM options.

@@ -309,7 +309,7 @@ final class DefaultRuntimeAccessor extends Accessor {
 
         @Override
         public <T> ThreadLocal<T> createTerminatingThreadLocal(Supplier<T> initialValue, Consumer<T> onThreadTermination) {
-            return ThreadLocal.withInitial(initialValue);
+            return DefaultTruffleRuntime.createTerminatingThreadLocal(initialValue, onThreadTermination);
         }
 
         @Override
@@ -329,8 +329,9 @@ final class DefaultRuntimeAccessor extends Accessor {
 
         @Override
         public long getStackOverflowLimit() {
-            throw new UnsupportedOperationException();
+            return DefaultTruffleRuntime.getStackOverflowLimit();
         }
+
     }
 
 }

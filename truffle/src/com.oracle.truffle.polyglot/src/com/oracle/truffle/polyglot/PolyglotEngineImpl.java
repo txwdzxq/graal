@@ -545,9 +545,15 @@ final class PolyglotEngineImpl implements com.oracle.truffle.polyglot.PolyglotIm
     void notifyCreated() {
         RUNTIME.onEngineCreate(this, this.runtimeData);
         long interpreterCallStackHeadRoom = engineOptionValues.get(PolyglotEngineOptions.InterpreterCallStackHeadRoom);
-        if (interpreterCallStackHeadRoom != 0 && runtimeData != null) {
+        if (interpreterCallStackHeadRoom != 0) {
             if (EngineAccessor.SANDBOX.isInterpreterCallStackHeadRoomSupported()) {
-                EngineAccessor.RUNTIME.initializeInterpreterCallStackHeadRoom(runtimeData, interpreterCallStackHeadRoom);
+                if (runtimeData != null) {
+                    EngineAccessor.RUNTIME.initializeInterpreterCallStackHeadRoom(runtimeData, interpreterCallStackHeadRoom);
+                } else {
+                    throw PolyglotEngineException.illegalArgument(
+                                    "The engine.InterpreterCallStackHeadRoom option is set to a non-zero value, but the option is not supported on the fallback Truffle runtime. " +
+                                                    "In order to resolve this either switch to an optimized Truffle runtime that supports the option or don't set it.");
+                }
             } else {
                 throw PolyglotEngineException.illegalArgument("The engine.InterpreterCallStackHeadRoom option is set to a non-zero value, but the option is not supported on the current VM. " +
                                 "In order to resolve this either switch to a VM that supports the option or don't set it.");

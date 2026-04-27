@@ -820,6 +820,8 @@ public abstract class Accessor {
 
         public abstract ModulesAccessor getModulesAccessor();
 
+        public abstract String getModuleAccessorInitializationError();
+
         public abstract Node getUncachedLocation(Object polyglotContext);
 
         public abstract OptionValues parseLanguageSourceOptions(Object polyglotLanguageContext, Source source);
@@ -1513,6 +1515,8 @@ public abstract class Accessor {
             }
         }
 
+        public abstract <T> ThreadLocal<T> createTerminatingThreadLocal(Supplier<T> initialValue, Consumer<T> onThreadTermination);
+
         private static native <T> T runPinned0(Supplier<T> action);
 
         private static native void registerJVMTIHook();
@@ -1616,6 +1620,8 @@ public abstract class Accessor {
         public abstract void triggerIsolateGC(Object engine);
 
         public abstract Path dumpIsolateHeap(Object engine, Path folder) throws IOException;
+
+        public abstract long getHostStackHeadRoom(Object engine);
     }
 
     public final void transferOSRFrameStaticSlot(FrameWithoutBoxing sourceFrame, FrameWithoutBoxing targetFrame, int slot) {
