@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -35,17 +35,21 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.graalvm.collections.Pair;
+import org.graalvm.shadowed.org.json.JSONArray;
+import org.graalvm.shadowed.org.json.JSONObject;
 
 import com.oracle.truffle.api.InstrumentInfo;
 import com.oracle.truffle.api.debug.DebugException;
-import com.oracle.truffle.api.debug.DebugValue;
 import com.oracle.truffle.api.debug.DebugScope;
+import com.oracle.truffle.api.debug.DebugValue;
 import com.oracle.truffle.api.nodes.LanguageInfo;
 import com.oracle.truffle.api.source.Source;
 import com.oracle.truffle.api.source.Source.LiteralBuilder;
 import com.oracle.truffle.api.source.SourceSection;
-
 import com.oracle.truffle.tools.chromeinspector.InspectorExecutionContext.NoSuspendedThreadException;
 import com.oracle.truffle.tools.chromeinspector.commands.Params;
 import com.oracle.truffle.tools.chromeinspector.domains.RuntimeDomain;
@@ -64,13 +68,10 @@ import com.oracle.truffle.tools.chromeinspector.types.RemoteObject;
 import com.oracle.truffle.tools.chromeinspector.types.RemoteObject.TypeMark;
 import com.oracle.truffle.tools.chromeinspector.types.TypeInfo;
 
-import org.graalvm.collections.Pair;
-import org.graalvm.shadowed.org.json.JSONArray;
-import org.graalvm.shadowed.org.json.JSONObject;
-
 public final class InspectorRuntime extends RuntimeDomain {
 
     private static final Pattern WHITESPACES_PATTERN = Pattern.compile("\\s+");
+    private static final Pattern SOURCE_URL_PATTERN = Pattern.compile("^\\s*(//[@#]\\s*sourceURL=[^\\r\\n]*)\\s*$", Pattern.MULTILINE);
     private static final String FUNCTION_COMPLETION = eliminateWhiteSpaces("function getCompletions(");
     private static final String FUNCTION_SET_PROPERTY = eliminateWhiteSpaces("function(a, b) { this[a] = b; }");
     private static final String FUNCTION_GET_ARRAY_NUM_PROPS = eliminateWhiteSpaces("function() { return [this.length, Object.keys(this).length - this.length + 2]; }");
@@ -552,8 +553,10 @@ public final class InspectorRuntime extends RuntimeDomain {
             DebuggerSuspendedInfo suspendedInfo = context.getSuspendedInfo();
             if (suspendedInfo != null) {
                 try {
-                    String functionTrimmed = functionDeclaration.trim();
-                    String functionNoWS = eliminateWhiteSpaces(functionDeclaration);
+                    Pair<String, String> strippedFunctionAndSourceURL = extractSourceURLComment(functionDeclaration);
+                    String functionTrimmed = strippedFunctionAndSourceURL.getLeft();
+                    String sourceURLComment = strippedFunctionAndSourceURL.getRight();
+                    String functionNoWS = eliminateWhiteSpaces(functionTrimmed);
                     context.executeInSuspendThread(new SuspendThreadExecutable<Void>() {
                         @Override
                         public Void executeCommand() throws CommandProcessException {
@@ -740,6 +743,9 @@ public final class InspectorRuntime extends RuntimeDomain {
                                     code.append("]");
                                 }
                                 code.append(")");
+                                if (sourceURLComment != null) {
+                                    code.append("\n").append(sourceURLComment);
+                                }
                                 DebugValue eval = suspendedInfo.getSuspendedEvent().getTopStackFrame().eval(code.toString());
                                 suspendedInfo.refreshFrames();
                                 result = asResult(eval);
@@ -963,6 +969,18 @@ public final class InspectorRuntime extends RuntimeDomain {
             return null;
         }
         return RemoteObject.createSimpleObject(TypeInfo.TYPE.FUNCTION, "Function", "");
+    }
+
+    private static Pair<String, String> extractSourceURLComment(String functionDeclaration) {
+        Matcher matcher = SOURCE_URL_PATTERN.matcher(functionDeclaration);
+        String sourceURLComment = null;
+        StringBuilder stripped = new StringBuilder(functionDeclaration.length());
+        while (matcher.find()) {
+            sourceURLComment = matcher.group(1).trim();
+            matcher.appendReplacement(stripped, "");
+        }
+        matcher.appendTail(stripped);
+        return Pair.create(stripped.toString().strip(), sourceURLComment);
     }
 
     private static String eliminateWhiteSpaces(String str) {
