@@ -38,6 +38,7 @@ import com.oracle.svm.shared.singletons.traits.BuiltinTraits.AllAccess;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.SingleLayer;
 import com.oracle.svm.shared.singletons.traits.SingletonLayeredInstallationKind.InitialLayerOnly;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
+import com.oracle.svm.shared.util.VMError;
 
 @AutomaticallyRegisteredImageSingleton(PlatformLockingSupport.class)
 @SingletonTraits(access = AllAccess.class, layeredCallbacks = SingleLayer.class, layeredInstallationKind = InitialLayerOnly.class)
@@ -45,25 +46,25 @@ final class DarwinLockingSupport extends PosixLockingSupport {
     @Override
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public int semaphoreSize() {
-        return SizeOf.get(DarwinSemaphore.semaphore_tPointer.class);
+        return SizeOf.get(DarwinSemaphore.semaphore_t.class);
     }
 
     @Override
     @Uninterruptible(reason = "Too early for safepoints.")
     public int initializeSemaphore(PlatformSemaphore semaphore) {
-        return DarwinSemaphore.NoTransition.semaphore_create(DarwinVirtualMemory.mach_task_self(), asSemaphorePointer(semaphore), DarwinSemaphore.SYNC_POLICY_FIFO(), 0);
+        return DarwinSemaphore.NoTransition.semaphore_create(DarwinVirtualMemory.mach_task_self(), asSemaphore(semaphore), DarwinSemaphore.SYNC_POLICY_FIFO(), 0);
     }
 
     @Override
     @Uninterruptible(reason = "The isolate teardown is in progress.")
     public int destroySemaphore(PlatformSemaphore semaphore) {
-        return DarwinSemaphore.NoTransition.semaphore_destroy(DarwinVirtualMemory.mach_task_self(), asSemaphore(semaphore));
+        return DarwinSemaphore.NoTransition.semaphore_destroy(DarwinVirtualMemory.mach_task_self(), asInt(semaphore));
     }
 
     @Override
     public void awaitSemaphore(PlatformSemaphore semaphore) {
         int result;
-        while ((result = DarwinSemaphore.semaphore_wait(asSemaphore(semaphore))) == DarwinSemaphore.KERN_ABORTED()) {
+        while ((result = DarwinSemaphore.semaphore_wait(asInt(semaphore))) == DarwinSemaphore.KERN_ABORTED()) {
             /*
              * Note: On Darwin (macOS), the semaphore_wait method may return KERN_ABORTED if it gets
              * interrupted by the SIGPROF signal. In such cases, it is necessary to retry the
@@ -77,16 +78,18 @@ final class DarwinLockingSupport extends PosixLockingSupport {
     @Override
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public void signalSemaphore(PlatformSemaphore semaphore) {
-        checkResult(DarwinSemaphore.NoTransition.semaphore_signal(asSemaphore(semaphore)), "semaphore_signal");
+        checkResult(DarwinSemaphore.NoTransition.semaphore_signal(asInt(semaphore)), "semaphore_signal");
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     private static DarwinSemaphore.semaphore_t asSemaphore(PlatformSemaphore semaphore) {
-        return asSemaphorePointer(semaphore).read();
+        return (DarwinSemaphore.semaphore_t) semaphore;
     }
 
+    /** semaphore_t is an unsigned int. */
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-    private static DarwinSemaphore.semaphore_tPointer asSemaphorePointer(PlatformSemaphore semaphore) {
-        return (DarwinSemaphore.semaphore_tPointer) semaphore;
+    private int asInt(PlatformSemaphore semaphore) {
+        VMError.guarantee(semaphoreSize() == Integer.BYTES, "Unexpected size of semaphore_t");
+        return asSemaphore(semaphore).read();
     }
 }
