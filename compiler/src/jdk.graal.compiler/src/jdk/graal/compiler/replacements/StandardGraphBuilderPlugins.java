@@ -71,6 +71,7 @@ import jdk.graal.compiler.debug.GraalError;
 import jdk.graal.compiler.graph.Edges;
 import jdk.graal.compiler.graph.Node;
 import jdk.graal.compiler.graph.NodeList;
+import jdk.graal.compiler.lir.SyncPort;
 import jdk.graal.compiler.lir.gen.ArithmeticLIRGeneratorTool.RoundingMode;
 import jdk.graal.compiler.nodes.AbstractBeginNode;
 import jdk.graal.compiler.nodes.BeginNode;
@@ -98,6 +99,7 @@ import jdk.graal.compiler.nodes.ValueNode;
 import jdk.graal.compiler.nodes.ValuePhiNode;
 import jdk.graal.compiler.nodes.calc.AbsNode;
 import jdk.graal.compiler.nodes.calc.AddNode;
+import jdk.graal.compiler.nodes.calc.AndNode;
 import jdk.graal.compiler.nodes.calc.CompareNode;
 import jdk.graal.compiler.nodes.calc.ConditionalNode;
 import jdk.graal.compiler.nodes.calc.FloatEqualsNode;
@@ -119,6 +121,8 @@ import jdk.graal.compiler.nodes.calc.SqrtNode;
 import jdk.graal.compiler.nodes.calc.SubNode;
 import jdk.graal.compiler.nodes.calc.UnsignedDivNode;
 import jdk.graal.compiler.nodes.calc.UnsignedRemNode;
+import jdk.graal.compiler.nodes.calc.UnsignedRightShiftNode;
+import jdk.graal.compiler.nodes.calc.XorNode;
 import jdk.graal.compiler.nodes.calc.ZeroExtendNode;
 import jdk.graal.compiler.nodes.debug.BindToRegisterNode;
 import jdk.graal.compiler.nodes.debug.BlackholeNode;
@@ -181,7 +185,9 @@ import jdk.graal.compiler.nodes.java.ReachabilityFenceNode;
 import jdk.graal.compiler.nodes.java.RegisterFinalizerNode;
 import jdk.graal.compiler.nodes.java.UnsafeCompareAndExchangeNode;
 import jdk.graal.compiler.nodes.java.UnsafeCompareAndSwapNode;
+import jdk.graal.compiler.nodes.memory.address.AddressNode;
 import jdk.graal.compiler.nodes.memory.address.IndexAddressNode;
+import jdk.graal.compiler.nodes.memory.address.OffsetAddressNode;
 import jdk.graal.compiler.nodes.spi.TrackedUnsafeAccess;
 import jdk.graal.compiler.nodes.type.StampTool;
 import jdk.graal.compiler.nodes.util.ConstantFoldUtil;
@@ -203,6 +209,9 @@ import jdk.graal.compiler.replacements.nodes.CountLeadingZerosNode;
 import jdk.graal.compiler.replacements.nodes.CountPositivesNode;
 import jdk.graal.compiler.replacements.nodes.CountTrailingZerosNode;
 import jdk.graal.compiler.replacements.nodes.CounterModeAESNode;
+import jdk.graal.compiler.replacements.nodes.CRC32CUpdateBytesNode;
+import jdk.graal.compiler.replacements.nodes.CRC32TableNode;
+import jdk.graal.compiler.replacements.nodes.CRC32UpdateBytesNode;
 import jdk.graal.compiler.replacements.nodes.ElectronicCodeBookAESNode;
 import jdk.graal.compiler.replacements.nodes.EncodeArrayNode;
 import jdk.graal.compiler.replacements.nodes.GHASHProcessBlocksNode;
@@ -290,6 +299,7 @@ public class StandardGraphBuilderPlugins {
             if (enableAesPlugins) {
                 registerAESPlugins(plugins);
             }
+            registerCRCPlugins(plugins);
             registerGHASHPlugin(plugins);
             registerBigIntegerPlugins(plugins);
             registerBase64Plugins(plugins);
@@ -353,6 +363,91 @@ public class StandardGraphBuilderPlugins {
                 return false;
             }
 
+        });
+    }
+
+    // @formatter:off
+    @SyncPort(from = "https://github.com/openjdk/jdk25u/blob/2fce64f0ecc22355298b9ab9c1ba9477a2f1ec86/src/hotspot/share/opto/library_call.cpp#L6629-L6662",
+              sha1 = "8d23966e9240c567d49763b85a49c336f3988100")
+    // @formatter:on
+    private static void registerCRCPlugins(InvocationPlugins plugins) {
+        Registration crc32 = new Registration(plugins, java.util.zip.CRC32.class);
+        crc32.register(new InvocationPlugin("update", int.class, int.class) {
+            @Override
+            public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode crc, ValueNode arg) {
+                ValueNode table = b.add(new CRC32TableNode());
+                ValueNode c = new XorNode(crc, ConstantNode.forInt(-1));
+                ValueNode index = new AndNode(new XorNode(arg, c), ConstantNode.forInt(0xff));
+                ValueNode offset = new LeftShiftNode(index, ConstantNode.forInt(2));
+                AddressNode address = new OffsetAddressNode(table, new SignExtendNode(offset, 32, 64));
+                ValueNode tableValue = b.add(new JavaReadNode(JavaKind.Int, address, OFF_HEAP_LOCATION, BarrierType.NONE, PLAIN, false));
+                ValueNode result = new XorNode(tableValue, new UnsignedRightShiftNode(c, ConstantNode.forInt(8)));
+                b.addPush(JavaKind.Int, new XorNode(result, ConstantNode.forInt(-1)));
+                return true;
+            }
+        });
+
+        crc32.register(new ConditionalInvocationPlugin("updateBytes0", int.class, byte[].class, int.class, int.class) {
+            @Override
+            public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode crc, ValueNode buf, ValueNode off, ValueNode len) {
+                try (InvocationPluginHelper helper = new InvocationPluginHelper(b, targetMethod)) {
+                    ValueNode nonNullBuf = b.nullCheckedValue(buf);
+                    ValueNode bufAddr = helper.arrayElementPointer(nonNullBuf, JavaKind.Byte, off);
+                    b.addPush(JavaKind.Int, new CRC32UpdateBytesNode(crc, bufAddr, len));
+                }
+                return true;
+            }
+
+            @Override
+            public boolean isApplicable(Architecture arch) {
+                return CRC32UpdateBytesNode.isSupported(arch);
+            }
+        });
+        crc32.register(new ConditionalInvocationPlugin("updateByteBuffer0", int.class, long.class, int.class, int.class) {
+            @Override
+            public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode crc, ValueNode addr, ValueNode off, ValueNode len) {
+                ValueNode bufAddr = b.add(new AddNode(addr, new SignExtendNode(off, 32, 64)));
+                b.addPush(JavaKind.Int, new CRC32UpdateBytesNode(crc, bufAddr, len));
+                return true;
+            }
+
+            @Override
+            public boolean isApplicable(Architecture arch) {
+                return CRC32UpdateBytesNode.isSupported(arch);
+            }
+        });
+
+        Registration crc32c = new Registration(plugins, "java.util.zip.CRC32C");
+        // HotSpot C2 passes CRC32C.byteTable to the runtime stub, but the x86 stub documents that
+        // argument as optional and the Graal AMD64/AArch64 ports do not consume it.
+        crc32c.register(new ConditionalInvocationPlugin("updateBytes", int.class, byte[].class, int.class, int.class) {
+            @Override
+            public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode crc, ValueNode buf, ValueNode off, ValueNode end) {
+                try (InvocationPluginHelper helper = new InvocationPluginHelper(b, targetMethod)) {
+                    ValueNode nonNullBuf = b.nullCheckedValue(buf);
+                    ValueNode bufAddr = helper.arrayElementPointer(nonNullBuf, JavaKind.Byte, off);
+                    b.addPush(JavaKind.Int, new CRC32CUpdateBytesNode(crc, bufAddr, new SubNode(end, off)));
+                }
+                return true;
+            }
+
+            @Override
+            public boolean isApplicable(Architecture arch) {
+                return CRC32CUpdateBytesNode.isSupported(arch);
+            }
+        });
+        crc32c.register(new ConditionalInvocationPlugin("updateDirectByteBuffer", int.class, long.class, int.class, int.class) {
+            @Override
+            public boolean apply(GraphBuilderContext b, ResolvedJavaMethod targetMethod, Receiver receiver, ValueNode crc, ValueNode addr, ValueNode off, ValueNode end) {
+                ValueNode bufAddr = b.add(new AddNode(addr, new SignExtendNode(off, 32, 64)));
+                b.addPush(JavaKind.Int, new CRC32CUpdateBytesNode(crc, bufAddr, new SubNode(end, off)));
+                return true;
+            }
+
+            @Override
+            public boolean isApplicable(Architecture arch) {
+                return CRC32CUpdateBytesNode.isSupported(arch);
+            }
         });
     }
 

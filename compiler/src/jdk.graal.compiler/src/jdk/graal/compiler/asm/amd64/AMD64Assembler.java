@@ -517,6 +517,11 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
         // xmm0 is implicit additional source to this instruction.
         public static final AMD64RMOp SHA256RNDS2 = new AMD64RMOp("SHA256RNDS2", P_0F38, 0xCB, OpAssertion.PackedSingleAssertion, CPUFeature.SHA);
 
+        public static final AMD64RMOp CRC32B      = new AMD64RMOp("CRC32B", 0xF2, P_0F38, 0xF0, false, true, OpAssertion.DwordOrLargerAssertion);
+        // CRC32 also supports the mixed-width r32, r/m16 form. However, the legacy size prefix
+        // should be emitted before the mandatory prefix 0xF2. Since AMD64RMOp does not model a
+        // separate source size, here we simply use DwordOrLargerAssertion.
+        public static final AMD64RMOp CRC32       = new AMD64RMOp("CRC32",  0xF2, P_0F38, 0xF1, OpAssertion.DwordOrLargerAssertion);
         // @formatter:on
 
         protected AMD64RMOp(String opcode, int op, OpAssertion assertion) {
@@ -531,12 +536,20 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
             super(opcode, 0, prefix, op, assertion, feature);
         }
 
+        protected AMD64RMOp(String opcode, int prefix1, int prefix2, int op, OpAssertion assertion) {
+            super(opcode, prefix1, prefix2, op, assertion, null);
+        }
+
         protected AMD64RMOp(String opcode, int prefix1, int prefix2, int op, OpAssertion assertion, CPUFeature feature) {
             super(opcode, prefix1, prefix2, op, assertion, feature);
         }
 
         protected AMD64RMOp(String opcode, int prefix, int op, boolean dstIsByte, boolean srcIsByte, OpAssertion assertion) {
             super(opcode, 0, prefix, op, dstIsByte, srcIsByte, assertion, null);
+        }
+
+        protected AMD64RMOp(String opcode, int prefix1, int prefix2, int op, boolean dstIsByte, boolean srcIsByte, OpAssertion assertion) {
+            super(opcode, prefix1, prefix2, op, dstIsByte, srcIsByte, assertion, null);
         }
 
         @Override
@@ -1794,6 +1807,7 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
         public static final VexRMOp EVPBROADCASTB   = new VexRMOp("EVPBROADCASTB",   VPBROADCASTB);
         public static final VexRMOp EVPBROADCASTW   = new VexRMOp("EVPBROADCASTW",   VPBROADCASTW);
         public static final VexRMOp EVPBROADCASTD   = new VexRMOp("EVPBROADCASTD",   VPBROADCASTD);
+        public static final VexRMOp EVBROADCASTI32X4 = new VexRMOp("EVBROADCASTI32X4", VPBROADCASTI128);
         public static final VexRMOp EVPBROADCASTQ   = new VexRMOp("EVPBROADCASTQ",   VPBROADCASTQ);
         public static final VexRMOp EVPMOVB2M       = new VexRMOp("EVPMOVB2M",       VEXPrefixConfig.P_F3, VEXPrefixConfig.M_0F38, VEXPrefixConfig.W0,  0x29, VEXOpAssertion.MASK_XMM_AVX512BW_VL,      EVEXTuple.FVM,       VEXPrefixConfig.W0, true);
         public static final VexRMOp EVPMOVW2M       = new VexRMOp("EVPMOVW2M",       VEXPrefixConfig.P_F3, VEXPrefixConfig.M_0F38, VEXPrefixConfig.W1,  0x29, VEXOpAssertion.MASK_XMM_AVX512BW_VL,      EVEXTuple.FVM,       VEXPrefixConfig.W1, true);
@@ -3266,6 +3280,7 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
         public static final VexRVMIOp VROUNDSD     = new VexRVMIOp("VROUNDSD",     VEXPrefixConfig.P_66, VEXPrefixConfig.M_0F3A, VEXPrefixConfig.WIG, 0x0B, VEXOpAssertion.AVX1_AVX512F_128,          EVEXTuple.T1S_64BIT, VEXPrefixConfig.W1);
 
         // EVEX encoded instructions
+        public static final VexRVMIOp EVPCLMULQDQ     = new VexRVMIOp("EVPCLMULQDQ",     VPCLMULQDQ);
         public static final VexRVMIOp EVPINSRB        = new VexRVMIOp("EVPINSRB",        VPINSRB);
         public static final VexRVMIOp EVPINSRW        = new VexRVMIOp("EVPINSRW",        VPINSRW);
         public static final VexRVMIOp EVPINSRD        = new VexRVMIOp("EVPINSRD",        VPINSRD);
@@ -5151,6 +5166,21 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
      */
     public final void cmpxchgw(AMD64Address adr, Register reg) { // cmpxchg
         AMD64MROp.CMPXCHG.emit(this, OperandSize.WORD, adr, reg);
+    }
+
+    public final void crc32b(Register dst, AMD64Address src) {
+        assert supports(CPUFeature.SSE4_2) : "unsupported feature SSE4_2 required for CRC32";
+        AMD64RMOp.CRC32B.emit(this, OperandSize.DWORD, dst, src);
+    }
+
+    public final void crc32l(Register dst, Register src) {
+        assert supports(CPUFeature.SSE4_2) : "unsupported feature SSE4_2 required for CRC32";
+        AMD64RMOp.CRC32.emit(this, OperandSize.DWORD, dst, src);
+    }
+
+    public final void crc32q(Register dst, AMD64Address src) {
+        assert supports(CPUFeature.SSE4_2) : "unsupported feature SSE4_2 required for CRC32";
+        AMD64RMOp.CRC32.emit(this, OperandSize.QWORD, dst, src);
     }
 
     public final void cvtdq2pd(Register dst, Register src) {

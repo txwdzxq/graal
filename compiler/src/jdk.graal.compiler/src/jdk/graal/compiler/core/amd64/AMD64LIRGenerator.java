@@ -122,6 +122,8 @@ import jdk.graal.compiler.lir.amd64.AMD64ControlFlow.TestConstBranchOp;
 import jdk.graal.compiler.lir.amd64.AMD64Base64DecodeOp;
 import jdk.graal.compiler.lir.amd64.AMD64Base64EncodeOp;
 import jdk.graal.compiler.lir.amd64.AMD64CountPositivesOp;
+import jdk.graal.compiler.lir.amd64.AMD64CRC32CUpdateBytesOp;
+import jdk.graal.compiler.lir.amd64.AMD64CRC32UpdateBytesOp;
 import jdk.graal.compiler.lir.amd64.AMD64CounterModeAESCryptOp;
 import jdk.graal.compiler.lir.amd64.AMD64ElectronicCodeBookAESDecryptOp;
 import jdk.graal.compiler.lir.amd64.AMD64ElectronicCodeBookAESEncryptOp;
@@ -1180,6 +1182,38 @@ public abstract class AMD64LIRGenerator extends LIRGenerator {
     @Override
     public void emitMD5ImplCompress(Value buf, Value state) {
         append(new AMD64MD5Op(this, asAllocatable(buf), asAllocatable(state)));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public Variable emitCRC32UpdateBytes(EnumSet<?> runtimeCheckedCPUFeatures, Value crc, Value bufferAddress, Value length) {
+        RegisterValue rResult = AMD64.rdi.asValue(crc.getValueKind());
+        RegisterValue rCrc = AMD64.rdi.asValue(crc.getValueKind());
+        RegisterValue rBuf = AMD64.rsi.asValue(bufferAddress.getValueKind());
+        RegisterValue rLen = AMD64.rdx.asValue(length.getValueKind());
+        emitMove(rCrc, crc);
+        emitMove(rBuf, bufferAddress);
+        emitMove(rLen, length);
+        append(new AMD64CRC32UpdateBytesOp(this, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures, rResult, rCrc, rBuf, rLen));
+        Variable result = newVariable(crc.getValueKind());
+        emitMove(result, rResult);
+        return result;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public Variable emitCRC32CUpdateBytes(EnumSet<?> runtimeCheckedCPUFeatures, Value crc, Value bufferAddress, Value length) {
+        RegisterValue rResult = AMD64.rdi.asValue(crc.getValueKind());
+        RegisterValue rCrc = AMD64.rdi.asValue(crc.getValueKind());
+        RegisterValue rBuf = AMD64.rsi.asValue(bufferAddress.getValueKind());
+        RegisterValue rLen = AMD64.rdx.asValue(length.getValueKind());
+        emitMove(rCrc, crc);
+        emitMove(rBuf, bufferAddress);
+        emitMove(rLen, length);
+        append(new AMD64CRC32CUpdateBytesOp(this, (EnumSet<CPUFeature>) runtimeCheckedCPUFeatures, rResult, rCrc, rBuf, rLen));
+        Variable result = newVariable(crc.getValueKind());
+        emitMove(result, rResult);
+        return result;
     }
 
     @SuppressWarnings("unchecked")

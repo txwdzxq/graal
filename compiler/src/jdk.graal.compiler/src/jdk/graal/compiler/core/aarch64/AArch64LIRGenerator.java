@@ -83,6 +83,8 @@ import jdk.graal.compiler.lir.aarch64.AArch64ControlFlow.HashTableSwitchOp;
 import jdk.graal.compiler.lir.aarch64.AArch64ControlFlow.RangeTableSwitchOp;
 import jdk.graal.compiler.lir.aarch64.AArch64ControlFlow.StrategySwitchOp;
 import jdk.graal.compiler.lir.aarch64.AArch64CountPositivesOp;
+import jdk.graal.compiler.lir.aarch64.AArch64CRC32CUpdateBytesOp;
+import jdk.graal.compiler.lir.aarch64.AArch64CRC32UpdateBytesOp;
 import jdk.graal.compiler.lir.aarch64.AArch64CounterModeAESCryptOp;
 import jdk.graal.compiler.lir.aarch64.AArch64EncodeArrayOp;
 import jdk.graal.compiler.lir.aarch64.AArch64GHASHProcessBlocksOp;
@@ -867,6 +869,36 @@ public abstract class AArch64LIRGenerator extends LIRGenerator {
     @Override
     public void emitMD5ImplCompress(Value buf, Value state) {
         append(new AArch64MD5Op(this, asAllocatable(buf), asAllocatable(state)));
+    }
+
+    @Override
+    public Variable emitCRC32UpdateBytes(EnumSet<?> runtimeCheckedCPUFeatures, Value crc, Value bufferAddress, Value length) {
+        RegisterValue rResult = AArch64.r0.asValue(crc.getValueKind());
+        RegisterValue rCrc = AArch64.r0.asValue(crc.getValueKind());
+        RegisterValue rBuf = AArch64.r1.asValue(bufferAddress.getValueKind());
+        RegisterValue rLen = AArch64.r2.asValue(length.getValueKind());
+        emitMove(rCrc, crc);
+        emitMove(rBuf, bufferAddress);
+        emitMove(rLen, length);
+        append(new AArch64CRC32UpdateBytesOp(rResult, rCrc, rBuf, rLen));
+        Variable result = newVariable(crc.getValueKind());
+        emitMove(result, rResult);
+        return result;
+    }
+
+    @Override
+    public Variable emitCRC32CUpdateBytes(EnumSet<?> runtimeCheckedCPUFeatures, Value crc, Value bufferAddress, Value length) {
+        RegisterValue rResult = AArch64.r0.asValue(crc.getValueKind());
+        RegisterValue rCrc = AArch64.r0.asValue(crc.getValueKind());
+        RegisterValue rBuf = AArch64.r1.asValue(bufferAddress.getValueKind());
+        RegisterValue rLen = AArch64.r2.asValue(length.getValueKind());
+        emitMove(rCrc, crc);
+        emitMove(rBuf, bufferAddress);
+        emitMove(rLen, length);
+        append(new AArch64CRC32CUpdateBytesOp(rResult, rCrc, rBuf, rLen));
+        Variable result = newVariable(crc.getValueKind());
+        emitMove(result, rResult);
+        return result;
     }
 
     @Override
