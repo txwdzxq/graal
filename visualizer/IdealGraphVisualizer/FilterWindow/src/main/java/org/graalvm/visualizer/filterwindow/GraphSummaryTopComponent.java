@@ -65,6 +65,7 @@ import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
+import javax.swing.table.TableRowSorter;
 import jdk.graal.compiler.graphio.parsing.Builder;
 import jdk.graal.compiler.graphio.parsing.model.GraphContainer;
 import jdk.graal.compiler.graphio.parsing.model.InputGraph;
@@ -175,6 +176,7 @@ public final class GraphSummaryTopComponent extends TopComponent {
         table.getColumnModel().getColumn(2).setPreferredWidth(70);
         table.getColumnModel().getColumn(2).setMaxWidth(120);
         installTableActions();
+        installTableSorter();
 
         JScrollPane scrollPane = new JScrollPane(table);
         JPanel tablePanel = new JPanel(new BorderLayout());
@@ -411,6 +413,13 @@ public final class GraphSummaryTopComponent extends TopComponent {
                 openNodeSearchForSelectedRows();
             }
         });
+    }
+
+    private void installTableSorter() {
+        TableRowSorter<NodeTypeSummaryTableModel> sorter = new TableRowSorter<>(tableModel);
+        sorter.setComparator(0, Comparator.nullsLast(Comparator.comparingInt(Color::getRGB)));
+        sorter.setComparator(1, String.CASE_INSENSITIVE_ORDER);
+        table.setRowSorter(sorter);
     }
 
     private void maybeShowContextMenu(MouseEvent e) {
