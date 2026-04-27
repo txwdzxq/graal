@@ -433,7 +433,7 @@ public class DiagramScene extends ObjectScene implements DiagramViewer {
                 if (className instanceof String) {
                     fillToLookup.add(new ImplementationClass((String) className));
                 }
-                node.setDisplayName(provider.getProperties().getString(PROPNAME_NAME, Bundle.NAME_MissingName())); // NOI18N
+                node.setDisplayName(selectionDisplayName(o, provider));
                 nodeContent.add(o);
             }
 
@@ -451,6 +451,19 @@ public class DiagramScene extends ObjectScene implements DiagramViewer {
                 fillToLookup.add(node);
             }
         }
+    }
+
+    private static String selectionDisplayName(Object selectedObject, Properties.Provider provider) {
+        if (selectedObject instanceof Figure figure) {
+            String displayName = Arrays.stream(figure.getLines())
+                            .filter(line -> line != null && !line.isBlank())
+                            .map(String::trim)
+                            .collect(Collectors.joining(" ")); // NOI18N
+            if (!displayName.isEmpty()) {
+                return displayName;
+            }
+        }
+        return provider.getProperties().getString(PROPNAME_NAME, Bundle.NAME_MissingName());
     }
 
     @NbBundle.Messages({
