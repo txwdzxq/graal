@@ -1172,8 +1172,18 @@ public abstract class DefaultJavaLoweringProvider implements LoweringProvider, V
         }
         assert commit.hasNoUsages();
 
-        // Insert the required ALLOCATION_INIT barrier after all objects are initialized.
-        graph.addAfterFixed(insertAfter, graph.add(MembarNode.forInitialization()));
+        /*
+         * Insert the required ALLOCATION_INIT barrier after all objects are initialized. This models
+         * the init-memory effects separately from the generated barrier kind. Materialized
+         * constructors with final fields also need constructor-freeze ordering. The init barrier can
+         * cover that only while its generated barrier bits are at least as strong as
+         * CONSTRUCTOR_FREEZE; otherwise, keep both fences explicit.
+         */
+        MembarNode initBarrier = graph.add(MembarNode.forInitialization());
+        graph.addAfterFixed(insertAfter, initBarrier);
+        if (!MembarNode.FenceKind.ALLOCATION_INIT.isAtLeastAsStrongAs(MembarNode.FenceKind.CONSTRUCTOR_FREEZE)) {
+            graph.addAfterFixed(initBarrier, graph.add(new MembarNode(MembarNode.FenceKind.CONSTRUCTOR_FREEZE)));
+        }
     }
 
     /**
