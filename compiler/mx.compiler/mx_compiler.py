@@ -933,14 +933,17 @@ class SwitchToGraalVMJDK(argparse.Action):
 
 def _get_unittest_jdk():
     if _use_graalvm:
-        return mx.get_jdk(tag='graalvm')
+        # Use the compiler-suite GraalJDK instead of the generic GraalVM image.
+        # The compiler tests expect the unchained layout where Truffle languages
+        # are loaded from the class path/module path instead of <java.home>/languages.
+        return get_graaljdk()
     return jdk
 
 mx_unittest.set_vm_launcher('JDK VM launcher', _unittest_vm_launcher, _get_unittest_jdk)
 # Note this option should probably be implemented in mx_sdk. However there can be only
 # one set_vm_launcher call per configuration, so we we do it here where it is easy to compose
 # with the mx_compiler behavior.
-mx_unittest.add_unittest_argument('--use-graalvm', default=False, help='Use the previously built GraalVM for running the unit test.', action=SwitchToGraalVMJDK)
+mx_unittest.add_unittest_argument('--use-graalvm', default=False, help='Use the previously built compiler GraalJDK for running the unit test.', action=SwitchToGraalVMJDK)
 
 def _parseVmArgs(args, addDefaultArgs=True):
     args = mx.expand_project_in_args(args, insitu=False)
