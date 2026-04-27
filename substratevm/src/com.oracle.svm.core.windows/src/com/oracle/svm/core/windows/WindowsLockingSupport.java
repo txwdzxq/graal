@@ -27,6 +27,8 @@ package com.oracle.svm.core.windows;
 import static com.oracle.svm.core.heap.RestrictHeapAccess.Access.NO_ALLOCATION;
 import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
+import com.oracle.svm.core.jdk.UninterruptibleUtils;
+import com.oracle.svm.core.util.TimeUtils;
 import com.oracle.svm.core.windows.headers.WinBase.HANDLE;
 import com.oracle.svm.core.windows.headers.WinBase.LPHANDLE;
 import org.graalvm.nativeimage.ImageSingletons;
@@ -53,6 +55,8 @@ import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 @AutomaticallyRegisteredImageSingleton(PlatformLockingSupport.class)
 @SingletonTraits(access = AllAccess.class, layeredCallbacks = SingleLayer.class, layeredInstallationKind = InitialLayerOnly.class)
 final class WindowsLockingSupport implements PlatformLockingSupport {
+    private static final long MAX_FINITE_DWORD = (1L << 32) - 2;
+
     @Override
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     public int mutexSize() {
@@ -130,27 +134,51 @@ final class WindowsLockingSupport implements PlatformLockingSupport {
 
     @Override
     public boolean timedAwaitCondition(PlatformCondition condition, PlatformMutex mutex, long timeoutNanos) {
-        int dwMilliseconds = (int) (timeoutNanos / WindowsUtils.NANOSECS_PER_MILLISEC);
-        int result = Process.SleepConditionVariableCS(asCondition(condition), asMutex(mutex), dwMilliseconds);
-        if (result == 0 && WinBase.GetLastError() == WinBase.ERROR_TIMEOUT()) {
+        if (timeoutNanos <= 0) {
             return false;
         }
 
-        checkResult(result, "SleepConditionVariableCS");
-        return true;
+        long remainingMillis = TimeUtils.roundUpNanosToMillis(timeoutNanos);
+        while (remainingMillis > 0) {
+            long waitMillis = toConditionTimeoutMillis(remainingMillis);
+            int result = Process.SleepConditionVariableCS(asCondition(condition), asMutex(mutex), (int) waitMillis);
+            if (result != 0) {
+                return true;
+            } else if (WinBase.GetLastError() == WinBase.ERROR_TIMEOUT()) {
+                remainingMillis -= waitMillis;
+            } else {
+                fatalError("SleepConditionVariableCS");
+            }
+        }
+        return false;
     }
 
     @Override
     @Uninterruptible(reason = "Should only be called if the thread did an explicit transition to native earlier.", callerMustBe = true)
     public boolean timedAwaitConditionNoTransition(PlatformCondition condition, PlatformMutex mutex, long timeoutNanos) {
-        int dwMilliseconds = (int) (timeoutNanos / WindowsUtils.NANOSECS_PER_MILLISEC);
-        int result = Process.NoTransitions.SleepConditionVariableCS(asCondition(condition), asMutex(mutex), dwMilliseconds);
-        if (result == 0 && WinBase.GetLastError() == WinBase.ERROR_TIMEOUT()) {
+        if (timeoutNanos <= 0) {
             return false;
         }
 
-        checkResult(result, "SleepConditionVariableCS");
-        return true;
+        long remainingMillis = TimeUtils.roundUpNanosToMillis(timeoutNanos);
+        while (remainingMillis > 0) {
+            long waitMillis = toConditionTimeoutMillis(remainingMillis);
+            int result = Process.NoTransitions.SleepConditionVariableCS(asCondition(condition), asMutex(mutex), (int) waitMillis);
+            if (result != 0) {
+                return true;
+            } else if (WinBase.GetLastError() == WinBase.ERROR_TIMEOUT()) {
+                remainingMillis -= waitMillis;
+            } else {
+                fatalError("SleepConditionVariableCS");
+            }
+        }
+        return false;
+    }
+
+    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+    private static long toConditionTimeoutMillis(long waitMillis) {
+        assert waitMillis > 0;
+        return UninterruptibleUtils.Math.min(waitMillis, MAX_FINITE_DWORD);
     }
 
     @Override

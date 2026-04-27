@@ -180,6 +180,10 @@ final class RuntimeVMCondition extends VMCondition {
 
     @Override
     public boolean block(long timeoutNanos) {
+        if (timeoutNanos <= 0) {
+            return false;
+        }
+
         mutex.clearCurrentThreadOwner();
         boolean result = PlatformLockingSupport.singleton().timedAwaitCondition(getPlatformCondition(), getMutex().getPlatformMutex(), timeoutNanos);
         mutex.setOwnerToCurrentThread();
@@ -189,6 +193,10 @@ final class RuntimeVMCondition extends VMCondition {
     @Override
     @Uninterruptible(reason = "Should only be called if the thread did an explicit transition to native earlier.", callerMustBe = true)
     public boolean blockNoTransition(long timeoutNanos) {
+        if (timeoutNanos <= 0) {
+            return false;
+        }
+
         mutex.clearCurrentThreadOwner();
         boolean result = PlatformLockingSupport.singleton().timedAwaitConditionNoTransition(getPlatformCondition(), getMutex().getPlatformMutex(), timeoutNanos);
         mutex.setOwnerToCurrentThread();
