@@ -267,8 +267,20 @@ public final class CodeInfoAccess {
         return baseOffset.add(impl.getRelativeIPOffset()).rawValue();
     }
 
+    /**
+     * Converts a build-time relative IP used by code info encodings back to a runtime code
+     * pointer. This is the inverse of {@link #relativeIP(CodeInfo, CodePointer)}.
+     */
     public static CodePointer absoluteIP(CodeInfo info, long relativeIP) {
-        return (CodePointer) ((UnsignedWord) cast(info).getCodeStart()).add(Word.unsigned(relativeIP));
+        CodeInfoImpl impl = cast(info);
+        UnsignedWord relativeIPWord = Word.unsigned(relativeIP);
+        UnsignedWord offset = relativeIPWord.subtract(impl.getRelativeIPOffset());
+        assert relativeIP >= 0 && relativeIPWord.aboveOrEqual(impl.getRelativeIPOffset()) && offset.belowThan(impl.getCodeSize());
+        return absoluteIPFromCodeStartOffset(impl, offset);
+    }
+
+    private static CodePointer absoluteIPFromCodeStartOffset(CodeInfoImpl impl, UnsignedWord codeStartOffset) {
+        return (CodePointer) ((UnsignedWord) impl.getCodeStart()).add(codeStartOffset);
     }
 
     @SuppressWarnings("unchecked")
