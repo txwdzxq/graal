@@ -905,6 +905,14 @@ class CodeInfoVerifier {
 
     void verifyMethod(SharedMethod method, CompilationResult compilation, int compilationOffset, int compilationSize, CodeInfo info) {
         CodeInfoQueryResult queryResult = new CodeInfoQueryResult();
+        boolean verifyFrameInfoCursor = CodeInfoAccess.hasCodeInfoDefaultFrameInfos(info);
+        int expectedRootMethodId = 0;
+        CodeInfoDecoder.FrameInfoCursor frameInfoCursor = null;
+        if (verifyFrameInfoCursor) {
+            CodeInfoAccess.lookupCodeInfo(info, compilationOffset, queryResult, constantAccess);
+            expectedRootMethodId = queryResult.getFrameInfo().getSourceMethodId();
+            frameInfoCursor = new CodeInfoDecoder.FrameInfoCursor();
+        }
         for (int relativeIP = 0; relativeIP < compilationSize; relativeIP++) {
             int totalIP = relativeIP + compilationOffset;
             CodeInfoAccess.lookupCodeInfo(info, totalIP, queryResult, constantAccess);
@@ -913,6 +921,9 @@ class CodeInfoVerifier {
             assert queryResult.getTotalFrameSize() == compilation.getTotalFrameSize() : queryResult;
 
             assert CodeInfoAccess.lookupStackReferenceMapIndex(info, totalIP) == queryResult.getReferenceMapIndex() : queryResult;
+            if (verifyFrameInfoCursor && expectedRootMethodId != 0) {
+                verifyFrameInfoCursorRootMethod(info, totalIP, expectedRootMethodId, frameInfoCursor);
+            }
         }
 
         for (Infopoint infopoint : compilation.getInfopoints()) {
@@ -947,6 +958,16 @@ class CodeInfoVerifier {
             assert expected != 0 : handler;
             assert expected == actual : handler;
         }
+    }
+
+    private static void verifyFrameInfoCursorRootMethod(CodeInfo info, int totalIP, int expectedRootMethodId, CodeInfoDecoder.FrameInfoCursor frameInfoCursor) {
+        frameInfoCursor.initialize(info, totalIP, false);
+        FrameInfoQueryResult rootFrame = null;
+        while (frameInfoCursor.advance()) {
+            rootFrame = frameInfoCursor.get();
+        }
+        assert rootFrame != null : "Missing frame info for IP " + totalIP;
+        assert rootFrame.getSourceMethodId() == expectedRootMethodId : rootFrame;
     }
 
     private void verifyFrame(CompilationResult compilation, BytecodeFrame expectedFrame, FrameInfoQueryResult actualFrame, BitSet visitedVirtualObjects) {
