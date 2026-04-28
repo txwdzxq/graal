@@ -60,6 +60,7 @@ import com.oracle.truffle.api.bytecode.BytecodeParser;
 import com.oracle.truffle.api.bytecode.BytecodeRootNodes;
 import com.oracle.truffle.api.bytecode.BytecodeTier;
 import com.oracle.truffle.api.bytecode.ContinuationResult;
+import com.oracle.truffle.api.bytecode.test.AbstractInstructionTest;
 import com.oracle.truffle.api.bytecode.test.BytecodeDSLTestLanguage;
 import com.oracle.truffle.api.bytecode.test.basic_interpreter.AbstractBasicInterpreterTest;
 import com.oracle.truffle.api.bytecode.test.basic_interpreter.AbstractBasicInterpreterTest.TestRun;
@@ -548,6 +549,201 @@ public class BytecodeDSLCompilationTest extends TestWithSynchronousCompiling {
         contTarget.compile(true);
         assertCompiled(rootTarget);
         assertCompiled(contTarget);
+    }
+
+    @Test
+    public void testBoxingEliminationStaleUncachedContinuation() {
+        assumeTrue(hasBoxingElimination());
+        assumeTrue(run.hasUncachedInterpreter());
+
+        BytecodeRootNodes<BasicInterpreter> rootNodes = createNodes(run, BytecodeDSLTestLanguage.REF.get(null), BytecodeConfig.DEFAULT, b -> {
+            b.beginRoot();
+
+            BytecodeLocal x = b.createLocal("x", null);
+            b.beginStoreLocal(x);
+            b.emitLoadArgument(0);
+            b.endStoreLocal();
+
+            b.beginYield();
+            b.emitLoadNull();
+            b.endYield();
+
+            b.beginReturn();
+            b.emitLoadLocal(x);
+            b.endReturn();
+
+            b.endRoot();
+        });
+        BasicInterpreter root = rootNodes.getNode(0);
+        root.getBytecodeNode().setUncachedThreshold(100);
+
+        // 1. Call and suspend uncached continuations. Locals are stored in Object slots.
+        ContinuationResult staleLong = (ContinuationResult) root.getCallTarget().call(42L);
+        assertEquals(BytecodeTier.UNCACHED, staleLong.getBytecodeLocation().getBytecodeNode().getTier());
+        assertEquals(42L, staleLong.getBytecodeLocation().getBytecodeNode().getLocalValue(staleLong.getBytecodeLocation().getBytecodeIndex(), staleLong.getFrame(), 0));
+
+        ContinuationResult staleString = (ContinuationResult) root.getCallTarget().call("hello");
+        assertEquals(BytecodeTier.UNCACHED, staleString.getBytecodeLocation().getBytecodeNode().getTier());
+        assertEquals("hello", staleString.getBytecodeLocation().getBytecodeNode().getLocalValue(staleString.getBytecodeLocation().getBytecodeIndex(), staleString.getFrame(), 0));
+
+        AbstractInstructionTest.assertInstructions(root,
+                        "load.argument",
+                        "store.local",
+                        "load.null",
+                        "yield",
+                        "pop",
+                        "load.local",
+                        "return");
+
+        // 2. Transition to cached and run a separate continuation to completion.
+        // It should quicken the load.local to Long.
+        root.getBytecodeNode().setUncachedThreshold(0);
+        ContinuationResult cont = (ContinuationResult) root.getCallTarget().call(42L);
+        OptimizedCallTarget continuationTarget = (OptimizedCallTarget) cont.getContinuationCallTarget();
+        assertEquals(42L, cont.continueWith(null));
+        assertEquals(BytecodeTier.CACHED, root.getBytecodeNode().getTier());
+        assertEquals(FrameSlotKind.Long, root.getBytecodeNode().getLocals().get(0).getTypeProfile());
+        AbstractInstructionTest.assertInstructions(root,
+                        "load.argument$Long",
+                        "store.local$Long$Long",
+                        "load.null",
+                        "yield",
+                        "pop$generic",
+                        "load.local$Long",
+                        "return");
+
+        continuationTarget.compile(true);
+        assertCompiled(continuationTarget);
+
+        // 3. Resume the compatible stale continuation. It should normalize the frame without
+        // changing cached tags or invalidating compiled continuation code.
+        assertEquals(42L, staleLong.continueWith(null));
+        assertCompiled(continuationTarget);
+        assertEquals(FrameSlotKind.Long, root.getBytecodeNode().getLocals().get(0).getTypeProfile());
+        AbstractInstructionTest.assertInstructions(root,
+                        "load.argument$Long",
+                        "store.local$Long$Long",
+                        "load.null",
+                        "yield",
+                        "pop$generic",
+                        "load.local$Long",
+                        "return");
+
+        // 4. Resume the incompatible stale continuation. It should generalize cached tags and
+        // invalidate the compiled continuation through the stable-tags assumption.
+        assertEquals("hello", staleString.continueWith(null));
+        assertNotCompiled(continuationTarget);
+        assertEquals(FrameSlotKind.Object, root.getBytecodeNode().getLocals().get(0).getTypeProfile());
+        AbstractInstructionTest.assertInstructions(root,
+                        "load.argument$Long",
+                        "store.local$Long$Long",
+                        "load.null",
+                        "yield",
+                        "pop$generic",
+                        "load.local$generic",
+                        "return");
+
+        // 5. After recompilation, both Object-tag-compatible continuations should stay compiled.
+        continuationTarget.compile(true);
+        assertCompiled(continuationTarget);
+        cont = (ContinuationResult) root.getCallTarget().call(42L);
+        assertEquals(42L, cont.continueWith(null));
+        assertCompiled(continuationTarget);
+        cont = (ContinuationResult) root.getCallTarget().call("world");
+        assertEquals("world", cont.continueWith(null));
+        assertCompiled(continuationTarget);
+        AbstractInstructionTest.assertInstructions(root,
+                        "load.argument",
+                        "store.local$generic",
+                        "load.null",
+                        "yield",
+                        "pop$generic",
+                        "load.local$generic",
+                        "return");
+    }
+
+    @Test
+    public void testBoxingEliminationStaleCachedContinuation() {
+        assumeTrue(hasBoxingElimination());
+
+        BytecodeRootNodes<BasicInterpreter> rootNodes = createNodes(run, BytecodeDSLTestLanguage.REF.get(null), BytecodeConfig.DEFAULT, b -> {
+            b.beginRoot();
+
+            BytecodeLocal x = b.createLocal("x", null);
+            b.beginStoreLocal(x);
+            b.emitLoadArgument(0);
+            b.endStoreLocal();
+
+            b.beginYield();
+            b.emitLoadNull();
+            b.endYield();
+
+            b.beginReturn();
+            b.emitLoadLocal(x);
+            b.endReturn();
+
+            b.endRoot();
+        });
+        BasicInterpreter root = rootNodes.getNode(0);
+        root.getBytecodeNode().setUncachedThreshold(0);
+
+        // 1. Run once to quicken the local to Long.
+        ContinuationResult cont = (ContinuationResult) root.getCallTarget().call(42L);
+        OptimizedCallTarget continuationTarget = (OptimizedCallTarget) cont.getContinuationCallTarget();
+        assertEquals(42L, cont.continueWith(null));
+        assertEquals(BytecodeTier.CACHED, root.getBytecodeNode().getTier());
+        assertEquals(FrameSlotKind.Long, root.getBytecodeNode().getLocals().get(0).getTypeProfile());
+        AbstractInstructionTest.assertInstructions(root,
+                        "load.argument$Long",
+                        "store.local$Long$Long",
+                        "load.null",
+                        "yield",
+                        "pop$generic",
+                        "load.local$Long",
+                        "return");
+
+        // 2. Create stale cached continuations whose frames store the local as an unboxed Long.
+        ContinuationResult[] staleContinuations = new ContinuationResult[16];
+        for (int i = 0; i < staleContinuations.length; i++) {
+            ContinuationResult stale = (ContinuationResult) root.getCallTarget().call(42L);
+            assertEquals(42L, stale.getBytecodeLocation().getBytecodeNode().getLocalValue(stale.getBytecodeLocation().getBytecodeIndex(), stale.getFrame(), 0));
+            staleContinuations[i] = stale;
+        }
+
+        continuationTarget.compile(true);
+        assertCompiled(continuationTarget);
+
+        // 3. Generalize the local tag to Object with a separate continuation.
+        cont = (ContinuationResult) root.getCallTarget().call("hello");
+        assertEquals("hello", cont.continueWith(null));
+        assertNotCompiled(continuationTarget);
+        assertEquals(FrameSlotKind.Object, root.getBytecodeNode().getLocals().get(0).getTypeProfile());
+        AbstractInstructionTest.assertInstructions(root,
+                        "load.argument",
+                        "store.local$generic",
+                        "load.null",
+                        "yield",
+                        "pop$generic",
+                        "load.local$generic",
+                        "return");
+
+        // 4. After recompilation, stale Long-frame continuations should be normalized to Object
+        // frames without repeatedly invalidating compiled continuation code.
+        continuationTarget.compile(true);
+        assertCompiled(continuationTarget);
+        for (ContinuationResult stale : staleContinuations) {
+            assertEquals(42L, stale.continueWith(null));
+            assertCompiled(continuationTarget);
+        }
+        assertEquals(FrameSlotKind.Object, root.getBytecodeNode().getLocals().get(0).getTypeProfile());
+        AbstractInstructionTest.assertInstructions(root,
+                        "load.argument",
+                        "store.local$generic",
+                        "load.null",
+                        "yield",
+                        "pop$generic",
+                        "load.local$generic",
+                        "return");
     }
 
     /**
