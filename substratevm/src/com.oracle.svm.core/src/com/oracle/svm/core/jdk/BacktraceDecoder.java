@@ -25,6 +25,7 @@
 package com.oracle.svm.core.jdk;
 
 import org.graalvm.nativeimage.c.function.CodePointer;
+import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.code.CodeInfo;
 import com.oracle.svm.core.code.CodeInfoAccess;
@@ -35,8 +36,6 @@ import com.oracle.svm.core.code.UntetheredCodeInfo;
 import com.oracle.svm.core.heap.RestrictHeapAccess;
 import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.util.VMError;
-
-import org.graalvm.word.impl.Word;
 
 /**
  * Decoder for backtraces computed by {@link BacktraceVisitor} and stored in
@@ -90,6 +89,8 @@ public abstract class BacktraceDecoder {
                     break;
                 }
             }
+        } else {
+            VMError.guarantee(holder == null, "Unexpected backtrace type");
         }
         return framesDecoded - maxFramesProcessed;
     }
