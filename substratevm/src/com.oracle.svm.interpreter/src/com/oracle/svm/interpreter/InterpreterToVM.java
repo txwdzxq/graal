@@ -864,12 +864,13 @@ public final class InterpreterToVM {
             if (target instanceof CremaResolvedJavaMethodImpl) {
                 source = "runtime-loaded";
                 if (target.isNative()) {
+                    // GR-73665
                     reason = "Linking native methods not yet supported.";
                 }
             } else {
                 source = "AOT";
-                String dotPkg = target.getDeclaringClass().getSymbolicRuntimePackage().toString().replace('/', '.');
-                if (!DynamicHub.fromClass(target.getDeclaringClass().getJavaClass()).isPreserved()) {
+                String dotPkg = target.getDeclaringClass().getHub().getPackageName();
+                if (!target.getDeclaringClass().getHub().isPreserved()) {
                     reason = MetadataUtil.fmt("Class %s was not preserved during image build.%nConsider using '-H:Preserve=package=%s'.", target.getDeclaringClass().toClassName(), dotPkg);
                 }
                 if (target.getNativeEntryPoint().equal(InterpreterNotCompiledMethodPointerHolder.getMethodNotCompiledHandler())) {

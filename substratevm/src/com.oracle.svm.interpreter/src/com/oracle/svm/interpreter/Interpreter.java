@@ -371,19 +371,54 @@ public final class Interpreter {
     }
 
     public static Object execute(InterpreterResolvedJavaMethod method, InterpreterFrame frame) {
+        checkExecutable(method);
         return execute0(method, frame, false);
     }
 
     public static Object execute(InterpreterResolvedJavaMethod method, Object[] args, boolean forceStayInInterpreter) {
         InterpreterFrame frame = EspressoFrame.allocate(method.getMaxLocals(), method.getMaxStackSize(), args);
-
-        InterpreterUtil.guarantee(!method.isNative() || method.getSignaturePolymorphicIntrinsic() != null, "trying to interpret native method %s", method);
-
+        checkExecutable(method);
         initializeFrame(frame, method);
         return execute0(method, frame, forceStayInInterpreter);
     }
 
+    private static void checkExecutable(InterpreterResolvedJavaMethod method) {
+        if (method.hasBytecodes() || method.getSignaturePolymorphicIntrinsic() != null) {
+            return;
+        }
+        InterpreterResolvedObjectType declaringClass = method.getDeclaringClass();
+        if (!declaringClass.getHub().isRuntimeLoaded()) {
+            if (method.isNative()) {
+                if (!declaringClass.getHub().isPreserved()) {
+                    throw VMError.shouldNotReachHere(MetadataUtil.fmt("Trying to interpret AOT native method: %s.%nConsider using '-H:Preserve=package=%s'", method,
+                                    declaringClass.getHub().getPackageName()));
+                } else {
+                    throw VMError.shouldNotReachHere(MetadataUtil.fmt("Should not reach interpreter for AOT native method in preserved type: %s", method));
+                }
+            } else if (!method.isAbstract()) {
+                if (!declaringClass.getHub().isPreserved()) {
+                    throw VMError.shouldNotReachHere(MetadataUtil.fmt("Trying to interpret AOT method with no preserved bytecodes: %s.%nConsider using '-H:Preserve=package=%s'", method,
+                                    declaringClass.getHub().getPackageName()));
+                } else {
+                    throw VMError.shouldNotReachHere(MetadataUtil.fmt("Should not reach interpreter for AOT method in preserved type: %s", method));
+                }
+            } else {
+                throw VMError.shouldNotReachHere(MetadataUtil.fmt("Should not reach interpreter for AOT abstract method %s", method));
+            }
+        } else {
+            if (method.isNative()) {
+                // GR-73665
+                throw VMError.shouldNotReachHere(MetadataUtil.fmt("Runtime native method linkage is not implemented: %s", method));
+            } else if (!method.isAbstract()) {
+                throw VMError.shouldNotReachHere(MetadataUtil.fmt("Missing bytecode for run-time-loaded method %s", method));
+            } else {
+                throw VMError.shouldNotReachHere(MetadataUtil.fmt("Should not reach interpreter for run-time-loaded abstract method %s", method));
+            }
+        }
+    }
+
     public static Object execute(InterpreterResolvedJavaMethod method, InterpreterFrame frame, int startBCI, int startTOP) {
+        checkExecutable(method);
         return execute0(method, frame, startBCI, startTOP, false);
     }
 
