@@ -28,15 +28,19 @@ import static jdk.graal.compiler.core.common.spi.ForeignCallDescriptor.CallSideE
 
 import java.io.IOException;
 import java.lang.constant.DirectMethodHandleDesc;
+import java.lang.constant.DirectMethodHandleDesc.Kind;
+import java.lang.constant.MethodHandleDesc;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.MemorySegment.Scope;
+import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.function.BiConsumer;
@@ -69,6 +73,7 @@ import com.oracle.svm.core.graal.code.SubstrateBackendWithAssembler;
 import com.oracle.svm.core.headers.LibC;
 import com.oracle.svm.core.headers.WindowsAPIs;
 import com.oracle.svm.core.image.DisallowedImageHeapObjects.DisallowedObjectReporter;
+import com.oracle.svm.core.methodhandles.Target_java_lang_invoke_BoundMethodHandle;
 import com.oracle.svm.core.snippets.SnippetRuntime;
 import com.oracle.svm.core.snippets.SubstrateForeignCallTarget;
 import com.oracle.svm.core.util.ImageHeapMap;
@@ -270,12 +275,46 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
      * Updates the stub address in the upcall trampoline with the address of a direct upcall stub.
      * The trampoline is identified by the given native address and the direct upcall stub is
      * identified by the method handle descriptor.
-     *
-     * @param trampolineAddress The address of the upcall trampoline.
-     * @param desc A direct method handle descriptor used to lookup the direct upcall stub.
+     * <p>
+     * Further, if the method handle is a bound method handle that binds a direct method handle to
+     * an object, it will also unwrap the direct method handle.
      */
-    void patchForDirectUpcall(long trampolineAddress, DirectMethodHandleDesc desc, FunctionDescriptor functionDescriptor, LinkerOptions options) {
-        JavaEntryPointInfo jep = AbiUtils.singleton().makeJavaEntryPoint(functionDescriptor, options);
+    void patchForDirectUpcall(long trampolineAddress, MethodHandle target, FunctionDescriptor functionDescriptor, LinkerOptions options) {
+        /*
+         * Unwrap bound method handles with two fields where the first field is again a method
+         * handle and the second field is some object. This is commonly the result when the receiver
+         * argument of a direct method handle has been bound.
+         */
+        MethodHandle crackableCandidate = target;
+        Object boundArgument = null;
+        if (Target_java_lang_invoke_BoundMethodHandle.class.isInstance(target)) {
+            Target_java_lang_invoke_BoundMethodHandle bmh = SubstrateUtil.cast(target, Target_java_lang_invoke_BoundMethodHandle.class);
+            if (bmh.fieldCount() == 2 && bmh.arg(0) instanceof MethodHandle dmh) {
+                crackableCandidate = dmh;
+                boundArgument = bmh.arg(1);
+            }
+        }
+
+        /*
+         * If the method handle is crackable, we can likely use a direct upcall stub. In case of a
+         * bound method handle, this is only possible for instance methods because only then the
+         * direct upcall stub knows that it needs to inject the receiver (i.e. the bound argument).
+         */
+        DirectMethodHandleDesc desc;
+        Optional<MethodHandleDesc> methodHandleDesc = crackableCandidate.describeConstable();
+        if (methodHandleDesc.isPresent() && methodHandleDesc.get() instanceof DirectMethodHandleDesc dmhd && isSupportedInvocationForDirectUpcall(dmhd.kind(), boundArgument)) {
+            desc = dmhd;
+        } else {
+            return;
+        }
+
+        FunctionDescriptor lookupDescriptor = functionDescriptor;
+        if (desc.kind() != Kind.STATIC && desc.kind() != Kind.INTERFACE_STATIC) {
+            // the inserted long argument is the address of the (pinned) bound object
+            lookupDescriptor = lookupDescriptor.insertArgumentLayouts(0, ValueLayout.JAVA_LONG);
+        }
+
+        JavaEntryPointInfo jep = AbiUtils.singleton().makeJavaEntryPoint(lookupDescriptor, options);
         FunctionPointerHolder functionPointerHolder = directUpcallStubs.get(Pair.create(desc, jep));
         if (functionPointerHolder == null) {
             return;
@@ -293,7 +332,7 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
          * allocating thread until it returns from the call. Also, the trampoline cannot be free'd
          * between allocation and patching because the associated arena is still on the stack.
          */
-        trampolineSet.patchTrampolineForDirectUpcall(trampolinePointer, functionPointerHolder.functionPointer);
+        trampolineSet.prepareTrampolineForDirectUpcall(trampolinePointer, functionPointerHolder.functionPointer, boundArgument);
         /*
          * If we reach this point, everything went fine and the trampoline was patched with the
          * specialized upcall stub's address. For testing, now report that the lookup and patching
@@ -304,6 +343,18 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
         }
     }
 
+    private static boolean isSupportedInvocationForDirectUpcall(Kind kind, Object boundArgument) {
+        return switch (kind) {
+            /*
+             * Only stubs for non-static direct upcalls are able to pass a bound argument. The stub
+             * does not know that it would need to pass the argument.
+             */
+            case STATIC -> boundArgument == null;
+            case VIRTUAL, SPECIAL -> boundArgument != null;
+            default -> false;
+        };
+    }
+
     public void setUsingSpecializedUpcallListener(BiConsumer<Long, DirectMethodHandleDesc> listener) {
         usingSpecializedUpcallListener = listener;
     }
@@ -312,7 +363,7 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
         synchronized (trampolines) {
             long base = TrampolineSet.getAllocationBase(Word.pointer(addr)).rawValue();
             TrampolineSet trampolineSet = trampolines.get(base);
-            if (trampolineSet.tryFree()) {
+            if (trampolineSet.freeTrampoline(Word.pointer(addr))) {
                 trampolines.remove(base);
             }
         }

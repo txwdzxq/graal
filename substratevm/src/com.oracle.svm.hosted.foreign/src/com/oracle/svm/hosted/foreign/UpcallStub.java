@@ -39,7 +39,6 @@ import org.graalvm.word.LocationIdentity;
 import com.oracle.graal.pointsto.meta.AnalysisMethod;
 import com.oracle.graal.pointsto.meta.AnalysisUniverse;
 import com.oracle.graal.pointsto.meta.HostedProviders;
-import com.oracle.svm.core.ReservedRegisters;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.UninterruptibleAnnotationUtils;
@@ -101,8 +100,8 @@ import jdk.vm.ci.meta.ResolvedJavaMethod;
 public abstract class UpcallStub extends NonBytecodeMethod {
     protected final JavaEntryPointInfo jep;
 
-    protected UpcallStub(JavaEntryPointInfo jep, MethodType methodType, MetaAccessProvider metaAccess, boolean highLevel, boolean direct) {
-        super(UpcallStubsHolder.stubName(jep, highLevel, direct),
+    protected UpcallStub(JavaEntryPointInfo jep, MethodType methodType, MetaAccessProvider metaAccess, boolean highLevel, boolean direct, boolean injectReceiver) {
+        super(UpcallStubsHolder.stubName(jep, highLevel, direct, injectReceiver),
                         true,
                         metaAccess.lookupJavaType(UpcallStubsHolder.class),
                         fromMethodType(methodType, metaAccess),
@@ -130,50 +129,57 @@ public abstract class UpcallStub extends NonBytecodeMethod {
  *
  * with the following arguments being passed using special registers:
  * <ul>
- * <li>The {@link MethodHandle} to call in {@link AbiUtils#upcallSpecialArgumentsRegisters()}</li>
- * <li>The {@link org.graalvm.nativeimage.IsolateThread} to enter in
- * {@link ReservedRegisters#getThreadRegister}</li>
+ * <li>In {@link AbiUtils.Registers#methodHandleOrReceiver}: The address of the target method's
+ * receiver (a pinned object) if {@link #injectReceiver} is {@code true}. Otherwise, the
+ * {@link MethodHandle} to call.</li>
+ * <li>In {@link AbiUtils.Registers#isolate}: The {@link org.graalvm.nativeimage.Isolate} to
+ * enter.</li>
  * </ul>
  */
 final class LowLevelUpcallStub extends UpcallStub implements CustomCallingConventionMethod {
     private final ResolvedJavaMethod highLevelStub;
     private final List<Register> savedRegisters;
     private final AssignedLocation[] parametersAssignment;
+    private final boolean injectReceiver;
 
     static LowLevelUpcallStub make(JavaEntryPointInfo jep, AnalysisUniverse universe, MetaAccessProvider metaAccess) {
         TypeAdaptation adapted = AbiUtils.singleton().adapt(jep);
         AnalysisMethod highLevelStubMethod = universe.lookup(new HighLevelUpcallStub(jep, adapted, metaAccess));
-        return new LowLevelUpcallStub(highLevelStubMethod, jep, adapted, metaAccess, false);
+        return new LowLevelUpcallStub(highLevelStubMethod, jep, adapted, metaAccess, false, false);
     }
 
-    static LowLevelUpcallStub makeDirect(MethodHandle target, JavaEntryPointInfo jep, AnalysisUniverse universe, MetaAccessProvider metaAccess) {
+    static LowLevelUpcallStub makeDirect(MethodHandle target, JavaEntryPointInfo jep, AnalysisUniverse universe, MetaAccessProvider metaAccess, boolean injectedReceiver) {
         TypeAdaptation adapted = AbiUtils.singleton().adapt(jep);
-        AnalysisMethod highLevelStubMethod = universe.lookup(new HighLevelDirectUpcallStub(target, jep, adapted, metaAccess));
-        return new LowLevelUpcallStub(highLevelStubMethod, jep, adapted, metaAccess, true);
+        AnalysisMethod highLevelStubMethod = universe.lookup(new HighLevelDirectUpcallStub(target, jep, adapted, metaAccess, injectedReceiver));
+        return new LowLevelUpcallStub(highLevelStubMethod, jep, adapted, metaAccess, true, injectedReceiver);
     }
 
-    private LowLevelUpcallStub(AnalysisMethod highLevelStubMethod, JavaEntryPointInfo jep, AbiUtils.Adapter.Result.TypeAdaptation adapted, MetaAccessProvider metaAccess, boolean direct) {
-        super(jep, toLowLevelType(adapted.callType()), metaAccess, false, direct);
+    private LowLevelUpcallStub(AnalysisMethod highLevelStubMethod, JavaEntryPointInfo jep, AbiUtils.Adapter.Result.TypeAdaptation adapted, MetaAccessProvider metaAccess, boolean direct,
+                    boolean injectReceiver) {
+        super(jep, toLowLevelType(adapted.callType(), injectReceiver), metaAccess, false, direct, injectReceiver);
         this.highLevelStub = highLevelStubMethod;
         this.savedRegisters = SubstrateRegisterConfigFactory.singleton()
                         .newRegisterFactory(SubstrateRegisterConfig.ConfigKind.NATIVE_TO_JAVA, null, SubstrateTarget.singleton(), SubstrateOptions.PreserveFramePointer.getValue())
                         .getCalleeSaveRegisters();
         this.parametersAssignment = toLowLevelAssignments(adapted);
+        this.injectReceiver = injectReceiver;
     }
 
-    private static MethodType toLowLevelType(MethodType callType) {
-        return callType.insertParameterTypes(0, MethodHandle.class, long.class);
+    private static MethodType toLowLevelType(MethodType callType, boolean injectedReceiver) {
+        Class<?> specialArgumentType = injectedReceiver ? long.class : MethodHandle.class;
+        return callType.insertParameterTypes(0, specialArgumentType, long.class);
     }
 
     /**
-     * Prepends assigned locations for special registers that will contain the method handle and the
-     * isolate pointer. This will tell the compiler that those registers are used for parameters.
+     * Prepends assigned locations for special registers that will contain the method handle (or the
+     * first object argument) and the isolate pointer. This will tell the compiler that those
+     * registers are used for parameters.
      */
     private static AssignedLocation[] toLowLevelAssignments(TypeAdaptation adapted) {
         AbiUtils.Registers specialRegisters = AbiUtils.singleton().upcallSpecialArgumentsRegisters();
         List<AssignedLocation> assignedLocations = adapted.parametersAssignment();
         AssignedLocation[] extendedAssignments = new AssignedLocation[assignedLocations.size() + 2];
-        extendedAssignments[0] = AssignedLocation.forRegister(specialRegisters.methodHandle(), JavaKind.Long);
+        extendedAssignments[0] = AssignedLocation.forRegister(specialRegisters.methodHandleOrReceiver(), JavaKind.Long);
         extendedAssignments[1] = AssignedLocation.forRegister(specialRegisters.isolate(), JavaKind.Long);
         for (int i = 0; i < assignedLocations.size(); i++) {
             extendedAssignments[i + 2] = assignedLocations.get(i);
@@ -196,15 +202,15 @@ final class LowLevelUpcallStub extends UpcallStub implements CustomCallingConven
         ForeignGraphKit kit = new ForeignGraphKit(debug, providers, method);
 
         /*
-         * Read all relevant values, i.e. the MH to call, the current Isolate, the
-         * function-preserved registers and function's arguments
+         * Read all relevant values, i.e. the MH to call (or first object argument), the current
+         * Isolate, the function-preserved registers and function's arguments
          *
-         * The trampoline seeds dedicated registers for the method handle and isolate; the custom
-         * calling convention exposes them as the first parameters.
+         * The trampoline seeds dedicated registers for the method handle (or first object argument)
+         * and isolate; the custom calling convention exposes them as the first parameters.
          */
         AbiUtils.Registers registers = AbiUtils.singleton().upcallSpecialArgumentsRegisters();
         List<ValueNode> arguments = new ArrayList<>(kit.getInitialArguments());
-        ValueNode mh = arguments.removeFirst();
+        ValueNode methodHandleOrReceiver = arguments.removeFirst();
         ValueNode isolate = arguments.removeFirst();
 
         /*
@@ -214,7 +220,7 @@ final class LowLevelUpcallStub extends UpcallStub implements CustomCallingConven
          * Saving the callee-save registers is necessary because the invocation of the high-level
          * stub uses the Java calling convention which may interfere with those registers.
          */
-        assert !savedRegisters.contains(registers.methodHandle());
+        assert !savedRegisters.contains(registers.methodHandleOrReceiver());
         assert !savedRegisters.contains(registers.isolate());
         ValueNode enterResult = kit.append(CEntryPointEnterNode.attachThread(isolate, false, true));
 
@@ -239,11 +245,23 @@ final class LowLevelUpcallStub extends UpcallStub implements CustomCallingConven
         }
 
         /*
+         * Direct upcalls for bound instance receivers reuse the special method-handle register to
+         * carry the pinned receiver address. Replace the synthetic receiver ABI argument by that
+         * register value before calling the high-level stub. Keep an injected return buffer, if
+         * present, at the front of the argument list.
+         */
+        if (injectReceiver) {
+            int receiverArgumentIndex = jep.buffersReturn() ? 1 : 0;
+            VMError.guarantee(arguments.size() > receiverArgumentIndex);
+            arguments.remove(receiverArgumentIndex);
+        }
+        arguments.addFirst(methodHandleOrReceiver);
+
+        /*
          * Transfers to the Java-side stub; note that exceptions should be handled there. We
          * explicitly disable inline for this call to prevent that operations floating to a point
          * where the base registers are not initialized yet.
          */
-        arguments.addFirst(mh);
         InvokeWithExceptionNode returnValue = kit.createJavaCallWithException(CallTargetNode.InvokeKind.Static, highLevelStub, arguments.toArray(ValueNode.EMPTY_ARRAY));
         returnValue.setUseForInlining(false);
 
@@ -319,7 +337,7 @@ class HighLevelUpcallStub extends UpcallStub {
     }
 
     HighLevelUpcallStub(JavaEntryPointInfo jep, AbiUtils.Adapter.Result.TypeAdaptation adapted, MetaAccessProvider metaAccess) {
-        super(jep, computeType(jep, adapted.callType()), metaAccess, true, false);
+        super(jep, computeType(jep, adapted.callType()), metaAccess, true, false, false);
     }
 
     @Override
@@ -359,21 +377,26 @@ class HighLevelUpcallStub extends UpcallStub {
  */
 class HighLevelDirectUpcallStub extends UpcallStub {
 
-    private static MethodType computeType(JavaEntryPointInfo jep, MethodType lowTypeParam) {
+    private static MethodType computeType(JavaEntryPointInfo jep, MethodType lowTypeParam, boolean injectedReceiver) {
         MethodType lowType = lowTypeParam;
         /* Inject return buffer */
         if (jep.buffersReturn()) {
             lowType = lowType.insertParameterTypes(0, long.class);
+        }
+        if (injectedReceiver) {
+            return lowType;
         }
         /* Inject method handle */
         return lowType.insertParameterTypes(0, MethodHandle.class);
     }
 
     private final MethodHandle target;
+    private final boolean injectedReceiver;
 
-    HighLevelDirectUpcallStub(MethodHandle handle, JavaEntryPointInfo jep, AbiUtils.Adapter.Result.TypeAdaptation adapted, MetaAccessProvider metaAccess) {
-        super(jep, computeType(jep, adapted.callType()), metaAccess, true, true);
+    HighLevelDirectUpcallStub(MethodHandle handle, JavaEntryPointInfo jep, AbiUtils.Adapter.Result.TypeAdaptation adapted, MetaAccessProvider metaAccess, boolean injectedReceiver) {
+        super(jep, computeType(jep, adapted.callType(), injectedReceiver), metaAccess, true, true, injectedReceiver);
         this.target = handle;
+        this.injectedReceiver = injectedReceiver;
         VMError.guarantee(handle.type().equals(jep.handleType()));
     }
 
@@ -386,6 +409,20 @@ class HighLevelDirectUpcallStub extends UpcallStub {
 
         JavaConstant targetMethodHandle = kit.getSnippetReflection().forObject(target);
         ConstantNode constMH = kit.createConstant(targetMethodHandle, JavaKind.Object);
+
+        /*
+         * Support for bound method handles that invoke an instance method. In that case, the first
+         * argument to this high-level upcall stub is the address of the (pinned) receiver object of
+         * the method to be invoked. Otherwise, it is the method handle, which we discard for the
+         * call.
+         */
+        if (injectedReceiver) {
+            ValueNode receiverAddress = allArguments.getFirst();
+            VMError.guarantee(StampFactory.forKind(JavaKind.Long).equals(receiverAddress.stamp(NodeView.DEFAULT)));
+        } else {
+            // we don't use the argument that is passed from the trampoline
+            allArguments.removeFirst();
+        }
 
         InvokeWithExceptionNode returnValue;
         /*
@@ -403,17 +440,14 @@ class HighLevelDirectUpcallStub extends UpcallStub {
         ResolvedJavaMethod resolvedJavaMethod = providers.getConstantReflection().getMethodHandleAccess().resolveInvokeBasicTarget(targetMethodHandle, true);
         if (resolvedJavaMethod != null) {
             /*
-             * Replace the dynamically passed receiver handle by the constant handle this stub was
-             * created with. This is necessary to enable the method handle intrinsification.
+             * Always use the constant method handle this stub was created with as receiver for the
+             * method handle invocation. This is necessary to enable method handle intrinsification.
              */
-            allArguments.set(0, constMH);
+            allArguments.addFirst(constMH);
             frame.clearLocals();
             InvokeKind invokeKind = resolvedJavaMethod.isStatic() ? InvokeKind.Static : InvokeKind.Virtual;
             returnValue = kit.createJavaCallWithException(invokeKind, resolvedJavaMethod, allArguments.toArray(ValueNode.EMPTY_ARRAY));
         } else {
-            // we don't use the argument that is passed from the trampoline to the stubs right now
-            allArguments.removeFirst();
-
             /*
              * If adaptations are ever needed for upcalls, they should most likely be applied here
              */

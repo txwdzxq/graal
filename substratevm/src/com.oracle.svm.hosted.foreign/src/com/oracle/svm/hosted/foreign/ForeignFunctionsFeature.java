@@ -328,9 +328,10 @@ public class ForeignFunctionsFeature implements InternalFeature, ForeignHostedSu
         public void registerForDirectUpcall(AccessCondition condition, MethodHandle target, FunctionDescriptor desc, Linker.Option... options) {
             abortIfSealed();
             DirectMethodHandleDesc directMethodHandleDesc = target.describeConstable()
-                            .filter(x -> x instanceof DirectMethodHandleDesc dmh && dmh.kind() == Kind.STATIC)
+                            .filter(x -> x instanceof DirectMethodHandleDesc dmh && (dmh.kind() == Kind.STATIC || dmh.kind() == Kind.VIRTUAL || dmh.kind() == Kind.SPECIAL))
                             .map(x -> ((DirectMethodHandleDesc) x))
                             .orElseThrow(() -> new IllegalArgumentException("Target must be a direct method handle to a static method"));
+
             /*
              * The call 'implLookup.revealDirect' can only succeed if the method handle is
              * crackable. The call is expected to succeed because we already call
@@ -597,7 +598,7 @@ public class ForeignFunctionsFeature implements InternalFeature, ForeignHostedSu
         }
     }
 
-    private record DirectUpcall(DirectMethodHandleDesc targetDesc, MethodHandle bindings, JavaEntryPointInfo jep) {
+    private record DirectUpcall(DirectMethodHandleDesc targetDesc, MethodHandle bindings, JavaEntryPointInfo jep, boolean injectedReceiver) {
         @Override
         public boolean equals(Object o) {
             if (this == o || !(o instanceof DirectUpcall)) {
@@ -667,6 +668,30 @@ public class ForeignFunctionsFeature implements InternalFeature, ForeignHostedSu
         @Override
         public DirectUpcall createKey(AbiUtils abiUtils, DirectUpcallDesc desc) {
             MethodHandle target = desc.mh();
+            FunctionDescriptor fd = desc.fd();
+
+            /*
+             * Support for bound method handles that invoke a direct method handle with one
+             * argument. The method handle to be invoked by the upcall stub needs to have the same
+             * method type as 'target'. If the invoke kind is special or virtual, build a new method
+             * handle that additionally expects the address of the pinned receiver object.
+             */
+            boolean injectedReceiver = false;
+            target = switch (desc.mhDesc().kind()) {
+                case VIRTUAL, SPECIAL -> {
+                    try {
+                        fd = fd.insertArgumentLayouts(0, ValueLayout.JAVA_LONG);
+                        injectedReceiver = true;
+                        MethodHandle objectFromAddress = MethodHandles.lookup().findStatic(SubstrateForeignUtil.class, "objectFromAddress", MethodType.methodType(Object.class, long.class));
+                        MethodHandle cast = MethodHandles.explicitCastArguments(objectFromAddress, objectFromAddress.type().changeReturnType(target.type().parameterType(0)));
+                        yield MethodHandles.filterArguments(target, 0, cast);
+                    } catch (NoSuchMethodException | IllegalAccessException e) {
+                        throw VMError.shouldNotReachHere(e);
+                    }
+                }
+                case STATIC -> desc.mh();
+                default -> throw VMError.shouldNotReachHere("Unsupported method handle kind for direct upcall: " + desc.mhDesc().kind());
+            };
 
             /*
              * For each unique link request, 'AbstractLinker.upcallStub' calls
@@ -682,22 +707,22 @@ public class ForeignFunctionsFeature implements InternalFeature, ForeignHostedSu
              * 'SharedUtils.arrangeUpcallHelper') with another factory that preprocesses the
              * user-provided method handle.
              */
-            boolean inMemoryReturn = abiUtils.isInMemoryReturn(desc.fd().returnLayout());
+            boolean inMemoryReturn = abiUtils.isInMemoryReturn(fd.returnLayout());
             if (inMemoryReturn) {
                 target = ReflectionUtil.invokeMethod(adaptUpcallForIMRMethod, null, target, abiUtils.dropReturn());
             }
-            AbstractLinker.UpcallStubFactory upcallStubFactory = ReflectionUtil.invokeMethod(arrangeUpcallMethod, LINKER, desc.fd().toMethodType(), desc.fd(), desc.options());
+            AbstractLinker.UpcallStubFactory upcallStubFactory = ReflectionUtil.invokeMethod(arrangeUpcallMethod, LINKER, fd.toMethodType(), fd, desc.options());
             UnaryOperator<MethodHandle> doBindingsMaker = lookupAndReadUnaryOperatorField(upcallStubFactory, inMemoryReturn);
             MethodHandle doBindings = doBindingsMaker.apply(target);
             doBindings = insertArguments(exactInvoker(doBindings.type()), 0, doBindings);
 
-            JavaEntryPointInfo jepi = abiUtils.makeJavaEntryPoint(desc.fd(), desc.options());
-            return new DirectUpcall(desc.mhDesc(), doBindings, jepi);
+            JavaEntryPointInfo jepi = abiUtils.makeJavaEntryPoint(fd, desc.options());
+            return new DirectUpcall(desc.mhDesc(), doBindings, jepi, injectedReceiver);
         }
 
         @Override
         public UpcallStub generateStub(MetaAccessProvider metaAccessProvider, AnalysisUniverse universe, DirectUpcall directUpcall) {
-            return LowLevelUpcallStub.makeDirect(directUpcall.bindings(), directUpcall.jep(), universe, metaAccessProvider);
+            return LowLevelUpcallStub.makeDirect(directUpcall.bindings(), directUpcall.jep(), universe, metaAccessProvider, directUpcall.injectedReceiver());
         }
 
         @Override

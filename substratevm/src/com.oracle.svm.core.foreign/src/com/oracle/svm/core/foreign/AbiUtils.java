@@ -669,7 +669,7 @@ public abstract class AbiUtils {
     @Platforms(Platform.HOSTED_ONLY.class)
     public abstract Map<String, MemoryLayout> canonicalLayouts();
 
-    public record Registers(Register methodHandle, Register isolate) {
+    public record Registers(Register methodHandleOrReceiver, Register isolate) {
     }
 
     public abstract Registers upcallSpecialArgumentsRegisters();
@@ -852,7 +852,7 @@ class ABIs {
         public void generateTrampolineTemplate(SubstrateBackendWithAssembler<?> backend, TrampolineTemplate template) {
             AArch64MacroAssembler masm = (AArch64MacroAssembler) backend.createAssembler(HostedOptionValues.singleton().get());
 
-            Register mhRegister = upcallSpecialArgumentsRegisters().methodHandle();
+            Register mhRegister = upcallSpecialArgumentsRegisters().methodHandleOrReceiver();
             Register isolateRegister = upcallSpecialArgumentsRegisters().isolate();
 
             Label loadIsolate = new Label();
@@ -1021,7 +1021,7 @@ class ABIs {
                 }
             });
 
-            Register mhRegister = upcallSpecialArgumentsRegisters().methodHandle();
+            Register mhRegister = upcallSpecialArgumentsRegisters().methodHandleOrReceiver();
             Register isolateRegister = upcallSpecialArgumentsRegisters().isolate();
 
             asm.maybeEmitIndirectTargetMarker();
