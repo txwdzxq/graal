@@ -1,5 +1,5 @@
 [[rule]]
-files = "*FlightRecord*"
+files = "*"
 all = [
     "christian.haeubl@oracle.com",
 ]
