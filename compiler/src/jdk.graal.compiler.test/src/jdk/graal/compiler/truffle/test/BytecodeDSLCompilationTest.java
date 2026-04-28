@@ -1828,6 +1828,78 @@ public class BytecodeDSLCompilationTest extends TestWithSynchronousCompiling {
         assertNotCompiled(calleeTarget);
     }
 
+    @Test
+    public void testGR73707InlinedBytecodeCaller() {
+        assumeTrue("Only cached-interpreter variants currently report transfer transitions for this scenario", !run.hasUncachedInterpreter());
+
+        List<String> transitionLogs = new ArrayList<>();
+        Context.Builder builder = newContextBuilder().option("engine.TraceBytecodeTransition", "transferToInterpreter").option("engine.CompilationFailureAction", "Silent").option("engine.MultiTier",
+                        "false").option("engine.BackgroundCompilation", "false").option("engine.OSR", "false").logHandler(new Handler() {
+                            @Override
+                            public void publish(LogRecord record) {
+                                synchronized (transitionLogs) {
+                                    transitionLogs.add(record.getMessage());
+                                }
+                            }
+
+                            @Override
+                            public void close() {
+                            }
+
+                            @Override
+                            public void flush() {
+                            }
+                        });
+
+        context = setupContext(builder);
+        context.initialize(BytecodeDSLTestLanguage.ID);
+
+        BytecodeRootNodes<BasicInterpreter> rootNodes = createNodes(run, BytecodeDSLTestLanguage.REF.get(null), BytecodeConfig.DEFAULT, b -> {
+            b.beginRoot();
+
+            b.beginDeoptimize();
+            b.emitLoadArgument(0);
+            b.endDeoptimize();
+
+            b.beginReturn();
+            b.emitLoadConstant(42L);
+            b.endReturn();
+
+            BasicInterpreter callee = b.endRoot();
+            callee.setName("callee");
+
+            b.beginRoot();
+
+            b.beginReturn();
+            b.beginInvokeInlined();
+            b.emitLoadConstant(callee);
+            b.emitLoadArgument(0);
+            b.endInvokeInlined();
+            b.endReturn();
+
+            b.endRoot().setName("caller");
+        });
+
+        OptimizedCallTarget calleeTarget = (OptimizedCallTarget) rootNodes.getNode(0).getCallTarget();
+        OptimizedCallTarget callerTarget = (OptimizedCallTarget) rootNodes.getNode(1).getCallTarget();
+
+        assertEquals(42L, callerTarget.call(false));
+
+        callerTarget.compile(true);
+        assertCompiled(callerTarget);
+        assertNotCompiled(calleeTarget);
+
+        synchronized (transitionLogs) {
+            transitionLogs.clear();
+        }
+
+        assertEquals(42L, callerTarget.call(true));
+
+        assertTrue("Expected transferToInterpreter transition for inlined runtime-compiled method", hasTransitionLog(transitionLogs, "transferToInterpreter"));
+        assertTrue("Expected transition to be attributed to the callee root", hasTransitionDetail(transitionLogs, "root=callee"));
+        assertNotCompiled(calleeTarget);
+    }
+
     private static long triangularSum(long value) {
         return (value * (value + 1L)) / 2L;
     }
