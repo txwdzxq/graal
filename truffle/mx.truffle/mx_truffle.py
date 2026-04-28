@@ -2044,7 +2044,7 @@ def register_polyglot_isolate_distributions(
             deps=resources_dist_dependencies,
             mainClass=None,
             excludedLibs=[],
-            distDependencies=["truffle:TRUFFLE_API"],
+            distDependencies=["sdk:NATIVEBRIDGE","truffle:TRUFFLE_API"],
             javaCompliance=str(build_internal_resource.javaCompliance) + "+",
             platformDependent=True,
             theLicense=licenses,
@@ -2134,7 +2134,10 @@ class PolyglotIsolateProject(mx_sdk_vm_ng.NativeImageLibraryProject):
         super().__init__(
             language_suite,
             f"{language_id}.isolate",
-            isolate_deps,
+            [
+                'sdk:NATIVEBRIDGE',
+                *isolate_deps
+            ],
             ["Truffle"],
             None,
             f"{language_id}vm",

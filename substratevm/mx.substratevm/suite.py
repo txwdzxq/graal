@@ -2308,7 +2308,6 @@ suite = {
                 "SVM",
                 "OBJECTFILE",
                 "POINTSTO",
-                "sdk:NATIVEBRIDGE",
                 "truffle:TRUFFLE_RUNTIME",
             ],
             "moduleInfo" : {
@@ -2332,6 +2331,7 @@ suite = {
                     # the module can still be used with the TruffleBaseFeature
                     "static org.graalvm.truffle.runtime",
                     "static org.graalvm.jniutils",
+                    "static org.graalvm.nativebridge",
                     "jdk.graal.compiler",
                     "org.graalvm.collections",
                     "org.graalvm.polyglot",
