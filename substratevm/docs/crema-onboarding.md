@@ -141,9 +141,9 @@ interpreter again into compiled code or falls through to
 `InterpreterStubSection.java`: `leaveInterpreter`, `leaveInterpreter0`, `call`).
 
 The frame model is heap-based. `InterpreterFrame` stores parallel primitive and reference slot arrays plus monitor
-state, and `EspressoFrame` overlays the JVM local-variable and operand-stack layout on top of that
+state, and `InterpreterFrameUtil` overlays the JVM local-variable and operand-stack layout on top of that
 storage (`InterpreterFrame.java`: constructor, `create`, slot accessors/mutators, and lock management,
-[EspressoFrame.java](../../espresso-shared/substratevm/src/com.oracle.svm.interpreter/src/com/oracle/svm/interpreter/EspressoFrame.java)).
+[InterpreterFrameUtil.java](../src/com.oracle.svm.interpreter/src/com/oracle/svm/interpreter/InterpreterFrameUtil.java)).
 `Interpreter.execute` initializes the frame from the Java arguments, acquires synchronized locks when needed, and runs
 the bytecode
 loop (`Interpreter.java`: `initArguments`, `initializeFrame`, `execute`, `execute0`).
