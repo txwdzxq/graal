@@ -355,7 +355,7 @@ public final class CodeInfoDecoder {
          * codeInfo and is only present for deopt entry points if lazy deoptimization is enabled.
          */
         assert LazyDeoptimization.getValue() : "must have lazy deoptimization enabled to have this information in the code info";
-        long rvoOffset = getU1(AFTER_FI_OFFSET, rawEntryFlags(entryFlags)) + extendedEntryHeaderSize(entryFlags) - FI_MEM_SIZE[extractFI(entryFlags)] + frameInfoMemSize(entryFlags);
+        long rvoOffset = afterFrameInfoOffset(entryFlags);
         return NonmovableByteArrayReader.getU1(CodeInfoAccess.getCodeInfoEncodings(info), entryOffset + rvoOffset);
     }
 
@@ -803,8 +803,13 @@ public final class CodeInfoDecoder {
         if (DeoptimizationSupport.enabled() && LazyDeoptimization.getValue() && extractFI(entryFlags) == FI_DEOPT_ENTRY_INDEX_S4) {
             returnValueIsObjectSize = Byte.BYTES;
         }
-        return entryOffset + getU1(AFTER_FI_OFFSET, rawEntryFlags(entryFlags)) + extendedEntryHeaderSize(entryFlags) - FI_MEM_SIZE[extractFI(entryFlags)] + frameInfoMemSize(entryFlags) +
-                        returnValueIsObjectSize;
+        return entryOffset + afterFrameInfoOffset(entryFlags) + returnValueIsObjectSize;
+    }
+
+    @AlwaysInline("Make IP-lookup loop call free")
+    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+    private static long afterFrameInfoOffset(int entryFlags) {
+        return getU1(AFTER_FI_OFFSET, rawEntryFlags(entryFlags)) + extendedEntryHeaderSize(entryFlags) - FI_MEM_SIZE[extractFI(entryFlags)] + frameInfoMemSize(entryFlags);
     }
 
     @Fold

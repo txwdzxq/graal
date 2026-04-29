@@ -70,7 +70,7 @@ public class ImageCodeInfo {
     private final Object[] objectFields;
     @UnknownObjectField(availability = AfterCompilation.class) byte[] codeInfoIndex;
     @UnknownObjectField(availability = AfterCompilation.class) byte[] codeInfoEncodings;
-    @UnknownObjectField(availability = AfterCompilation.class) byte[] codeInfoDefaultFrameInfos;
+    @UnknownObjectField(availability = AfterCompilation.class, canBeNull = true) byte[] codeInfoDefaultFrameInfos;
     @UnknownObjectField(availability = AfterCompilation.class) byte[] referenceMapEncoding;
     @UnknownObjectField(availability = AfterCompilation.class) byte[] frameInfoEncodings;
     @UnknownObjectField(availability = AfterCompilation.class) Object[] objectConstants;
