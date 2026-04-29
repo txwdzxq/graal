@@ -26,6 +26,7 @@ package com.oracle.svm.core.jfr;
 
 import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
+import com.oracle.svm.core.UnmanagedMemoryUtil;
 import com.oracle.svm.core.headers.LibC;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
@@ -61,6 +62,7 @@ public class JfrSymbolRepository implements JfrRepository {
     private final JfrSymbolEpochData epochData0;
     private final JfrSymbolEpochData epochData1;
     private final CharReplacer dotWithSlash;
+    private static final int STACK_STRING_BUFFER_SIZE = 256;
 
     @Platforms(Platform.HOSTED_ONLY.class)
     public JfrSymbolRepository() {
@@ -93,6 +95,12 @@ public class JfrSymbolRepository implements JfrRepository {
 
         assert Heap.getHeap().isInImageHeap(imageHeapString);
         int encodedLength = UninterruptibleUtils.String.utf8Length(imageHeapString, replaceDotWithSlash ? dotWithSlash : null);
+        if (encodedLength <= STACK_STRING_BUFFER_SIZE) {
+            Pointer buffer = StackValue.get(STACK_STRING_BUFFER_SIZE);
+            UninterruptibleUtils.String.toUTF8(imageHeapString, imageHeapString.length(), buffer, buffer.add(encodedLength), replaceDotWithSlash ? dotWithSlash : null);
+            return getSymbolIdFromTemporaryBuffer(buffer, Word.unsigned(encodedLength), previousEpoch);
+        }
+
         Pointer buffer = NullableNativeMemory.malloc(encodedLength, NmtCategory.JFR);
         if (buffer.isNull()) {
             return 0;
@@ -103,7 +111,7 @@ public class JfrSymbolRepository implements JfrRepository {
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-    private static int getHash(Pointer buffer, UnsignedWord length) {
+    private static int computeHash(Pointer buffer, UnsignedWord length) {
         int hash = 0;
         for (int i = 0; length.aboveThan(i); i++) {
             hash = 31 * hash + buffer.readByte(i);
@@ -111,14 +119,21 @@ public class JfrSymbolRepository implements JfrRepository {
         return hash;
     }
 
+    /**
+     * Gets the symbol id for a UTF-8 byte sequence owned by the C heap. If an identical symbol is
+     * already present, this method frees {@code buffer}; otherwise the repository takes ownership
+     * of it.
+     */
     @Uninterruptible(reason = "Locking without transition and result is only valid until epoch changes.", callerMustBe = true)
     public long getSymbolId(Pointer buffer, UnsignedWord length, boolean previousEpoch) {
+        return getSymbolIdFromOwnedBuffer(buffer, length, previousEpoch);
+    }
 
+    @Uninterruptible(reason = "Locking without transition and result is only valid until epoch changes.", callerMustBe = true)
+    private long getSymbolIdFromOwnedBuffer(Pointer buffer, UnsignedWord length, boolean previousEpoch) {
         assert buffer.isNonNull();
         JfrSymbol symbol = StackValue.get(JfrSymbol.class);
-        symbol.setUtf8(buffer); // symbol allocated in native memory
-        symbol.setLength(length);
-        symbol.setHash(getHash(buffer, length));
+        initializeSymbol(symbol, buffer, length);
 
         /*
          * Get an existing entry from the hashtable or insert a new entry. This needs to be atomic
@@ -134,34 +149,80 @@ public class JfrSymbolRepository implements JfrRepository {
                 return existingEntry.getId();
             }
 
-            JfrSymbol newEntry = (JfrSymbol) epochData.table.putNew(symbol);
-            if (newEntry.isNull()) {
-                NullableNativeMemory.free(symbol.getUtf8());
-                return 0L;
-            }
-
-            /* New entry, so serialize it to the buffer. */
-            if (epochData.buffer.isNull()) {
-                epochData.buffer = JfrBufferAccess.allocate(JfrBufferType.C_HEAP);
-            }
-
-            JfrNativeEventWriterData data = StackValue.get(JfrNativeEventWriterData.class);
-            JfrNativeEventWriterDataAccess.initialize(data, epochData.buffer);
-
-            JfrNativeEventWriter.putLong(data, newEntry.getId());
-            JfrNativeEventWriter.putString(data, newEntry.getUtf8(), (int) newEntry.getLength().rawValue());
-            if (!JfrNativeEventWriter.commit(data)) {
-                epochData.table.remove(symbol);
-                return 0L;
-            }
-
-            epochData.unflushedEntries++;
-            /* The buffer may have been replaced with a new one. */
-            epochData.buffer = data.getJfrBuffer();
-            return newEntry.getId();
+            return addNewSymbol(epochData, symbol);
         } finally {
             mutex.unlock();
         }
+    }
+
+    @Uninterruptible(reason = "Locking without transition and result is only valid until epoch changes.", callerMustBe = true)
+    private long getSymbolIdFromTemporaryBuffer(Pointer buffer, UnsignedWord length, boolean previousEpoch) {
+        assert buffer.isNonNull();
+        JfrSymbol symbol = StackValue.get(JfrSymbol.class);
+        initializeSymbol(symbol, buffer, length);
+
+        mutex.lockNoTransition();
+        try {
+            JfrSymbolEpochData epochData = getEpochData(previousEpoch);
+            JfrSymbol existingEntry = (JfrSymbol) epochData.table.get(symbol);
+            if (existingEntry.isNonNull()) {
+                return existingEntry.getId();
+            }
+
+            Pointer nativeBuffer = copyToNativeBuffer(buffer, length);
+            if (nativeBuffer.isNull()) {
+                return 0L;
+            }
+            symbol.setUtf8(nativeBuffer);
+            return addNewSymbol(epochData, symbol);
+        } finally {
+            mutex.unlock();
+        }
+    }
+
+    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+    private static void initializeSymbol(JfrSymbol symbol, Pointer buffer, UnsignedWord length) {
+        symbol.setUtf8(buffer);
+        symbol.setLength(length);
+        symbol.setHash(computeHash(buffer, length));
+    }
+
+    @Uninterruptible(reason = "Copies a temporary stack buffer to native memory while holding the symbol repository lock without transition.")
+    private static Pointer copyToNativeBuffer(Pointer source, UnsignedWord length) {
+        Pointer nativeBuffer = NullableNativeMemory.malloc(length.equal(0) ? Word.unsigned(1) : length, NmtCategory.JFR);
+        if (nativeBuffer.isNonNull() && length.aboveThan(0)) {
+            UnmanagedMemoryUtil.copy(source, nativeBuffer, length);
+        }
+        return nativeBuffer;
+    }
+
+    @Uninterruptible(reason = "Locking without transition requires that the whole critical section is uninterruptible.")
+    private static long addNewSymbol(JfrSymbolEpochData epochData, JfrSymbol symbol) {
+        JfrSymbol newEntry = (JfrSymbol) epochData.table.putNew(symbol);
+        if (newEntry.isNull()) {
+            NullableNativeMemory.free(symbol.getUtf8());
+            return 0L;
+        }
+
+        /* New entry, so serialize it to the buffer. */
+        if (epochData.buffer.isNull()) {
+            epochData.buffer = JfrBufferAccess.allocate(JfrBufferType.C_HEAP);
+        }
+
+        JfrNativeEventWriterData data = StackValue.get(JfrNativeEventWriterData.class);
+        JfrNativeEventWriterDataAccess.initialize(data, epochData.buffer);
+
+        JfrNativeEventWriter.putLong(data, newEntry.getId());
+        JfrNativeEventWriter.putString(data, newEntry.getUtf8(), (int) newEntry.getLength().rawValue());
+        if (!JfrNativeEventWriter.commit(data)) {
+            epochData.table.remove(symbol);
+            return 0L;
+        }
+
+        epochData.unflushedEntries++;
+        /* The buffer may have been replaced with a new one. */
+        epochData.buffer = data.getJfrBuffer();
+        return newEntry.getId();
     }
 
     @Override

@@ -72,7 +72,6 @@ import com.oracle.svm.core.nmt.NmtCategory;
  */
 public class JfrTypeRepository implements JfrRepository {
     private static final String BOOTSTRAP_NAME = "bootstrap";
-    private static final String EMPTY_NAME = "";
 
     private final EconomicSet<Class<?>> flushedClasses;
     private final JfrPackageTable flushedPackages;
@@ -104,8 +103,7 @@ public class JfrTypeRepository implements JfrRepository {
     }
 
     public void teardown() {
-        clearEpochData();
-        getEpochData(false).clear();
+        reset();
         previousEpochSnapshot.teardown();
         flushedPackages.teardown();
     }
@@ -123,8 +121,13 @@ public class JfrTypeRepository implements JfrRepository {
         epochTypeData1.clear();
     }
 
-    @Uninterruptible(reason = "Result is only valid until epoch changes.")
+    @Uninterruptible(reason = "Result is only valid until epoch changes.", callerMustBe = true)
     private JfrClassInfoTable getEpochData(boolean previousEpoch) {
+        return getEpochData0(previousEpoch);
+    }
+
+    @Uninterruptible(reason = "Result is only valid until epoch changes.")
+    private JfrClassInfoTable getEpochData0(boolean previousEpoch) {
         boolean epoch = previousEpoch ? JfrTraceIdEpoch.getInstance().previousEpoch() : JfrTraceIdEpoch.getInstance().currentEpoch();
         return epoch ? epochTypeData0 : epochTypeData1;
     }
@@ -172,11 +175,11 @@ public class JfrTypeRepository implements JfrRepository {
             return count;
         }
 
-        return writePreviousEpoch(writer);
+        return writeAndClearPreviousEpoch(writer);
     }
 
     @RestrictHeapAccess(access = NO_ALLOCATION, reason = "Used on OOME for emergency dumps")
-    int writePreviousEpoch(JfrChunkWriter writer) {
+    int writeAndClearPreviousEpoch(JfrChunkWriter writer) {
         int count = writePreviousEpochSnapshot(writer);
         clearEpochData();
         return count;
@@ -184,7 +187,7 @@ public class JfrTypeRepository implements JfrRepository {
 
     private TypeInfo collectCurrentTypeInfo() {
         TypeInfo typeInfo = new TypeInfo();
-        ClassInfoRaw[] table = (ClassInfoRaw[]) getEpochData(false).getTable();
+        ClassInfoRaw[] table = (ClassInfoRaw[]) getEpochData0(false).getTable();
         for (int i = 0; i < table.length; i++) {
             ClassInfoRaw entry = table[i];
             while (entry.isNonNull()) {
@@ -200,7 +203,7 @@ public class JfrTypeRepository implements JfrRepository {
     }
 
     private void buildPreviousEpochSnapshot() {
-        ClassInfoRaw[] table = (ClassInfoRaw[]) getEpochData(true).getTable();
+        ClassInfoRaw[] table = (ClassInfoRaw[]) getEpochData0(true).getTable();
         for (int i = 0; i < table.length; i++) {
             ClassInfoRaw entry = table[i];
             while (entry.isNonNull()) {
@@ -287,11 +290,8 @@ public class JfrTypeRepository implements JfrRepository {
             return 0L;
         }
         int encodedLength = UninterruptibleUtils.String.utf8Length(symbol, replaceDotWithSlash ? dotWithSlash : null);
-        if (encodedLength == 0) {
-            return SubstrateJVM.getSymbolRepository().getSymbolId(EMPTY_NAME, previousEpoch);
-        }
 
-        Pointer buffer = NullableNativeMemory.malloc(encodedLength, NmtCategory.JFR);
+        Pointer buffer = NullableNativeMemory.malloc(encodedLength == 0 ? 1 : encodedLength, NmtCategory.JFR);
         if (buffer.isNull()) {
             return 0L;
         }
@@ -304,15 +304,14 @@ public class JfrTypeRepository implements JfrRepository {
         if (!hasName) {
             return 0L;
         }
-        if (length.equal(0)) {
-            return SubstrateJVM.getSymbolRepository().getSymbolId(EMPTY_NAME, previousEpoch);
-        }
 
-        Pointer destination = NullableNativeMemory.malloc(length, NmtCategory.JFR);
+        Pointer destination = NullableNativeMemory.malloc(length.equal(0) ? Word.unsigned(1) : length, NmtCategory.JFR);
         if (destination.isNull()) {
             return 0L;
         }
-        UnmanagedMemoryUtil.copy(source, destination, length);
+        if (length.aboveThan(0)) {
+            UnmanagedMemoryUtil.copy(source, destination, length);
+        }
         return SubstrateJVM.getSymbolRepository().getSymbolId(destination, length, previousEpoch);
     }
 
@@ -332,7 +331,7 @@ public class JfrTypeRepository implements JfrRepository {
         writer.writeCompressedLong(pkgInfo.id);
         writer.writeCompressedLong(getSymbolId(writer, pkgKey.name, true));
         writer.writeCompressedLong(getModuleId(typeInfo, pkgKey.module));
-        writer.writeBoolean(false);
+        writer.writeBoolean(false); // exported
     }
 
     private int writeModules(JfrChunkWriter writer, TypeInfo typeInfo) {
@@ -350,8 +349,8 @@ public class JfrTypeRepository implements JfrRepository {
     private void writeModule(TypeInfo typeInfo, JfrChunkWriter writer, Module module, long id) {
         writer.writeCompressedLong(id);
         writer.writeCompressedLong(getSymbolId(writer, module.getName(), false));
-        writer.writeCompressedLong(0);
-        writer.writeCompressedLong(0);
+        writer.writeCompressedLong(0); // Version
+        writer.writeCompressedLong(0); // Location
         writer.writeCompressedLong(getClassLoaderId(typeInfo, module.getClassLoader()));
     }
 
@@ -418,7 +417,7 @@ public class JfrTypeRepository implements JfrRepository {
                 writer.writeCompressedLong(entry.getId());
                 writer.writeCompressedLong(entry.getNameSymbolId());
                 writer.writeCompressedLong(entry.getModuleId());
-                writer.writeBoolean(false);
+                writer.writeBoolean(false); // exported
                 entry = entry.getNext();
             }
         }
@@ -438,8 +437,8 @@ public class JfrTypeRepository implements JfrRepository {
             while (entry.isNonNull()) {
                 writer.writeCompressedLong(entry.getId());
                 writer.writeCompressedLong(entry.getNameSymbolId());
-                writer.writeCompressedLong(0);
-                writer.writeCompressedLong(0);
+                writer.writeCompressedLong(0); // Version
+                writer.writeCompressedLong(0); // Location
                 writer.writeCompressedLong(entry.getClassLoaderId());
                 entry = entry.getNext();
             }
@@ -743,7 +742,7 @@ public class JfrTypeRepository implements JfrRepository {
         currentPackageId = 0;
         currentModuleId = 0;
         currentClassLoaderId = 0;
-        getEpochData(true).clear();
+        getEpochData0(true).clear();
     }
 
     /**

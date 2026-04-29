@@ -70,6 +70,7 @@ public final class JfrThreadRepository implements JfrRepository {
         epochData1.teardown();
     }
 
+    @Uninterruptible(reason = "Locking without transition requires that the whole critical section is uninterruptible.")
     public void reset() {
         epochData0.clear(false);
         epochData1.clear(false);
@@ -178,13 +179,31 @@ public final class JfrThreadRepository implements JfrRepository {
     }
 
     @Uninterruptible(reason = "Epoch must not change while in this method.", callerMustBe = true)
-    private static boolean isVirtualThreadAlreadyRegistered(Thread thread) {
+    private boolean isVirtualThreadAlreadyRegistered(Thread thread) {
         assert JavaThreads.isVirtual(thread);
 
-        /* Threads only need to be registered once per epoch. */
         Target_java_lang_VirtualThread vthread = JavaThreads.toVirtualTarget(thread);
         long epochId = JfrTraceIdEpoch.getInstance().currentEpochId();
-        return vthread.jfrEpochId == epochId;
+        if (vthread.jfrEpochId != epochId) {
+            return false;
+        }
+
+        /*
+         * Threads only need to be registered once per epoch. However, the cached epoch id alone is
+         * not sufficient because repository resets at stop/emergency cleanup can wipe the current
+         * epoch state without clearing the virtual thread's cached id.
+         */
+        long threadId = JavaThreads.getThreadId(thread);
+        JfrVisited visitedThread = StackValue.get(JfrVisited.class);
+        visitedThread.setId(threadId);
+        visitedThread.setHash(UninterruptibleUtils.Long.hashCode(threadId));
+
+        mutex.lockNoTransition();
+        try {
+            return getEpochData(false).threadTable.contains(visitedThread);
+        } finally {
+            mutex.unlock();
+        }
     }
 
     @Uninterruptible(reason = "Epoch must not change while in this method.")
@@ -268,6 +287,20 @@ public final class JfrThreadRepository implements JfrRepository {
             int count = writeThreads(writer, epochData);
             count += writeThreadGroups(writer, epochData);
             epochData.clear(flushpoint);
+            return count;
+        } finally {
+            mutex.unlock();
+        }
+    }
+
+    @Uninterruptible(reason = "Locking without transition requires that the whole critical section is uninterruptible.")
+    public int writePreviousEpoch(JfrChunkWriter writer) {
+        mutex.lockNoTransition();
+        try {
+            JfrThreadEpochData epochData = getEpochData(true);
+            int count = writeThreads(writer, epochData);
+            count += writeThreadGroups(writer, epochData);
+            epochData.clear(false);
             return count;
         } finally {
             mutex.unlock();
