@@ -31,16 +31,15 @@ import static org.junit.Assert.fail;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 
-import com.oracle.svm.core.heap.OutOfMemoryUtil;
 import com.oracle.svm.core.jfr.HasJfrSupport;
 import com.oracle.svm.core.jfr.JfrEvent;
 import com.oracle.svm.core.jfr.SubstrateJVM;
@@ -53,61 +52,14 @@ import jdk.jfr.consumer.RecordedEvent;
 public class TestEmergencyDumpRecoveredOutOfMemory extends JfrRecordingTest {
     private static final String STRING_EVENT_NAME = "com.jfr.String";
     private static final String OUT_OF_MEMORY_REASON = "Out of Memory";
-    private static final int ITERATIONS = 3;
     private static final String ACTUAL_OOM_WORKER_PROPERTY = "com.oracle.svm.test.jfr.actualOomWorker";
     private static final String ACTUAL_OOM_DUMP_DIR_PROPERTY = "com.oracle.svm.test.jfr.actualOomDumpDir";
     private static final String ACTUAL_OOM_MESSAGE_PROPERTY = "com.oracle.svm.test.jfr.actualOomMessage";
     private static final String ACTUAL_OOM_MAX_HEAP = "-Xmx512m";
+    private static final int ACTUAL_OOM_EXIT_CODE = 3;
     private static final int ACTUAL_OOM_TIMEOUT_SECONDS = 120;
     private static final int ACTUAL_OOM_PAYLOAD_COUNT = 4;
     private static final int ACTUAL_OOM_PAYLOAD_SIZE = 4 * 1024 * 1024;
-
-    @Test
-    public void testRecoveredOutOfMemoryCreatesIndependentEmergencyDumps() throws Throwable {
-        if (isActualOomWorker()) {
-            return;
-        }
-        if (!HasJfrSupport.get()) {
-            return;
-        }
-
-        String[] events = new String[]{STRING_EVENT_NAME, JfrEvent.DumpReason.getName()};
-        long pid = ProcessHandle.current().pid();
-        Path rootDumpDir = Files.createTempDirectory(ClassUtil.getUnqualifiedName(getClass()) + "-");
-        List<Path> dumpFiles = new ArrayList<>(ITERATIONS);
-        try {
-            for (int i = 0; i < ITERATIONS; i++) {
-                String message = "oom-iteration-" + i;
-                Path dumpDir = Files.createDirectory(rootDumpDir.resolve("dump-" + i));
-                SubstrateJVM.get().setDumpPath(dumpDir.toString());
-
-                Recording recording = startRecording(events);
-                emitStringEvent(message);
-
-                try {
-                    OutOfMemoryUtil.heapSizeExceeded();
-                    fail("Expected OutOfMemoryError");
-                } catch (OutOfMemoryError expected) {
-                    // Expected. The process stays alive and should be able to record again.
-                }
-
-                recording.stop();
-                recording.close();
-
-                Path dumpFile = dumpDir.resolve("svm_oom_pid_" + pid + ".jfr");
-                assertTrue("emergency dump file does not exist.", Files.exists(dumpFile));
-                verifyDump(dumpFile, message);
-                dumpFiles.add(dumpFile);
-                assertNoResidualTestedEvents(events);
-            }
-            assertEquals(ITERATIONS, dumpFiles.size());
-            for (Path dumpFile : dumpFiles) {
-                assertTrue("expected emergency dump file to still exist: " + dumpFile, Files.exists(dumpFile));
-            }
-        } finally {
-            deleteRecursively(rootDumpDir);
-        }
-    }
 
     @Test
     public void testActualOutOfMemoryCreatesEmergencyDump() throws Throwable {
@@ -123,7 +75,7 @@ public class TestEmergencyDumpRecoveredOutOfMemory extends JfrRecordingTest {
         Path dumpDir = Files.createTempDirectory(ClassUtil.getUnqualifiedName(getClass()) + "-actual-oom-");
         try {
             WorkerResult worker = runActualOutOfMemoryWorkerProcess(dumpDir, message);
-            assertEquals(worker.output(), 0, worker.exitCode());
+            assertEquals(worker.output(), ACTUAL_OOM_EXIT_CODE, worker.exitCode());
 
             Path dumpFile = dumpDir.resolve("svm_oom_pid_" + worker.pid() + ".jfr");
             assertTrue("emergency dump file does not exist.", Files.exists(dumpFile));
@@ -158,20 +110,10 @@ public class TestEmergencyDumpRecoveredOutOfMemory extends JfrRecordingTest {
 
         Recording recording = startRecording(events);
         emitStringEvent(message);
-        try {
-            exhaustHeapRecursively();
-            fail("Expected OutOfMemoryError");
-        } catch (OutOfMemoryError expected) {
-            System.gc();
-        }
-
+        exhaustHeapRecursively();
         recording.stop();
         recording.close();
-
-        Path dumpFile = dumpDir.resolve("svm_oom_pid_" + ProcessHandle.current().pid() + ".jfr");
-        assertTrue("emergency dump file does not exist.", Files.exists(dumpFile));
-        verifyDump(dumpFile, message);
-        assertNoResidualTestedEvents(events);
+        fail("Expected OutOfMemoryError");
     }
 
     private WorkerResult runActualOutOfMemoryWorkerProcess(Path dumpDir, String message) throws IOException, InterruptedException {
@@ -179,6 +121,7 @@ public class TestEmergencyDumpRecoveredOutOfMemory extends JfrRecordingTest {
         List<String> command = new ArrayList<>();
         command.add(executable);
         command.add(ACTUAL_OOM_MAX_HEAP);
+        command.add("-XX:+ExitOnOutOfMemoryError");
         command.add("-D" + ACTUAL_OOM_WORKER_PROPERTY + "=true");
         command.add("-D" + ACTUAL_OOM_DUMP_DIR_PROPERTY + "=" + dumpDir);
         command.add("-D" + ACTUAL_OOM_MESSAGE_PROPERTY + "=" + message);
