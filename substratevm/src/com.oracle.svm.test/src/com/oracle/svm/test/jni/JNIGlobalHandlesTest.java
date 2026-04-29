@@ -25,6 +25,9 @@
 package com.oracle.svm.test.jni;
 
 import org.graalvm.nativeimage.ImageInfo;
+import org.graalvm.nativeimage.Isolate;
+import org.graalvm.nativeimage.IsolateThread;
+import org.graalvm.nativeimage.Isolates;
 import org.graalvm.word.impl.Word;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -36,8 +39,10 @@ import com.oracle.svm.core.jni.headers.JNIObjectRefType;
 import com.oracle.svm.test.NativeImageBuildArgs;
 
 @NativeImageBuildArgs({
+                "--add-exports=org.graalvm.nativeimage.builder/com.oracle.svm.core=ALL-UNNAMED",
                 "--add-exports=org.graalvm.nativeimage.builder/com.oracle.svm.core.jni=ALL-UNNAMED",
                 "--add-exports=org.graalvm.nativeimage.builder/com.oracle.svm.core.jni.headers=ALL-UNNAMED",
+                "--add-exports=org.graalvm.nativeimage.guest.staging/com.oracle.svm.guest.staging.c=ALL-UNNAMED",
                 "-da:com.oracle.svm.core.jni..."
 })
 public class JNIGlobalHandlesTest {
@@ -61,6 +66,42 @@ public class JNIGlobalHandlesTest {
         } finally {
             JNIObjectHandles.deleteGlobalRef(global);
         }
+    }
+
+    @Test
+    public void globalHandleOwnerTagUsesUniqueIsolateId() {
+        assumeNativeImageRuntime();
+
+        TestObject object = new TestObject("owner-tag");
+        JNIObjectHandle global = newGlobalRef(object);
+        try {
+            long isolateId = com.oracle.svm.core.Isolates.getIsolateId();
+            Assert.assertEquals(ownerTagFromIsolateId(isolateId), ownerTag(global));
+        } finally {
+            JNIObjectHandles.deleteGlobalRef(global);
+        }
+    }
+
+    @Test
+    public void isolateIdOwnerTagDoesNotRepeatWhenIsolateAddressIsReused() {
+        assumeNativeImageRuntime();
+
+        IsolateSnapshot staleIsolate = createIsolateSnapshot();
+        Isolates.tearDownIsolate(staleIsolate.thread);
+
+        for (int i = 0; i < 16; i++) {
+            IsolateSnapshot nextIsolate = createIsolateSnapshot();
+            try {
+                if (staleIsolate.pointerOwnerTag == nextIsolate.pointerOwnerTag) {
+                    Assert.assertNotEquals(staleIsolate.idOwnerTag, nextIsolate.idOwnerTag);
+                    return;
+                }
+            } finally {
+                Isolates.tearDownIsolate(nextIsolate.thread);
+            }
+        }
+
+        Assume.assumeTrue("Did not observe isolate address reuse while recreating isolates.", false);
     }
 
     @Test
@@ -159,6 +200,37 @@ public class JNIGlobalHandlesTest {
         return handle.rawValue() & VALIDATION_BITS_MASK;
     }
 
+    private static long ownerTagFromIsolateId(long isolateId) {
+        return (Long.hashCode(isolateId) & 0xffffffffL) << VALIDATION_BITS_SHIFT;
+    }
+
+    private static IsolateSnapshot createIsolateSnapshot() {
+        long isolateId = nextIsolateId();
+        IsolateThread thread = Isolates.createIsolate(Isolates.CreateIsolateParameters.getDefault());
+        Isolate isolate = Isolates.getIsolate(thread);
+        return new IsolateSnapshot(thread, ownerTagFromIsolatePointer(isolate), ownerTagFromIsolateId(isolateId));
+    }
+
+    private static long nextIsolateId() {
+        return com.oracle.svm.core.Isolates.ISOLATE_COUNTER.get().readLong(0);
+    }
+
+    private static long ownerTagFromIsolatePointer(Isolate isolate) {
+        return (Long.hashCode(isolate.rawValue()) & 0xffffffffL) << VALIDATION_BITS_SHIFT;
+    }
+
     private record TestObject(String name) {
+    }
+
+    private static final class IsolateSnapshot {
+        private final IsolateThread thread;
+        private final long pointerOwnerTag;
+        private final long idOwnerTag;
+
+        private IsolateSnapshot(IsolateThread thread, long pointerOwnerTag, long idOwnerTag) {
+            this.thread = thread;
+            this.pointerOwnerTag = pointerOwnerTag;
+            this.idOwnerTag = idOwnerTag;
+        }
     }
 }
