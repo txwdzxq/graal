@@ -303,7 +303,7 @@ final class Target_java_lang_Throwable {
 
                     BacktraceVisitor visitor = new BacktraceVisitor();
                     JavaThreads.visitCurrentStackFrames(visitor);
-                    backtrace = visitor.getArray();
+                    backtrace = visitor.getBacktraceHolder();
 
                     stackTrace = UNASSIGNED_STACK;
                 }
@@ -316,7 +316,7 @@ final class Target_java_lang_Throwable {
 
                     BacktraceVisitor visitor = new BacktraceVisitor();
                     JavaThreads.visitCurrentStackFrames(visitor);
-                    backtrace = visitor.getArray();
+                    backtrace = visitor.getBacktraceHolder();
 
                     stackTrace = UNASSIGNED_STACK;
                 }
@@ -366,7 +366,7 @@ final class Target_java_lang_StackTraceElement {
      */
     @Substitute
     static StackTraceElement[] of(Object x, int depth) {
-        return StackTraceBuilder.build((long[]) x);
+        return StackTraceBuilder.build(x);
     }
 }
 
