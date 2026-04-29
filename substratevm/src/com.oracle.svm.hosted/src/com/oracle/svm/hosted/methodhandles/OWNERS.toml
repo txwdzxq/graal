@@ -1,5 +1,0 @@
-[[rule]]
-files = "*"
-all = [
-    "loic.ottet@oracle.com",
-]
