@@ -362,8 +362,10 @@ public abstract class HotSpotBackend extends Backend implements FrameMap.Referen
                     save = null;
                     preservedRegisters.clear();
                 } else {
-                    op.visitEachTemp(defConsumer);
-                    op.visitEachOutput(defConsumer);
+                    // Preserved-register tracking only marks kill-side operand buckets, and their
+                    // relative order is irrelevant here, so it uses the canonical forward operand
+                    // walk.
+                    op.visitEachValueForward(null, null, defConsumer, defConsumer, defConsumer);
                 }
             }
             assert save == null : "missing RestoreRegistersOp";
