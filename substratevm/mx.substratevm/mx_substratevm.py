@@ -1063,10 +1063,12 @@ def standalone_pointsto_unittest(args):
         ]
         guest_modulepath = mx.classpath(guest_modulepath_entries, unique=True)
         upgrade_modulepath = mx.classpath(['compiler:GRAAL'], unique=True)
+        graaljdk_home = mx_compiler.get_graaljdk().home
 
         return [
             '-Dcom.oracle.graal.pointsto.standalone.vmaccess.modulepath=' + guest_modulepath,
             '-Dcom.oracle.graal.pointsto.standalone.vmaccess.upgrade.modulepath=' + upgrade_modulepath,
+            '-Dcom.oracle.graal.pointsto.standalone.vmaccess.java.home=' + graaljdk_home,
         ]
 
     if len(args) > 1 or (args and args[0] not in ('host', 'espresso')):
@@ -1074,7 +1076,6 @@ def standalone_pointsto_unittest(args):
 
     requested_vmaccess = args[0] if args else 'espresso'
     unittest_args = [
-        '--use-graalvm',
         '-Dcom.oracle.graal.pointsto.standalone.vmaccess.name=' + requested_vmaccess,
         'com.oracle.graal.pointsto.standalone.test',
     ]
@@ -3206,7 +3207,10 @@ class StandalonePointstoUnittestsConfig(mx_unittest.MxUnittestConfig):
 
     def processDeps(self, deps):
         if mx.suite('espresso-compiler-stub', fatalIfMissing=False):
+            deps.add(mx.distribution('espresso:ESPRESSO'))
+            deps.add(mx.distribution('espresso:ESPRESSO_LIBS_RESOURCES'))
             deps.add(mx.distribution('espresso-compiler-stub:ESPRESSO_VMACCESS'))
+            deps.add(mx.distribution('truffle:TRUFFLE_NFI_LIBFFI'))
 
     def apply(self, config):
         vmArgs, mainClass, mainClassArgs = config
@@ -3215,6 +3219,8 @@ class StandalonePointstoUnittestsConfig(mx_unittest.MxUnittestConfig):
         vmArgs.extend(['--add-exports=jdk.graal.compiler/jdk.graal.compiler.phases.util=ALL-UNNAMED'])
         # VMAccess needs to access jdk.internal.module.Modules
         vmArgs.extend(['--add-exports=java.base/jdk.internal.module=jdk.graal.compiler.vmaccess'])
+        # Espresso loads Truffle NFI from the org.graalvm.truffle module.
+        vmArgs.extend(['--enable-native-access=org.graalvm.truffle'])
 
         # JVMCI is dynamically exported to Graal when JVMCI is initialized. This is too late
         # for the junit harness which uses reflection to find @Test methods. In addition, the
