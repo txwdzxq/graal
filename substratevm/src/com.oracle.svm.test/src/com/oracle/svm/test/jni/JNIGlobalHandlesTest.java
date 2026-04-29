@@ -28,6 +28,10 @@ import org.graalvm.nativeimage.ImageInfo;
 import org.graalvm.nativeimage.Isolate;
 import org.graalvm.nativeimage.IsolateThread;
 import org.graalvm.nativeimage.Isolates;
+import org.graalvm.nativeimage.c.function.CEntryPoint;
+import org.graalvm.nativeimage.c.function.CEntryPointLiteral;
+import org.graalvm.nativeimage.c.function.CFunctionPointer;
+import org.graalvm.nativeimage.c.function.InvokeCFunctionPointer;
 import org.graalvm.word.impl.Word;
 import org.junit.Assert;
 import org.junit.Assume;
@@ -43,6 +47,7 @@ import com.oracle.svm.test.NativeImageBuildArgs;
                 "--add-exports=org.graalvm.nativeimage.builder/com.oracle.svm.core.jni=ALL-UNNAMED",
                 "--add-exports=org.graalvm.nativeimage.builder/com.oracle.svm.core.jni.headers=ALL-UNNAMED",
                 "--add-exports=org.graalvm.nativeimage.guest.staging/com.oracle.svm.guest.staging.c=ALL-UNNAMED",
+                "--initialize-at-build-time=com.oracle.svm.test.jni.JNIGlobalHandlesTest",
                 "-da:com.oracle.svm.core.jni..."
 })
 public class JNIGlobalHandlesTest {
@@ -50,6 +55,13 @@ public class JNIGlobalHandlesTest {
     private static final long VALIDATION_BITS_SHIFT = 31;
     private static final long VALIDATION_BITS_MASK = ((1L << 32) - 1) << VALIDATION_BITS_SHIFT;
     private static final long MSB = 1L << 63;
+    private static final int GLOBAL_HANDLE_REJECTED = 1;
+
+    private static final CEntryPointLiteral<CreateGlobalHandleFunction> CREATE_GLOBAL_HANDLE = CEntryPointLiteral.create(JNIGlobalHandlesTest.class, "createGlobalHandleInIsolate",
+                    IsolateThread.class);
+    private static final CEntryPointLiteral<ResolveGlobalHandleFunction> RESOLVE_GLOBAL_HANDLE = CEntryPointLiteral.create(JNIGlobalHandlesTest.class, "resolveGlobalHandleInIsolate",
+                    IsolateThread.class,
+                    JNIObjectHandle.class);
 
     @Test
     public void getObjectRefTypeRejectsForeignGlobalHandle() {
@@ -94,6 +106,31 @@ public class JNIGlobalHandlesTest {
             try {
                 if (staleIsolate.pointerOwnerTag == nextIsolate.pointerOwnerTag) {
                     Assert.assertNotEquals(staleIsolate.idOwnerTag, nextIsolate.idOwnerTag);
+                    return;
+                }
+            } finally {
+                Isolates.tearDownIsolate(nextIsolate.thread);
+            }
+        }
+
+        Assume.assumeTrue("Did not observe isolate address reuse while recreating isolates.", false);
+    }
+
+    @Test
+    public void staleGlobalHandleRejectedWhenIsolateAddressIsReused() {
+        assumeNativeImageRuntime();
+
+        IsolateWithGlobalHandle staleIsolate = createIsolateWithGlobalHandle();
+        Isolates.tearDownIsolate(staleIsolate.thread);
+
+        for (int i = 0; i < 16; i++) {
+            IsolateWithGlobalHandle nextIsolate = createIsolateWithGlobalHandle();
+            try {
+                if (staleIsolate.pointerOwnerTag == nextIsolate.pointerOwnerTag) {
+                    Assert.assertEquals(slot(staleIsolate.globalHandle), slot(nextIsolate.globalHandle));
+                    Assert.assertNotEquals(ownerTag(staleIsolate.globalHandle), ownerTag(nextIsolate.globalHandle));
+                    Assert.assertEquals(GLOBAL_HANDLE_REJECTED,
+                                    RESOLVE_GLOBAL_HANDLE.getFunctionPointer().invoke(nextIsolate.thread, staleIsolate.globalHandle));
                     return;
                 }
             } finally {
@@ -185,7 +222,6 @@ public class JNIGlobalHandlesTest {
     }
 
     private static JNIObjectHandle withDifferentOwnerTag(JNIObjectHandle handle) {
-        long rawValue = handle.rawValue();
         long slot = slot(handle);
         long validationBits = ownerTag(handle);
         long differentValidationBits = validationBits ^ (1L << VALIDATION_BITS_SHIFT);
@@ -211,6 +247,12 @@ public class JNIGlobalHandlesTest {
         return new IsolateSnapshot(thread, ownerTagFromIsolatePointer(isolate), ownerTagFromIsolateId(isolateId));
     }
 
+    private static IsolateWithGlobalHandle createIsolateWithGlobalHandle() {
+        IsolateSnapshot snapshot = createIsolateSnapshot();
+        JNIObjectHandle globalHandle = CREATE_GLOBAL_HANDLE.getFunctionPointer().invoke(snapshot.thread);
+        return new IsolateWithGlobalHandle(snapshot.thread, globalHandle, snapshot.pointerOwnerTag);
+    }
+
     private static long nextIsolateId() {
         return com.oracle.svm.core.Isolates.ISOLATE_COUNTER.get().readLong(0);
     }
@@ -222,6 +264,31 @@ public class JNIGlobalHandlesTest {
     private record TestObject(String name) {
     }
 
+    private interface CreateGlobalHandleFunction extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        JNIObjectHandle invoke(IsolateThread thread);
+    }
+
+    private interface ResolveGlobalHandleFunction extends CFunctionPointer {
+        @InvokeCFunctionPointer
+        int invoke(IsolateThread thread, JNIObjectHandle handle);
+    }
+
+    @CEntryPoint(include = CEntryPoint.NotIncludedAutomatically.class, publishAs = CEntryPoint.Publish.NotPublished)
+    private static JNIObjectHandle createGlobalHandleInIsolate(@SuppressWarnings("unused") IsolateThread thread) {
+        return newGlobalRef(new TestObject("stale"));
+    }
+
+    @CEntryPoint(include = CEntryPoint.NotIncludedAutomatically.class, publishAs = CEntryPoint.Publish.NotPublished)
+    private static int resolveGlobalHandleInIsolate(@SuppressWarnings("unused") IsolateThread thread, JNIObjectHandle handle) {
+        try {
+            JNIObjectHandles.getObject(handle);
+            return 0;
+        } catch (IllegalArgumentException expected) {
+            return GLOBAL_HANDLE_REJECTED;
+        }
+    }
+
     private static final class IsolateSnapshot {
         private final IsolateThread thread;
         private final long pointerOwnerTag;
@@ -231,6 +298,18 @@ public class JNIGlobalHandlesTest {
             this.thread = thread;
             this.pointerOwnerTag = pointerOwnerTag;
             this.idOwnerTag = idOwnerTag;
+        }
+    }
+
+    private static final class IsolateWithGlobalHandle {
+        private final IsolateThread thread;
+        private final JNIObjectHandle globalHandle;
+        private final long pointerOwnerTag;
+
+        private IsolateWithGlobalHandle(IsolateThread thread, JNIObjectHandle globalHandle, long pointerOwnerTag) {
+            this.thread = thread;
+            this.globalHandle = globalHandle;
+            this.pointerOwnerTag = pointerOwnerTag;
         }
     }
 }

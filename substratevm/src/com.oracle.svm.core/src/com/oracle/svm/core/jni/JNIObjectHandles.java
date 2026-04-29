@@ -24,13 +24,12 @@
  */
 package com.oracle.svm.core.jni;
 
-import org.graalvm.nativeimage.CurrentIsolate;
-import org.graalvm.nativeimage.Isolate;
 import org.graalvm.nativeimage.ObjectHandle;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.SignedWord;
 import org.graalvm.word.impl.Word;
 
+import com.oracle.svm.core.Isolates;
 import com.oracle.svm.core.NeverInline;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.handles.ObjectHandlesImpl;
@@ -282,9 +281,9 @@ public final class JNIObjectHandles {
 /**
  * Manages JNI global handles, which must be explicitly created and can be accessed in all threads
  * of an isolate until they are explicitly deleted. These handles have a most significant bit of 1,
- * i.e. they are negative as signed integers. We encode a hash of the current {@link Isolate} to
- * detect when global handles are incorrectly passed between isolates, for example by native code
- * that is unaware of isolates.
+ * i.e. they are negative as signed integers. We encode a hash of the current isolate id to detect
+ * when global handles are incorrectly passed between isolates, for example by native code that is
+ * unaware of isolates.
  */
 final class JNIGlobalHandles {
     static final SignedWord MIN_VALUE = Word.signed(Long.MIN_VALUE);
@@ -307,7 +306,7 @@ final class JNIGlobalHandles {
     }
 
     private static Word isolateHash() {
-        int isolateHash = Long.hashCode(CurrentIsolate.getIsolate().rawValue());
+        int isolateHash = Long.hashCode(Isolates.getIsolateId());
         return Word.unsigned(isolateHash);
     }
 
