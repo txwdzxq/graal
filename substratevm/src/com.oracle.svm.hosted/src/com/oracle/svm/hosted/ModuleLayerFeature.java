@@ -39,7 +39,9 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,6 +57,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.jar.JarFile;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -1454,9 +1457,10 @@ public class ModuleLayerFeature implements InternalFeature {
         }
 
         /**
-         * Patch module references that contain URLs with a non-JRT protocol. Module references can
-         * contain URLs that capture hosted directories, e.g.,
-         * {@linkplain "file:///home/user/dir/foo.jar"}. See
+         * Redact file-backed module reference locations so hosted directories do not leak into the
+         * image heap. Module references can capture hosted paths such as
+         * {@linkplain "file:///home/user/dir/foo.jar"} while non-file locations, including JRT
+         * locations, are preserved. See
          * {@link com.oracle.svm.hosted.image.DisallowedImageHeapObjectFeature} for more details on
          * what substrings are detected during the image build.
          */
@@ -1464,16 +1468,43 @@ public class ModuleLayerFeature implements InternalFeature {
 
             static final FieldValueTransformer INSTANCE = new ResetModuleReferenceLocation();
 
+            final URI redactedFileURI;
+            final URL redactedFileURL;
+            final String redactedFileString;
+
             private ResetModuleReferenceLocation() {
+                redactedFileURI = URI.create("file:///REDACTED");
+                redactedFileString = redactedFileURI.getPath();
+                try {
+                    redactedFileURL = redactedFileURI.toURL();
+                } catch (MalformedURLException e) {
+                    throw VMError.shouldNotReachHere("Failed to create URL from " + redactedFileURI, e);
+                }
             }
 
             @Override
             public Object transform(Object receiver, Object originalValue) {
-                if (originalValue == null || originalValue.toString().startsWith("jrt://")) {
+                if (originalValue == null) {
                     return originalValue;
-                } else {
+                }
+                String s = originalValue.toString();
+                if (originalValue instanceof String) {
+                    return redactedFileString;
+                }
+                if (originalValue instanceof URI) {
+                    return s.startsWith("file:") ? redactedFileURI : originalValue;
+                }
+                if (originalValue instanceof URL) {
+                    return s.startsWith("file:") ? redactedFileURL : originalValue;
+                }
+                /*
+                 * A JarFile object cannot be safely redacted while preserving
+                 * its type, so return null.
+                 */
+                if (originalValue instanceof JarFile) {
                     return null;
                 }
+                throw VMError.shouldNotReachHere("File based location '%s' of unexpected type %s", s, originalValue.getClass());
             }
         }
     }
