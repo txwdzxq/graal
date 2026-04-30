@@ -750,7 +750,8 @@ public class UninterruptibleUtils {
         public static int toUTF8UntilLimit(java.lang.String string, Pointer buffer, Pointer bufferEnd, int maxBytes) {
             Pointer pos = buffer;
             int bytesWritten = 0;
-            for (int index = 0; index < string.length();) {
+            int index = 0;
+            while (index < string.length()) {
                 int codePoint = utf8CodePointAt(string, index, string.length(), null);
                 int byteLength = utf8Length(codePoint);
                 if (maxBytes - bytesWritten < byteLength) {
@@ -765,15 +766,10 @@ public class UninterruptibleUtils {
         }
 
         /**
-         * Returns the Unicode code point at the given index in the string, combining surrogate
-         * pairs into a single code point when applicable. Unpaired surrogates are returned as the
-         * malformed UTF-8 replacement used by the other UTF-8 helpers in this class.
+         * If {@code replacer} is non-null, it is applied to individual chars before UTF-8 encoding.
+         * Valid surrogate pairs are combined into code points before replacement and are therefore
+         * not passed to the replacer.
          */
-        @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
-        public static int codePointAt(java.lang.String string, int index) {
-            return utf8CodePointAt(string, index, string.length(), null);
-        }
-
         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
         private static int utf8CodePointAt(java.lang.String string, int index, int stringLength, CharReplacer replacer) {
             char ch = charAt(string, index);
@@ -790,6 +786,16 @@ public class UninterruptibleUtils {
                 return MALFORMED_UTF8_REPLACEMENT;
             }
             return ch;
+        }
+
+        /**
+         * Returns the Unicode code point at the given index in the string, combining surrogate
+         * pairs into a single code point when applicable. Unpaired surrogates are returned as the
+         * malformed UTF-8 replacement used by the other UTF-8 helpers in this class.
+         */
+        @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
+        public static int codePointAt(java.lang.String string, int index) {
+            return utf8CodePointAt(string, index, string.length(), null);
         }
 
         /**

@@ -181,7 +181,15 @@ public class JfrTypeRepository implements JfrRepository {
     @RestrictHeapAccess(access = NO_ALLOCATION, reason = "Used on OOME for emergency dumps")
     int writeAndClearPreviousEpoch(JfrChunkWriter writer) {
         int count = writePreviousEpochSnapshot(writer);
-        clearEpochData();
+        flushedClasses.clear();
+        flushedModules.clear();
+        flushedClassLoaders.clear();
+        flushedPackages.clear();
+        previousEpochSnapshot.reset();
+        currentPackageId = 0;
+        currentModuleId = 0;
+        currentClassLoaderId = 0;
+        getEpochData0(true).clear();
         return count;
     }
 
@@ -305,13 +313,11 @@ public class JfrTypeRepository implements JfrRepository {
             return 0L;
         }
 
-        Pointer destination = NullableNativeMemory.malloc(length.equal(0) ? Word.unsigned(1) : length, NmtCategory.JFR);
+        Pointer destination = NullableNativeMemory.malloc(length, NmtCategory.JFR);
         if (destination.isNull()) {
             return 0L;
         }
-        if (length.aboveThan(0)) {
-            UnmanagedMemoryUtil.copy(source, destination, length);
-        }
+        UnmanagedMemoryUtil.copy(source, destination, length);
         return SubstrateJVM.getSymbolRepository().getSymbolId(destination, length, previousEpoch);
     }
 
@@ -731,18 +737,6 @@ public class JfrTypeRepository implements JfrRepository {
             return 0;
         }
         return packageEntry.getId();
-    }
-
-    private void clearEpochData() {
-        flushedClasses.clear();
-        flushedModules.clear();
-        flushedClassLoaders.clear();
-        flushedPackages.clear();
-        previousEpochSnapshot.reset();
-        currentPackageId = 0;
-        currentModuleId = 0;
-        currentClassLoaderId = 0;
-        getEpochData0(true).clear();
     }
 
     /**

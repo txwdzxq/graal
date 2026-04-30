@@ -364,7 +364,7 @@ public final class JfrChunkFileWriter implements JfrChunkWriter {
         if (threadRepo.hasUnflushedPreviousEpochData()) {
             long start = beginCheckpointEvent(JfrCheckpointType.Threads);
             long poolCountPos = writeCheckpointPoolCountPlaceholder();
-            int poolCount = threadRepo.writePreviousEpoch(this);
+            int poolCount = threadRepo.write(this, false);
             endCheckpointEvent(start, poolCountPos, poolCount);
         } else {
             threadRepo.clearPreviousEpoch();

@@ -45,6 +45,7 @@ import com.oracle.svm.core.jfr.oldobject.JfrOldObjectProfiler;
 import com.oracle.svm.core.jfr.oldobject.JfrOldObjectRepository;
 import com.oracle.svm.core.jfr.sampler.JfrExecutionSampler;
 import com.oracle.svm.core.jfr.throttling.JfrEventThrottling;
+import com.oracle.svm.core.jfr.traceid.JfrTraceIdEpoch;
 import com.oracle.svm.core.log.Log;
 import com.oracle.svm.core.sampler.SamplerBufferPool;
 import com.oracle.svm.core.sampler.SamplerBuffersAccess;
@@ -113,7 +114,7 @@ public class SubstrateJVM {
      * in).
      */
     private volatile boolean recording;
-    private String dumpPath = "";
+    private String dumpPath;
 
     @Platforms(Platform.HOSTED_ONLY.class)
     public SubstrateJVM(List<Configuration> configurations, boolean writeFile) {
@@ -373,7 +374,7 @@ public class SubstrateJVM {
         recorderThread.endRecording();
     }
 
-    void enqueueEndRecordingOperation() {
+    void endRecordingOperation() {
         new JfrEndRecordingOperation().enqueue();
     }
 
@@ -607,7 +608,7 @@ public class SubstrateJVM {
      * See {@code JfrEmergencyDump::set_dump_path}.
      */
     public void setDumpPath(String dumpPathText) {
-        dumpPath = dumpPathText == null ? "" : dumpPathText;
+        dumpPath = dumpPathText;
         if (JfrEmergencyDumpSupport.isPresent()) {
             JfrEmergencyDumpSupport.singleton().setDumpPath(dumpPathText);
         }
@@ -617,7 +618,11 @@ public class SubstrateJVM {
      * See {@code JVM#getDumpPath()}.
      */
     public String getDumpPath() {
-        return dumpPath;
+        if (JfrEmergencyDumpSupport.isPresent()) {
+            return JfrEmergencyDumpSupport.singleton().getDumpPath();
+        }
+        // The JDK side passes JVM.getDumpPath() to Path.of(...), so keep this non-null.
+        return dumpPath == null ? "" : dumpPath;
     }
 
     /**
@@ -806,6 +811,7 @@ public class SubstrateJVM {
             SubstrateJVM.getOldObjectProfiler().reset();
             JfrAllocationEvents.reset();
 
+            JfrTraceIdEpoch.getInstance().changeEpoch();
             SubstrateJVM.get().recording = true;
             /* Recording is enabled, so JFR events can be triggered at any time. */
             SubstrateJVM.getThreadRepo().registerRunningThreads();

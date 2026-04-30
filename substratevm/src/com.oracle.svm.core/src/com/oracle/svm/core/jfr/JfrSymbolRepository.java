@@ -26,7 +26,6 @@ package com.oracle.svm.core.jfr;
 
 import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
-import com.oracle.svm.core.UnmanagedMemoryUtil;
 import com.oracle.svm.core.headers.LibC;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
@@ -120,17 +119,12 @@ public class JfrSymbolRepository implements JfrRepository {
     }
 
     /**
-     * Gets the symbol id for a UTF-8 byte sequence owned by the C heap. If an identical symbol is
-     * already present, this method frees {@code buffer}; otherwise the repository takes ownership
-     * of it.
+     * Gets the symbol id for a UTF-8 byte sequence that lives in the C heap. If an identical symbol
+     * is already present, this method frees {@code buffer}; otherwise the repository takes
+     * ownership of it.
      */
     @Uninterruptible(reason = "Locking without transition and result is only valid until epoch changes.", callerMustBe = true)
     public long getSymbolId(Pointer buffer, UnsignedWord length, boolean previousEpoch) {
-        return getSymbolIdFromOwnedBuffer(buffer, length, previousEpoch);
-    }
-
-    @Uninterruptible(reason = "Locking without transition and result is only valid until epoch changes.", callerMustBe = true)
-    private long getSymbolIdFromOwnedBuffer(Pointer buffer, UnsignedWord length, boolean previousEpoch) {
         assert buffer.isNonNull();
         JfrSymbol symbol = StackValue.get(JfrSymbol.class);
         initializeSymbol(symbol, buffer, length);
@@ -169,10 +163,11 @@ public class JfrSymbolRepository implements JfrRepository {
                 return existingEntry.getId();
             }
 
-            Pointer nativeBuffer = copyToNativeBuffer(buffer, length);
+            Pointer nativeBuffer = NullableNativeMemory.malloc(length, NmtCategory.JFR);
             if (nativeBuffer.isNull()) {
                 return 0L;
             }
+            LibC.memcpy(nativeBuffer, buffer, length);
             symbol.setUtf8(nativeBuffer);
             return addNewSymbol(epochData, symbol);
         } finally {
@@ -185,15 +180,6 @@ public class JfrSymbolRepository implements JfrRepository {
         symbol.setUtf8(buffer);
         symbol.setLength(length);
         symbol.setHash(computeHash(buffer, length));
-    }
-
-    @Uninterruptible(reason = "Copies a temporary stack buffer to native memory while holding the symbol repository lock without transition.")
-    private static Pointer copyToNativeBuffer(Pointer source, UnsignedWord length) {
-        Pointer nativeBuffer = NullableNativeMemory.malloc(length.equal(0) ? Word.unsigned(1) : length, NmtCategory.JFR);
-        if (nativeBuffer.isNonNull() && length.aboveThan(0)) {
-            UnmanagedMemoryUtil.copy(source, nativeBuffer, length);
-        }
-        return nativeBuffer;
     }
 
     @Uninterruptible(reason = "Locking without transition requires that the whole critical section is uninterruptible.")

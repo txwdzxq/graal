@@ -100,7 +100,7 @@ public final class JfrNativeEventWriter {
     @Uninterruptible(reason = "Accesses a native JFR buffer.", callerMustBe = true)
     public static JfrEventWriteStatus endSmallEvent(JfrNativeEventWriterData data) {
         JfrEventWriteStatus status = endEvent(data, false);
-        VMError.guarantee(status != JfrEventWriteStatus.RetryLarge);
+        assert status != JfrEventWriteStatus.RetryLarge;
         return status;
     }
 
@@ -347,7 +347,7 @@ public final class JfrNativeEventWriter {
         if (oldBuffer.getSize().belowThan(minNewSize)) {
             // Grow the buffer because it is too small.
             UnsignedWord newSize = oldBuffer.getSize();
-            VMError.guarantee(newSize.aboveThan(0), "JFR buffer size must be positive.");
+            assert newSize.aboveThan(0) : "JFR buffer size must be positive.";
             while (newSize.belowThan(minNewSize)) {
                 newSize = newSize.multiply(2);
             }
