@@ -42,7 +42,6 @@ import com.oracle.graal.pointsto.meta.HostedProviders;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.UninterruptibleAnnotationUtils;
-import com.oracle.svm.guest.staging.c.function.CEntryPointErrors;
 import com.oracle.svm.core.foreign.AbiUtils;
 import com.oracle.svm.core.foreign.AbiUtils.Adapter.Result.TypeAdaptation;
 import com.oracle.svm.core.foreign.JavaEntryPointInfo;
@@ -59,6 +58,7 @@ import com.oracle.svm.core.graal.nodes.CEntryPointLeaveNode;
 import com.oracle.svm.core.graal.nodes.CEntryPointUtilityNode;
 import com.oracle.svm.core.graal.nodes.LoweredDeadEndNode;
 import com.oracle.svm.core.graal.stackvalue.StackValueNode;
+import com.oracle.svm.guest.staging.c.function.CEntryPointErrors;
 import com.oracle.svm.hosted.code.NonBytecodeMethod;
 import com.oracle.svm.shared.util.BasedOnJDKFile;
 import com.oracle.svm.shared.util.ReflectionUtil;
@@ -116,8 +116,8 @@ public abstract class UpcallStub extends NonBytecodeMethod {
  * <p>
  * Unlike downcalls where methods could have varargs, which are not supported by the backend, this
  * cannot happen for upcalls. We therefore use a custom calling convention to surface the trampoline
- * injected isolate and method handle registers as explicit parameters while still delegating all
- * other arguments to the standard native-to-Java mappings.
+ * injected isolate and runtime object registers as explicit parameters while still delegating all
+ * native arguments to the standard native-to-Java mappings.
  * <p>
  * The method type is of the form (<>: argument; []: optional argument)
  *
@@ -130,8 +130,8 @@ public abstract class UpcallStub extends NonBytecodeMethod {
  * with the following arguments being passed using special registers:
  * <ul>
  * <li>In {@link AbiUtils.Registers#methodHandleOrReceiver}: The address of the target method's
- * receiver (a pinned object) if {@link #injectReceiver} is {@code true}. Otherwise, the
- * {@link MethodHandle} to call.</li>
+ * receiver if {@link #injectReceiver} is {@code true}. Otherwise, the {@link MethodHandle} to
+ * call.</li>
  * <li>In {@link AbiUtils.Registers#isolate}: The {@link org.graalvm.nativeimage.Isolate} to
  * enter.</li>
  * </ul>
@@ -148,10 +148,12 @@ final class LowLevelUpcallStub extends UpcallStub implements CustomCallingConven
         return new LowLevelUpcallStub(highLevelStubMethod, jep, adapted, metaAccess, false, false);
     }
 
-    static LowLevelUpcallStub makeDirect(MethodHandle target, JavaEntryPointInfo jep, AnalysisUniverse universe, MetaAccessProvider metaAccess, boolean injectedReceiver) {
-        TypeAdaptation adapted = AbiUtils.singleton().adapt(jep);
-        AnalysisMethod highLevelStubMethod = universe.lookup(new HighLevelDirectUpcallStub(target, jep, adapted, metaAccess, injectedReceiver));
-        return new LowLevelUpcallStub(highLevelStubMethod, jep, adapted, metaAccess, true, injectedReceiver);
+    static LowLevelUpcallStub makeDirect(MethodHandle target, JavaEntryPointInfo nativeJep, JavaEntryPointInfo targetJep, AnalysisUniverse universe, MetaAccessProvider metaAccess,
+                    boolean injectedReceiver) {
+        TypeAdaptation nativeAdapted = AbiUtils.singleton().adapt(nativeJep);
+        TypeAdaptation targetAdapted = AbiUtils.singleton().adapt(targetJep);
+        AnalysisMethod highLevelStubMethod = universe.lookup(new HighLevelDirectUpcallStub(target, targetJep, targetAdapted, metaAccess, injectedReceiver));
+        return new LowLevelUpcallStub(highLevelStubMethod, nativeJep, nativeAdapted, metaAccess, true, injectedReceiver);
     }
 
     private LowLevelUpcallStub(AnalysisMethod highLevelStubMethod, JavaEntryPointInfo jep, AbiUtils.Adapter.Result.TypeAdaptation adapted, MetaAccessProvider metaAccess, boolean direct,
@@ -172,8 +174,8 @@ final class LowLevelUpcallStub extends UpcallStub implements CustomCallingConven
 
     /**
      * Prepends assigned locations for special registers that will contain the method handle (or the
-     * first object argument) and the isolate pointer. This will tell the compiler that those
-     * registers are used for parameters.
+     * receiver address for bound instance direct upcalls) and the isolate pointer. This tells the
+     * compiler that those registers are used for parameters.
      */
     private static AssignedLocation[] toLowLevelAssignments(TypeAdaptation adapted) {
         AbiUtils.Registers specialRegisters = AbiUtils.singleton().upcallSpecialArgumentsRegisters();
@@ -191,9 +193,9 @@ final class LowLevelUpcallStub extends UpcallStub implements CustomCallingConven
      * Implementation note: it would have been nice to be able to reuse the
      * {@link com.oracle.svm.core.foreign.AbiUtils.Adapter} facilities to implement the argument
      * transformations between the low and high call. Unfortunately, these facilities are not really
-     * suited here: there is no assignment to transform, the type must be transformed before the
-     * function is actually called (so all transformations should not be applied at the same time)
-     * and finally argument injection is not currently supported.
+     * suited here: direct upcalls with receiver injection need to keep the native callback
+     * assignments unchanged while passing a different Java target signature to the high-level stub.
+     * Applying all transformations in one step would mix those two views of the arguments.
      */
     @Override
     public StructuredGraph buildGraph(DebugContext debug, AnalysisMethod method, HostedProviders providers, Purpose purpose) {
@@ -202,11 +204,11 @@ final class LowLevelUpcallStub extends UpcallStub implements CustomCallingConven
         ForeignGraphKit kit = new ForeignGraphKit(debug, providers, method);
 
         /*
-         * Read all relevant values, i.e. the MH to call (or first object argument), the current
-         * Isolate, the function-preserved registers and function's arguments
+         * Read all relevant values, i.e. the MH to call (or receiver address), the current Isolate,
+         * the function-preserved registers and function's arguments.
          *
-         * The trampoline seeds dedicated registers for the method handle (or first object argument)
-         * and isolate; the custom calling convention exposes them as the first parameters.
+         * The trampoline seeds dedicated registers for the method handle (or receiver address) and
+         * isolate; the custom calling convention exposes them as the first parameters.
          */
         AbiUtils.Registers registers = AbiUtils.singleton().upcallSpecialArgumentsRegisters();
         List<ValueNode> arguments = new ArrayList<>(kit.getInitialArguments());
@@ -246,16 +248,17 @@ final class LowLevelUpcallStub extends UpcallStub implements CustomCallingConven
 
         /*
          * Direct upcalls for bound instance receivers reuse the special method-handle register to
-         * carry the pinned receiver address. Replace the synthetic receiver ABI argument by that
-         * register value before calling the high-level stub. Keep an injected return buffer, if
-         * present, at the front of the argument list.
+         * carry the receiver address. Insert that value into the Java target arguments without
+         * changing the native callback ABI. Keep an injected return buffer, if present, at the
+         * front of the argument list.
          */
         if (injectReceiver) {
             int receiverArgumentIndex = jep.buffersReturn() ? 1 : 0;
-            VMError.guarantee(arguments.size() > receiverArgumentIndex);
-            arguments.remove(receiverArgumentIndex);
+            VMError.guarantee(arguments.size() >= receiverArgumentIndex);
+            arguments.add(receiverArgumentIndex, methodHandleOrReceiver);
+        } else {
+            arguments.addFirst(methodHandleOrReceiver);
         }
-        arguments.addFirst(methodHandleOrReceiver);
 
         /*
          * Transfers to the Java-side stub; note that exceptions should be handled there. We
@@ -412,9 +415,9 @@ class HighLevelDirectUpcallStub extends UpcallStub {
 
         /*
          * Support for bound method handles that invoke an instance method. In that case, the first
-         * argument to this high-level upcall stub is the address of the (pinned) receiver object of
-         * the method to be invoked. Otherwise, it is the method handle, which we discard for the
-         * call.
+         * non-return-buffer argument to this high-level upcall stub is the address of the receiver
+         * object of the method to be invoked. Otherwise, it is the method handle, which we discard
+         * for the call.
          */
         if (injectedReceiver) {
             ValueNode receiverAddress = allArguments.getFirst();

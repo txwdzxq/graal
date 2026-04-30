@@ -33,7 +33,6 @@ import java.lang.constant.MethodHandleDesc;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.MemorySegment.Scope;
-import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodType;
 import java.util.Deque;
@@ -274,7 +273,7 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
     /**
      * Updates the stub address in the upcall trampoline with the address of a direct upcall stub.
      * The trampoline is identified by the given native address and the direct upcall stub is
-     * identified by the method handle descriptor.
+     * identified by the method handle descriptor and the original native callback descriptor.
      * <p>
      * Further, if the method handle is a bound method handle that binds a direct method handle to
      * an object, it will also unwrap the direct method handle.
@@ -308,13 +307,7 @@ public class ForeignFunctionsRuntime implements ForeignSupport, OptimizeSharedAr
             return;
         }
 
-        FunctionDescriptor lookupDescriptor = functionDescriptor;
-        if (desc.kind() != Kind.STATIC && desc.kind() != Kind.INTERFACE_STATIC) {
-            // the inserted long argument is the address of the (pinned) bound object
-            lookupDescriptor = lookupDescriptor.insertArgumentLayouts(0, ValueLayout.JAVA_LONG);
-        }
-
-        JavaEntryPointInfo jep = AbiUtils.singleton().makeJavaEntryPoint(lookupDescriptor, options);
+        JavaEntryPointInfo jep = AbiUtils.singleton().makeJavaEntryPoint(functionDescriptor, options);
         FunctionPointerHolder functionPointerHolder = directUpcallStubs.get(Pair.create(desc, jep));
         if (functionPointerHolder == null) {
             return;
