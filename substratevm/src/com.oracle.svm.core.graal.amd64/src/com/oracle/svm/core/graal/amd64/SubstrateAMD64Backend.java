@@ -98,6 +98,7 @@ import com.oracle.svm.core.interpreter.InterpreterSupport;
 import com.oracle.svm.core.meta.CompressedNullConstant;
 import com.oracle.svm.core.meta.SharedField;
 import com.oracle.svm.core.meta.SharedMethod;
+import com.oracle.svm.core.meta.SubstrateMethodOffsetConstant;
 import com.oracle.svm.core.meta.SubstrateMethodPointerConstant;
 import com.oracle.svm.core.meta.SubstrateObjectConstant;
 import com.oracle.svm.core.nodes.SafepointCheckNode;
@@ -1604,7 +1605,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
             }
         }
 
-        public AMD64LIRInstruction createLoadMethodPointerConstant(AllocatableValue dst, SubstrateMethodPointerConstant constant) {
+        private static AMD64LIRInstruction createLoadMethodPointerConstant(AllocatableValue dst, SubstrateMethodPointerConstant constant) {
             if (ImageLayerBuildingSupport.buildingExtensionLayer()) {
                 if (constant.pointer().getMethod() instanceof SharedMethod sharedMethod && sharedMethod.forceIndirectCall()) {
                     DynamicImageLayerInfo dynamicImageLayerInfo = DynamicImageLayerInfo.singleton();
@@ -1612,7 +1613,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
                         return new AMD64CGlobalDataDirectLoadAddressOp(dynamicImageLayerInfo.getSymbolForDelayedMethod(sharedMethod), dst);
                     } else {
                         /*
-                         * AMD64LoadMethodPointerConstantOp retrieves the address via a PC-relative
+                         * AMD64LoadMethodRefConstantOp retrieves the address via a PC-relative
                          * load. This is not possible to do in extension layers when referring to
                          * methods defined in prior layers.
                          */
@@ -1622,7 +1623,23 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
                 }
             }
 
-            return new AMD64LoadMethodPointerConstantOp(dst, constant);
+            return new AMD64LoadMethodRefConstantOp(dst, constant);
+        }
+
+        private static AMD64LIRInstruction createLoadMethodOffsetConstant(AllocatableValue dst, SubstrateMethodOffsetConstant constant) {
+            if (ImageLayerBuildingSupport.buildingExtensionLayer()) {
+                if (constant.offset().getMethod() instanceof SharedMethod sharedMethod && sharedMethod.forceIndirectCall()) {
+                    DynamicImageLayerInfo dynamicImageLayerInfo = DynamicImageLayerInfo.singleton();
+                    if (dynamicImageLayerInfo.isMethodCompilationDelayed(sharedMethod)) {
+                        return new AMD64LoadLayeredMethodOffsetConstantOp(dynamicImageLayerInfo.getSymbolForDelayedMethod(sharedMethod), dst, 0);
+                    } else {
+                        var methodLocation = dynamicImageLayerInfo.getPriorLayerMethodLocation(sharedMethod);
+                        return new AMD64LoadLayeredMethodOffsetConstantOp(methodLocation.base(), dst, methodLocation.offset());
+                    }
+                }
+            }
+
+            return new AMD64LoadMethodRefConstantOp(dst, constant);
         }
 
         @Override
@@ -1631,6 +1648,8 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
                 return super.createLoad(dst, getZeroConstant(dst));
             } else if (src instanceof CompressibleConstant constant) {
                 return loadObjectConstant(dst, constant);
+            } else if (src instanceof SubstrateMethodOffsetConstant constant) {
+                return createLoadMethodOffsetConstant(dst, constant);
             } else if (src instanceof SubstrateMethodPointerConstant constant) {
                 return createLoadMethodPointerConstant(dst, constant);
             }
@@ -1643,6 +1662,8 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
                 return super.createStackLoad(dst, getZeroConstant(dst));
             } else if (src instanceof CompressibleConstant constant) {
                 return loadObjectConstant(dst, constant);
+            } else if (src instanceof SubstrateMethodOffsetConstant constant) {
+                return createLoadMethodOffsetConstant(dst, constant);
             } else if (src instanceof SubstrateMethodPointerConstant constant) {
                 return createLoadMethodPointerConstant(dst, constant);
             }
