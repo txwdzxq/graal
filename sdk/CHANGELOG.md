@@ -24,6 +24,7 @@ This changelog summarizes major changes between GraalVM SDK versions. The main f
 * GR-73872: Added constant-option support with `ConstantOptionKey<T>`, `OptionDescriptor#isConstant()`, and `OptionDescriptor.Builder#constant(boolean)`. Constant values are resolved from `-Dpolyglot.<option-name>=<value>` (or the declared default) before polyglot runtime initialization and cannot be changed at runtime. On native-image, they are captured during image build.
 * GR-73872: Added support for native-image preset options. Polyglot options provided during native-image build are captured and validated as preset defaults, then applied at runtime (including default engine creation) with normal builder-option precedence.
 * GR-70924: Polyglot isolate hosts now use the fallback Truffle runtime by default, enabling isolate hosting to work on JDKs that do not support the optimized Truffle runtime.
+* GR-52759: Added `AbstractLanguageLauncher#decodeArgument(byte[])`, allowing language launchers to customize decoding of native launcher command-line arguments.
 
 ## Version 25.0.0
 * GR-60636 Truffle now stops compiling when the code cache fills up on HotSpot. A warning is printed when that happens.
