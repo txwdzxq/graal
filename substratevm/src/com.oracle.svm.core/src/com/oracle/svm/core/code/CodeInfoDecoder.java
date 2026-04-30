@@ -461,7 +461,7 @@ public final class CodeInfoDecoder {
         int modifierOffset = signatureOffset + signatureBytes;
 
         int entryBytes = classBytes + nameBytes;
-        if (CodeInfoEncoder.shouldEncodeAllMethodMetadata()) {
+        if (CodeInfoEncoder.shouldEncodeMethodSignatureAndModifiers()) {
             entryBytes += signatureBytes + modifierBytes;
         }
 
@@ -477,10 +477,9 @@ public final class CodeInfoDecoder {
 
         String sourceMethodSignature = CodeInfoEncoder.Encoders.INVALID_METHOD_SIGNATURE;
         int sourceSignatureModifiers = CodeInfoEncoder.Encoders.INVALID_METHOD_MODIFIERS;
-        if (CodeInfoEncoder.shouldEncodeAllMethodMetadata()) {
+        if (CodeInfoEncoder.shouldEncodeMethodSignatureAndModifiers()) {
             int sourceSignatureIndex = readIndex(p, shortSignature, signatureOffset);
             sourceMethodSignature = NonmovableArrays.getObject(CodeInfoAccess.getOtherStrings(info), sourceSignatureIndex);
-
             sourceSignatureModifiers = readIndex(p, true, modifierOffset);
         }
         result.setSourceFields(sourceClass, sourceMethodName, sourceMethodSignature, sourceSignatureModifiers);
