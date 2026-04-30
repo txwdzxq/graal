@@ -268,8 +268,8 @@ public final class CodeInfoAccess {
     }
 
     /**
-     * Converts a build-time relative IP used by code info encodings back to a runtime code
-     * pointer. This is the inverse of {@link #relativeIP(CodeInfo, CodePointer)}.
+     * Converts a build-time relative IP used by code info encodings back to a runtime code pointer.
+     * This is the inverse of {@link #relativeIP(CodeInfo, CodePointer)}.
      */
     public static CodePointer absoluteIP(CodeInfo info, long relativeIP) {
         CodeInfoImpl impl = cast(info);

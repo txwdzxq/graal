@@ -73,11 +73,11 @@ import jdk.graal.compiler.options.Option;
  *
  * The first byte, entryFlags, encodes which of the optional data fields are present and what size
  * they have. For image code, three otherwise valid entryFlags values are reserved to signal that
- * the real flags are stored in an extra flag byte. This allows smaller FI_INFO_ONLY payloads and
- * FI_DEFAULT entries that omit their payload when the chunk default side table already provides the
- * same frame info index. The size of the whole entry can be computed from the decoded flags, which
- * allows fast iteration of the table. The deltaIP is the difference of the IP for this entry and
- * the next entry. The first entry always corresponds to IP zero.
+ * the real flags are stored in an extra extendedEntryFlags value. This allows smaller FI_INFO_ONLY
+ * payloads and FI_DEFAULT entries that omit their payload when the chunk default side table already
+ * provides the same frame info index. The size of the whole entry can be computed from the decoded
+ * flags, which allows fast iteration of the table. The deltaIP is the difference of the IP for this
+ * entry and the next entry. The first entry always corresponds to IP zero.
  *
  * This table structure allows linear search for the entry of a given IP. An
  * {@linkplain #loadEntryOffset index} is used to turn this into a constant time lookup. The index
@@ -90,7 +90,7 @@ public final class CodeInfoDecoder {
     private static final int CODE_INFO_INDEX_COMPRESSED_RESIDUAL_BYTES = Short.BYTES;
     private static final int CODE_INFO_INDEX_COMPRESSED_BLOCK_BYTES = CODE_INFO_INDEX_RUNTIME_ENTRY_BYTES +
                     (CODE_INFO_INDEX_COMPRESSED_ENTRIES_PER_BLOCK - 1) * CODE_INFO_INDEX_COMPRESSED_RESIDUAL_BYTES;
-    private static final int RAW_ENTRY_FLAGS_MASK = 0xFF;
+    private static final int BASIC_ENTRY_FLAGS_MASK = 0xFF;
     static final int EXTENDED_ENTRY_MASK = 1 << 8;
     private static final int EXTENDED_ENTRY_MODE_SHIFT = 9;
     static final int EXTENDED_ENTRY_MODE_MASK = 0b11 << EXTENDED_ENTRY_MODE_SHIFT;
@@ -116,13 +116,13 @@ public final class CodeInfoDecoder {
 
         VMError.guarantee(entriesPerBlock == CODE_INFO_INDEX_COMPRESSED_ENTRIES_PER_BLOCK, "Unexpected code info index block size");
         long blockIndex = Long.divideUnsigned(index, entriesPerBlock);
-        int lane = (int) Long.remainderUnsigned(index, entriesPerBlock);
+        int blockEntryIndex = (int) Long.remainderUnsigned(index, entriesPerBlock);
         long blockOffset = blockIndex * CODE_INFO_INDEX_COMPRESSED_BLOCK_BYTES;
         long base = NonmovableByteArrayReader.getU4(data, blockOffset);
-        if (lane == 0) {
+        if (blockEntryIndex == 0) {
             return base;
         }
-        long residualOffset = blockOffset + CODE_INFO_INDEX_RUNTIME_ENTRY_BYTES + (long) (lane - 1) * CODE_INFO_INDEX_COMPRESSED_RESIDUAL_BYTES;
+        long residualOffset = blockOffset + CODE_INFO_INDEX_RUNTIME_ENTRY_BYTES + (long) (blockEntryIndex - 1) * CODE_INFO_INDEX_COMPRESSED_RESIDUAL_BYTES;
         return base + NonmovableByteArrayReader.getU2(data, residualOffset);
     }
 
@@ -329,23 +329,23 @@ public final class CodeInfoDecoder {
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     static int loadEntryFlags(CodeInfo info, long curOffset) {
         counters().loadEntryFlagsCount.inc();
-        int rawFlags = NonmovableByteArrayReader.getU1(CodeInfoAccess.getCodeInfoEncodings(info), curOffset);
-        if (!isExtendedEntryMarker(rawFlags) || !CodeInfoAccess.hasCodeInfoDefaultFrameInfos(info)) {
-            return rawFlags;
+        int basicFlags = NonmovableByteArrayReader.getU1(CodeInfoAccess.getCodeInfoEncodings(info), curOffset);
+        if (!isExtendedEntryMarker(basicFlags) || !CodeInfoAccess.hasCodeInfoDefaultFrameInfos(info)) {
+            return basicFlags;
         }
         /*
-         * Image code reserves three header marker values and moves the real FI shape into a second
-         * flag byte so FI_INFO_ONLY entries can use s1/s2 deltas and FI_DEFAULT entries can omit
-         * the payload completely.
+         * Image code reserves three entryFlags marker values and moves the real FI shape into a
+         * second extendedEntryFlags value so FI_INFO_ONLY entries can use s1/s2 deltas and
+         * FI_DEFAULT entries can omit the payload completely.
          */
         int extendedFlags = NonmovableByteArrayReader.getU1(CodeInfoAccess.getCodeInfoEncodings(info), curOffset + EXTENDED_ENTRY_FLAGS_OFFSET);
-        return switch (rawFlags) {
+        return switch (basicFlags) {
             case EXTENDED_ENTRY_LEGACY_MARKER -> extractFI(extendedFlags) == FI_NO_DEOPT
                             ? EXTENDED_ENTRY_MASK | EXTENDED_ENTRY_FI_DEFAULT | withFIDefault(extendedFlags)
                             : EXTENDED_ENTRY_MASK | EXTENDED_ENTRY_LEGACY | extendedFlags;
             case EXTENDED_ENTRY_FI_INFO_ONLY_S1_MARKER -> EXTENDED_ENTRY_MASK | EXTENDED_ENTRY_FI_INFO_ONLY_S1 | withFIInfoOnly(extendedFlags);
             case EXTENDED_ENTRY_FI_INFO_ONLY_S2_MARKER -> EXTENDED_ENTRY_MASK | EXTENDED_ENTRY_FI_INFO_ONLY_S2 | withFIInfoOnly(extendedFlags);
-            default -> throw shouldNotReachHereUnexpectedInput(rawFlags);
+            default -> throw shouldNotReachHereUnexpectedInput(basicFlags);
         };
     }
 
@@ -705,33 +705,38 @@ public final class CodeInfoDecoder {
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-    private static int rawEntryFlags(int entryFlags) {
-        return entryFlags & RAW_ENTRY_FLAGS_MASK;
+    static int basicEntryFlags(int entryFlags) {
+        return entryFlags & BASIC_ENTRY_FLAGS_MASK;
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-    private static boolean isExtendedEntryMarker(int rawFlags) {
-        return rawFlags == EXTENDED_ENTRY_LEGACY_MARKER || rawFlags == EXTENDED_ENTRY_FI_INFO_ONLY_S1_MARKER || rawFlags == EXTENDED_ENTRY_FI_INFO_ONLY_S2_MARKER;
+    static boolean isExtendedEntryMarker(int basicFlags) {
+        return basicFlags == EXTENDED_ENTRY_LEGACY_MARKER || basicFlags == EXTENDED_ENTRY_FI_INFO_ONLY_S1_MARKER || basicFlags == EXTENDED_ENTRY_FI_INFO_ONLY_S2_MARKER;
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-    private static boolean isExtendedEntry(int entryFlags) {
+    static boolean isExtendedEntry(int entryFlags) {
         return (entryFlags & EXTENDED_ENTRY_MASK) != 0;
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-    private static boolean isExtendedFIInfoOnlyS1(int entryFlags) {
-        return (entryFlags & (EXTENDED_ENTRY_MASK | EXTENDED_ENTRY_MODE_MASK)) == (EXTENDED_ENTRY_MASK | EXTENDED_ENTRY_FI_INFO_ONLY_S1);
+    static int extendedEntryMode(int entryFlags) {
+        return entryFlags & EXTENDED_ENTRY_MODE_MASK;
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-    private static boolean isExtendedFIInfoOnlyS2(int entryFlags) {
-        return (entryFlags & (EXTENDED_ENTRY_MASK | EXTENDED_ENTRY_MODE_MASK)) == (EXTENDED_ENTRY_MASK | EXTENDED_ENTRY_FI_INFO_ONLY_S2);
+    static boolean isExtendedFIInfoOnlyS1(int entryFlags) {
+        return isExtendedEntry(entryFlags) && extendedEntryMode(entryFlags) == EXTENDED_ENTRY_FI_INFO_ONLY_S1;
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-    private static boolean isExtendedFIDefault(int entryFlags) {
-        return (entryFlags & (EXTENDED_ENTRY_MASK | EXTENDED_ENTRY_MODE_MASK)) == (EXTENDED_ENTRY_MASK | EXTENDED_ENTRY_FI_DEFAULT);
+    static boolean isExtendedFIInfoOnlyS2(int entryFlags) {
+        return isExtendedEntry(entryFlags) && extendedEntryMode(entryFlags) == EXTENDED_ENTRY_FI_INFO_ONLY_S2;
+    }
+
+    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+    static boolean isExtendedFIDefault(int entryFlags) {
+        return isExtendedEntry(entryFlags) && extendedEntryMode(entryFlags) == EXTENDED_ENTRY_FI_DEFAULT;
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
@@ -745,7 +750,7 @@ public final class CodeInfoDecoder {
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
-    private static int extendedEntryHeaderSize(int entryFlags) {
+    private static int extendedEntryFlagsSize(int entryFlags) {
         return isExtendedEntry(entryFlags) ? Byte.BYTES : 0;
     }
 
@@ -769,7 +774,7 @@ public final class CodeInfoDecoder {
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     private static long offsetFS(long entryOffset, int entryFlags) {
         assert extractFS(entryFlags) != FS_NO_CHANGE;
-        return entryOffset + FS_OFFSET + extendedEntryHeaderSize(entryFlags);
+        return entryOffset + FS_OFFSET + extendedEntryFlagsSize(entryFlags);
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
@@ -780,19 +785,19 @@ public final class CodeInfoDecoder {
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     private static long offsetEX(long entryOffset, int entryFlags) {
         assert extractEX(entryFlags) != EX_NO_HANDLER;
-        return entryOffset + getU1(EX_OFFSET, rawEntryFlags(entryFlags)) + extendedEntryHeaderSize(entryFlags);
+        return entryOffset + getU1(EX_OFFSET, basicEntryFlags(entryFlags)) + extendedEntryFlagsSize(entryFlags);
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     private static long offsetRM(long entryOffset, int entryFlags) {
         assert extractRM(entryFlags) != RM_NO_MAP && extractRM(entryFlags) != RM_EMPTY_MAP;
-        return entryOffset + getU1(RM_OFFSET, rawEntryFlags(entryFlags)) + extendedEntryHeaderSize(entryFlags);
+        return entryOffset + getU1(RM_OFFSET, basicEntryFlags(entryFlags)) + extendedEntryFlagsSize(entryFlags);
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     private static long offsetFI(long entryOffset, int entryFlags) {
         assert extractFI(entryFlags) != FI_NO_DEOPT;
-        return entryOffset + getU1(FI_OFFSET, rawEntryFlags(entryFlags)) + extendedEntryHeaderSize(entryFlags);
+        return entryOffset + getU1(FI_OFFSET, basicEntryFlags(entryFlags)) + extendedEntryFlagsSize(entryFlags);
     }
 
     @AlwaysInline("Make IP-lookup loop call free")
@@ -809,7 +814,7 @@ public final class CodeInfoDecoder {
     @AlwaysInline("Make IP-lookup loop call free")
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     private static long afterFrameInfoOffset(int entryFlags) {
-        return getU1(AFTER_FI_OFFSET, rawEntryFlags(entryFlags)) + extendedEntryHeaderSize(entryFlags) - FI_MEM_SIZE[extractFI(entryFlags)] + frameInfoMemSize(entryFlags);
+        return getU1(AFTER_FI_OFFSET, basicEntryFlags(entryFlags)) + extendedEntryFlagsSize(entryFlags) - FI_MEM_SIZE[extractFI(entryFlags)] + frameInfoMemSize(entryFlags);
     }
 
     @Fold
