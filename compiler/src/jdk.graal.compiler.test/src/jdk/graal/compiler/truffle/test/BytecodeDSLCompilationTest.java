@@ -1229,6 +1229,63 @@ public class BytecodeDSLCompilationTest extends TestWithSynchronousCompiling {
     }
 
     @Test
+    public void testInlinedContinuationRevirtualizesMaterializedFrame() {
+        testInlinedContinuationRevirtualizesMaterializedFrame("inlinedContinuationRevirtualizesMaterializedFrameYield", BasicInterpreterBuilder::beginYield, BasicInterpreterBuilder::endYield);
+        testInlinedContinuationRevirtualizesMaterializedFrame("inlinedContinuationRevirtualizesMaterializedFrameCustomYield", BasicInterpreterBuilder::beginCustomYield,
+                        BasicInterpreterBuilder::endCustomYield);
+    }
+
+    private void testInlinedContinuationRevirtualizesMaterializedFrame(String rootName, Consumer<BasicInterpreterBuilder> beginYield, Consumer<BasicInterpreterBuilder> endYield) {
+        BytecodeRootNodes<BasicInterpreter> rootNodes = createNodes(run, BytecodeDSLTestLanguage.REF.get(null), BytecodeConfig.DEFAULT, b -> {
+            b.beginRoot();
+            BytecodeLocal x = b.createLocal("x", null);
+            b.beginStoreLocal(x);
+            b.emitLoadConstant(42L);
+            b.endStoreLocal();
+
+            beginYield.accept(b);
+            b.emitLoadConstant(0L);
+            endYield.accept(b);
+
+            b.beginReturn();
+            b.emitLoadLocal(x);
+            b.endReturn();
+            BasicInterpreter callee = b.endRoot();
+            callee.setName(rootName + "Callee");
+
+            b.beginRoot();
+            b.beginReturn();
+            b.beginContinueInlined();
+            b.beginEnsureVirtualizedContinuationFrame();
+            b.beginInvokeInlined();
+            b.emitLoadConstant(callee);
+            b.endInvokeInlined();
+            b.endEnsureVirtualizedContinuationFrame();
+            b.emitLoadNull();
+            b.endContinueInlined();
+            b.endReturn();
+            b.endRoot().setName(rootName + "Caller");
+        });
+
+        BasicInterpreter callee = rootNodes.getNode(0);
+        BasicInterpreter caller = rootNodes.getNode(1);
+        callee.getBytecodeNode().setUncachedThreshold(0);
+        caller.getBytecodeNode().setUncachedThreshold(0);
+
+        OptimizedCallTarget callerTarget = (OptimizedCallTarget) caller.getCallTarget();
+        OptimizedCallTarget calleeTarget = (OptimizedCallTarget) callee.getCallTarget();
+
+        assertEquals(42L, callerTarget.call());
+
+        callerTarget.compile(true);
+        assertCompiled(callerTarget);
+        assertNotCompiled(calleeTarget);
+        assertEquals(42L, callerTarget.call());
+        assertCompiled(callerTarget);
+        assertNotCompiled(calleeTarget);
+    }
+
+    @Test
     public void testContinuationFrameIdentity() {
         testContinuationFrameIdentity("continuationFrameIdentityYield", BasicInterpreterBuilder::beginYield, BasicInterpreterBuilder::endYield);
         testContinuationFrameIdentity("continuationFrameIdentityCustomYield", BasicInterpreterBuilder::beginCustomYield, BasicInterpreterBuilder::endCustomYield);
