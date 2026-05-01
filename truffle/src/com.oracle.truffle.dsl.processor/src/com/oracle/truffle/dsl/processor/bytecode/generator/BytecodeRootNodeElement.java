@@ -200,6 +200,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
     BytecodeConfigEncoderImplElement configEncoder;
     OldBytecodesBoxElement oldBytecodesBoxElement;
     AbstractBytecodeNodeElement abstractBytecodeNode;
+    BytecodeNodeElement cachedBytecodeNode;
 
     TagNodeElement tagNode;
     TagRootNodeElement tagRootNode;
@@ -319,7 +320,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         instructionsElement.lazyInit();
 
         // Define the interpreter implementations.
-        BytecodeNodeElement cachedBytecodeNode = this.add(new BytecodeNodeElement(this, InterpreterTier.CACHED));
+        cachedBytecodeNode = this.add(new BytecodeNodeElement(this, InterpreterTier.CACHED));
         abstractBytecodeNode.getPermittedSubclasses().add(cachedBytecodeNode.asType());
 
         this.add(bytecodeTransitionImplElement);
