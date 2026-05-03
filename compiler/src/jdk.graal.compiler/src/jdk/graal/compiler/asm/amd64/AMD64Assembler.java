@@ -584,6 +584,8 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
         // @formatter:off
         public static final AMD64MROp MOVB     = new AMD64MROp("MOVB",           0x88, OpAssertion.ByteAssertion);
         public static final AMD64MROp MOV      = new AMD64MROp("MOV",            0x89, OpAssertion.WordOrLargerAssertion);
+        public static final AMD64MROp SHLD     = new AMD64MROp("SHLD",     P_0F, 0xA5, OpAssertion.WordOrLargerAssertion);
+        public static final AMD64MROp SHRD     = new AMD64MROp("SHRD",     P_0F, 0xAD, OpAssertion.WordOrLargerAssertion);
         public static final AMD64MROp TEST     = new AMD64MROp("TEST",           0x85, OpAssertion.WordOrLargerAssertion);
         public static final AMD64MROp CMPXCHGB = new AMD64MROp("CMPXCHGB", P_0F, 0xB0, OpAssertion.ByteAssertion);
         public static final AMD64MROp CMPXCHG  = new AMD64MROp("CMPXCHG",  P_0F, 0xB1, OpAssertion.WordOrLargerAssertion);
@@ -2607,6 +2609,8 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
         public static final VexRVMOp EVPSUBW         = new VexRVMOp("EVPSUBW",      VPSUBW);
         public static final VexRVMOp EVPSUBD         = new VexRVMOp("EVPSUBD",      VPSUBD);
         public static final VexRVMOp EVPSUBQ         = new VexRVMOp("EVPSUBQ",      VPSUBQ);
+        public static final VexRVMOp EVPSHLDVD       = new VexRVMOp("EVPSHLDVD",    VEXPrefixConfig.P_66, VEXPrefixConfig.M_0F38, VEXPrefixConfig.W0,  0x71, VEXOpAssertion.AVX512_VBMI2_VL,              EVEXTuple.FVM,       VEXPrefixConfig.W0, true);
+        public static final VexRVMOp EVPSHRDVD       = new VexRVMOp("EVPSHRDVD",    VEXPrefixConfig.P_66, VEXPrefixConfig.M_0F38, VEXPrefixConfig.W0,  0x73, VEXOpAssertion.AVX512_VBMI2_VL,              EVEXTuple.FVM,       VEXPrefixConfig.W0, true);
         public static final VexRVMOp EVPSLLVW        = new VexRVMOp("EVPSLLVW",     VEXPrefixConfig.P_66, VEXPrefixConfig.M_0F38, VEXPrefixConfig.W1,  0x12, VEXOpAssertion.AVX512BW_VL,                  EVEXTuple.FVM,       VEXPrefixConfig.W1, true);
         public static final VexRVMOp EVPSLLVD        = new VexRVMOp("EVPSLLVD",     VPSLLVD);
         public static final VexRVMOp EVPSLLVQ        = new VexRVMOp("EVPSLLVQ",     VPSLLVQ);
@@ -6024,6 +6028,10 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
         AMD64RMOp.SHA256RNDS2.emit(this, OperandSize.PS, dst, src);
     }
 
+    public final void shldl(Register dst, Register src) {
+        AMD64MROp.SHLD.emit(this, OperandSize.DWORD, dst, src);
+    }
+
     public final void shll(Register dst, int imm8) {
         GraalError.guarantee(isShiftCount(imm8 >> 1), "illegal shift count");
         if (imm8 == 1) {
@@ -6055,6 +6063,10 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
     // Insn: SHLX r32a, r/m32, r32b
     public final void shlxl(Register dst, Register src1, Register src2) {
         VexGeneralPurposeRMVOp.SHLX.emit(this, AVXSize.DWORD, dst, src1, src2);
+    }
+
+    public final void shrdl(Register dst, Register src) {
+        AMD64MROp.SHRD.emit(this, OperandSize.DWORD, dst, src);
     }
 
     public final void shrl(Register dst) {
@@ -6664,6 +6676,14 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
 
     public final void evprorvq(Register dst, Register src1, Register src2) {
         VexRVMOp.EVPRORVQ.emit(this, AVXSize.ZMM, dst, src1, src2);
+    }
+
+    public final void evpshldvd(Register dst, Register src1, Register src2) {
+        VexRVMOp.EVPSHLDVD.emit(this, AVXSize.ZMM, dst, src1, src2);
+    }
+
+    public final void evpshrdvd(Register dst, Register src1, Register src2) {
+        VexRVMOp.EVPSHRDVD.emit(this, AVXSize.ZMM, dst, src1, src2);
     }
 
     public final void evpternlogq(Register dst, int imm8, Register src1, Register src2) {
