@@ -27,13 +27,13 @@ package jdk.graal.compiler.hotspot.replaycomp.test;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.List;
-import java.util.Map;
 
 import org.graalvm.collections.EconomicMap;
 import org.junit.Assert;
 import org.junit.Test;
 
 import jdk.graal.compiler.hotspot.replaycomp.ReplayBenchmarkResultsWriter;
+import jdk.graal.compiler.util.CollectionsUtil;
 import jdk.graal.compiler.util.json.JsonParser;
 
 public class ReplayBenchmarkResultsWriterTest {
@@ -42,8 +42,8 @@ public class ReplayBenchmarkResultsWriterTest {
         StringWriter output = new StringWriter();
         try (ReplayBenchmarkResultsWriter writer = new ReplayBenchmarkResultsWriter(output, List.of("PAPI_TOT_INS"))) {
             writer.writeCompilation(new ReplayBenchmarkResultsWriter.CompilationRecord(3, 17, "pkg.Type.method(int)", -1,
-                            11L, 12L, 13L, 14, 15, 0x1a2b3c4d, Map.of("PAPI_TOT_INS", 16L)));
-            writer.writeIterationTotal(new ReplayBenchmarkResultsWriter.IterationTotalRecord(3, 21L, 22L, 23L, 24, 25, 0x01020304, Map.of("PAPI_TOT_INS", 26L)));
+                            11L, 12L, 13L, 14, 15, 0x1a2b3c4d, CollectionsUtil.mapOf("PAPI_TOT_INS", 16L)));
+            writer.writeIterationTotal(new ReplayBenchmarkResultsWriter.IterationTotalRecord(3, 21L, 22L, 23L, 24, 25, 0x01020304, CollectionsUtil.mapOf("PAPI_TOT_INS", 26L)));
         }
 
         @SuppressWarnings("unchecked")
@@ -73,9 +73,9 @@ public class ReplayBenchmarkResultsWriterTest {
         Assert.assertEquals(24, intValue(iterationTotal.get("compiled_bytecodes")));
         Assert.assertEquals(25, intValue(iterationTotal.get("target_code_size")));
         Assert.assertEquals("01020304", iterationTotal.get("target_code_hash"));
-        Assert.assertTrue(iterationTotal.get("compile_id") == null);
-        Assert.assertTrue(iterationTotal.get("method_name") == null);
-        Assert.assertTrue(iterationTotal.get("entry_bci") == null);
+        Assert.assertNull(iterationTotal.get("compile_id"));
+        Assert.assertNull(iterationTotal.get("method_name"));
+        Assert.assertNull(iterationTotal.get("entry_bci"));
         Assert.assertEquals(26L, longValue(getMap(iterationTotal, "events").get("PAPI_TOT_INS")));
     }
 
