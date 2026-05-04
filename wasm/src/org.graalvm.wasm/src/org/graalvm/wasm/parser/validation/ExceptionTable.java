@@ -50,17 +50,13 @@ import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
  */
 public final class ExceptionTable {
     private final int from;
-    private int to;
+    private final int to;
     private final ExceptionHandler[] handlers;
 
-    ExceptionTable(int from, ExceptionHandler[] handlers) {
+    ExceptionTable(int from, int to, ExceptionHandler[] handlers) {
         this.from = from;
-        this.to = -1;
-        this.handlers = handlers;
-    }
-
-    void setTo(int to) {
         this.to = to;
+        this.handlers = handlers;
     }
 
     void generateExceptionTable(RuntimeBytecodeGen bytecode) {
