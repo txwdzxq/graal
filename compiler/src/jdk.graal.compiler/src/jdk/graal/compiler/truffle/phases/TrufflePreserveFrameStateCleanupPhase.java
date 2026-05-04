@@ -40,8 +40,8 @@ import jdk.graal.compiler.truffle.nodes.TrufflePreserveFrameStateNode;
 /**
  * Removes redundant Truffle preserve-frame-state markers introduced by inlining during PE.
  *
- * A marker is redundant if it is dominated by another marker preserving the same logical
- * deoptimization location.
+ * A marker is redundant if it is dominated by another marker preserving the same bytecode
+ * location in the same inlining context.
  */
 public final class TrufflePreserveFrameStateCleanupPhase extends BasePhase<TruffleTierContext> {
 
@@ -56,12 +56,23 @@ public final class TrufflePreserveFrameStateCleanupPhase extends BasePhase<Truff
     }
 
     private static final class RedundantPreserveNodeCleanupVisitor implements ControlFlowGraph.RecursiveVisitor<Integer> {
+        /**
+         * Graph containing the preserve markers being cleaned up.
+         */
         private final StructuredGraph graph;
+        /**
+         * Preserved locations contributed by markers on the current dominator path.
+         */
         private final ArrayList<NodeSourcePosition> markerLocationsOnCurrentPath;
+        /**
+         * Membership set used to recognize repeated preserved locations on the current dominator
+         * path.
+         */
         private final LinkedHashSet<NodeSourcePosition> seenMarkerLocationsOnCurrentPath;
 
         private RedundantPreserveNodeCleanupVisitor(StructuredGraph graph) {
             this.graph = graph;
+            // Most paths seen here contain only a small number of preserve markers.
             this.markerLocationsOnCurrentPath = new ArrayList<>(4);
             this.seenMarkerLocationsOnCurrentPath = new LinkedHashSet<>(4);
         }
@@ -93,7 +104,11 @@ public final class TrufflePreserveFrameStateCleanupPhase extends BasePhase<Truff
     }
 
     private static NodeSourcePosition markerLocation(TrufflePreserveFrameStateNode marker) {
-        // Preserve markers are only redundant when they restore the same deoptimization location.
+        /*
+         * NodeSourcePosition gives a compact structural key for the deoptimization location encoded
+         * by the marker's FrameState: method, BCI, and caller chain. The cleanup phase only needs
+         * to distinguish those locations, not compare the full FrameState contents.
+         */
         FrameState stateAfter = marker.stateAfter();
         return FrameState.toSourcePosition(stateAfter);
     }
