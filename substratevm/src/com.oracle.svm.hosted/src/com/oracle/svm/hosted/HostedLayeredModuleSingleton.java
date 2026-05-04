@@ -31,14 +31,14 @@ import java.util.Set;
 
 import org.graalvm.collections.EconomicMap;
 
-import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.core.imagelayer.BuildingInitialLayerPredicate;
 import com.oracle.svm.core.jdk.LayeredModuleSingleton;
-import com.oracle.svm.hosted.imagelayer.CapnProtoAdapters;
 import com.oracle.svm.hosted.imagelayer.SVMImageLayerSingletonLoader;
 import com.oracle.svm.hosted.imagelayer.SVMImageLayerWriter;
-import com.oracle.svm.hosted.imagelayer.SharedLayerSnapshotCapnProtoSchemaHolder.ModulePackages;
-import com.oracle.svm.shaded.org.capnproto.StructList;
+import com.oracle.svm.hosted.snapshot.singleton.ModulePackagesData;
+import com.oracle.svm.hosted.snapshot.util.SnapshotAdapters;
+import com.oracle.svm.hosted.snapshot.util.SnapshotStructList;
+import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.shared.singletons.ImageSingletonLoader;
 import com.oracle.svm.shared.singletons.ImageSingletonWriter;
 import com.oracle.svm.shared.singletons.LayeredPersistFlags;
@@ -60,7 +60,7 @@ public class HostedLayeredModuleSingleton extends LayeredModuleSingleton {
     }
 
     static class LayeredCallbacks extends SingletonLayeredCallbacksSupplier {
-        private static void persistModulePackages(StructList.Builder<ModulePackages.Builder> modulePackagesBuilder, EconomicMap<String, Map<String, Set<String>>> modulePackages) {
+        private static void persistModulePackages(SnapshotStructList.Writer<ModulePackagesData.Writer> modulePackagesBuilder, EconomicMap<String, Map<String, Set<String>>> modulePackages) {
             int i = 0;
             var it = modulePackages.getEntries();
             while (it.advance()) {
@@ -86,7 +86,7 @@ public class HostedLayeredModuleSingleton extends LayeredModuleSingleton {
                 @Override
                 public LayeredPersistFlags doPersist(ImageSingletonWriter writer, HostedLayeredModuleSingleton singleton) {
                     SVMImageLayerWriter.ImageSingletonWriterImpl writerImpl = (SVMImageLayerWriter.ImageSingletonWriterImpl) writer;
-                    var builder = writerImpl.getSnapshotBuilder().initLayeredModule();
+                    var builder = writerImpl.getSnapshotWriter().initLayeredModule();
                     persistModulePackages(builder.initOpenModulePackages(singleton.moduleOpenPackages.size()), singleton.moduleOpenPackages);
                     persistModulePackages(builder.initExportedModulePackages(singleton.moduleExportedPackages.size()), singleton.moduleExportedPackages);
                     return LayeredPersistFlags.CREATE;
@@ -101,7 +101,7 @@ public class HostedLayeredModuleSingleton extends LayeredModuleSingleton {
     }
 
     static class SingletonInstantiator implements SingletonLayeredCallbacks.LayeredSingletonInstantiator<HostedLayeredModuleSingleton> {
-        private static EconomicMap<String, Map<String, Set<String>>> getModulePackages(StructList.Reader<ModulePackages.Reader> modulePackagesReader) {
+        private static EconomicMap<String, Map<String, Set<String>>> getModulePackages(SnapshotStructList.Loader<ModulePackagesData.Loader> modulePackagesReader) {
             EconomicMap<String, Map<String, Set<String>>> modulePackages = EconomicMap.create();
             for (int i = 0; i < modulePackagesReader.size(); ++i) {
                 var entryReader = modulePackagesReader.get(i);
@@ -109,10 +109,10 @@ public class HostedLayeredModuleSingleton extends LayeredModuleSingleton {
                 Map<String, Set<String>> packages = new HashMap<>();
                 for (int j = 0; j < packagesReader.size(); ++j) {
                     var packageEntryReader = packagesReader.get(j);
-                    Set<String> modules = CapnProtoAdapters.toCollection(packageEntryReader.getModules(), HashSet::new);
-                    packages.put(packageEntryReader.getPackageKey().toString(), modules);
+                    Set<String> modules = SnapshotAdapters.toCollection(packageEntryReader.getModules(), HashSet::new);
+                    packages.put(packageEntryReader.getPackageKey(), modules);
                 }
-                modulePackages.put(entryReader.getModuleKey().toString(), packages);
+                modulePackages.put(entryReader.getModuleKey(), packages);
             }
             return modulePackages;
         }
@@ -120,7 +120,7 @@ public class HostedLayeredModuleSingleton extends LayeredModuleSingleton {
         @Override
         public HostedLayeredModuleSingleton createFromLoader(ImageSingletonLoader loader) {
             SVMImageLayerSingletonLoader.ImageSingletonLoaderImpl loaderImpl = (SVMImageLayerSingletonLoader.ImageSingletonLoaderImpl) loader;
-            var reader = loaderImpl.getSnapshotReader().getLayeredModule();
+            var reader = loaderImpl.getSnapshotLoader().getLayeredModule();
 
             EconomicMap<String, Map<String, Set<String>>> moduleOpenPackages = getModulePackages(reader.getOpenModulePackages());
             EconomicMap<String, Map<String, Set<String>>> moduleExportedPackages = getModulePackages(reader.getExportedModulePackages());
