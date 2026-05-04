@@ -947,12 +947,31 @@ public abstract class BasicInterpreter extends DebugBytecodeRootNode implements 
         }
     }
 
+    /**
+     * Deoptimizes when the condition is true. Note that the deoptimization can float. Use
+     * {@link DeoptimizeHere} for precise deopt locations.
+     */
     @Operation
     public static final class Deoptimize {
         @Specialization
         public static void deoptimize(boolean condition) {
             if (condition) {
-                forceStateSplit(); // ensure deopt does not float
+                CompilerDirectives.transferToInterpreter();
+            }
+        }
+    }
+
+    /**
+     * Deoptimizes at the current location when the condition is true. Use {@link Deoptimize} for
+     * floatable deopts.
+     */
+    @Operation
+    public static final class DeoptimizeHere {
+        @Specialization
+        public static void deoptimize(boolean condition) {
+            if (condition) {
+                // Keep the deopt fixed at this operation for tests that need an exact location.
+                forceStateSplit();
                 CompilerDirectives.transferToInterpreter();
             }
         }
