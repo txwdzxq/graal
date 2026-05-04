@@ -3015,7 +3015,7 @@ final class BuilderElement extends AbstractElement {
 
         b.tree(operationStack.write(op, operationFields.tryReachable, operationStack.read(op, operationFields.tryReachable) + " && state.reachable"));
 
-        b.startIf().string("state.reachable").end().startBlock();
+        b.startIf().string(operationStack.read(op, operationFields.tryReachable)).end().startBlock();
         buildEmitInstruction(b, "branchTargetBci", model.branchInstruction, new String[]{UNINIT});
         b.tree(operationStack.write(op, operationFields.endBranchFixupBci,
                         "branchTargetBci + " + model.branchInstruction.findImmediate(ImmediateKind.BYTECODE_INDEX, "branch_target").offset()));
