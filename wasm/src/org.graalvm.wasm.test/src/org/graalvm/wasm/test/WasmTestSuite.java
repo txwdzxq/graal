@@ -40,6 +40,7 @@
  */
 package org.graalvm.wasm.test;
 
+import org.graalvm.wasm.test.gc.GCSuite;
 import org.graalvm.wasm.test.suites.WasmImplementationLimitationsSuite;
 import org.graalvm.wasm.test.suites.arithmetic.Float32Suite;
 import org.graalvm.wasm.test.suites.arithmetic.Float64Suite;
@@ -97,6 +98,7 @@ import org.junit.runners.Suite;
                 LinkerSuite.class,
                 WasmPolyglotTestSuite.class,
                 WasmJsApiSuite.class,
+                GCSuite.class,
                 ValidationSuite.class,
                 MultiValueValidationSuite.class,
                 ReferenceTypesValidationSuite.class,

@@ -409,6 +409,10 @@ public abstract class WasmFileSuite extends AbstractWasmSuite {
             if ("true".equals(exceptionsOption)) {
                 options.add(WasmBinaryTools.WabtOption.EXCEPTIONS);
             }
+            String gcOption = testCase.options().getProperty("wasm.GC");
+            if ("true".equals(gcOption)) {
+                options.add(WasmBinaryTools.WabtOption.GC);
+            }
             ArrayList<Source> sources = testCase.getSources(options);
 
             runInContexts(testCase, contextBuilder, sources, sharedEngine, testOut);

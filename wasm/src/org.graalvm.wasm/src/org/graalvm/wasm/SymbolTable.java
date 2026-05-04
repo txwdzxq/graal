@@ -636,21 +636,17 @@ public abstract class SymbolTable {
         return new ArrayType(fieldType);
     }
 
-    StructType finishStructType(int structTypeIdx, int recursiveTypeGroupStart, WasmLanguage language) {
+    private static WasmStructAccess createStructAccess(StructType structType, WasmStructAccess superTypeAccess, WasmLanguage language) {
         StaticShape.Builder shapeBuilder = StaticShape.newBuilder(language);
-        FieldType[] fieldTypes = new FieldType[structTypeFieldCount(structTypeIdx)];
-        StaticProperty[] properties = new StaticProperty[structTypeFieldCount(structTypeIdx)];
-        WasmStructAccess superTypeAccess = hasSuperType(structTypeIdx) && isStructType(superType(structTypeIdx)) ? structTypeAccess(superType(structTypeIdx)) : null;
+        FieldType[] fieldTypes = structType.fieldTypes();
+        StaticProperty[] properties = new StaticProperty[fieldTypes.length];
         int superFieldCount = superTypeAccess != null ? superTypeAccess.properties().length : 0;
         for (int i = 0; i < fieldTypes.length; i++) {
-            StorageType storageType = closedStorageTypeOf(structTypeFieldTypeAt(structTypeIdx, i), recursiveTypeGroupStart);
-            byte mutability = structTypeFieldMutabilityAt(structTypeIdx, i);
-            fieldTypes[i] = new FieldType(storageType, mutability);
             if (i < superFieldCount) {
                 properties[i] = superTypeAccess.properties()[i];
             } else {
                 properties[i] = new DefaultStaticProperty(Integer.toString(i));
-                shapeBuilder.property(properties[i], fieldTypes[i].javaClass(), mutability == Mutability.CONSTANT);
+                shapeBuilder.property(properties[i], fieldTypes[i].javaClass(), fieldTypes[i].mutability() == Mutability.CONSTANT);
             }
         }
         StaticShape<WasmStructFactory> shape;
@@ -659,7 +655,16 @@ public abstract class SymbolTable {
         } else {
             shape = shapeBuilder.build(WasmStruct.class, WasmStructFactory.class);
         }
-        structAccesses[structTypeIdx] = new WasmStructAccess(shape, properties);
+        return new WasmStructAccess(shape, properties);
+    }
+
+    StructType finishStructType(int structTypeIdx, int recursiveTypeGroupStart) {
+        FieldType[] fieldTypes = new FieldType[structTypeFieldCount(structTypeIdx)];
+        for (int i = 0; i < fieldTypes.length; i++) {
+            StorageType storageType = closedStorageTypeOf(structTypeFieldTypeAt(structTypeIdx, i), recursiveTypeGroupStart);
+            byte mutability = structTypeFieldMutabilityAt(structTypeIdx, i);
+            fieldTypes[i] = new FieldType(storageType, mutability);
+        }
         return new StructType(fieldTypes);
     }
 
@@ -699,7 +704,7 @@ public abstract class SymbolTable {
         for (int typeIndex = recursiveTypeGroupStart; typeIndex < typeCount; typeIndex++) {
             CompositeType compositeType = switch (typeKind(typeIndex)) {
                 case ARRAY_KIND -> finishArrayType(typeIndex, recursiveTypeGroupStart);
-                case STRUCT_KIND -> finishStructType(typeIndex, recursiveTypeGroupStart, language);
+                case STRUCT_KIND -> finishStructType(typeIndex, recursiveTypeGroupStart);
                 case FUNCTION_KIND -> finishFunctionType(typeIndex, recursiveTypeGroupStart);
                 default -> throw CompilerDirectives.shouldNotReachHere();
             };
@@ -722,7 +727,9 @@ public abstract class SymbolTable {
             int equivalenceClass = language.equivalenceClassFor(type);
             type.setTypeEquivalenceClass(equivalenceClass);
             if (isStructType(typeIndex)) {
-                WasmStructAccess structAccess = language.canonicalStructAccessFor(equivalenceClass, structTypeAccess(typeIndex));
+                WasmStructAccess superTypeAccess = hasSuperType(typeIndex) && isStructType(superType(typeIndex)) ? structTypeAccess(superType(typeIndex)) : null;
+                WasmStructAccess candidateStructAccess = createStructAccess(type.asStructType(), superTypeAccess, language);
+                WasmStructAccess structAccess = language.canonicalStructAccessFor(equivalenceClass, candidateStructAccess);
                 structAccesses[typeIndex] = structAccess;
                 type.setStructAccess(structAccess);
             }
