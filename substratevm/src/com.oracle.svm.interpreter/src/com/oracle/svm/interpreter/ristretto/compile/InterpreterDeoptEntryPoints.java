@@ -35,9 +35,9 @@ import com.oracle.svm.core.deopt.DeoptimizedFrame;
 import com.oracle.svm.core.deopt.Deoptimizer;
 import com.oracle.svm.core.log.Log;
 import com.oracle.svm.core.snippets.KnownIntrinsics;
-import com.oracle.svm.interpreter.EspressoFrame;
 import com.oracle.svm.interpreter.Interpreter;
 import com.oracle.svm.interpreter.InterpreterFrame;
+import com.oracle.svm.interpreter.InterpreterFrameUtil;
 import com.oracle.svm.interpreter.metadata.BytecodeStream;
 import com.oracle.svm.interpreter.metadata.Bytecodes;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaMethod;
@@ -279,7 +279,7 @@ public class InterpreterDeoptEntryPoints {
         }
 
         // in crema locals and expression stack are in the same array, stack[0]<==> array[maxLocals]
-        int startTop = EspressoFrame.startingStackOffset(current.getMethod().getMaxLocals()) + current.getNumStack();
+        int startTop = InterpreterFrameUtil.startingStackOffset(current.getMethod().getMaxLocals()) + current.getNumStack();
         int targetBci = current.getTargetBci();
         if (pendingException != null) {
             if (Deoptimizer.Options.TraceDeoptimization.getValue()) {
@@ -293,8 +293,8 @@ public class InterpreterDeoptEntryPoints {
                 throw pendingException;
             } else {
                 Interpreter.clearOperandStack(current.getFrame(), current.getMethod(), startTop);
-                startTop = EspressoFrame.startingStackOffset(current.getMethod().getMaxLocals());
-                EspressoFrame.putObject(current.getFrame(), startTop, pendingException);
+                startTop = InterpreterFrameUtil.startingStackOffset(current.getMethod().getMaxLocals());
+                InterpreterFrameUtil.putObject(current.getFrame(), startTop, pendingException);
                 startTop++;
                 targetBci = Interpreter.beforeJumpChecks(current.getFrame(), targetBci, handler.getHandlerBCI(),
                                 startTop);
@@ -351,7 +351,7 @@ public class InterpreterDeoptEntryPoints {
         }
 
         JavaKind returnKind = calleeMethod.getSignature().getReturnKind().getStackKind();
-        int calleeReturnValueSlot = EspressoFrame.startingStackOffset(interpreterMethod.getMaxLocals()) + chainedFrame.getNumStack();
+        int calleeReturnValueSlot = InterpreterFrameUtil.startingStackOffset(interpreterMethod.getMaxLocals()) + chainedFrame.getNumStack();
         switch (returnKind) {
             case Void:
                 /* nothing to do */
@@ -360,53 +360,53 @@ public class InterpreterDeoptEntryPoints {
                 assert returnValue instanceof Integer;
                 int calleeIntReturnValue = (Integer) returnValue;
                 logInjectedReturnValue(returnKind, returnValue, calleeReturnValueSlot);
-                EspressoFrame.putInt(interpreterFrame, calleeReturnValueSlot, calleeIntReturnValue);
+                InterpreterFrameUtil.putInt(interpreterFrame, calleeReturnValueSlot, calleeIntReturnValue);
                 return 1;
             case Boolean:
                 assert returnValue instanceof Boolean;
                 int calleeBooleanReturnValue = ((Boolean) returnValue) ? 1 : 0;
                 logInjectedReturnValue(returnKind, returnValue, calleeReturnValueSlot);
-                EspressoFrame.putInt(interpreterFrame, calleeReturnValueSlot, calleeBooleanReturnValue);
+                InterpreterFrameUtil.putInt(interpreterFrame, calleeReturnValueSlot, calleeBooleanReturnValue);
                 return 1;
             case Byte:
                 assert returnValue instanceof Byte;
                 int calleeByteReturnValue = (Byte) returnValue;
                 logInjectedReturnValue(returnKind, returnValue, calleeReturnValueSlot);
-                EspressoFrame.putInt(interpreterFrame, calleeReturnValueSlot, calleeByteReturnValue);
+                InterpreterFrameUtil.putInt(interpreterFrame, calleeReturnValueSlot, calleeByteReturnValue);
                 return 1;
             case Short:
                 assert returnValue instanceof Short;
                 int calleeShortReturnValue = (Short) returnValue;
                 logInjectedReturnValue(returnKind, returnValue, calleeReturnValueSlot);
-                EspressoFrame.putInt(interpreterFrame, calleeReturnValueSlot, calleeShortReturnValue);
+                InterpreterFrameUtil.putInt(interpreterFrame, calleeReturnValueSlot, calleeShortReturnValue);
                 return 1;
             case Char:
                 assert returnValue instanceof Character;
                 int calleeCharReturnValue = (Character) returnValue;
                 logInjectedReturnValue(returnKind, returnValue, calleeReturnValueSlot);
-                EspressoFrame.putInt(interpreterFrame, calleeReturnValueSlot, calleeCharReturnValue);
+                InterpreterFrameUtil.putInt(interpreterFrame, calleeReturnValueSlot, calleeCharReturnValue);
                 return 1;
             case Long:
                 assert returnValue instanceof Long;
                 long calleeLongReturnValue = (Long) returnValue;
                 logInjectedReturnValue(returnKind, returnValue, calleeReturnValueSlot);
-                EspressoFrame.putLong(interpreterFrame, calleeReturnValueSlot, calleeLongReturnValue);
+                InterpreterFrameUtil.putLong(interpreterFrame, calleeReturnValueSlot, calleeLongReturnValue);
                 return 2;
             case Float:
                 assert returnValue instanceof Float;
                 float calleeFloatReturnValue = (Float) returnValue;
                 logInjectedReturnValue(returnKind, returnValue, calleeReturnValueSlot);
-                EspressoFrame.putFloat(interpreterFrame, calleeReturnValueSlot, calleeFloatReturnValue);
+                InterpreterFrameUtil.putFloat(interpreterFrame, calleeReturnValueSlot, calleeFloatReturnValue);
                 return 1;
             case Double:
                 assert returnValue instanceof Double;
                 double calleeDoubleReturnValue = (Double) returnValue;
                 logInjectedReturnValue(returnKind, returnValue, calleeReturnValueSlot);
-                EspressoFrame.putDouble(interpreterFrame, calleeReturnValueSlot, calleeDoubleReturnValue);
+                InterpreterFrameUtil.putDouble(interpreterFrame, calleeReturnValueSlot, calleeDoubleReturnValue);
                 return 2;
             case Object:
                 logInjectedReturnValue(returnKind, returnValue, calleeReturnValueSlot);
-                EspressoFrame.putObject(interpreterFrame, calleeReturnValueSlot, returnValue);
+                InterpreterFrameUtil.putObject(interpreterFrame, calleeReturnValueSlot, returnValue);
                 return 1;
             default:
                 throw VMError.shouldNotReachHere("entrypoint: unsupported returnKind: " + returnKind);

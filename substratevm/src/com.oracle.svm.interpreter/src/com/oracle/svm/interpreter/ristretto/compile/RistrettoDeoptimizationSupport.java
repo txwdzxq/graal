@@ -50,8 +50,8 @@ import com.oracle.svm.core.deopt.SubstrateInstalledCode;
 import com.oracle.svm.core.heap.UnknownPrimitiveField;
 import com.oracle.svm.core.meta.SubstrateObjectConstant;
 import com.oracle.svm.core.monitor.MonitorSupport;
-import com.oracle.svm.interpreter.EspressoFrame;
 import com.oracle.svm.interpreter.InterpreterFrame;
+import com.oracle.svm.interpreter.InterpreterFrameUtil;
 import com.oracle.svm.interpreter.InterpreterToVM;
 import com.oracle.svm.interpreter.metadata.BytecodeStream;
 import com.oracle.svm.interpreter.metadata.InterpreterResolvedJavaMethod;
@@ -305,7 +305,7 @@ public class RistrettoDeoptimizationSupport {
 
         VMError.guarantee(interpreterMethod.getMaxLocals() == compiledFrame.getNumLocals());
         Object[] relockedMonitorObjects = relockInterpreterObjects(compiledFrame, deoptState);
-        InterpreterFrame interpreterFrame = EspressoFrame.allocate(interpreterMethod.getMaxLocals(), interpreterMethod.getMaxStackSize());
+        InterpreterFrame interpreterFrame = InterpreterFrameUtil.allocate(interpreterMethod.getMaxLocals(), interpreterMethod.getMaxStackSize());
 
         final int numLocals = compiledFrame.getNumLocals();
         final int numStack = compiledFrame.getNumStack();
@@ -320,11 +320,11 @@ public class RistrettoDeoptimizationSupport {
                 continue;
             }
             switch (value.getJavaKind().getStackKind()) {
-                case Int -> EspressoFrame.setLocalInt(interpreterFrame, localIdx, value.asInt());
-                case Long -> EspressoFrame.setLocalLong(interpreterFrame, localIdx, value.asLong());
-                case Float -> EspressoFrame.setLocalFloat(interpreterFrame, localIdx, value.asFloat());
-                case Double -> EspressoFrame.setLocalDouble(interpreterFrame, localIdx, value.asDouble());
-                case Object -> EspressoFrame.setLocalObject(interpreterFrame, localIdx, SubstrateObjectConstant.asObject(value));
+                case Int -> InterpreterFrameUtil.setLocalInt(interpreterFrame, localIdx, value.asInt());
+                case Long -> InterpreterFrameUtil.setLocalLong(interpreterFrame, localIdx, value.asLong());
+                case Float -> InterpreterFrameUtil.setLocalFloat(interpreterFrame, localIdx, value.asFloat());
+                case Double -> InterpreterFrameUtil.setLocalDouble(interpreterFrame, localIdx, value.asDouble());
+                case Object -> InterpreterFrameUtil.setLocalObject(interpreterFrame, localIdx, SubstrateObjectConstant.asObject(value));
                 default -> VMError.shouldNotReachHere("createInterpreterFrameFromCompiledFrame: kind not implemented yet: " + value.getJavaKind());
             }
         }
@@ -343,11 +343,11 @@ public class RistrettoDeoptimizationSupport {
                 continue;
             }
             switch (value.getJavaKind().getStackKind()) {
-                case Int -> EspressoFrame.putInt(interpreterFrame, tos, value.asInt());
-                case Long -> EspressoFrame.putLong(interpreterFrame, tos, value.asLong());
-                case Float -> EspressoFrame.putFloat(interpreterFrame, tos, value.asFloat());
-                case Double -> EspressoFrame.putDouble(interpreterFrame, tos, value.asDouble());
-                case Object -> EspressoFrame.putObject(interpreterFrame, tos, SubstrateObjectConstant.asObject(value));
+                case Int -> InterpreterFrameUtil.putInt(interpreterFrame, tos, value.asInt());
+                case Long -> InterpreterFrameUtil.putLong(interpreterFrame, tos, value.asLong());
+                case Float -> InterpreterFrameUtil.putFloat(interpreterFrame, tos, value.asFloat());
+                case Double -> InterpreterFrameUtil.putDouble(interpreterFrame, tos, value.asDouble());
+                case Object -> InterpreterFrameUtil.putObject(interpreterFrame, tos, SubstrateObjectConstant.asObject(value));
                 default -> VMError.shouldNotReachHere("createInterpreterFrameFromCompiledFrame: kind not implemented yet: " + value.getJavaKind());
             }
         }

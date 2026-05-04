@@ -22,23 +22,22 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-
 package com.oracle.svm.interpreter;
 
 import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
+import com.oracle.svm.interpreter.metadata.InterpreterUnresolvedSignature;
 import com.oracle.svm.shared.Uninterruptible;
 import com.oracle.svm.shared.util.VMError;
-import com.oracle.svm.interpreter.metadata.InterpreterUnresolvedSignature;
 
 import jdk.vm.ci.meta.JavaKind;
 
 /**
- * Exposes accessors to the Espresso frame e.g. operand stack, locals and current BCI.
+ * Exposes accessors to the interpreter frame e.g. operand stack, locals and current BCI.
  */
-public final class EspressoFrame {
+public final class InterpreterFrameUtil {
 
-    private EspressoFrame() {
+    private InterpreterFrameUtil() {
         throw VMError.shouldNotReachHere("private constructor");
     }
 
