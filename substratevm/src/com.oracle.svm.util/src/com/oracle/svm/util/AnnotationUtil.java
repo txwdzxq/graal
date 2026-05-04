@@ -52,8 +52,7 @@ import jdk.vm.ci.meta.annotation.Annotated;
 /**
  * This complements {@link org.graalvm.nativeimage.AnnotationAccess} for use by SVM internal
  * features and code. It avoids relying on JVMCI types (such as {@link ResolvedJavaType})
- * implementing {@link java.lang.reflect.AnnotatedElement}. This inheritance is planned for removal
- * (GR-69713) as part of reducing use of core reflection in Native Image.
+ * implementing {@link java.lang.reflect.AnnotatedElement}.
  */
 public final class AnnotationUtil {
 
