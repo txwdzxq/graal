@@ -285,7 +285,7 @@ public final class AMD64ArrayIndexOfOp extends AMD64ComplexVectorOp {
             // check if vector load is in bounds
             asm.cmpqAndJcc(index, arrayLength, ConditionFlag.Greater, variant.isTable() ? elementWise : qWordWise, false);
             // do one vector comparison from fromIndex
-            emitVectorCompare(crb, asm, AVXSize.XMM, 1, arrayPtr, index, vecCmp, vecArray, vecTmp, reverseBytesMask, cmpResult, xmmFound, !variant.isTable());
+            emitVectorCompare(crb, asm, AVXSize.XMM, 1, arrayPtr, index, vecCmp, vecArray, vecTmp, reverseBytesMask, cmpResult, xmmFound, false);
             // and one aligned to the array end
             asm.movq(index, arrayLength);
             emitVectorCompare(crb, asm, AVXSize.XMM, 1, arrayPtr, index, vecCmp, vecArray, vecTmp, reverseBytesMask, cmpResult, xmmFound, true);
@@ -308,7 +308,7 @@ public final class AMD64ArrayIndexOfOp extends AMD64ComplexVectorOp {
             // check if vector load is in bounds
             asm.cmpqAndJcc(index, arrayLength, ConditionFlag.Greater, elementWise, false);
             // do one vector comparison from fromIndex
-            emitVectorCompare(crb, asm, AVXSize.QWORD, 1, arrayPtr, index, vecCmp, vecArray, vecTmp, reverseBytesMask, cmpResult, qWordFound, true);
+            emitVectorCompare(crb, asm, AVXSize.QWORD, 1, arrayPtr, index, vecCmp, vecArray, vecTmp, reverseBytesMask, cmpResult, qWordFound, false);
             // and one aligned to the array end
             asm.movq(index, arrayLength);
             emitVectorCompare(crb, asm, AVXSize.QWORD, 1, arrayPtr, index, vecCmp, vecArray, vecTmp, reverseBytesMask, cmpResult, qWordFound, true);
