@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2023, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -1534,21 +1534,11 @@ public final class Interpreter {
                     } catch (Throwable e) {
                         throw SemanticJavaException.raise(e);
                     }
-                    BytecodeStream.patchIndyExtraCPI(code, curBCI, extraCPI);
+                    method.patchInvokeDynamicExtraCPI(curBCI, extraCPI);
                     assert BytecodeStream.readIndyExtraCPIVolatile(code, curBCI) == extraCPI;
                     assert BytecodeStream.readCPI2(code, curBCI) == indyCPI;
                 }
-                CallSiteLink link = invokeDynamicConstant.getCallSiteLink(extraCPI);
-                while (!link.matchesCallSite(method, curBCI)) {
-                    /*
-                     * since the extra cpi read and write is not atomic, we might have read only 1
-                     * of the non-zero bytes. That is guaranteed to be <= the real extra CPI so it's
-                     * still safe to use in `getCallSiteLink`. `matchesCallSite` ensures we have the
-                     * full extraCPI.
-                     */
-                    extraCPI = BytecodeStream.readIndyExtraCPIVolatile(code, curBCI);
-                    link = invokeDynamicConstant.getCallSiteLink(extraCPI);
-                }
+                CallSiteLink link = invokeDynamicConstant.getCallSiteLink(method, code, curBCI, extraCPI);
                 if (link instanceof SuccessfulCallSiteLink successfulCallSiteLink) {
                     appendix = successfulCallSiteLink.getUnboxedAppendix();
                     seedMethod = successfulCallSiteLink.getInvoker();
