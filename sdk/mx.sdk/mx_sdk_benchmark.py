@@ -873,7 +873,6 @@ class NativeImageVM(StageAwareGraalVm):
         self.is_quickbuild = False
         self.graalos = False
         self.graalhost_graalos = False
-        self.pie = False
         self.layered = False
         self.use_string_inlining = False
         self.static = False
@@ -943,8 +942,6 @@ class NativeImageVM(StageAwareGraalVm):
             config += ["graalos"]
         if self.graalhost_graalos is True:
             config += ["graalhost-graalos"]
-        if self.pie is True:
-            config += ["pie"]
         if self.layered is True:
             config += ["layered"]
         if self.future_defaults_all is True:
@@ -1028,7 +1025,7 @@ class NativeImageVM(StageAwareGraalVm):
         # This defines the allowed config names for NativeImageVM. The ones registered will be available via --jvm-config
         # Note: the order of entries here must match the order of statements in NativeImageVM.config_name()
         rule = r'^(?P<native_architecture>native-architecture-)?(?P<string_inlining>string-inlining-)?(?P<static>mostly-static-|static-)?(?P<otw>otw-)?(?P<copyingoldgen_oldpolicy>copyingoldgen-oldpolicy-)?(?P<crema>crema-)?' \
-               r'(?P<preserve_all>preserve-all-)?(?P<preserve_classpath>preserve-classpath-)?(?P<graalos>graalos-)?(?P<graalhost_graalos>graalhost-graalos-)?(?P<pie>pie-)?(?P<layered>layered-)?' \
+               r'(?P<preserve_all>preserve-all-)?(?P<preserve_classpath>preserve-classpath-)?(?P<graalos>graalos-)?(?P<graalhost_graalos>graalhost-graalos-)?(?P<layered>layered-)?' \
                r'(?P<future_defaults_all>future-defaults-all-)?(?P<gate>gate-)?(?P<upx>upx-)?(?P<quickbuild>quickbuild-)?(?P<gc>g1gc-)?' \
                r'(?P<llvm>llvm-)?(?P<pgo>pgo-|pgo-sampler-|pgo-perf-sampler-invoke-multiple-|pgo-perf-sampler-invoke-|pgo-perf-sampler-)?(?P<inliner>inline-)?' \
                r'(?P<analysis_context_sensitivity>insens-|allocsens-|1obj-|2obj1h-|3obj2h-|4obj3h-)?(?P<jdk_profiles>jdk-profiles-collect-|adopted-jdk-pgo-)?' \
@@ -1064,10 +1061,6 @@ class NativeImageVM(StageAwareGraalVm):
         if matching.group("graalhost_graalos") is not None:
             mx.logv(f"'graalhost-graalos' is enabled for {config_name}")
             self.graalhost_graalos = True
-
-        if matching.group("pie") is not None:
-            mx.logv(f"'pie' is enabled for {config_name}")
-            self.pie = True
 
         if matching.group("layered") is not None:
             mx.logv(f"'layered' is enabled for {config_name}")
@@ -1803,10 +1796,6 @@ class NativeImageVM(StageAwareGraalVm):
         """Return extra build options that are dependent on layer information."""
         current_stage = self.stages_info.current_stage
         layer_aware_build_args = []
-
-        if self.pie and (not self.layered or not current_stage.layer_info.is_shared_library):
-            # This option should not be applied to base layers
-            layer_aware_build_args += ["-H:NativeLinkerOption=-pie"]
 
         if self.layered and not current_stage.layer_info.is_shared_library:
             # Set LinkerRPath to point to the directories containing the shared objects of underlying layers
