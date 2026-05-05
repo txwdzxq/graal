@@ -82,7 +82,14 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
     }
 
     @Substitute
-    @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
+    @TargetElement(onlyWith = RuntimeClassLoading.NoRuntimeClassLoading.class)
+    private Class<?> findClassInModuleOrNull(@SuppressWarnings("unused") Target_jdk_internal_loader_BuiltinClassLoader_LoadedModule loadedModule,
+                    @SuppressWarnings("unused") String cn) {
+        return null;
+    }
+
+    @Substitute
+    @TargetElement(onlyWith = RuntimeClassLoading.NoRuntimeClassLoading.class)
     protected Class<?> defineClass(String cn, Target_jdk_internal_loader_BuiltinClassLoader_LoadedModule loadedModule) {
         /*
          * Avoid dragging in logging & formatting code through
