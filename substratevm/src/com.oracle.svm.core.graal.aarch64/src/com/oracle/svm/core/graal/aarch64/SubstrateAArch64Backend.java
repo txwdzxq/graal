@@ -44,11 +44,14 @@ import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
+import com.oracle.svm.core.CGlobalDataPointerSingleton;
 import com.oracle.svm.core.FrameAccess;
 import com.oracle.svm.core.ReservedRegisters;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.SubstrateTarget;
 import com.oracle.svm.core.aarch64.SubstrateAArch64MacroAssembler;
+import com.oracle.svm.core.c.BoxedRelocatedPointer;
+import com.oracle.svm.core.c.CGlobalDataLoadPolicy;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.deopt.DeoptimizationRuntime;
 import com.oracle.svm.core.deopt.DeoptimizationSupport;
@@ -89,6 +92,7 @@ import com.oracle.svm.core.nodes.SubstrateIndirectCallTargetNode;
 import com.oracle.svm.core.pltgot.GOTAccess;
 import com.oracle.svm.core.pltgot.PLTGOTConfiguration;
 import com.oracle.svm.core.thread.VMThreads.StatusSupport;
+import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.util.VMError;
 
@@ -971,9 +975,32 @@ public class SubstrateAArch64Backend extends SubstrateBackendWithAssembler<Subst
         @Override
         @Platforms(Platform.HOSTED_ONLY.class)
         public void emitCGlobalDataLoadAddress(CGlobalDataLoadAddressNode node) {
-            Variable result = gen.newVariable(gen.getLIRKindTool().getWordKind());
-            append(new AArch64CGlobalDataDirectLoadAddressOp(node.getDataInfo(), result));
+            SharedMethod method = (SharedMethod) node.graph().method();
+            LIRKind wordKind = gen.getLIRKindTool().getWordKind();
+            Variable result = gen.newVariable(wordKind);
+            if (CGlobalDataLoadPolicy.singleton().shouldAccessViaImageHeap(method)) {
+                Variable baseAddress = readCGlobalDataBaseAddressFromImageHeap(wordKind);
+                Variable offset = gen.newVariable(wordKind);
+                append(new AArch64CGlobalDataIndirectLoadAddressOp(node.getDataInfo(), result, baseAddress, offset));
+            } else {
+                append(new AArch64CGlobalDataDirectLoadAddressOp(node.getDataInfo(), result));
+            }
             setResult(node, result);
+        }
+
+        @Platforms(Platform.HOSTED_ONLY.class)
+        private Variable readCGlobalDataBaseAddressFromImageHeap(LIRKind wordKind) {
+            assert !ImageLayerBuildingSupport.buildingImageLayer() : "Indirect CGlobalData access via the image heap is not yet implemented for layered images.";
+            JavaConstant runtimeBaseAddress = getProviders()
+                            .getSnippetReflection()
+                            .forObject(CGlobalDataPointerSingleton.currentLayer().getRuntimeBaseAddress());
+            AllocatableValue base = gen.emitLoadConstant(gen.getValueKind(runtimeBaseAddress.getJavaKind()), runtimeBaseAddress);
+            int offset = getProviders()
+                            .getMetaAccess()
+                            .lookupJavaField(ReflectionUtil.lookupField(BoxedRelocatedPointer.class, "pointer"))
+                            .getOffset();
+            int wordBits = wordKind.getPlatformKind().getSizeInBytes() * Byte.SIZE;
+            return gen.getArithmetic().emitLoad(wordKind, AArch64AddressValue.makeAddress(wordKind, wordBits, base, offset), null, MemoryOrderMode.PLAIN, MemoryExtendKind.DEFAULT);
         }
 
         @Override
