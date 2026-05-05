@@ -34,6 +34,8 @@ This changelog summarizes major changes to GraalVM Native Image.
 * (GR-74008) On macOS, the build process now uses `memory_pressure` for a more accurate detection of free memory.
 * (GR-73792) Added randomized runtime code entry points. Enable with `-H:+MaxRuntimeCodeOffset`.
 * (GR-73792) Added AMD64 memory masking and fencing mitigation for untrusted code. Enable with `-H:+MemoryMaskingAndFencing`.
+* (GR-74988) Build position-independent executables (PIE) on Linux by default, increasing security by participating in address space layout randomization (ASLR). To disable PIE (even if the system toolchain would otherwise produce PIE), use `-H:NativeLinkerOption=-no-pie`. Note that on many Linux distributions, macOS, and Windows, the system toolchains used by Native Image have already been producing PIE.
+* (GR-74988) Turn on relative code pointers by default to reduce startup time, memory usage, and size for PIE and shared library images. Instead of dynamic linker relocations, they use a dedicated code base register to compute code addresses. To disable, use `-H:-RelativeCodePointers`.
 
 ## GraalVM 25
 * (GR-52276) (GR-61959) Add support for Arena.ofShared().
