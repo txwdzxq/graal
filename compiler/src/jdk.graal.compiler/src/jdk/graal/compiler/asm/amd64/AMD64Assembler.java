@@ -3657,10 +3657,9 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
 
     protected boolean ensureWithinBoundary(int opStart) {
         if (useBranchesWithin32ByteBoundary && !isRecordingCodeSnippet()) {
-            int nextOpStart = position();
-            int opEnd = nextOpStart - 1;
+            int opEnd = position();
             if (mayCrossBoundary(opStart, opEnd)) {
-                throw new GraalError("instruction at %d of size %d bytes crosses a JCC erratum boundary", opStart, nextOpStart - opStart);
+                throw new GraalError("instruction at %d of size %d bytes crosses a JCC erratum boundary", opStart, opEnd - opStart);
             }
         }
         return true;
@@ -3669,6 +3668,7 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
     /**
      * If this assembler is configured to mitigate the Intel JCC erratum, emits nops at the current
      * position such that an instruction of size {@code bytesToEmit} will not cross a
+     * {@value #JCC_ERRATUM_MITIGATION_BOUNDARY} or end on a
      * {@value #JCC_ERRATUM_MITIGATION_BOUNDARY}.
      *
      * @return the number of nop bytes emitted
@@ -3680,14 +3680,15 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
     /**
      * If this assembler is configured to mitigate the Intel JCC erratum, emits nops at the current
      * position such that an instruction of size {@code bytesToEmit} at {@code position} will not
-     * cross a {@value #JCC_ERRATUM_MITIGATION_BOUNDARY}.
+     * cross a {@value #JCC_ERRATUM_MITIGATION_BOUNDARY} or end on a
+     * {@value #JCC_ERRATUM_MITIGATION_BOUNDARY}.
      *
      * @return the number of nop bytes emitted
      */
     protected final int mitigateJCCErratum(int position, int bytesToEmit) {
         if (useBranchesWithin32ByteBoundary && !isRecordingCodeSnippet()) {
             int bytesUntilBoundary = bytesUntilBoundary(position);
-            if (bytesUntilBoundary < bytesToEmit) {
+            if (bytesUntilBoundary <= bytesToEmit) {
                 nop(bytesUntilBoundary);
                 return bytesUntilBoundary;
             }
