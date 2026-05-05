@@ -2153,6 +2153,7 @@ lib_jvm_preserved_packages = [
     'java.lang.module',
     'java.lang.ref',
     'java.lang.reflect',
+    'java.lang.runtime',
     'java.math',
     'java.net',
     'java.net.spi',

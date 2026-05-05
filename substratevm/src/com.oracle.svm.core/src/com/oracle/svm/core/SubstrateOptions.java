@@ -865,6 +865,23 @@ public class SubstrateOptions {
     @Option(help = "Parse and consume standard options and system properties from the command line arguments when the VM is created.", stability = OptionStability.STABLE)//
     public static final HostedOptionKey<Boolean> ParseRuntimeOptions = new HostedOptionKey<>(true);
 
+    @Option(help = """
+                    Preserve legacy Java option handling at runtime.
+
+                    When true, only these Java options are consumed by the VM:
+                      - System properties with or without an explicit value (i.e. "-Dname=value" or "-Dname")
+                      - "-Xms", "-Xmx", "-Xmn" and "-Xss"
+                      - "-XX:"
+                    All other options are passed through to main or ignored for CreateJavaVM/graal_create_isolate.
+
+                    When false, the VM parses all options passed via CreateJavaVM/graal_create_isolate.
+                    A recognized but unimplemented option reports an error and exits the VM.
+                    If the VM entry point is main, unrecognized options are passed through to main.
+                    Otherwise, an unrecognized option reports an error and exits the VM unless
+                    JNIJavaVMInitArgs.ignoreUnrecognized or graal_create_isolate_params_t.ignore_unrecognized_args
+                    is true in which case the unrecognized option is silently ignored.""", type = OptionType.Expert)//
+    public static final HostedOptionKey<Boolean> LegacyJavaOptionMode = new HostedOptionKey<>(true);
+
     @Option(help = "Enable wildcard expansion in command line arguments on Windows.")//
     public static final HostedOptionKey<Boolean> EnableWildcardExpansion = new HostedOptionKey<>(true);
 

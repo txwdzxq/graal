@@ -1,6 +1,5 @@
 /*
- * Copyright (c) 2021, 2026, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2021, 2021, Alibaba Group Holding Limited. All rights reserved.
+ * Copyright (c) 2026, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -23,16 +22,16 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
+package com.oracle.svm.core.jdk;
 
-package com.oracle.svm.shared.option;
+import com.oracle.svm.core.annotate.Alias;
+import com.oracle.svm.core.annotate.RecomputeFieldValue;
+import com.oracle.svm.core.annotate.TargetClass;
 
-import jdk.graal.compiler.options.OptionKey;
-
-/**
- * Collection of common option names handled in the driver. The actual {@link OptionKey} instances
- * are defined in {@code com.oracle.svm.core.option.CommonOptions}.
- */
-public class CommonOptionNames {
-    public static final String PrintFlags = "PrintFlags";
-    public static final String PrintFlagsWithExtraHelp = "PrintFlagsWithExtraHelp";
+@TargetClass(className = "jdk.internal.misc.PreviewFeatures")
+@SuppressWarnings("unused")
+public final class Target_jdk_internal_misc_PreviewFeatures {
+    /// Lets `--enable-preview` update the flag inherited from image build time.
+    @Alias @RecomputeFieldValue(kind = RecomputeFieldValue.Kind.None, isFinal = false) //
+    public static boolean ENABLED;
 }
