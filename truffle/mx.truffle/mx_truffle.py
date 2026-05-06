@@ -1542,11 +1542,7 @@ def tck(args):
         with mx_util.SafeFileCreation(os.path.join(tempfile.gettempdir(), "debugalot")) as sfc:
             _execute_debugger_test(tests, sfc.tmpPath, False, unitTestOptions, jvmOptions)
     elif tckConfiguration == "compile":
-        if "--use-graalvm" in unitTestOptions:
-            jdk = mx.get_jdk(tag="graalvm")
-        else:
-            jdk = mx.get_jdk()
-        if not mx_sdk.GraalVMJDKConfig.is_graalvm(jdk.home):
+        if not mx_sdk.GraalVMJDKConfig.is_graalvm(mx.get_jdk().home):
             mx.abort(
                 "The 'compile' TCK configuration requires graalvm execution, "
                 "run with --java-home=<path_to_graalvm> or run with --use-graalvm."
