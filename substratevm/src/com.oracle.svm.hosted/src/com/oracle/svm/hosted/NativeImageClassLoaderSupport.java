@@ -109,6 +109,7 @@ import com.oracle.svm.shared.util.LogUtils;
 import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.shared.util.StringUtil;
 import com.oracle.svm.shared.util.VMError;
+import com.oracle.svm.util.AnnotationUtil;
 import com.oracle.svm.util.HostedModuleSupport;
 
 import jdk.graal.compiler.debug.GraalError;
@@ -281,6 +282,7 @@ public final class NativeImageClassLoaderSupport {
         modulepathModuleFinder = ModuleFinder.of(modulepath().toArray(Path[]::new));
 
         annotationExtractor = new SubstrateAnnotationExtractor();
+        AnnotationUtil.installHostedAnnotationExtractor(annotationExtractor);
 
         includeConfigSealed = false;
 
