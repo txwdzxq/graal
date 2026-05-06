@@ -30,6 +30,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 
+import org.graalvm.collections.UnmodifiableEconomicMap;
 import org.graalvm.nativeimage.ImageSingletons;
 import org.graalvm.nativeimage.c.type.CLongPointer;
 import org.graalvm.nativeimage.hosted.Feature;
@@ -38,9 +39,9 @@ import com.oracle.graal.pointsto.ObjectScanner;
 import com.oracle.graal.pointsto.heap.ImageHeapConstant;
 import com.oracle.graal.pointsto.meta.AnalysisField;
 import com.oracle.svm.core.IsolateArgumentParser;
-import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.imagelayer.ImageLayerBuildingSupport;
+import com.oracle.svm.core.option.CommonOptions;
 import com.oracle.svm.core.option.RuntimeOptionKey;
 import com.oracle.svm.core.option.RuntimeOptionKey.RuntimeOptionKeyFlag;
 import com.oracle.svm.core.option.RuntimeOptionParser;
@@ -53,6 +54,9 @@ import com.oracle.svm.hosted.heap.ImageHeapObjectAdder;
 import com.oracle.svm.hosted.image.NativeImageHeap;
 import com.oracle.svm.hosted.imagelayer.LayeredImageUtils;
 import com.oracle.svm.hosted.meta.HostedUniverse;
+import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
+import com.oracle.svm.shared.option.CommonOptionNames;
+import com.oracle.svm.shared.option.CommonOptionParser;
 import com.oracle.svm.shared.option.HostedOptionKey;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
@@ -122,8 +126,10 @@ public class RuntimeOptionFeature implements InternalFeature, IsolateArgumentPar
     public void beforeAnalysis(BeforeAnalysisAccess access) {
         FeatureImpl.BeforeAnalysisAccessImpl accessImpl = (FeatureImpl.BeforeAnalysisAccessImpl) access;
         HostedOptionParser optionParser = accessImpl.getImageClassLoader().classLoaderSupport.getHostedOptionParser();
-
         boolean firstImage = ImageLayerBuildingSupport.firstImageBuild();
+        if (firstImage) {
+            registerPrintFlagsOptions(optionParser);
+        }
         for (var descriptor : optionParser.getAllRuntimeOptions().getValues()) {
             if (descriptor.getOptionKey() instanceof RuntimeOptionKey<?> runtimeOptionKey && runtimeOptionKey.shouldRegisterForIsolateArgumentParser()) {
                 if (firstImage) {
@@ -152,6 +158,18 @@ public class RuntimeOptionFeature implements InternalFeature, IsolateArgumentPar
             var universe = ((FeatureImpl.BeforeAnalysisAccessImpl) access).getUniverse();
             LayeredImageUtils.registerObjectAsEmbeddedRoot(universe, defaultValues);
         }
+    }
+
+    /**
+     * The {@link OptionKey} values defined in {@link CommonOptions} are not accessed in a way seen
+     * during analysis; {@link CommonOptionParser} only refers to them by name so they need to be
+     * explicitly registered.
+     */
+    private static void registerPrintFlagsOptions(HostedOptionParser optionParser) {
+        RuntimeOptionParser parser = RuntimeOptionParser.singleton();
+        UnmodifiableEconomicMap<String, OptionDescriptor> allRuntimeOptions = optionParser.getAllRuntimeOptions();
+        parser.addDescriptor(allRuntimeOptions.get(CommonOptionNames.PrintFlags));
+        parser.addDescriptor(allRuntimeOptions.get(CommonOptionNames.PrintFlagsWithExtraHelp));
     }
 
     @Override

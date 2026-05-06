@@ -62,6 +62,9 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
     private volatile SoftReference<Map<String, List<URL>>> resourceCache;
 
     @Alias
+    public native ModuleReference findModule(String name);
+
+    @Alias
     public native void loadModule(ModuleReference mref);
 
     @Substitute
