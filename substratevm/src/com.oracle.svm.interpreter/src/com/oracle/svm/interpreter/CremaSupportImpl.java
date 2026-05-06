@@ -591,7 +591,7 @@ public class CremaSupportImpl implements CremaSupport {
                  * mirandas.
                  */
                 boolean addMirandas = false;
-                var tables = VTable.create(partialType, false, false, addMirandas);
+                var tables = VTable.create(partialType, false, false, addMirandas, false);
                 return new CremaInstanceDispatchTable(tables, partialType);
             }
         } catch (MethodTableException e) {
@@ -951,6 +951,7 @@ public class CremaSupportImpl implements CremaSupport {
         private final ClassLoader loader;
         private final Symbol<Name> symbolicRuntimePackage;
         private final List<CremaPartialMethod> declared;
+        private final InterpreterResolvedObjectType superType;
         private final List<InterpreterResolvedJavaMethod> parentTable;
         private final EconomicMap<InterpreterResolvedJavaType, List<InterpreterResolvedJavaMethod>> interfacesData = EconomicMap.create(Equivalence.IDENTITY);
         private InterpreterResolvedObjectType thisJavaType;
@@ -960,21 +961,21 @@ public class CremaSupportImpl implements CremaSupport {
             this.parserKlass = parsed;
             this.loader = loader;
             this.symbolicRuntimePackage = SymbolsSupport.getNames().getOrCreate(TypeSymbols.getRuntimePackage(parsed.getType()));
-            parentTable = computeParentTable(superClass);
+            this.superType = (InterpreterResolvedObjectType) DynamicHub.fromClass(superClass).getInterpreterType();
+            this.parentTable = computeParentTable(superType);
             for (Class<?> intf : superInterfaces) {
                 DynamicHub intfHub = DynamicHub.fromClass(intf);
                 InterpreterResolvedObjectType interpreterType = (InterpreterResolvedObjectType) intfHub.getInterpreterType();
                 // "vtable" contains the interface table prototype for interfaces
                 interfacesData.put(interpreterType, Arrays.asList(interpreterType.getVtable()));
             }
-            declared = new ArrayList<>();
+            this.declared = new ArrayList<>();
             for (ParserMethod m : parsed.getMethods()) {
                 declared.add(new CremaPartialMethod(this, m));
             }
         }
 
-        private static List<InterpreterResolvedJavaMethod> computeParentTable(Class<?> superClass) {
-            InterpreterResolvedObjectType superType = (InterpreterResolvedObjectType) DynamicHub.fromClass(superClass).getInterpreterType();
+        private static List<InterpreterResolvedJavaMethod> computeParentTable(InterpreterResolvedObjectType superType) {
             InterpreterResolvedJavaMethod[] superVTableMirror = superType.getVtable();
             int superTableLen = superType.getClassVtableLength();
             VMError.guarantee(superTableLen >= 0 && superTableLen <= superVTableMirror.length, "Invalid parent table length");
@@ -1015,6 +1016,25 @@ public class CremaSupportImpl implements CremaSupport {
         @Override
         public String toString() {
             return "CremaPartialType<" + getSymbolicName() + ">";
+        }
+
+        @Override
+        public PartialMethod<InterpreterResolvedJavaType, InterpreterResolvedJavaMethod, InterpreterResolvedJavaField> fallbackLookup(Symbol<Name> name, Symbol<Signature> signature,
+                        boolean includePrivate) {
+            for (CremaPartialMethod m : declared) {
+                if ((!m.isPrivate() || includePrivate) && !m.isStatic() && m.getSymbolicName() == name && m.getSymbolicSignature() == signature) {
+                    return m;
+                }
+            }
+            InterpreterResolvedObjectType current = superType;
+            while (current != null) {
+                InterpreterResolvedJavaMethod m = current.lookupDeclaredMethod(name, signature);
+                if (m != null && !m.isStatic() && (!m.isPrivate() || includePrivate)) {
+                    return m;
+                }
+                current = current.getSuperClass();
+            }
+            return null;
         }
     }
 
