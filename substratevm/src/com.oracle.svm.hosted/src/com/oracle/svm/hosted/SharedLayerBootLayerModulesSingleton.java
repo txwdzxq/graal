@@ -34,8 +34,9 @@ import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
 import com.oracle.svm.core.imagelayer.BuildingInitialLayerPredicate;
+import com.oracle.svm.hosted.imagelayer.SnapshotWriters;
+import com.oracle.svm.hosted.imagelayer.SVMImageSingletonWriter;
 import com.oracle.svm.hosted.imagelayer.SVMImageLayerSingletonLoader;
-import com.oracle.svm.hosted.imagelayer.SVMImageLayerWriter;
 import com.oracle.svm.hosted.snapshot.util.SnapshotAdapters;
 import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.shared.singletons.ImageSingletonLoader;
@@ -87,14 +88,14 @@ public class SharedLayerBootLayerModulesSingleton {
 
                 @Override
                 public LayeredPersistFlags doPersist(ImageSingletonWriter writer, SharedLayerBootLayerModulesSingleton singleton) {
-                    SVMImageLayerWriter.ImageSingletonWriterImpl writerImpl = (SVMImageLayerWriter.ImageSingletonWriterImpl) writer;
+                    SVMImageSingletonWriter writerImpl = (SVMImageSingletonWriter) writer;
                     Stream<String> moduleNames = singleton.bootLayer.modules().stream().map(Module::getName);
 
                     if (singleton.sharedBootLayerModules != null) {
                         moduleNames = Stream.concat(moduleNames, singleton.sharedBootLayerModules.stream());
                     }
 
-                    SVMImageLayerWriter.initStringList(writerImpl.getSnapshotWriter()::initSharedLayerBootLayerModules, moduleNames);
+                    SnapshotWriters.initStringList(writerImpl.getSnapshotWriter()::initSharedLayerBootLayerModules, moduleNames);
 
                     return LayeredPersistFlags.CREATE;
                 }

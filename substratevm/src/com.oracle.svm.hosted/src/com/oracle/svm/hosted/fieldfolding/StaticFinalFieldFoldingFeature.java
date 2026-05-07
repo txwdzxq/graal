@@ -56,6 +56,7 @@ import com.oracle.svm.hosted.imagelayer.SVMImageLayerLoader;
 import com.oracle.svm.hosted.imagelayer.SVMImageLayerLoader.JavaConstantSupplier;
 import com.oracle.svm.hosted.imagelayer.SVMImageLayerSingletonLoader;
 import com.oracle.svm.hosted.imagelayer.SVMImageLayerWriter;
+import com.oracle.svm.hosted.imagelayer.SVMImageSingletonWriter;
 import com.oracle.svm.hosted.meta.HostedField;
 import com.oracle.svm.shared.option.SubstrateOptionsParser;
 import com.oracle.svm.shared.singletons.ImageSingletonLoader;
@@ -494,7 +495,7 @@ class StaticFinalFieldFoldingSingleton {
             return new LayeredCallbacksSingletonTrait(new SingletonLayeredCallbacks<StaticFinalFieldFoldingSingleton>() {
                 @Override
                 public LayeredPersistFlags doPersist(ImageSingletonWriter writer, StaticFinalFieldFoldingSingleton singleton) {
-                    var snapshotWriter = ((SVMImageLayerWriter.ImageSingletonWriterImpl) writer).getSnapshotWriter();
+                    var snapshotWriter = ((SVMImageSingletonWriter) writer).getSnapshotWriter();
                     SVMImageLayerWriter imageLayerWriter = HostedImageLayerBuildingSupport.singleton().getWriter();
 
                     List<Integer> fields = new ArrayList<>();

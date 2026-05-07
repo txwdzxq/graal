@@ -409,7 +409,7 @@ public class LayeredStaticFieldSupport extends LayeredClassInitialization {
                     writer.writeInt("appLayerPrimitiveFieldStartingOffset", singleton.appLayerStaticFieldOffsets.nextPrimitiveField);
                     writer.writeInt("appLayerObjectFieldStartingOffset", singleton.appLayerStaticFieldOffsets.nextObjectField);
 
-                    HostedUniverse hUniverse = ((SVMImageLayerWriter.ImageSingletonWriterImpl) writer).getHostedUniverse();
+                    HostedUniverse hUniverse = ((SVMImageSingletonWriter) writer).getHostedUniverse();
                     List<Integer> knownLocations = new ArrayList<>();
                     singleton.appLayerFields.forEach(obj -> {
                         AnalysisField aField = getAnalysisField(obj);

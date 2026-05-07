@@ -684,7 +684,7 @@ public class LayeredDispatchTableFeature implements InternalFeature {
         typeInfoBuilder.setTypecheckId(hType.getTypeID());
         typeInfoBuilder.setNumClassTypes(hType.getNumClassTypes());
         typeInfoBuilder.setNumIterableInterfaceTypes(hType.getNumInterfaceTypes());
-        SVMImageLayerWriter.initInts(typeInfoBuilder::initTypecheckSlotValues, Arrays.stream(hType.getOpenTypeWorldTypeCheckSlots()));
+        SnapshotWriters.initInts(typeInfoBuilder::initTypecheckSlotValues, Arrays.stream(hType.getOpenTypeWorldTypeCheckSlots()));
         typeInfoBuilder.setInterfaceId(hType.getInterfaceID());
 
         // dispatch table info
@@ -693,12 +693,12 @@ public class LayeredDispatchTableFeature implements InternalFeature {
             boolean hubInstalled = hDispatchTable.status == HubStatus.INSTALLED_CURRENT_LAYER;
             typeInfoBuilder.setInstalled(hubInstalled);
 
-            SVMImageLayerWriter.initInts(typeInfoBuilder::initLocallyDeclaredSlotsHostedMethodIndexes,
+            SnapshotWriters.initInts(typeInfoBuilder::initLocallyDeclaredSlotsHostedMethodIndexes,
                             Arrays.stream(hDispatchTable.locallyDeclaredSlots).mapToInt(this::getPersistedHostedMethodIndex));
 
             assert !(hDispatchTable.status == HubStatus.UNINITIALIZED && hDispatchTable.slots != null) : hType;
             if (hDispatchTable.slots != null) {
-                SVMImageLayerWriter.initSortedArray(typeInfoBuilder::initDispatchTableSlotValues, hDispatchTable.slots, (dispatchSlot, dispatchSlotInfoSupplier) -> {
+                SnapshotWriters.initSortedArray(typeInfoBuilder::initDispatchTableSlotValues, hDispatchTable.slots, (dispatchSlot, dispatchSlotInfoSupplier) -> {
                     persistDynamicSlot(dispatchSlot, dispatchSlotInfoSupplier, hubInstalled);
                 });
             }

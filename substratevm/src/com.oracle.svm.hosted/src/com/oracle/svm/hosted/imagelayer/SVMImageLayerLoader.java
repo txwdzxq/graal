@@ -35,14 +35,11 @@ import static com.oracle.svm.hosted.imagelayer.SVMImageLayerSnapshotUtil.STRING;
 import static com.oracle.svm.hosted.lambda.LambdaParser.createMethodGraph;
 import static com.oracle.svm.hosted.lambda.LambdaParser.getLambdaClassFromConstantNode;
 
-import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.Constructor;
-import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -123,7 +120,6 @@ import com.oracle.svm.hosted.snapshot.elements.PersistedAnalysisTypeData;
 import com.oracle.svm.hosted.snapshot.elements.PersistedAnalysisTypeData.WrappedType;
 import com.oracle.svm.hosted.snapshot.elements.PersistedAnalysisTypeData.WrappedType.SerializationGenerated;
 import com.oracle.svm.hosted.snapshot.elements.PersistedAnnotationData;
-import com.oracle.svm.hosted.snapshot.elements.PersistedAnnotationElementData;
 import com.oracle.svm.hosted.snapshot.elements.PersistedHostedMethodData;
 import com.oracle.svm.hosted.snapshot.layer.SharedLayerSnapshotData;
 import com.oracle.svm.hosted.snapshot.util.PrimitiveValueData;
@@ -141,9 +137,7 @@ import com.oracle.svm.util.JVMCIReflectionUtil;
 import com.oracle.svm.util.OriginalClassProvider;
 
 import jdk.graal.compiler.annotation.AnnotationValue;
-import jdk.graal.compiler.annotation.EnumElement;
 import jdk.graal.compiler.api.replacements.SnippetReflectionProvider;
-import jdk.graal.compiler.core.common.NumUtil;
 import jdk.graal.compiler.core.common.SuppressFBWarnings;
 import jdk.graal.compiler.debug.GraalError;
 import jdk.graal.compiler.graph.Node;
@@ -178,7 +172,7 @@ public class SVMImageLayerLoader extends ImageLayerLoader {
     private final SVMImageLayerSnapshotUtil imageLayerSnapshotUtil;
     private final HostedImageLayerBuildingSupport imageLayerBuildingSupport;
     private final SharedLayerSnapshotData.Loader snapshot;
-    private final FileChannel graphsChannel;
+    private final ImageLayerGraphStore graphStore;
     private final ClassInitializationSupport classInitializationSupport;
     private final boolean buildingApplicationLayer;
 
@@ -225,7 +219,7 @@ public class SVMImageLayerLoader extends ImageLayerLoader {
         this.imageLayerSnapshotUtil = imageLayerSnapshotUtil;
         this.imageLayerBuildingSupport = imageLayerBuildingSupport;
         this.snapshot = snapshot;
-        this.graphsChannel = graphChannel;
+        this.graphStore = graphChannel == null ? null : ImageLayerGraphStore.openForReading(graphChannel);
         this.useSharedLayerGraphs = useSharedLayerGraphs;
         classInitializationSupport = ClassInitializationSupport.singleton();
         buildingApplicationLayer = ImageLayerBuildingSupport.buildingApplicationLayer();
@@ -249,7 +243,7 @@ public class SVMImageLayerLoader extends ImageLayerLoader {
 
     public void initNodeClassMap() {
         assert nodeClassMap == null : "cannot re-initialize the nodeClassMap";
-        byte[] encodedGlobalNodeClassMap = readEncodedObject(snapshot.getNodeClassMapLocation());
+        byte[] encodedGlobalNodeClassMap = graphStore.read(snapshot.getNodeClassMapLocation());
         SVMImageLayerSnapshotUtil.AbstractSVMGraphDecoder decoder = imageLayerSnapshotUtil.getGraphDecoder(this, null, universe.getSnippetReflection(), null);
         nodeClassMap = (NodeClassMap) ObjectCopier.decode(decoder, encodedGlobalNodeClassMap);
     }
@@ -379,12 +373,8 @@ public class SVMImageLayerLoader extends ImageLayerLoader {
     }
 
     public void cleanupAfterCompilation() {
-        if (graphsChannel != null) {
-            try {
-                graphsChannel.close();
-            } catch (IOException e) {
-                throw AnalysisError.shouldNotReachHere(e);
-            }
+        if (graphStore != null) {
+            graphStore.close();
         }
     }
 
@@ -657,55 +647,7 @@ public class SVMImageLayerLoader extends ImageLayerLoader {
     }
 
     private AnnotationValue[] getAnnotations(SnapshotStructList.Loader<PersistedAnnotationData.Loader> reader) {
-        return SnapshotAdapters.toArray(reader, this::getAnnotation, AnnotationValue[]::new);
-    }
-
-    private AnnotationValue getAnnotation(PersistedAnnotationData.Loader a) {
-        String typeName = a.getTypeName();
-        ResolvedJavaType annotationType = lookupBaseLayerTypeInHostVM(typeName);
-        Map<String, Object> annotationValuesMap = new HashMap<>();
-        a.getValues().forEach(v -> {
-            Object value = getAnnotationValue(v);
-            annotationValuesMap.put(v.getName(), value);
-        });
-        return new AnnotationValue(annotationType, annotationValuesMap);
-    }
-
-    private Object getAnnotationValue(PersistedAnnotationElementData.Loader v) {
-        return switch (v.kind()) {
-            case STRING -> v.getString();
-            case ENUM -> getEnumElement(v.getEnum().getClassName(), v.getEnum().getName());
-            case PRIMITIVE -> {
-                var p = v.getPrimitive();
-                long rawValue = p.getRawValue();
-                char typeChar = (char) p.getTypeChar();
-                yield switch (JavaKind.fromPrimitiveOrVoidTypeChar(typeChar)) {
-                    case Boolean -> rawValue != 0;
-                    case Byte -> (byte) rawValue;
-                    case Char -> (char) rawValue;
-                    case Short -> (short) rawValue;
-                    case Int -> (int) rawValue;
-                    case Long -> rawValue;
-                    case Float -> Float.intBitsToFloat((int) rawValue);
-                    case Double -> Double.longBitsToDouble(rawValue);
-                    default -> throw AnalysisError.shouldNotReachHere("Unknown annotation value type: " + typeChar);
-                };
-            }
-            case PRIMITIVE_ARRAY -> v.getPrimitiveArray().toArray();
-            case CLASS_NAME -> imageLayerBuildingSupport.lookupType(false, v.getClassName());
-            case ANNOTATION -> getAnnotation(v.getAnnotation());
-            case MEMBERS -> {
-                var m = v.getMembers();
-                var mv = m.getMemberValues();
-                Class<?> membersClass = imageLayerBuildingSupport.lookupClass(false, m.getClassName());
-                var array = Array.newInstance(membersClass, mv.size());
-                for (int i = 0; i < mv.size(); ++i) {
-                    Array.set(array, i, getAnnotationValue(mv.get(i)));
-                }
-                yield array;
-            }
-            case NOT_IN_SCHEMA -> throw AnalysisError.shouldNotReachHere("Unknown annotation value kind: " + v.kind());
-        };
+        return AnnotationSnapshotCodec.readAnnotations(reader, this::lookupBaseLayerTypeInHostVM, name -> imageLayerBuildingSupport.lookupClass(false, name));
     }
 
     @Override
@@ -1171,7 +1113,7 @@ public class SVMImageLayerLoader extends ImageLayerLoader {
     }
 
     private EncodedGraph getEncodedGraph(AnalysisMethod analysisMethod, String location) {
-        byte[] encodedAnalyzedGraph = readEncodedObject(location);
+        byte[] encodedAnalyzedGraph = graphStore.read(location);
         SVMImageLayerSnapshotUtil.AbstractSVMGraphDecoder decoder = imageLayerSnapshotUtil.getGraphDecoder(this, analysisMethod, universe.getSnippetReflection(), nodeClassMap);
         EncodedGraph encodedGraph = (EncodedGraph) ObjectCopier.decode(decoder, encodedAnalyzedGraph);
         for (int i = 0; i < encodedGraph.getNumObjects(); ++i) {
@@ -1180,28 +1122,6 @@ public class SVMImageLayerLoader extends ImageLayerLoader {
             }
         }
         return encodedGraph;
-    }
-
-    private byte[] readEncodedObject(String location) {
-        int closingBracketAt = location.length() - 1;
-        AnalysisError.guarantee(location.charAt(0) == '@' && location.charAt(closingBracketAt) == ']', "Location must start with '@' and end with ']': %s", location);
-        int openingBracketAt = location.indexOf('[', 1, closingBracketAt);
-        AnalysisError.guarantee(openingBracketAt < closingBracketAt, "Location does not contain '[' at expected location: %s", location);
-        long offset;
-        long nbytes;
-        try {
-            offset = Long.parseUnsignedLong(location.substring(1, openingBracketAt));
-            nbytes = Long.parseUnsignedLong(location.substring(openingBracketAt + 1, closingBracketAt));
-        } catch (NumberFormatException e) {
-            throw AnalysisError.shouldNotReachHere("Location contains invalid positive integer(s): " + location);
-        }
-        ByteBuffer bb = ByteBuffer.allocate(NumUtil.safeToInt(nbytes));
-        try {
-            graphsChannel.read(bb, offset);
-        } catch (IOException e) {
-            throw AnalysisError.shouldNotReachHere("Failed reading a graph from location: " + location, e);
-        }
-        return bb.array();
     }
 
     /**
@@ -1213,7 +1133,7 @@ public class SVMImageLayerLoader extends ImageLayerLoader {
     public void loadPriorStrengthenedGraphAnalysisElements(AnalysisMethod analysisMethod) {
         if (hasStrengthenedGraph(analysisMethod)) {
             PersistedAnalysisMethodData.Loader methodData = getMethodData(analysisMethod);
-            byte[] encodedAnalyzedGraph = readEncodedObject(methodData.getStrengthenedGraphLocation());
+            byte[] encodedAnalyzedGraph = graphStore.read(methodData.getStrengthenedGraphLocation());
             SnippetReflectionProvider snippetReflection = universe.getSnippetReflection();
             SVMImageLayerSnapshotUtil.AbstractSVMGraphDecoder decoder = imageLayerSnapshotUtil.getGraphHostedToAnalysisElementsDecoder(this, analysisMethod, snippetReflection, nodeClassMap);
             EncodedGraph graph = (EncodedGraph) ObjectCopier.decode(decoder,
@@ -1822,11 +1742,6 @@ public class SVMImageLayerLoader extends ImageLayerLoader {
     private JavaConstant getEnumValue(String className, String name) {
         ResolvedJavaType enumType = imageLayerBuildingSupport.lookupType(false, className);
         return GuestAccess.get().invoke(VALUE_OF_METHOD, null, getClassConstant(enumType), getStringConstant(name));
-    }
-
-    private EnumElement getEnumElement(String className, String name) {
-        ResolvedJavaType enumType = imageLayerBuildingSupport.lookupType(false, className);
-        return new EnumElement(enumType, name);
     }
 
     private void addBaseLayerValueToImageHeap(ImageHeapConstant constant, ImageHeapConstant parentConstant, int i) {
