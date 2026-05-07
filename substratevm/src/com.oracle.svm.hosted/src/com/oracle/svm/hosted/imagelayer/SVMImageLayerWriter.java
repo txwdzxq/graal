@@ -34,7 +34,6 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Parameter;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -59,7 +58,6 @@ import com.oracle.graal.pointsto.meta.AnalysisMethod;
 import com.oracle.graal.pointsto.meta.AnalysisType;
 import com.oracle.graal.pointsto.meta.AnalysisUniverse;
 import com.oracle.graal.pointsto.util.AnalysisError;
-import com.oracle.graal.pointsto.util.AnalysisFuture;
 import com.oracle.svm.core.FunctionPointerHolder;
 import com.oracle.svm.core.StaticFieldsSupport;
 import com.oracle.svm.core.classinitialization.ClassInitializationInfo;
@@ -110,12 +108,7 @@ import com.oracle.svm.shared.util.LogUtils;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.debug.GraalError;
-import jdk.graal.compiler.graph.NodeClass;
 import jdk.graal.compiler.java.LambdaUtils;
-import jdk.graal.compiler.nodes.EncodedGraph;
-import jdk.graal.compiler.nodes.GraphEncoder;
-import jdk.graal.compiler.nodes.NodeClassMap;
-import jdk.graal.compiler.util.ObjectCopier;
 import jdk.vm.ci.meta.JavaConstant;
 import jdk.vm.ci.meta.MethodHandleAccessProvider.IntrinsicMethod;
 
@@ -128,7 +121,7 @@ public class SVMImageLayerWriter extends ImageLayerWriter {
     private final SharedLayerSnapshotFormat sharedLayerSnapshotFormat = new CapnProtoSharedLayerSnapshotFormat();
     private final SharedLayerSnapshotData.Writer snapshotWriter = sharedLayerSnapshotFormat.createWriter();
     private SVMImageConstantSnapshotWriter constantSnapshotWriter;
-    private final Map<AnalysisMethod, MethodGraphsInfo> methodsMap = new ConcurrentHashMap<>();
+    private final ImageLayerGraphWriter graphWriter;
     /**
      * This map is only used for validation, to ensure that all method descriptors are unique. A
      * duplicate method descriptor would cause methods to be incorrectly matched across layers,
@@ -136,9 +129,6 @@ public class SVMImageLayerWriter extends ImageLayerWriter {
      */
     private final Map<String, AnalysisMethod> methodDescriptors = new HashMap<>();
     private final Map<AnalysisMethod, Set<AnalysisMethod>> polymorphicSignatureCallers = new ConcurrentHashMap<>();
-    private final LayerGraphStore graphStore;
-    private final boolean useSharedLayerGraphs;
-    private final boolean useSharedLayerStrengthenedGraphs;
 
     private NativeImageHeap nativeImageHeap;
     private HostedUniverse hUniverse;
@@ -147,33 +137,10 @@ public class SVMImageLayerWriter extends ImageLayerWriter {
 
     private boolean polymorphicSignatureSealed = false;
 
-    /**
-     * Used to encode {@link NodeClass} ids in {@link #persistGraph}.
-     */
-    private final NodeClassMap nodeClassMap = GraphEncoder.GLOBAL_NODE_CLASS_MAP;
-
-    private record MethodGraphsInfo(String analysisGraphLocation, boolean analysisGraphIsIntrinsic,
-                    String strengthenedGraphLocation) {
-
-        static final MethodGraphsInfo NO_GRAPHS = new MethodGraphsInfo(null, false, null);
-
-        MethodGraphsInfo withAnalysisGraph(AnalysisMethod method, String location, boolean isIntrinsic) {
-            assert analysisGraphLocation == null && !analysisGraphIsIntrinsic : "Only one analysis graph can be persisted for a given method: " + method;
-            return new MethodGraphsInfo(location, isIntrinsic, strengthenedGraphLocation);
-        }
-
-        MethodGraphsInfo withStrengthenedGraph(AnalysisMethod method, String location) {
-            assert strengthenedGraphLocation == null : "Only one strengthened graph can be persisted for a given method: " + method;
-            return new MethodGraphsInfo(analysisGraphLocation, analysisGraphIsIntrinsic, location);
-        }
-    }
-
     public SVMImageLayerWriter(SVMImageLayerSnapshotUtil imageLayerSnapshotUtil, boolean useSharedLayerGraphs, boolean useSharedLayerStrengthenedGraphs) {
         this.imageLayerSnapshotUtil = imageLayerSnapshotUtil;
-        this.useSharedLayerGraphs = useSharedLayerGraphs;
-        this.useSharedLayerStrengthenedGraphs = useSharedLayerStrengthenedGraphs;
         Path snapshotGraphsPath = HostedImageLayerBuildingSupport.singleton().getWriteLayerArchiveSupport().getSnapshotGraphsPath();
-        graphStore = LayerGraphStore.openForWriting(snapshotGraphsPath);
+        graphWriter = new ImageLayerGraphWriter(imageLayerSnapshotUtil, ImageLayerGraphStore.openForWriting(snapshotGraphsPath), useSharedLayerGraphs, useSharedLayerStrengthenedGraphs);
         this.classInitializationSupport = ClassInitializationSupport.singleton();
     }
 
@@ -202,11 +169,7 @@ public class SVMImageLayerWriter extends ImageLayerWriter {
     }
 
     public void dumpFiles() {
-        SVMImageLayerSnapshotUtil.SVMGraphEncoder graphEncoder = imageLayerSnapshotUtil.getGraphEncoder(null);
-        byte[] encodedNodeClassMap = ObjectCopier.encode(graphEncoder, nodeClassMap);
-        String location = graphStore.write(encodedNodeClassMap);
-        snapshotWriter.setNodeClassMapLocation(location);
-        graphStore.close();
+        graphWriter.writeNodeClassMap(snapshotWriter);
 
         Path snapshotFile = HostedImageLayerBuildingSupport.singleton().getWriteLayerArchiveSupport().getSnapshotPath();
         try {
@@ -430,7 +393,6 @@ public class SVMImageLayerWriter extends ImageLayerWriter {
 
     private void persistMethod(AnalysisMethod method, Supplier<PersistedAnalysisMethodData.Writer> builderSupplier) {
         PersistedAnalysisMethodData.Writer builder = builderSupplier.get();
-        MethodGraphsInfo graphsInfo = methodsMap.putIfAbsent(method, MethodGraphsInfo.NO_GRAPHS);
         Executable executable = method.getJavaMethod();
 
         if (executable != null) {
@@ -480,15 +442,7 @@ public class SVMImageLayerWriter extends ImageLayerWriter {
         }
         builder.setCompilationBehaviorOrdinal((byte) compilationBehavior.ordinal());
 
-        if (graphsInfo != null && graphsInfo.analysisGraphLocation != null) {
-            assert !method.isDelayed() : "The method " + method + " has an analysis graph, but is delayed to the application layer";
-            builder.setAnalysisGraphLocation(graphsInfo.analysisGraphLocation);
-            builder.setAnalysisGraphIsIntrinsic(graphsInfo.analysisGraphIsIntrinsic);
-        }
-        if (graphsInfo != null && graphsInfo.strengthenedGraphLocation != null) {
-            assert !method.isDelayed() : "The method " + method + " has a strengthened graph, but is delayed to the application layer";
-            builder.setStrengthenedGraphLocation(graphsInfo.strengthenedGraphLocation);
-        }
+        graphWriter.writeMethodGraphs(method, builder);
 
         delegatePersistMethod(method, builder);
 
@@ -591,61 +545,11 @@ public class SVMImageLayerWriter extends ImageLayerWriter {
 
     @Override
     public void persistAnalysisParsedGraph(AnalysisMethod method, AnalysisParsedGraph analysisParsedGraph) {
-        String location = persistGraph(method, analysisParsedGraph.getEncodedGraph());
-        if (location != null) {
-            /*
-             * This method should only be called once for each method. This check is performed by
-             * withAnalysisGraph as it will throw if the MethodGraphsInfo already has an analysis
-             * graph.
-             */
-            methodsMap.compute(method, (_, mgi) -> (mgi != null ? mgi : MethodGraphsInfo.NO_GRAPHS)
-                            .withAnalysisGraph(method, location, analysisParsedGraph.isIntrinsic()));
-        }
+        graphWriter.persistAnalysisParsedGraph(method, analysisParsedGraph);
     }
 
     public void persistMethodStrengthenedGraph(AnalysisMethod method) {
-        if (!useSharedLayerStrengthenedGraphs) {
-            return;
-        }
-
-        EncodedGraph analyzedGraph = method.getAnalyzedGraph();
-        String location = persistGraph(method, analyzedGraph);
-        /*
-         * This method should only be called once for each method. This check is performed by
-         * withStrengthenedGraph as it will throw if the MethodGraphsInfo already has a strengthened
-         * graph.
-         */
-        methodsMap.compute(method, (_, mgi) -> (mgi != null ? mgi : MethodGraphsInfo.NO_GRAPHS).withStrengthenedGraph(method, location));
-    }
-
-    private String persistGraph(AnalysisMethod method, EncodedGraph analyzedGraph) {
-        if (!useSharedLayerGraphs) {
-            return null;
-        }
-        if (Arrays.stream(analyzedGraph.getObjects()).anyMatch(o -> o instanceof AnalysisFuture<?>)) {
-            /*
-             * GR-61103: After the AnalysisFuture in this node is handled, this check can be
-             * removed.
-             */
-            return null;
-        }
-        byte[] encodedGraph = ObjectCopier.encode(imageLayerSnapshotUtil.getGraphEncoder(nodeClassMap), analyzedGraph);
-        if (contains(encodedGraph, LambdaUtils.LAMBDA_CLASS_NAME_SUBSTRING.getBytes(StandardCharsets.UTF_8))) {
-            throw AnalysisError.shouldNotReachHere("The graph for the method %s contains a reference to a lambda type, which cannot be decoded: %s".formatted(method, encodedGraph));
-        }
-        return graphStore.write(encodedGraph);
-    }
-
-    private static boolean contains(byte[] data, byte[] seq) {
-        outer: for (int i = 0; i <= data.length - seq.length; i++) {
-            for (int j = 0; j < seq.length; j++) {
-                if (data[i + j] != seq[j]) {
-                    continue outer;
-                }
-            }
-            return true;
-        }
-        return false;
+        graphWriter.persistMethodStrengthenedGraph(method);
     }
 
     public void addPolymorphicSignatureCaller(AnalysisMethod polymorphicSignature, AnalysisMethod caller) {
