@@ -220,7 +220,7 @@ final class BuilderElement extends AbstractElement {
             }
         }
         this.add(createMarkReachable());
-        this.add(createUpdateReachable());
+        this.add(createResolveReachable());
 
         this.add(createBeginOperation());
         this.add(createEndOperation());
@@ -364,6 +364,9 @@ final class BuilderElement extends AbstractElement {
         CodeExecutableElement method = new CodeExecutableElement(Set.of(PRIVATE),
                         type(void.class), "markReachable");
         method.addParameter(new CodeVariableElement(type(boolean.class), "newReachable"));
+        BytecodeRootNodeElement.addJavadoc(method, List.of(
+                        "Sets state.reachable and records the same value in the active reachability field on the operation stack.",
+                        "Used at control-flow merge points and when emitting operations that make subsequent code reachable or unreachable."));
         CodeTreeBuilder b = method.createBuilder();
         b.statement("state.reachable = newReachable");
         b.startTryBlock();
@@ -381,13 +384,13 @@ final class BuilderElement extends AbstractElement {
                     case IF_THEN:
                         b.startCase().tree(parent.createOperationConstant(op)).end().startCaseBlock();
                         b.startIf().string("operation.childCount == 0").end().startBlock();
-                        b.lineComment("Unreachable condition branch makes the if and parent block unreachable.");
+                        b.lineComment("Unreachable condition branch makes the if and enclosing operation unreachable.");
                         b.tree(operationStack.write(op, operationFields.thenReachable, "newReachable"));
                         b.statement("continue");
                         b.end().startElseIf().string("operation.childCount == 1").end().startBlock();
                         b.tree(operationStack.write(op, operationFields.thenReachable, "newReachable"));
                         b.end().startElseBlock();
-                        b.lineComment("Invalid child index, but we will fail in the end method.");
+                        b.lineComment("Invalid child index. Do nothing here; the end method will report a useful error later.");
                         b.end();
                         b.statement("return");
                         b.end();
@@ -395,7 +398,7 @@ final class BuilderElement extends AbstractElement {
                     case IF_THEN_ELSE:
                         b.startCase().tree(parent.createOperationConstant(op)).end().startCaseBlock();
                         b.startIf().string("operation.childCount == 0").end().startBlock();
-                        b.lineComment("Unreachable condition branch makes the if, then and parent block unreachable.");
+                        b.lineComment("Unreachable condition branch makes the if, then and enclosing operation unreachable.");
                         b.tree(operationStack.write(op, operationFields.thenReachable, "newReachable"));
                         b.tree(operationStack.write(op, operationFields.elseReachable, "newReachable"));
                         b.statement("continue");
@@ -404,7 +407,7 @@ final class BuilderElement extends AbstractElement {
                         b.end().startElseIf().string("operation.childCount == 2").end().startBlock();
                         b.tree(operationStack.write(op, operationFields.elseReachable, "newReachable"));
                         b.end().startElseBlock();
-                        b.lineComment("Invalid child index, but we will fail in the end method.");
+                        b.lineComment("Invalid child index. Do nothing here; the end method will report a useful error later.");
                         b.end();
                         b.statement("return");
                         b.end();
@@ -412,7 +415,7 @@ final class BuilderElement extends AbstractElement {
                     case CONDITIONAL:
                         b.startCase().tree(parent.createOperationConstant(op)).end().startCaseBlock();
                         b.startIf().string("operation.childCount == 0").end().startBlock();
-                        b.lineComment("Unreachable condition branch makes the if, then and parent block unreachable.");
+                        b.lineComment("Unreachable condition branch makes the if, then and enclosing operation unreachable.");
                         b.tree(operationStack.write(op, operationFields.thenReachable, "newReachable"));
                         b.tree(operationStack.write(op, operationFields.elseReachable, "newReachable"));
                         b.statement("continue");
@@ -421,7 +424,7 @@ final class BuilderElement extends AbstractElement {
                         b.end().startElseIf().string("operation.childCount == 2").end().startBlock();
                         b.tree(operationStack.write(op, operationFields.elseReachable, "newReachable"));
                         b.end().startElseBlock();
-                        b.lineComment("Invalid child index, but we will fail in the end method.");
+                        b.lineComment("Invalid child index. Do nothing here; the end method will report a useful error later.");
                         b.end();
                         b.statement("return");
                         b.end();
@@ -433,7 +436,7 @@ final class BuilderElement extends AbstractElement {
                         b.end().startElseIf().string("operation.childCount == 1").end().startBlock();
                         b.tree(operationStack.write(op, operationFields.catchReachable, "newReachable"));
                         b.end().startElseBlock();
-                        b.lineComment("Invalid child index, but we will fail in the end method.");
+                        b.lineComment("Invalid child index. Do nothing here; the end method will report a useful error later.");
                         b.end();
                         b.statement("return");
                         b.end();
@@ -446,7 +449,7 @@ final class BuilderElement extends AbstractElement {
                         b.end().startElseIf().string("operation.childCount == 1").end().startBlock();
                         b.tree(operationStack.write(op, operationFields.bodyReachable, "newReachable"));
                         b.end().startElseBlock();
-                        b.lineComment("Invalid child index, but we will fail in the end method.");
+                        b.lineComment("Invalid child index. Do nothing here; the end method will report a useful error later.");
                         b.end();
                         b.statement("return");
                         b.end();
@@ -461,7 +464,7 @@ final class BuilderElement extends AbstractElement {
                             b.tree(operationStack.write(op, operationFields.catchReachable, "newReachable"));
                         }
                         b.end().startElseBlock();
-                        b.lineComment("Invalid child index, but we will fail in the end method.");
+                        b.lineComment("Invalid child index. Do nothing here; the end method will report a useful error later.");
                         b.end();
                         b.statement("return");
                         b.end();
@@ -472,32 +475,28 @@ final class BuilderElement extends AbstractElement {
         });
 
         b.end().startFinallyBlock();
-        b.startAssert().string("updateReachable() == state.reachable : ").doubleQuote("Inconsistent reachability detected.").end();
+        b.startAssert().string("resolveReachable() == state.reachable : ").doubleQuote("Reachability should be stable after markReachable.").end();
         b.end();
 
         return method;
     }
 
-    private CodeExecutableElement createUpdateReachable() {
+    private CodeExecutableElement createResolveReachable() {
         CodeExecutableElement method = new CodeExecutableElement(Set.of(PRIVATE),
-                        type(boolean.class), "updateReachable");
-
-        CodeTreeBuilder doc = method.createDocBuilder();
-        doc.startJavadoc();
-        doc.string("Updates the reachable field from the current operation. Typically invoked when the operation ended or the child is changing.");
-        doc.newLine();
-        doc.end();
+                        type(boolean.class), "resolveReachable");
+        BytecodeRootNodeElement.addJavadoc(method, List.of(
+                        "Reads the reachability of the current logical operation. This method can be used to determine the",
+                        "reachability of a new control-flow block whose reachability may differ from the previous block,",
+                        "such as entering a then/else/catch block or a new block after a control flow operation ends."));
 
         CodeTreeBuilder b = method.createBuilder();
-        b.statement("boolean oldReachable = state.reachable");
         buildOperationStackWalk(b, () -> {
             b.startSwitch().string("operation.operation").end().startBlock();
             for (OperationModel op : model.getOperations()) {
                 switch (op.kind) {
                     case ROOT:
                         b.startCase().tree(parent.createOperationConstant(op)).end().startBlock();
-                        b.statement("state.reachable = " + operationStack.read(op, operationFields.reachable));
-                        b.statement("return oldReachable");
+                        b.startReturn().string(operationStack.read(op, operationFields.reachable)).end();
                         b.end();
                         break;
                     case IF_THEN:
@@ -505,80 +504,81 @@ final class BuilderElement extends AbstractElement {
                         b.startIf().string("operation.childCount == 0").end().startBlock();
                         b.statement("continue");
                         b.end().startElseIf().string("operation.childCount == 1").end().startBlock();
-                        b.statement("state.reachable = " + operationStack.read(op, operationFields.thenReachable));
+                        b.startReturn().string(operationStack.read(op, operationFields.thenReachable)).end();
                         b.end().startElseBlock();
-                        b.lineComment("Invalid child index, but we will fail in the end method.");
+                        b.lineComment("Invalid child index. Just return the current reachability here; the end method will report a useful error later.");
+                        b.statement("return state.reachable");
                         b.end();
-                        b.statement("return oldReachable");
                         b.end();
                         break;
                     case IF_THEN_ELSE:
                         b.startCase().tree(parent.createOperationConstant(op)).end().startBlock();
                         b.startIf().string("operation.childCount == 0").end().startBlock();
-                        b.lineComment("Unreachable condition branch makes the if, then and parent block unreachable.");
+                        b.lineComment("Reachability of the condition is tracked in the enclosing operation.");
                         b.statement("continue");
                         b.end().startElseIf().string("operation.childCount == 1").end().startBlock();
-                        b.statement("state.reachable = " + operationStack.read(op, operationFields.thenReachable));
+                        b.startReturn().string(operationStack.read(op, operationFields.thenReachable)).end();
                         b.end().startElseIf().string("operation.childCount == 2").end().startBlock();
-                        b.statement("state.reachable = " + operationStack.read(op, operationFields.elseReachable));
+                        b.startReturn().string(operationStack.read(op, operationFields.elseReachable)).end();
                         b.end().startElseBlock();
-                        b.lineComment("Invalid child index, but we will fail in the end method.");
+                        b.lineComment("Invalid child index. Just return the current reachability here; the end method will report a useful error later.");
+                        b.statement("return state.reachable");
                         b.end();
-                        b.statement("return oldReachable");
                         b.end();
                         break;
                     case CONDITIONAL:
                         b.startCase().tree(parent.createOperationConstant(op)).end().startBlock();
                         b.startIf().string("operation.childCount == 0").end().startBlock();
-                        b.lineComment("Unreachable condition branch makes the if, then and parent block unreachable.");
+                        b.lineComment("Reachability of the condition is tracked in the enclosing operation.");
                         b.statement("continue");
                         b.end().startElseIf().string("operation.childCount == 1").end().startBlock();
-                        b.statement("state.reachable = " + operationStack.read(op, operationFields.thenReachable));
+                        b.startReturn().string(operationStack.read(op, operationFields.thenReachable)).end();
                         b.end().startElseIf().string("operation.childCount == 2").end().startBlock();
-                        b.statement("state.reachable = " + operationStack.read(op, operationFields.elseReachable));
+                        b.startReturn().string(operationStack.read(op, operationFields.elseReachable)).end();
                         b.end().startElseBlock();
-                        b.lineComment("Invalid child index, but we will fail in the end method.");
+                        b.lineComment("Invalid child index. Just return the current reachability here; the end method will report a useful error later.");
+                        b.statement("return state.reachable");
                         b.end();
-                        b.statement("return oldReachable");
                         b.end();
                         break;
                     case TRY_CATCH:
                         b.startCase().tree(parent.createOperationConstant(op)).end().startBlock();
                         b.startIf().string("operation.childCount == 0").end().startBlock();
-                        b.statement("state.reachable = " + operationStack.read(op, operationFields.tryReachable));
+                        b.startReturn().string(operationStack.read(op, operationFields.tryReachable)).end();
                         b.end().startElseIf().string("operation.childCount == 1").end().startBlock();
-                        b.statement("state.reachable = " + operationStack.read(op, operationFields.catchReachable));
+                        b.startReturn().string(operationStack.read(op, operationFields.catchReachable)).end();
                         b.end().startElseBlock();
-                        b.lineComment("Invalid child index, but we will fail in the end method.");
+                        b.lineComment("Invalid child index. Just return the current reachability here; the end method will report a useful error later.");
+                        b.statement("return state.reachable");
                         b.end();
-                        b.statement("return oldReachable");
                         b.end();
                         break;
                     case WHILE:
                         b.startCase().tree(parent.createOperationConstant(op)).end().startBlock();
                         b.startIf().string("operation.childCount == 0").end().startBlock();
+                        b.lineComment("Reachability of the condition is tracked in the enclosing operation.");
                         b.statement("continue");
                         b.end().startElseIf().string("operation.childCount == 1").end().startBlock();
-                        b.statement("state.reachable = " + operationStack.read(op, operationFields.bodyReachable));
+                        b.startReturn().string(operationStack.read(op, operationFields.bodyReachable)).end();
                         b.end().startElseBlock();
-                        b.lineComment("Invalid child index, but we will fail in the end method.");
+                        b.lineComment("Invalid child index. Just return the current reachability here; the end method will report a useful error later.");
+                        b.statement("return state.reachable");
                         b.end();
-                        b.statement("return oldReachable");
                         b.end();
                         break;
                     case TRY_FINALLY:
                     case TRY_CATCH_OTHERWISE:
                         b.startCase().tree(parent.createOperationConstant(op)).end().startBlock();
                         b.startIf().string("operation.childCount == 0").end().startBlock();
-                        b.statement("state.reachable = " + operationStack.read(op, operationFields.tryReachable));
+                        b.startReturn().string(operationStack.read(op, operationFields.tryReachable)).end();
                         if (op.kind == OperationKind.TRY_CATCH_OTHERWISE) {
                             b.end().startElseIf().string("operation.childCount == 1").end().startBlock();
-                            b.statement("state.reachable = " + operationStack.read(op, operationFields.catchReachable));
+                            b.startReturn().string(operationStack.read(op, operationFields.catchReachable)).end();
                         }
                         b.end().startElseBlock();
-                        b.lineComment("Invalid child index, but we will fail in the end method.");
+                        b.lineComment("Invalid child index. Just return the current reachability here; the end method will report a useful error later.");
+                        b.statement("return state.reachable");
                         b.end();
-                        b.statement("return oldReachable");
                         b.end();
                         break;
                 }
@@ -587,7 +587,7 @@ final class BuilderElement extends AbstractElement {
             b.end(); // switch
         });
 
-        b.statement("return oldReachable");
+        b.statement("return state.reachable");
         return method;
     }
 
@@ -2126,7 +2126,8 @@ final class BuilderElement extends AbstractElement {
                 break;
             case IF_THEN:
             case WHILE:
-                b.statement("updateReachable()");
+                b.lineComment("Control flow merged. Set state.reachable to the enclosing operation's reachability.");
+                b.statement("state.reachable = resolveReachable()");
                 break;
             case CONDITIONAL:
                 b.statement("markReachable(", operationStack.read(operation, operationFields.thenReachable), " || ", operationStack.read(operation, operationFields.elseReachable),
@@ -2210,8 +2211,8 @@ final class BuilderElement extends AbstractElement {
 
                 b.startIf().string(operationStack.read(operation, operationFields.operationReachable)).end().startBlock();
                 /*
-                 * Leaving the tag leave is always reachable, because probes may decide to return at
-                 * any point and we need a point where we can continue.
+                 * The tag leave is always reachable, because probes may decide to return at any
+                 * point and we need a point where we can continue.
                  */
                 b.statement("markReachable(true)");
                 buildEmitInstruction(b, null, model.tagLeaveValueInstruction, args);
@@ -3667,17 +3668,17 @@ final class BuilderElement extends AbstractElement {
                 b.statement("break");
             } else if (op.kind == OperationKind.IF_THEN_ELSE ||
                             op.kind == OperationKind.IF_THEN ||
-                            op.kind == OperationKind.CONDITIONAL ||
-                            op.kind == OperationKind.TRY_FINALLY) {
-
+                            op.kind == OperationKind.CONDITIONAL) {
                 b.startIf().string("childIndex >= 1").end().startBlock();
-                b.statement("updateReachable()");
+                b.lineComment("Entering new block. Set state.reachable to the new block's reachability.");
+                b.statement("state.reachable = resolveReachable()");
                 b.end();
                 b.statement("break");
             } else if (op.kind == OperationKind.TRY_CATCH ||
                             op.kind == OperationKind.TRY_CATCH_OTHERWISE) {
                 b.startIf().string("childIndex == 1").end().startBlock();
-                b.statement("updateReachable()");
+                b.lineComment("Entering the catch block. Set state.reachable using the catch block's reachability.");
+                b.statement("state.reachable = resolveReachable()");
                 b.lineComment("The exception dispatch logic pushes the exception onto the stack.");
                 b.statement("state.currentStackHeight = state.currentStackHeight + 1");
                 b.statement("state.updateMaxStackHeight(state.currentStackHeight)");
