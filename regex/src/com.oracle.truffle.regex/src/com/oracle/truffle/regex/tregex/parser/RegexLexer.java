@@ -50,6 +50,7 @@ import org.graalvm.collections.EconomicSet;
 
 import com.oracle.truffle.api.ArrayUtils;
 import com.oracle.truffle.api.CompilerDirectives;
+import com.oracle.truffle.regex.RegexRootNode;
 import com.oracle.truffle.regex.RegexSource;
 import com.oracle.truffle.regex.RegexSyntaxException;
 import com.oracle.truffle.regex.RegexSyntaxException.ErrorCode;
@@ -1251,6 +1252,7 @@ public abstract class RegexLexer {
         boolean firstOperandIsRange = false;
         int startPos = position;
         while (!atEnd()) {
+            RegexRootNode.checkThreadInterrupted();
             if (curChar() == ']' && (!featureEnabledCharClassFirstBracketIsLiteral() || position != startPos)) {
                 advance();
                 if (invert && curClassSet.mayContainStrings()) {
