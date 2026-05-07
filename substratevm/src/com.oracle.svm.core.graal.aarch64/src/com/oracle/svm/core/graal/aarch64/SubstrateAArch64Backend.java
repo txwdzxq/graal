@@ -602,7 +602,7 @@ public class SubstrateAArch64Backend extends SubstrateBackendWithAssembler<Subst
             Value exceptionTemp = getExceptionTemp(info != null && info.exceptionEdge != null);
 
             if (shouldEmitIndirectCall(targetMethod)) {
-                RegisterValue targetRegister = lr.asValue(FrameAccess.getWordStamp().getLIRKind(getLIRKindTool()));
+                RegisterValue targetRegister = lr.asValue(SubstrateTarget.getWordStamp().getLIRKind(getLIRKindTool()));
                 Value targetAddress = emitIndirectForeignCallAddress(linkage);
                 emitMove(targetRegister, targetAddress);
                 Value[] multipleResults = Value.NO_VALUES;
@@ -917,7 +917,7 @@ public class SubstrateAArch64Backend extends SubstrateBackendWithAssembler<Subst
         protected void emitIndirectCall(IndirectCallTargetNode callTarget, Value result, Value[] parameters, Value[] temps, LIRFrameState callState) {
             // The register allocator cannot handle variables at call sites, need a fixed register.
             Register targetRegister = lr;
-            AllocatableValue targetAddress = targetRegister.asValue(FrameAccess.getWordStamp().getLIRKind(getLIRGeneratorTool().getLIRKindTool()));
+            AllocatableValue targetAddress = targetRegister.asValue(SubstrateTarget.getWordStamp().getLIRKind(getLIRGeneratorTool().getLIRKindTool()));
             gen.emitMove(targetAddress, operand(callTarget.computedAddress()));
             ResolvedJavaMethod targetMethod = callTarget.targetMethod();
             SubstrateCallingConventionType cc = (SubstrateCallingConventionType) callTarget.callType();
@@ -956,7 +956,7 @@ public class SubstrateAArch64Backend extends SubstrateBackendWithAssembler<Subst
             }
             /* Register allocator cannot handle variables at call sites, need a fixed register. */
             Register frameAnchorRegister = AArch64.r13;
-            AllocatableValue frameAnchor = frameAnchorRegister.asValue(FrameAccess.getWordStamp().getLIRKind(getLIRGeneratorTool().getLIRKindTool()));
+            AllocatableValue frameAnchor = frameAnchorRegister.asValue(SubstrateTarget.getWordStamp().getLIRKind(getLIRGeneratorTool().getLIRKindTool()));
             gen.emitMove(frameAnchor, operand(getJavaFrameAnchor(callTarget)));
             return frameAnchor;
         }
@@ -1005,7 +1005,7 @@ public class SubstrateAArch64Backend extends SubstrateBackendWithAssembler<Subst
 
         @Override
         public Variable emitReadReturnAddress() {
-            return getLIRGeneratorTool().emitMove(StackSlot.get(getLIRGeneratorTool().getLIRKind(FrameAccess.getWordStamp()), -FrameAccess.returnAddressSize(), true));
+            return getLIRGeneratorTool().emitMove(StackSlot.get(getLIRGeneratorTool().getLIRKind(SubstrateTarget.getWordStamp()), -FrameAccess.returnAddressSize(), true));
         }
 
         @Override

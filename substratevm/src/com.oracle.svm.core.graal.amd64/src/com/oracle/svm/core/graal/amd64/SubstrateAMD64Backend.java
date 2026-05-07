@@ -751,7 +751,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
 
             vzeroupperBeforeCall(this, arguments, info, targetMethod);
             if (shouldEmitIndirectCall(targetMethod)) {
-                AllocatableValue targetRegister = AMD64.rax.asValue(FrameAccess.getWordStamp().getLIRKind(getLIRKindTool()));
+                AllocatableValue targetRegister = AMD64.rax.asValue(SubstrateTarget.getWordStamp().getLIRKind(getLIRKindTool()));
                 Value targetAddress = emitIndirectForeignCallAddress(linkage);
                 emitMove(targetRegister, targetAddress); // targetAddress is a CFunctionPointer
                 append(new SubstrateAMD64IndirectCallOp(targetMethod, result, arguments, temps, targetRegister, info,
@@ -1112,7 +1112,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
             if (hasHiddenArgument || isNativeABI) {
                 targetAddressRegister = AMD64.r10;
             }
-            AllocatableValue targetAddress = targetAddressRegister.asValue(FrameAccess.getWordStamp().getLIRKind(getLIRGeneratorTool().getLIRKindTool()));
+            AllocatableValue targetAddress = targetAddressRegister.asValue(SubstrateTarget.getWordStamp().getLIRKind(getLIRGeneratorTool().getLIRKindTool()));
             gen.emitMove(targetAddress, operand(callTarget.computedAddress()));
             ResolvedJavaMethod targetMethod = callTarget.targetMethod();
             vzeroupperBeforeCall((SubstrateAMD64LIRGenerator) getLIRGeneratorTool(), parameters, callState, (SharedMethod) targetMethod);
@@ -1154,7 +1154,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
 
             /* Register allocator cannot handle variables at call sites, need a fixed register. */
             Register frameAnchorRegister = AMD64.rbx;
-            AllocatableValue frameAnchor = frameAnchorRegister.asValue(FrameAccess.getWordStamp().getLIRKind(getLIRGeneratorTool().getLIRKindTool()));
+            AllocatableValue frameAnchor = frameAnchorRegister.asValue(SubstrateTarget.getWordStamp().getLIRKind(getLIRGeneratorTool().getLIRKindTool()));
             gen.emitMove(frameAnchor, operand(getJavaFrameAnchor(callTarget)));
             return frameAnchor;
         }
@@ -1165,7 +1165,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
             }
 
             /* Register allocator cannot handle variables at call sites, need a fixed register. */
-            return AMD64.r12.asValue(FrameAccess.getWordStamp().getLIRKind(getLIRGeneratorTool().getLIRKindTool()));
+            return AMD64.r12.asValue(SubstrateTarget.getWordStamp().getLIRKind(getLIRGeneratorTool().getLIRKindTool()));
         }
 
         @Override
@@ -1211,7 +1211,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
         @Override
         public Variable emitReadReturnAddress() {
             assert FrameAccess.returnAddressSize() > 0;
-            return getLIRGeneratorTool().emitMove(StackSlot.get(getLIRGeneratorTool().getLIRKind(FrameAccess.getWordStamp()), -FrameAccess.returnAddressSize(), true));
+            return getLIRGeneratorTool().emitMove(StackSlot.get(getLIRGeneratorTool().getLIRKind(SubstrateTarget.getWordStamp()), -FrameAccess.returnAddressSize(), true));
         }
 
         @Override
