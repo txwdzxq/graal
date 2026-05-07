@@ -24,10 +24,8 @@
  */
 package com.oracle.svm.core.genscavenge;
 
-import static com.oracle.svm.core.genscavenge.CollectionPolicy.shouldCollectYoungGenSeparately;
+import static com.oracle.svm.core.genscavenge.AbstractCollectionPolicy.shouldCollectYoungGenSeparately;
 
-import org.graalvm.nativeimage.Platform;
-import org.graalvm.nativeimage.Platforms;
 import org.graalvm.word.UnsignedWord;
 
 import com.oracle.svm.core.SubstrateGCOptions;
@@ -42,12 +40,6 @@ import org.graalvm.word.impl.Word;
 
 /** Basic/legacy garbage collection policies. */
 final class BasicCollectionPolicies {
-    @Platforms(Platform.HOSTED_ONLY.class)
-    static int getMaxSurvivorSpaces(Integer userValue) {
-        assert userValue == null || userValue >= 0;
-        return 0; // override option (if set): survivor spaces not supported
-    }
-
     private BasicCollectionPolicies() {
     }
 

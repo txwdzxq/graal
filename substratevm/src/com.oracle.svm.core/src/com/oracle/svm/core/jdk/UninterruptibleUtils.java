@@ -26,14 +26,15 @@ package com.oracle.svm.core.jdk;
 
 import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
+import org.graalvm.nativeimage.c.type.CCharPointer;
 import org.graalvm.word.Pointer;
 import org.graalvm.word.PointerBase;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.WordBase;
 import org.graalvm.word.impl.Word;
 
-import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.Uninterruptible;
+import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.core.common.SuppressFBWarnings;
@@ -825,6 +826,19 @@ public class UninterruptibleUtils {
         }
 
         @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+        public static boolean endsWith(java.lang.String string, java.lang.String suffix) {
+            if (suffix.length() > string.length()) {
+                return false;
+            }
+            byte coder = coder(string);
+            if (coder != coder(suffix) && coder == Target_java_lang_String.LATIN1) {
+                /* string.coder == LATIN1 && suffix.coder == UTF16 */
+                return false;
+            }
+            return compare(string, string.length() - suffix.length(), suffix, 0, suffix.length());
+        }
+
+        @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
         @SuppressFBWarnings(value = "", justification = "The string comparison by reference is fine in this case.")
         public static boolean equals(java.lang.String a, java.lang.String b) {
             return a == b || (!Target_java_lang_String.COMPACT_STRINGS || coder(a) == coder(b)) && equals0(value(a), value(b));
@@ -845,12 +859,58 @@ public class UninterruptibleUtils {
 
         @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
         private static boolean compare(java.lang.String a, java.lang.String b, int length) {
+            return compare(a, 0, b, 0, length);
+        }
+
+        @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+        private static boolean compare(java.lang.String a, int aOffset, java.lang.String b, int bOffset, int length) {
             for (int index = 0; index < length; index++) {
-                if (charAt(a, index) != charAt(b, index)) {
+                if (charAt(a, aOffset + index) != charAt(b, bOffset + index)) {
                     return false;
                 }
             }
             return true;
+        }
+    }
+
+    /** Utilities for null-terminated {@link CCharPointer} strings encoded as ASCII. */
+    public static class ASCII {
+        @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+        public static boolean startsWith(CCharPointer string, java.lang.String prefix) {
+            for (int i = 0; i < prefix.length(); i++) {
+                int ch = string.read(i) & 0xFF;
+                if (ch == 0 || ch != asciiCharAt(prefix, i)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+        public static boolean endsWith(CCharPointer string, int stringLength, java.lang.String suffix) {
+            if (suffix.length() > stringLength) {
+                return false;
+            }
+            int suffixStart = stringLength - suffix.length();
+            for (int i = 0; i < suffix.length(); i++) {
+                int ch = string.read(suffixStart + i) & 0xFF;
+                if (ch != asciiCharAt(suffix, i)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+        public static boolean equals(CCharPointer string, int length, java.lang.String expected) {
+            return length == expected.length() && startsWith(string, expected);
+        }
+
+        @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+        private static char asciiCharAt(java.lang.String value, int index) {
+            char ch = SubstrateUtil.HOSTED ? value.charAt(index) : String.charAt(value, index);
+            VMError.guarantee(ch <= 0x7F, "Expected an ASCII string.");
+            return ch;
         }
     }
 

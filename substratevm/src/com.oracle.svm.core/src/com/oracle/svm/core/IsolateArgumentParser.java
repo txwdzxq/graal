@@ -484,7 +484,8 @@ public class IsolateArgumentParser {
         parsedOptionNullFlags[optionIndex] = false;
     }
 
-    protected CCharPointer getCCharPointerOptionValue(int optionIndex) {
+    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+    public CCharPointer getCCharPointerOptionValue(int optionIndex) {
         assert !SubstrateUtil.HOSTED;
         return Word.pointer(parsedOptionValues[optionIndex]);
     }
