@@ -30,6 +30,7 @@ import static com.oracle.svm.core.IsolateArgumentAccess.writeCCharPointer;
 import static com.oracle.svm.core.IsolateArgumentAccess.writeLong;
 import static com.oracle.svm.shared.Uninterruptible.CALLED_FROM_UNINTERRUPTIBLE_CODE;
 
+import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
@@ -46,6 +47,7 @@ import org.graalvm.nativeimage.c.type.CCharPointerPointer;
 import org.graalvm.nativeimage.c.type.CIntPointer;
 import org.graalvm.nativeimage.c.type.CLongPointer;
 import org.graalvm.nativeimage.c.type.CTypeConversion;
+import org.graalvm.word.Pointer;
 import org.graalvm.word.UnsignedWord;
 import org.graalvm.word.impl.Word;
 
@@ -82,10 +84,14 @@ import jdk.graal.compiler.options.OptionKey;
 
 /**
  * Parses a small subset of the runtime arguments before the image heap is mapped and before the
- * isolate is fully started.
- *
- * If options are specified in {@link CEntryPointCreateIsolateParameters} and {@code argv} the value
- * stored in {@code argv} is used.
+ * isolate is fully started. If options are specified in {@link CEntryPointCreateIsolateParameters}
+ * and {@code argv}, the value stored in {@code argv} is used.
+ * <p>
+ * Non-null string defaults are stored as {@link #encodeDefaultStringOffset encoded offsets} into a
+ * static table of null-terminated ASCII strings (see {@link #getDefaultStrings()}). During startup,
+ * strings are copied to native memory so that slots contain regular {@link CCharPointer} values
+ * that are owned by this parser. String default values are restricted to ASCII to avoid issues
+ * ({@code argv} values use the runtime platform encoding).
  */
 @AutomaticallyRegisteredImageSingleton
 @SingletonTraits(access = AllAccess.class, layeredCallbacks = SingleLayer.class, layeredInstallationKind = InitialLayerOnly.class)
@@ -99,6 +105,8 @@ public class IsolateArgumentParser {
     /** The default values are created in {@code RuntimeOptionsFeature}. */
     public interface DefaultValuesProvider {
         CGlobalData<CLongPointer> getDefaultValues();
+
+        CGlobalData<CCharPointer> getDefaultStrings();
     }
 
     /**
@@ -124,13 +132,14 @@ public class IsolateArgumentParser {
         return ImageSingletons.lookup(IsolateArgumentParser.class);
     }
 
-    /**
-     * Getter method for retrieving defaultValues. Note we fold this method to ensure the actual
-     * cglobal data object is seen at all call sites.
-     */
     @Fold
-    public static CGlobalData<CLongPointer> getDefaultValues() {
+    protected static CGlobalData<CLongPointer> getDefaultValues() {
         return ImageSingletons.lookup(DefaultValuesProvider.class).getDefaultValues();
+    }
+
+    @Fold
+    protected static CGlobalData<CCharPointer> getDefaultStrings() {
+        return ImageSingletons.lookup(DefaultValuesProvider.class).getDefaultStrings();
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
@@ -194,14 +203,38 @@ public class IsolateArgumentParser {
         assert options.size() == getOptionCount();
         byte[] result = new byte[getParsedArgsSize()];
         ByteBuffer buffer = ByteBuffer.wrap(result).order(ByteOrder.nativeOrder());
+        int stringOffset = 0;
         for (int i = 0; i < options.size(); i++) {
             var option = options.get(i);
             VMError.guarantee(option.isIsolateCreationOnly(), "Options parsed by IsolateArgumentParser should all have the IsolateCreationOnly flag. %s doesn't", option);
             Object value = option.getHostedValue();
-            buffer.putLong(Long.BYTES * i, toLong(value));
+            if (value instanceof String string) {
+                buffer.putLong(Long.BYTES * i, encodeDefaultStringOffset(stringOffset));
+                stringOffset += getCStringSize(string);
+            } else {
+                buffer.putLong(Long.BYTES * i, toLong(value));
+            }
             buffer.putLong(Long.BYTES * (options.size() + i), value == null ? 1L : 0L);
         }
         return result;
+    }
+
+    @Platforms(Platform.HOSTED_ONLY.class)
+    public static byte[] createDefaultStrings() {
+        assert !ImageLayerBuildingSupport.buildingImageLayer();
+        return createDefaultStringsArray(getOptions());
+    }
+
+    @Platforms(Platform.HOSTED_ONLY.class)
+    public static byte[] createDefaultStringsArray(List<RuntimeOptionKey<?>> options) {
+        var result = new ByteArrayOutputStream();
+        for (RuntimeOptionKey<?> option : options) {
+            Object value = option.getHostedValue();
+            if (value instanceof String string) {
+                writeCStringBytes(result, string);
+            }
+        }
+        return result.toByteArray();
     }
 
     @Platforms(Platform.HOSTED_ONLY.class)
@@ -213,6 +246,22 @@ public class IsolateArgumentParser {
             case Long l -> l;
             default -> throw VMError.shouldNotReachHere("Unexpected option value: " + value);
         };
+    }
+
+    @Platforms(Platform.HOSTED_ONLY.class)
+    private static int getCStringSize(String value) {
+        return value.length() + 1;
+    }
+
+    @Platforms(Platform.HOSTED_ONLY.class)
+    private static void writeCStringBytes(ByteArrayOutputStream result, String string) {
+        for (int i = 0; i < string.length(); i++) {
+            char ch = string.charAt(i);
+            VMError.guarantee(ch != 0, "String defaults for isolate argument parser options must not contain embedded NUL characters.");
+            VMError.guarantee(ch <= 0x7F, "String defaults for isolate argument parser options must be ASCII.");
+            result.write((byte) ch);
+        }
+        result.write('\0');
     }
 
     @Fold
@@ -232,26 +281,23 @@ public class IsolateArgumentParser {
     @Uninterruptible(reason = "Still being initialized.")
     public void parse(CEntryPointCreateIsolateParameters parameters, IsolateArguments arguments) {
         initialize(arguments, parameters);
-        if (!LibC.isSupported() || !shouldParseArguments(arguments)) {
-            // Without LibC support, argument parsing is disabled. So, we just use the build-time
-            // values of the runtime options.
-            return;
-        }
 
-        CLongPointer value = StackValue.get(Long.BYTES);
-        // Ignore the first argument as it represents the executable file name.
-        for (int i = 1; i < arguments.getArgc(); i++) {
-            CCharPointer arg = arguments.getArgv().read(i);
-            if (arg.isNonNull()) {
-                CCharPointer tail = matchPrefix(arg);
-                if (tail.isNonNull()) {
-                    CCharPointer xOptionTail = matchXOption(tail);
-                    if (xOptionTail.isNonNull()) {
-                        parseXOption(arguments, value, xOptionTail);
-                    } else {
-                        CCharPointer xxOptionTail = matchXXOption(tail);
-                        if (xxOptionTail.isNonNull()) {
-                            parseXXOption(arguments, value, xxOptionTail);
+        if (LibC.isSupported() && shouldParseArguments(arguments)) {
+            CLongPointer value = StackValue.get(Long.BYTES);
+            // Ignore the first argument as it represents the executable file name.
+            for (int i = 1; i < arguments.getArgc(); i++) {
+                CCharPointer arg = arguments.getArgv().read(i);
+                if (arg.isNonNull()) {
+                    CCharPointer tail = matchPrefix(arg);
+                    if (tail.isNonNull()) {
+                        CCharPointer xOptionTail = matchXOption(tail);
+                        if (xOptionTail.isNonNull()) {
+                            parseXOption(arguments, value, xOptionTail);
+                        } else {
+                            CCharPointer xxOptionTail = matchXXOption(tail);
+                            if (xxOptionTail.isNonNull()) {
+                                parseXXOption(arguments, value, xxOptionTail);
+                            }
                         }
                     }
                 }
@@ -302,10 +348,9 @@ public class IsolateArgumentParser {
     private static void copyStringArguments(IsolateArguments arguments) {
         for (int i = 0; i < getOptionCount(); i++) {
             if (OPTION_TYPES.get().read(i) == OptionValueType.C_CHAR_POINTER) {
-                CCharPointer string = readCCharPointer(arguments, i);
-
-                if (string.isNonNull()) {
-                    CCharPointer copy = LibC.strdup(string);
+                if (!IsolateArgumentAccess.isNull(arguments, i)) {
+                    CCharPointer string = getStringArgument(arguments, i);
+                    CCharPointer copy = duplicateCString(string);
                     VMError.guarantee(copy.isNonNull(), "Copying of string argument failed.");
                     writeCCharPointer(arguments, i, copy);
                 } else {
@@ -315,7 +360,51 @@ public class IsolateArgumentParser {
         }
     }
 
-    /// Note that the logic of whether to parse options must be in sync with [RuntimeOptionParser#parseAndConsumeAllOptions].
+    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+    private static CCharPointer duplicateCString(CCharPointer source) {
+        UnsignedWord length = SubstrateUtil.strlen(source).add(1);
+        CCharPointer copy = UntrackedNullableNativeMemory.malloc(length);
+        if (copy.isNull()) {
+            return Word.nullPointer();
+        }
+
+        UnmanagedMemoryUtil.copy((Pointer) source, (Pointer) copy, length);
+        return copy;
+    }
+
+    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+    private static CCharPointer getStringArgument(IsolateArguments arguments, int optionIndex) {
+        long value = IsolateArgumentAccess.readLong(arguments, optionIndex);
+        if (isEncodedDefaultStringOffset(value)) {
+            return getDefaultStringPointer(value);
+        }
+        return Word.pointer(value);
+    }
+
+    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+    private static CCharPointer getDefaultStringPointer(long encodedOffset) {
+        long offset = decodeDefaultStringOffset(encodedOffset);
+        return getDefaultStrings().get().addressOf(NumUtil.safeToInt(offset));
+    }
+
+    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+    private static int encodeDefaultStringOffset(int offset) {
+        return -(offset + 1);
+    }
+
+    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+    private static long decodeDefaultStringOffset(long value) {
+        assert isEncodedDefaultStringOffset(value);
+        return -value - 1;
+    }
+
+    @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
+    private static boolean isEncodedDefaultStringOffset(long value) {
+        return value < 0;
+    }
+
+    /// Note that the logic of whether to parse options must be in sync with
+    /// [RuntimeOptionParser#parseAndConsumeAllOptions].
     @Uninterruptible(reason = "Thread state not yet set up.")
     public static boolean shouldParseArguments(IsolateArguments arguments) {
         if (SubstrateOptions.ParseRuntimeOptions.getValue()) {
@@ -438,7 +527,7 @@ public class IsolateArgumentParser {
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     protected void initialize(IsolateArguments arguments, CEntryPointCreateIsolateParameters parameters) {
         /* Initialize the options with their default values. */
-        LibC.memcpy(arguments.getParsedArgs(), getDefaultValues().get(), Word.unsigned(getParsedArgsSize()));
+        UnmanagedMemoryUtil.copy((Pointer) getDefaultValues().get(), (Pointer) arguments.getParsedArgs(), Word.unsigned(getParsedArgsSize()));
 
         if (parameters.isNonNull() && parameters.version() >= 3) {
             arguments.setArgc(parameters.getArgc());
