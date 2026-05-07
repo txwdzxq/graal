@@ -32,6 +32,7 @@ import java.util.Objects;
 
 import org.graalvm.collections.UnmodifiableEconomicMap;
 import org.graalvm.nativeimage.ImageSingletons;
+import org.graalvm.nativeimage.c.type.CCharPointer;
 import org.graalvm.nativeimage.c.type.CLongPointer;
 import org.graalvm.nativeimage.hosted.Feature;
 
@@ -71,9 +72,11 @@ import jdk.graal.compiler.options.OptionKey;
 public class RuntimeOptionFeature implements InternalFeature, IsolateArgumentParser.DefaultValuesProvider {
 
     private static final String LAYERED_DEFAULT_VALUES_NAME = "__svm_layer_default_isolate_option_values";
+    private static final String LAYERED_DEFAULT_STRINGS_NAME = "__svm_layer_default_isolate_option_strings";
 
-    /** Default values array used by {@link IsolateArgumentParser}. */
+    /* Default values arrays used by {@link IsolateArgumentParser}. */
     private CGlobalData<CLongPointer> defaultValues;
+    private CGlobalData<CCharPointer> defaultStrings;
 
     private RuntimeOptionParser runtimeOptionParser;
 
@@ -95,18 +98,22 @@ public class RuntimeOptionFeature implements InternalFeature, IsolateArgumentPar
                  * installed in the final layer.
                  */
                 defaultValues = CGlobalDataFactory.forSymbol(LAYERED_DEFAULT_VALUES_NAME);
+                defaultStrings = CGlobalDataFactory.forSymbol(LAYERED_DEFAULT_STRINGS_NAME);
             } else {
                 /*
                  * In a traditional build we can directly create the cglobal with a payload.
                  */
                 defaultValues = CGlobalDataFactory.createBytes(IsolateArgumentParser::createDefaultValues);
+                defaultStrings = CGlobalDataFactory.createBytes(IsolateArgumentParser::createDefaultStrings);
             }
         } else {
             assert ImageLayerBuildingSupport.buildingApplicationLayer();
             HostedOptionParser optionParser = ((FeatureImpl.AfterRegistrationAccessImpl) access).getImageClassLoader().classLoaderSupport.getHostedOptionParser();
             defaultValues = CGlobalDataFactory.createBytes(() -> layeredCreateDefaultValues(optionParser), LAYERED_DEFAULT_VALUES_NAME);
+            defaultStrings = CGlobalDataFactory.createBytes(() -> layeredCreateDefaultStrings(optionParser), LAYERED_DEFAULT_STRINGS_NAME);
             AppLayerCGlobalTracking appLayerTracking = CGlobalDataFeature.singleton().getAppLayerCGlobalTracking();
             appLayerTracking.registerCGlobalWithPriorLayerReference(defaultValues);
+            appLayerTracking.registerCGlobalWithPriorLayerReference(defaultStrings);
         }
         ImageSingletons.add(IsolateArgumentParser.DefaultValuesProvider.class, this);
     }
@@ -155,8 +162,10 @@ public class RuntimeOptionFeature implements InternalFeature, IsolateArgumentPar
         } else {
             /* Ensure that the default values are registered and seen by the analysis. */
             CGlobalDataFeature.singleton().registerWithGlobalSymbol(defaultValues);
+            CGlobalDataFeature.singleton().registerWithGlobalSymbol(defaultStrings);
             var universe = ((FeatureImpl.BeforeAnalysisAccessImpl) access).getUniverse();
             LayeredImageUtils.registerObjectAsEmbeddedRoot(universe, defaultValues);
+            LayeredImageUtils.registerObjectAsEmbeddedRoot(universe, defaultStrings);
         }
     }
 
@@ -175,6 +184,11 @@ public class RuntimeOptionFeature implements InternalFeature, IsolateArgumentPar
     @Override
     public CGlobalData<CLongPointer> getDefaultValues() {
         return Objects.requireNonNull(defaultValues);
+    }
+
+    @Override
+    public CGlobalData<CCharPointer> getDefaultStrings() {
+        return Objects.requireNonNull(defaultStrings);
     }
 
     @SuppressWarnings("unused")
@@ -212,6 +226,16 @@ public class RuntimeOptionFeature implements InternalFeature, IsolateArgumentPar
      * key values. The order of this list must be the same as seen in the initial layer.
      */
     private static byte[] layeredCreateDefaultValues(HostedOptionParser optionParser) {
+        List<RuntimeOptionKey<?>> options = layeredIsolateArgumentOptions(optionParser);
+        return IsolateArgumentParser.createDefaultValuesArray(options);
+    }
+
+    private static byte[] layeredCreateDefaultStrings(HostedOptionParser optionParser) {
+        List<RuntimeOptionKey<?>> options = layeredIsolateArgumentOptions(optionParser);
+        return IsolateArgumentParser.createDefaultStringsArray(options);
+    }
+
+    private static ArrayList<RuntimeOptionKey<?>> layeredIsolateArgumentOptions(HostedOptionParser optionParser) {
         ArrayList<RuntimeOptionKey<?>> runtimeKeys = new ArrayList<>();
         for (var descriptor : optionParser.getAllRuntimeOptions().getValues()) {
             if (descriptor.getOptionKey() instanceof RuntimeOptionKey<?> runtimeOptionKey && runtimeOptionKey.shouldRegisterForIsolateArgumentParser()) {
@@ -219,13 +243,14 @@ public class RuntimeOptionFeature implements InternalFeature, IsolateArgumentPar
             }
         }
         runtimeKeys.sort(Comparator.comparingInt(IsolateArgumentParser::getOptionIndex));
-        return IsolateArgumentParser.createDefaultValuesArray(runtimeKeys);
+        return runtimeKeys;
     }
 
     private void addDefaultValuesObject(NativeImageHeap heap, @SuppressWarnings("unused") HostedUniverse hUniverse) {
         String addReason = "Registered as a required heap constant within RuntimeOptionFeature";
 
         heap.addObject(defaultValues, false, addReason);
+        heap.addObject(defaultStrings, false, addReason);
     }
 
     public static void registerOptionAsRead(FeatureImpl.BeforeAnalysisAccessImpl accessImpl, Class<?> clazz, String fieldName) {
