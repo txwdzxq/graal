@@ -30,8 +30,6 @@ import java.lang.module.ModuleReader;
 import java.lang.module.ModuleReference;
 import java.lang.ref.SoftReference;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +45,7 @@ import com.oracle.svm.core.annotate.TargetClass;
 import com.oracle.svm.core.annotate.TargetElement;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.core.hub.registry.ClassRegistries;
+import com.oracle.svm.shared.util.BasedOnJDKFile;
 import com.oracle.svm.shared.util.SubstrateUtil;
 
 @TargetClass(value = jdk.internal.loader.BuiltinClassLoader.class)
@@ -66,6 +65,9 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
 
     @Alias
     public native void loadModule(ModuleReference mref);
+
+    @Alias
+    native boolean hasClassPath();
 
     @Substitute
     @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
@@ -102,74 +104,49 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
     }
 
     @Substitute
+    @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
     public URL findResource(String mn, String name) {
         Module module = ModuleLayer.boot().findModule(mn).orElse(null);
         return ResourcesHelper.nameToResourceURL(module, name);
     }
 
     @Substitute
+    @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
     public InputStream findResourceAsStream(String mn, String name) throws IOException {
         return ResourcesHelper.nameToResourceInputStream(mn, name);
     }
 
     @Substitute
+    @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
     public URL findResource(String name) {
-        if (!ClassRegistries.respectClassLoader()) {
-            // Return only image resources
-            return ResourcesHelper.nameToResourceURL(name);
-        }
-
-        if (this == Target_jdk_internal_loader_ClassLoaders.bootLoader()) {
-            // Workaround for GR-73221: Only retrieve image resources for boot loader
-            URL url = ResourcesHelper.nameToResourceURL(name);
-            if (url != null) {
-                return url;
-            }
-        }
-
-        // TODO GR-73221: Also look into the modules defined to this loader
-
-        return ucp == null ? null : ucp.findResource(name);
+        return ResourcesHelper.nameToResourceURL(name);
     }
 
     @Substitute
+    @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
     public Enumeration<URL> findResources(String name) throws IOException {
-        if (!ClassRegistries.respectClassLoader()) {
-            // Return only image resources
-            return ResourcesHelper.nameToResourceEnumerationURLs(name);
-        }
-
-        List<URL> resources = new ArrayList<>();
-
-        if (this == Target_jdk_internal_loader_ClassLoaders.bootLoader()) {
-            // Workaround for GR-73221: Only retrieve image resources for boot loader
-            resources.addAll(ResourcesHelper.nameToResourceListURLs(name));
-        }
-
-        // TODO GR-73221: Also look into the modules defined to this loader
-
-        if (ucp != null) {
-            Enumeration<URL> e = ucp.findResources(name);
-            if (resources.isEmpty()) {
-                return e;
-            }
-            while (e.hasMoreElements()) {
-                URL url = e.nextElement();
-                resources.add(url);
-            }
-        }
-        return resources.isEmpty() ? Collections.emptyEnumeration() : Collections.enumeration(resources);
+        return ResourcesHelper.nameToResourceEnumerationURLs(name);
     }
 
     @Substitute
+    @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
     private List<URL> findMiscResource(String name) {
         return ResourcesHelper.nameToResourceListURLs(name);
     }
 
     @Substitute
+    @TargetElement(onlyWith = ClassRegistries.IgnoresClassLoader.class)
     private URL findResource(ModuleReference mref, String name) {
         Module module = ModuleLayer.boot().findModule(mref.descriptor().name()).orElse(null);
         return ResourcesHelper.nameToResourceURL(module, name);
+    }
+
+    @Substitute
+    @TargetElement(onlyWith = ClassRegistries.RespectsClassLoader.class)
+    @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+20/src/java.base/share/classes/jdk/internal/loader/BuiltinClassLoader.java#L483-L492")
+    private URL findResourceOnClassPath(String name) {
+        URL url = hasClassPath() ? ucp.findResource(name) : null;
+        return url != null ? url : ResourcesHelper.nameToResourceURL(name);
     }
 
     static final class NewConcurrentHashMap implements FieldValueTransformer {

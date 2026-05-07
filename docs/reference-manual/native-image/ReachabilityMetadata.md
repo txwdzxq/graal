@@ -672,7 +672,7 @@ For example:
 {
    "resources": [
       {
-        "module:": "library.module",
+        "module": "library.module",
         "glob": "resource-file.txt" 
       }
    ]

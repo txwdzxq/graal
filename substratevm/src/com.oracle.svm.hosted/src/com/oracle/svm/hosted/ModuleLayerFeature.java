@@ -41,6 +41,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -57,9 +58,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.jar.JarFile;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -74,7 +75,6 @@ import com.oracle.svm.core.BuildPhaseProvider;
 import com.oracle.svm.core.NativeImageClassLoaderOptions;
 import com.oracle.svm.core.SubstrateOptions;
 import com.oracle.svm.core.encoder.SymbolEncoder;
-import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.fieldvaluetransformer.JavaConstantWrapper;
 import com.oracle.svm.core.heap.UnknownObjectField;
@@ -90,6 +90,7 @@ import com.oracle.svm.hosted.FeatureImpl.AnalysisAccessBase;
 import com.oracle.svm.hosted.FeatureImpl.BeforeAnalysisAccessImpl;
 import com.oracle.svm.hosted.imagelayer.CrossLayerConstantRegistryFeature;
 import com.oracle.svm.hosted.reflect.proxy.ProxyRenamingSubstitutionProcessor;
+import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.PartiallyLayerAware;
@@ -101,6 +102,7 @@ import com.oracle.svm.shared.util.StringUtil;
 import com.oracle.svm.shared.util.VMError;
 import com.oracle.svm.util.HostedModuleSupport;
 
+import jdk.internal.loader.BuiltinClassLoader;
 import jdk.internal.loader.ClassLoaderValue;
 import jdk.internal.module.DefaultRoots;
 import jdk.internal.module.ModuleBootstrap;
@@ -210,14 +212,16 @@ public class ModuleLayerFeature implements InternalFeature {
         ModuleLayer runtimeBootLayerPrototype = scanRuntimeBootLayerPrototype(access);
         scanRuntimeClassLoaderValueMapPrototype(access, runtimeBootLayerPrototype);
 
-        access.registerFieldValueTransformer(moduleLayerFeatureUtils.moduleReferenceLocationField, ModuleLayerFeatureUtils.ResetModuleReferenceLocation.INSTANCE);
-        access.registerFieldValueTransformer(moduleLayerFeatureUtils.moduleReferenceImplLocationField, ModuleLayerFeatureUtils.ResetModuleReferenceLocation.INSTANCE);
-        access.registerFieldValueTransformer(moduleLayerFeatureUtils.jarModuleReaderJfField, ModuleLayerFeatureUtils.ResetModuleReferenceLocation.INSTANCE);
-        access.registerFieldValueTransformer(moduleLayerFeatureUtils.jarModuleReaderUriField, ModuleLayerFeatureUtils.ResetModuleReferenceLocation.INSTANCE);
-        access.registerFieldValueTransformer(moduleLayerFeatureUtils.moduleReference1ValFileStringField, ModuleLayerFeatureUtils.ResetModuleReferenceLocation.INSTANCE);
-        access.registerFieldValueTransformer(moduleLayerFeatureUtils.moduleReference1ValUriField, ModuleLayerFeatureUtils.ResetModuleReferenceLocation.INSTANCE);
-        access.registerFieldValueTransformer(moduleLayerFeatureUtils.loadedModuleClassCodeSourceURLField, ModuleLayerFeatureUtils.ResetModuleReferenceLocation.INSTANCE);
-        access.registerFieldValueTransformer(moduleLayerFeatureUtils.loadedModuleClassURIField, ModuleLayerFeatureUtils.ResetModuleReferenceLocation.INSTANCE);
+        FieldValueTransformer moduleReferenceLocationTransformer = new ModuleLayerFeatureUtils.ResetModuleReferenceLocation(
+                        access.imageClassLoader.classLoaderSupport.modulepathModuleFinder.findAll());
+        access.registerFieldValueTransformer(moduleLayerFeatureUtils.moduleReferenceLocationField, moduleReferenceLocationTransformer);
+        access.registerFieldValueTransformer(moduleLayerFeatureUtils.moduleReferenceImplLocationField, moduleReferenceLocationTransformer);
+        access.registerFieldValueTransformer(moduleLayerFeatureUtils.jarModuleReaderJfField, moduleReferenceLocationTransformer);
+        access.registerFieldValueTransformer(moduleLayerFeatureUtils.jarModuleReaderUriField, moduleReferenceLocationTransformer);
+        access.registerFieldValueTransformer(moduleLayerFeatureUtils.moduleReference1ValFileStringField, moduleReferenceLocationTransformer);
+        access.registerFieldValueTransformer(moduleLayerFeatureUtils.moduleReference1ValUriField, moduleReferenceLocationTransformer);
+        access.registerFieldValueTransformer(moduleLayerFeatureUtils.loadedModuleClassCodeSourceURLField, moduleReferenceLocationTransformer);
+        access.registerFieldValueTransformer(moduleLayerFeatureUtils.loadedModuleClassURIField, moduleReferenceLocationTransformer);
     }
 
     /**
@@ -822,6 +826,7 @@ public class ModuleLayerFeature implements InternalFeature {
         private final Field moduleReference1ValUriField;
         private final Field loadedModuleClassCodeSourceURLField;
         private final Field loadedModuleClassURIField;
+        private final Field builtinClassLoaderNameToModuleField;
         private final Set<String> nativeAccessEnabled;
 
         ModuleLayerFeatureUtils(ImageClassLoader cl) {
@@ -895,13 +900,16 @@ public class ModuleLayerFeature implements InternalFeature {
                 Class<?> jarModuleReaderClass = ReflectionUtil.lookupClass("jdk.internal.module.ModuleReferences$JarModuleReader");
                 jarModuleReaderJfField = ReflectionUtil.lookupField(jarModuleReaderClass, "jf");
                 jarModuleReaderUriField = ReflectionUtil.lookupField(jarModuleReaderClass, "uri");
-                /* Supplier<ModuleReader> in ModuleReferences.newJarModule() captures dirs. */
+                /*
+                 * Supplier<ModuleReader> in ModuleReferences.newJarModule() captures module paths.
+                 */
                 Class<?> moduleReference1Class = ReflectionUtil.lookupClass("jdk.internal.module.ModuleReferences$1");
                 moduleReference1ValFileStringField = ReflectionUtil.lookupField(moduleReference1Class, "val$fileString");
                 moduleReference1ValUriField = ReflectionUtil.lookupField(moduleReference1Class, "val$uri");
                 Class<?> loadedModuleClass = ReflectionUtil.lookupClass("jdk.internal.loader.BuiltinClassLoader$LoadedModule");
                 loadedModuleClassCodeSourceURLField = ReflectionUtil.lookupField(loadedModuleClass, "codeSourceURL");
                 loadedModuleClassURIField = ReflectionUtil.lookupField(loadedModuleClass, "uri");
+                builtinClassLoaderNameToModuleField = ReflectionUtil.lookupField(BuiltinClassLoader.class, "nameToModule");
             } catch (ReflectiveOperationException | NoSuchElementException ex) {
                 throw VMError.shouldNotReachHere("Failed to retrieve fields of the Module/ModuleLayer class.", ex);
             }
@@ -1065,6 +1073,7 @@ public class ModuleLayerFeature implements InternalFeature {
 
             int cap = (int) (cf.modules().size() / 0.75f + 1.0f);
             Map<String, Module> nameToModule = new HashMap<>(cap);
+            Map<BuiltinClassLoader, Map<String, ModuleReference>> builtinLoaderNameToModule = new HashMap<>();
 
             /*
              * Remove mapping of modules to classloaders. Create module instances without defining
@@ -1074,7 +1083,8 @@ public class ModuleLayerFeature implements InternalFeature {
                 ModuleReference mref = resolvedModule.reference();
                 ModuleDescriptor descriptor = mref.descriptor();
                 String name = descriptor.name();
-                ClassLoader loader = clf.apply(name);
+                ClassLoader hostedLoader = clf.apply(name);
+                ClassLoader loader = HostedSubstrateUtil.getRuntimeClassLoader(hostedLoader);
                 boolean nativeAccess = false;
                 Module m = getOrCreateRuntimeModuleForHostedModule(loader, name, descriptor, access, nativeAccess);
                 if (!descriptor.equals(m.getDescriptor())) {
@@ -1083,6 +1093,13 @@ public class ModuleLayerFeature implements InternalFeature {
                 }
                 patchModuleLayerField(access, m, runtimeModuleLayer);
                 nameToModule.put(name, m);
+                if (loader instanceof BuiltinClassLoader builtinLoader) {
+                    builtinLoaderNameToModule.computeIfAbsent(builtinLoader, ignored -> new HashMap<>()).put(name, mref);
+                }
+            }
+
+            for (Map.Entry<BuiltinClassLoader, Map<String, ModuleReference>> entry : builtinLoaderNameToModule.entrySet()) {
+                patchBuiltinClassLoaderNameToModuleField(access, entry.getKey(), entry.getValue());
             }
 
             /*
@@ -1376,6 +1393,19 @@ public class ModuleLayerFeature implements InternalFeature {
             accessImpl.rescanField(moduleLayer, moduleLayerServicesCatalogField, scanReason);
         }
 
+        @SuppressWarnings("unchecked")
+        void patchBuiltinClassLoaderNameToModuleField(AnalysisAccessBase accessImpl, BuiltinClassLoader loader, Map<String, ModuleReference> nameToModule) throws IllegalAccessException {
+            Map<String, ModuleReference> builtinLoaderNameToModule = (Map<String, ModuleReference>) builtinClassLoaderNameToModuleField.get(loader);
+            boolean changed = false;
+            for (Map.Entry<String, ModuleReference> entry : nameToModule.entrySet()) {
+                ModuleReference previous = builtinLoaderNameToModule.put(entry.getKey(), entry.getValue());
+                changed |= previous != entry.getValue();
+            }
+            if (changed) {
+                accessImpl.rescanField(loader, builtinClassLoaderNameToModuleField, scanReason);
+            }
+        }
+
         ClassLoader getClassLoaderForBootLayerModule(String name) {
             Optional<Module> module = ModuleLayer.boot().findModule(name);
             assert module.isPresent();
@@ -1456,30 +1486,43 @@ public class ModuleLayerFeature implements InternalFeature {
             }
         }
 
-        /**
-         * Redact file-backed module reference locations so hosted directories do not leak into the
-         * image heap. Module references can capture hosted paths such as
-         * {@linkplain "file:///home/user/dir/foo.jar"} while non-file locations, including JRT
-         * locations, are preserved. See
-         * {@link com.oracle.svm.hosted.image.DisallowedImageHeapObjectFeature} for more details on
-         * what substrings are detected during the image build.
-         */
+        /// Redact file-backed module reference locations so hosted directories do not leak into the
+        /// image heap. Module references can capture hosted paths such as
+        /// `file:///home/user/dir/foo.jar` while non-file locations, including JRT locations, are
+        /// preserved.
+        ///
+        /// Examples of redactions performed here:
+        ///
+        /// - [String]: `/home/user/dir/foo.jar` becomes `/REDACTED/foo.module` when the module name
+        /// is known, or `/REDACTED` otherwise.
+        /// - [URI]: `file:///home/user/dir/foo.jar` becomes `file:///REDACTED/foo.module` when the
+        /// module name is known, or `file:///REDACTED` otherwise.
+        /// - [URL]: `file:/home/user/dir/foo.jar` becomes `file:/REDACTED/foo.module` when the
+        /// module name is known, or `file:/REDACTED` otherwise.
+        /// - [JarFile]: the field is cleared to `null` because a [JarFile] object cannot be safely
+        /// redacted while preserving its type.
+        ///
+        /// See [com.oracle.svm.hosted.image.DisallowedImageHeapObjectFeature] for more details on
+        /// what substrings are detected during the image build.
         static final class ResetModuleReferenceLocation implements FieldValueTransformer {
 
-            static final FieldValueTransformer INSTANCE = new ResetModuleReferenceLocation();
-
             final URI redactedFileURI;
-            final URL redactedFileURL;
-            final String redactedFileString;
+            final Map<URI, String> moduleNameByLocation;
+            final Map<String, String> moduleNameByPath;
 
-            private ResetModuleReferenceLocation() {
-                redactedFileURI = URI.create("file:///REDACTED");
-                redactedFileString = redactedFileURI.getPath();
-                try {
-                    redactedFileURL = redactedFileURI.toURL();
-                } catch (MalformedURLException e) {
-                    throw VMError.shouldNotReachHere("Failed to create URL from " + redactedFileURI, e);
+            private ResetModuleReferenceLocation(Collection<ModuleReference> moduleReferences) {
+                moduleNameByLocation = new HashMap<>();
+                moduleNameByPath = new HashMap<>();
+                for (ModuleReference moduleReference : moduleReferences) {
+                    moduleReference.location().ifPresent(location -> {
+                        if ("file".equalsIgnoreCase(location.getScheme())) {
+                            String moduleName = moduleReference.descriptor().name();
+                            moduleNameByLocation.put(location, moduleName);
+                            moduleNameByPath.put(Path.of(location).toString(), moduleName);
+                        }
+                    });
                 }
+                redactedFileURI = URI.create("file:///REDACTED");
             }
 
             @Override
@@ -1487,24 +1530,100 @@ public class ModuleLayerFeature implements InternalFeature {
                 if (originalValue == null) {
                     return originalValue;
                 }
-                String s = originalValue.toString();
-                if (originalValue instanceof String) {
-                    return redactedFileString;
+                if (originalValue instanceof String path) {
+                    return getRedactedFileURI(findModuleName(receiver, path, null)).getPath();
                 }
-                if (originalValue instanceof URI) {
-                    return s.startsWith("file:") ? redactedFileURI : originalValue;
+                FileLocationKind locationKind = FileLocationKind.of(originalValue);
+                if (locationKind != null) {
+                    URI originalURI = asFileURI(locationKind, originalValue);
+                    if (originalURI == null) {
+                        return originalValue;
+                    }
+                    return locationKind.redact(getRedactedFileURI(findModuleName(receiver, null, originalURI)), originalValue);
                 }
-                if (originalValue instanceof URL) {
-                    return s.startsWith("file:") ? redactedFileURL : originalValue;
-                }
-                /*
-                 * A JarFile object cannot be safely redacted while preserving
-                 * its type, so return null.
-                 */
                 if (originalValue instanceof JarFile) {
+                    /*
+                     * A JarFile is a ZipFile and is normally rejected by the image-heap
+                     * disallowed-object check because it wraps native state and file descriptors.
+                     * This transformer is registered for specific JDK module-layer fields, and the
+                     * only JarFile value it handles is
+                     * jdk.internal.module.ModuleReferences.JarModuleReader#jf. That field is
+                     * location-sensitive module-reader cache state: it cannot be carried into the
+                     * image heap, and it cannot be safely redacted while preserving its type. Clear
+                     * it here so baked-in JarModuleReader instances can later restore it from the
+                     * runtime module path before jar-backed module resource access.
+                     */
                     return null;
                 }
-                throw VMError.shouldNotReachHere("File based location '%s' of unexpected type %s", s, originalValue.getClass());
+                throw VMError.shouldNotReachHere("File based location '%s' of unexpected type %s", originalValue.toString(), originalValue.getClass());
+            }
+
+            private URI getRedactedFileURI(String moduleName) {
+                return moduleName == null ? redactedFileURI : URI.create("file:///REDACTED/" + moduleName);
+            }
+
+            private String findModuleName(Object receiver, String originalPath, URI originalURI) {
+                if (receiver instanceof ModuleReference moduleReference) {
+                    return moduleReference.descriptor().name();
+                }
+                if (originalPath != null) {
+                    String moduleName = moduleNameByPath.get(originalPath);
+                    if (moduleName != null) {
+                        return moduleName;
+                    }
+                }
+                return originalURI == null ? null : moduleNameByLocation.get(originalURI);
+            }
+
+            private static URI asFileURI(FileLocationKind locationKind, Object value) {
+                try {
+                    URI uri = locationKind.asURI(value);
+                    return "file".equalsIgnoreCase(uri.getScheme()) ? uri : null;
+                } catch (IllegalArgumentException | URISyntaxException e) {
+                    return null;
+                }
+            }
+
+            private enum FileLocationKind {
+                URI_VALUE {
+                    @Override
+                    URI asURI(Object value) {
+                        return (URI) value;
+                    }
+
+                    @Override
+                    Object redact(URI redactedURI, Object originalValue) {
+                        return redactedURI;
+                    }
+                },
+                URL_VALUE {
+                    @Override
+                    URI asURI(Object value) throws URISyntaxException {
+                        return ((URL) value).toURI();
+                    }
+
+                    @Override
+                    Object redact(URI redactedURI, Object originalValue) {
+                        try {
+                            return redactedURI.toURL();
+                        } catch (MalformedURLException e) {
+                            throw VMError.shouldNotReachHere("Failed to create redacted URL for " + originalValue, e);
+                        }
+                    }
+                };
+
+                abstract URI asURI(Object value) throws URISyntaxException;
+
+                abstract Object redact(URI redactedURI, Object originalValue);
+
+                static FileLocationKind of(Object value) {
+                    if (value instanceof URI) {
+                        return URI_VALUE;
+                    } else if (value instanceof URL) {
+                        return URL_VALUE;
+                    }
+                    return null;
+                }
             }
         }
     }

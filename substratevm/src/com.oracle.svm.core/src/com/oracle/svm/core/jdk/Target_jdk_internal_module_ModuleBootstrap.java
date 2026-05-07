@@ -24,6 +24,7 @@
  */
 package com.oracle.svm.core.jdk;
 
+import java.lang.module.ModuleFinder;
 import java.util.Set;
 
 import com.oracle.svm.core.annotate.Alias;
@@ -52,6 +53,9 @@ final class Target_jdk_internal_module_ModuleBootstrap {
 
     @Alias
     static native Set<String> decodeEnableNativeAccess();
+
+    @Alias
+    static native ModuleFinder finderFor(String prop);
 }
 
 final class ModuleBootstrapSubstitutionsSupport {
