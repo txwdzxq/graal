@@ -347,6 +347,10 @@ public class DerivedOffsetInductionVariable extends DerivedInductionVariable {
         if (!base.offsetIsZero(ref)) {
             return null;
         }
+        // In the affine form iv = scale * ref + offset, base - offset contributes -offset.
+        if (value instanceof SubNode && !baseIsSubtrahend) {
+            return graph().addOrUniqueWithInputs(NegateNode.create(offset, NodeView.DEFAULT));
+        }
         return offset;
     }
 
