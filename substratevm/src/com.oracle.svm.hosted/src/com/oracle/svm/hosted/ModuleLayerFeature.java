@@ -1402,7 +1402,15 @@ public class ModuleLayerFeature implements InternalFeature {
                 changed |= previous != entry.getValue();
             }
             if (changed) {
-                accessImpl.rescanField(loader, builtinClassLoaderNameToModuleField, scanReason);
+                if (ImageLayerBuildingSupport.buildingImageLayer()) {
+                    /*
+                     * GR-75458 tracks whether BuiltinClassLoader.nameToModule needs dedicated
+                     * layered-image handling similar to Module open/exported package maps.
+                     */
+                    accessImpl.rescanObject(builtinLoaderNameToModule, scanReason);
+                } else {
+                    accessImpl.rescanField(loader, builtinClassLoaderNameToModuleField, scanReason);
+                }
             }
         }
 
