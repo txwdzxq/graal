@@ -43,7 +43,6 @@ import org.graalvm.word.impl.Word;
 
 import com.oracle.svm.core.CalleeSavedRegisters;
 import com.oracle.svm.core.ReservedRegisters;
-import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.core.c.NonmovableArray;
 import com.oracle.svm.core.c.NonmovableArrays;
 import com.oracle.svm.core.c.NonmovableObjectArray;
@@ -53,8 +52,6 @@ import com.oracle.svm.core.code.FrameInfoQueryResult.ValueType;
 import com.oracle.svm.core.config.ObjectLayout;
 import com.oracle.svm.core.deopt.DeoptEntryInfopoint;
 import com.oracle.svm.core.deopt.DeoptimizationSupport;
-import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
-import com.oracle.svm.core.graal.RuntimeCompilation;
 import com.oracle.svm.core.heap.CodeReferenceMapDecoder;
 import com.oracle.svm.core.heap.CodeReferenceMapEncoder;
 import com.oracle.svm.core.heap.ObjectReferenceVisitor;
@@ -69,10 +66,11 @@ import com.oracle.svm.core.meta.SharedField;
 import com.oracle.svm.core.meta.SharedMethod;
 import com.oracle.svm.core.meta.SharedType;
 import com.oracle.svm.core.nmt.NmtCategory;
-import com.oracle.svm.shared.option.HostedOptionKey;
 import com.oracle.svm.core.util.ByteArrayReader;
 import com.oracle.svm.core.util.Counter;
 import com.oracle.svm.shared.Uninterruptible;
+import com.oracle.svm.shared.option.HostedOptionKey;
+import com.oracle.svm.shared.singletons.AutomaticallyRegisteredImageSingleton;
 import com.oracle.svm.shared.singletons.ImageSingletonLoader;
 import com.oracle.svm.shared.singletons.ImageSingletonWriter;
 import com.oracle.svm.shared.singletons.LayeredPersistFlags;
@@ -83,6 +81,7 @@ import com.oracle.svm.shared.singletons.traits.LayeredCallbacksSingletonTrait;
 import com.oracle.svm.shared.singletons.traits.SingletonLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonLayeredCallbacksSupplier;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
+import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.util.VMError;
 
 import jdk.graal.compiler.api.replacements.Fold;
@@ -191,7 +190,7 @@ public class CodeInfoEncoder {
                 this.methods.addObject(null);
                 this.classes.addObject(INVALID_CLASS);
                 this.memberNames.addObject(INVALID_METHOD_NAME);
-                if (forceEncodeAllMethodMetadata || shouldEncodeAllMethodMetadata()) {
+                if (forceEncodeAllMethodMetadata || shouldEncodeMethodSignatureAndModifiers()) {
                     this.otherStrings.addObject(INVALID_METHOD_SIGNATURE);
                 }
             }
@@ -204,7 +203,7 @@ public class CodeInfoEncoder {
             if (methods.addObject(member)) {
                 classes.addObject(clazz);
                 memberNames.addObject(name);
-                if (shouldEncodeAllMethodMetadata()) {
+                if (shouldEncodeMethodSignatureAndModifiers()) {
                     otherStrings.addObject(signature);
                 }
             }
@@ -298,7 +297,7 @@ public class CodeInfoEncoder {
             } else {
                 writer.putU4(memberNamesIndex);
             }
-            if (shouldEncodeAllMethodMetadata()) {
+            if (shouldEncodeMethodSignatureAndModifiers()) {
                 int signatureNamesIndex = otherStrings.getIndex(signature);
                 if (shortSignatureIndexes) {
                     writer.putU2(signatureNamesIndex);
@@ -360,13 +359,12 @@ public class CodeInfoEncoder {
     }
 
     @Fold
-    public static boolean shouldEncodeAllMethodMetadata() {
+    public static boolean shouldEncodeMethodSignatureAndModifiers() {
         /*
-         * We don't support JFR stack traces if JIT compilation is enabled, so there's no need to
-         * include extra method metadata. Additionally, including extra metadata would increase the
-         * binary size.
+         * JFR stack traces need the method signature and modifiers. By default, we don't include
+         * this extra metadata as it increases the binary size.
          */
-        return HasJfrSupport.get() && !RuntimeCompilation.isEnabled();
+        return HasJfrSupport.get();
     }
 
     public static int getEntryOffset(Infopoint infopoint) {
