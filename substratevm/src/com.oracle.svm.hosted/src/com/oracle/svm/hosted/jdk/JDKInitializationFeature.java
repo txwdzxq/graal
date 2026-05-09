@@ -37,7 +37,6 @@ import com.oracle.svm.core.FutureDefaultsOptions;
 import com.oracle.svm.core.OS;
 import com.oracle.svm.core.ParsingReason;
 import com.oracle.svm.core.feature.InternalFeature;
-import com.oracle.svm.core.hub.registry.ClassRegistries;
 import com.oracle.svm.core.jdk.JNIRegistrationUtil;
 import com.oracle.svm.core.jdk.NativeLibrarySupport;
 import com.oracle.svm.core.jdk.ProtectionDomainSupport;
@@ -116,16 +115,6 @@ public class JDKInitializationFeature extends JNIRegistrationUtil implements Int
         rci.initializeAtBuildTime("jdk.management.jfr.internal.FlightRecorderMXBeanProvider$SingleMBeanComponent", "Ends up in the image heap with -H:Preserve=all");
 
         rci.initializeAtBuildTime("jdk.internal", JDK_CLASS_REASON);
-        if (ClassRegistries.Options.ClassForNameRespectsClassLoader.getValue()) {
-            /*
-             * Reinitialize the built-in class loader holders at runtime so the app loader is
-             * created from the runtime java.class.path. Runtime initialization lets
-             * jdk.internal.loader.ClassLoaders initialize its fields via ArchivedClassLoaders,
-             * which adjusts the built-in app loader with
-             * BuiltinClassLoader.setClassPath(URLClassPath).
-             */
-            rci.initializeAtRunTime("jdk.internal.loader.ClassLoaders", "Class loader respecting lookup uses the runtime class path");
-        }
         rci.initializeAtBuildTime("jdk.jfr", "Needed for Native Image substitutions");
         rci.initializeAtRunTime("jdk.jfr.snippets.Snippets$HelloWorld", "Fails build-time initialization");
         rci.initializeAtRunTime("jdk.jfr.snippets.Snippets$HTTPPostRequest", "Fails build-time initialization");

@@ -405,6 +405,7 @@ _native_unittest_features = '--features=' + ','.join(('com.oracle.svm.test.Image
                                                       'com.oracle.svm.test.foreign.ForeignTests$TestFeature'))
 
 IMAGE_ASSERTION_FLAGS = svm_experimental_options(['-H:+VerifyGraalGraphs', '-H:+VerifyPhases'])
+RUNTIME_CLASSLOADERS_INIT_ARG = '--initialize-at-run-time=jdk.internal.loader.ClassLoaders'
 
 
 def image_demo_task(extra_image_args=None, flightrecorder=True):
@@ -774,7 +775,7 @@ def native_unittests_task(extra_build_args=None, include_custom_test_groups=Fals
 
 def runtime_classpath_resource_test_task(extra_build_args=None):
     svm_tests_jar = mx.distribution('substratevm:SVM_TESTS').path
-    build_args = svm_experimental_options(['-H:+ClassForNameRespectsClassLoader'])
+    build_args = svm_experimental_options(['-H:+ClassForNameRespectsClassLoader']) + [RUNTIME_CLASSLOADERS_INIT_ARG]
     if extra_build_args is not None:
         build_args += extra_build_args
     computed = _compute_native_unittest_args(build_args, include_svm_test_features=True)
