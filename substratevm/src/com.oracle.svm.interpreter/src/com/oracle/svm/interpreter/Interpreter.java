@@ -432,38 +432,40 @@ public final class Interpreter {
 
     public static Object execute(InterpreterResolvedJavaMethod method, InterpreterFrame frame, int startBCI, int startTOP) {
         checkExecutable(method);
-        return execute0(method, frame, startBCI, startTOP, false);
+        return execute0(method, frame, startBCI, startTOP);
     }
 
-    private static Object execute0(InterpreterResolvedJavaMethod method, InterpreterFrame frame, int startBCI, int startTop, boolean stayInInterpreter) {
+    private static Object execute0(InterpreterResolvedJavaMethod method, InterpreterFrame frame, int startBCI, int startTop) {
+        Object synchronizedMethodLock = null;
         try {
             int executeBCI = startBCI;
             if (startBCI == jdk.vm.ci.code.BytecodeFrame.BEFORE_BCI) {
                 executeBCI = 0;
                 if (method.isSynchronized()) {
-                    Object lockTarget = method.isStatic()
+                    synchronizedMethodLock = method.isStatic()
                                     ? method.getDeclaringClass().getJavaClass()
                                     : frame.getObjectStatic(0);
-                    assert lockTarget != null;
-                    InterpreterToVM.monitorEnter(frame, nullCheck(lockTarget));
+                    assert synchronizedMethodLock != null;
+                    InterpreterToVM.monitorEnter(frame, synchronizedMethodLock);
                 }
             }
             assert method.getInterpretedCode() != null : "no bytecode stream for " + method;
-            return Root.executeBodyFromBCI(frame, method, executeBCI, startTop, stayInInterpreter);
+            return Root.executeBodyFromBCI(frame, method, executeBCI, startTop, false);
         } finally {
-            InterpreterToVM.releaseInterpreterFrameLocks(frame);
+            InterpreterToVM.releaseInterpreterFrameLocks(frame, synchronizedMethodLock);
         }
     }
 
     private static Object execute0(InterpreterResolvedJavaMethod method, InterpreterFrame frame, boolean stayInInterpreter) {
+        Object synchronizedMethodLock = null;
         try {
             assert method.isStatic() || InterpreterFrameUtil.getThis(frame) != null;
             if (method.isSynchronized()) {
-                Object lockTarget = method.isStatic()
+                synchronizedMethodLock = method.isStatic()
                                 ? method.getDeclaringClass().getJavaClass()
                                 : InterpreterFrameUtil.getThis(frame);
-                assert lockTarget != null;
-                InterpreterToVM.monitorEnter(frame, lockTarget);
+                assert synchronizedMethodLock != null;
+                InterpreterToVM.monitorEnter(frame, synchronizedMethodLock);
             }
             SignaturePolymorphicIntrinsic intrinsic = method.getSignaturePolymorphicIntrinsic();
             if (intrinsic != null) {
@@ -474,7 +476,7 @@ public final class Interpreter {
                 return Root.executeBodyFromBCI(frame, method, 0, startTop, stayInInterpreter);
             }
         } finally {
-            InterpreterToVM.releaseInterpreterFrameLocks(frame);
+            InterpreterToVM.releaseInterpreterFrameLocks(frame, synchronizedMethodLock);
         }
     }
 

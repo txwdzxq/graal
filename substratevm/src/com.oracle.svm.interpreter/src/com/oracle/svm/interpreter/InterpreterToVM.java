@@ -282,20 +282,25 @@ public final class InterpreterToVM {
     }
 
     @SuppressFBWarnings(value = "IMSE_DONT_CATCH_IMSE", justification = "Intentional.")
-    public static void releaseInterpreterFrameLocks(@SuppressWarnings("unused") InterpreterFrame frame) throws SemanticJavaException {
+    public static void releaseInterpreterFrameLocks(InterpreterFrame frame, Object synchronizedMethodLock) {
         Object[] locks = frame.getLocks();
-        for (int i = 0; i < locks.length; ++i) {
+        boolean skippedSynchronizedMethodLock = synchronizedMethodLock == null;
+        for (int i = locks.length - 1; i >= 0; --i) {
             Object ref = locks[i];
             if (ref != null) {
-                try {
+                if (!skippedSynchronizedMethodLock && ref == synchronizedMethodLock) {
+                    // The synchronized method epilogue releases this lock explicitly below.
+                    locks[i] = null;
+                    skippedSynchronizedMethodLock = true;
+                } else {
                     MonitorSupport.singleton().monitorExit(ref, MonitorInflationCause.VM_INTERNAL);
                     // GR-55049: Ensure that SVM doesn't allow non-structured locking.
                     locks[i] = null;
-                } catch (IllegalMonitorStateException e) {
-                    // GR-55050: Hide intermediate frames on exception.
-                    throw SemanticJavaException.raise(e);
                 }
             }
+        }
+        if (synchronizedMethodLock != null) {
+            MonitorSupport.singleton().monitorExit(synchronizedMethodLock, MonitorInflationCause.VM_INTERNAL);
         }
     }
 
