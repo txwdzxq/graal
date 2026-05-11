@@ -60,6 +60,7 @@ import jdk.graal.compiler.core.common.GraalOptions;
 import jdk.graal.compiler.core.common.NumUtil;
 import jdk.graal.compiler.core.common.Stride;
 import jdk.graal.compiler.core.common.calc.Condition;
+import jdk.graal.compiler.debug.DebugCloseable;
 import jdk.graal.compiler.debug.GraalError;
 import jdk.graal.compiler.options.Option;
 import jdk.graal.compiler.options.OptionKey;
@@ -86,6 +87,7 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
     }
 
     private final boolean useBranchesWithin32ByteBoundary;
+    private int jccErratumMitigationDisabled;
     private boolean optimizeLongJumps;
     /**
      * The encoding to use when emitting AVX instructions. Not used if the target doesn't support
@@ -130,6 +132,25 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
 
     public AMD64SIMDInstructionEncoding getAvxEncoding() {
         return avxEncoding;
+    }
+
+    /**
+     * Temporarily disables Intel JCC erratum mitigation for fixed-layout instruction sequences.
+     */
+    public DebugCloseable disableJCCErratumMitigation() {
+        jccErratumMitigationDisabled++;
+        return new DebugCloseable() {
+            private boolean closed;
+
+            @Override
+            public void close() {
+                if (!closed) {
+                    GraalError.guarantee(jccErratumMitigationDisabled > 0, "cannot restore JCC erratum mitigation that was not disabled");
+                    jccErratumMitigationDisabled--;
+                    closed = true;
+                }
+            }
+        };
     }
 
     /**
@@ -3659,8 +3680,12 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
         return JCC_ERRATUM_MITIGATION_BOUNDARY - (pos % JCC_ERRATUM_MITIGATION_BOUNDARY);
     }
 
+    private boolean shouldMitigateJCCErratum() {
+        return useBranchesWithin32ByteBoundary && jccErratumMitigationDisabled == 0 && !isRecordingCodeSnippet();
+    }
+
     protected boolean ensureWithinBoundary(int opStart) {
-        if (useBranchesWithin32ByteBoundary && !isRecordingCodeSnippet()) {
+        if (shouldMitigateJCCErratum()) {
             int opEnd = position();
             if (mayCrossBoundary(opStart, opEnd)) {
                 throw new GraalError("instruction at %d of size %d bytes crosses a JCC erratum boundary", opStart, opEnd - opStart);
@@ -3690,7 +3715,7 @@ public class AMD64Assembler extends AMD64BaseAssembler implements MemoryReadInte
      * @return the number of nop bytes emitted
      */
     protected final int mitigateJCCErratum(int position, int bytesToEmit) {
-        if (useBranchesWithin32ByteBoundary && !isRecordingCodeSnippet()) {
+        if (shouldMitigateJCCErratum()) {
             int bytesUntilBoundary = bytesUntilBoundary(position);
             if (bytesUntilBoundary <= bytesToEmit) {
                 nop(bytesUntilBoundary);
