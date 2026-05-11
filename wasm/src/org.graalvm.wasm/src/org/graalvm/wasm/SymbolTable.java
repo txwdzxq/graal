@@ -63,12 +63,7 @@ import org.graalvm.wasm.memory.WasmMemoryFactory;
 import com.oracle.truffle.api.CompilerAsserts;
 import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.CompilerDirectives.CompilationFinal;
-import com.oracle.truffle.api.staticobject.DefaultStaticProperty;
-import com.oracle.truffle.api.staticobject.StaticProperty;
-import com.oracle.truffle.api.staticobject.StaticShape;
-import org.graalvm.wasm.struct.WasmStruct;
 import org.graalvm.wasm.struct.WasmStructAccess;
-import org.graalvm.wasm.struct.WasmStructFactory;
 import org.graalvm.wasm.types.AbstractHeapType;
 import org.graalvm.wasm.types.ArrayType;
 import org.graalvm.wasm.types.CompositeType;
@@ -636,28 +631,6 @@ public abstract class SymbolTable {
         return new ArrayType(fieldType);
     }
 
-    private static WasmStructAccess createStructAccess(StructType structType, WasmStructAccess superTypeAccess, WasmLanguage language) {
-        StaticShape.Builder shapeBuilder = StaticShape.newBuilder(language);
-        FieldType[] fieldTypes = structType.fieldTypes();
-        StaticProperty[] properties = new StaticProperty[fieldTypes.length];
-        int superFieldCount = superTypeAccess != null ? superTypeAccess.properties().length : 0;
-        for (int i = 0; i < fieldTypes.length; i++) {
-            if (i < superFieldCount) {
-                properties[i] = superTypeAccess.properties()[i];
-            } else {
-                properties[i] = new DefaultStaticProperty(Integer.toString(i));
-                shapeBuilder.property(properties[i], fieldTypes[i].javaClass(), fieldTypes[i].mutability() == Mutability.CONSTANT);
-            }
-        }
-        StaticShape<WasmStructFactory> shape;
-        if (superTypeAccess != null) {
-            shape = shapeBuilder.build(superTypeAccess.shape());
-        } else {
-            shape = shapeBuilder.build(WasmStruct.class, WasmStructFactory.class);
-        }
-        return new WasmStructAccess(shape, properties);
-    }
-
     StructType finishStructType(int structTypeIdx, int recursiveTypeGroupStart) {
         FieldType[] fieldTypes = new FieldType[structTypeFieldCount(structTypeIdx)];
         for (int i = 0; i < fieldTypes.length; i++) {
@@ -728,8 +701,7 @@ public abstract class SymbolTable {
             type.setTypeEquivalenceClass(equivalenceClass);
             if (isStructType(typeIndex)) {
                 WasmStructAccess superTypeAccess = hasSuperType(typeIndex) && isStructType(superType(typeIndex)) ? structTypeAccess(superType(typeIndex)) : null;
-                WasmStructAccess candidateStructAccess = createStructAccess(type.asStructType(), superTypeAccess, language);
-                WasmStructAccess structAccess = language.canonicalStructAccessFor(equivalenceClass, candidateStructAccess);
+                WasmStructAccess structAccess = language.canonicalStructAccessFor(equivalenceClass, type.asStructType(), superTypeAccess);
                 structAccesses[typeIndex] = structAccess;
                 type.setStructAccess(structAccess);
             }

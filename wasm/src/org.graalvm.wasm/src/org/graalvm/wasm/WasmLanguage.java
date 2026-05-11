@@ -57,6 +57,7 @@ import org.graalvm.wasm.predefined.BuiltinModule;
 import org.graalvm.wasm.struct.WasmStructAccess;
 import org.graalvm.wasm.types.DefinedType;
 import org.graalvm.wasm.types.FunctionType;
+import org.graalvm.wasm.types.StructType;
 
 import com.oracle.truffle.api.CallTarget;
 import com.oracle.truffle.api.CompilerAsserts;
@@ -133,10 +134,14 @@ public final class WasmLanguage extends TruffleLanguage<WasmContext> {
      * Struct accesses are shared across modules to ensure type-equivalent structs use the same
      * static shape and field properties.
      */
-    public WasmStructAccess canonicalStructAccessFor(int equivalenceClass, WasmStructAccess structAccess) {
+    public WasmStructAccess canonicalStructAccessFor(int equivalenceClass, StructType structType, WasmStructAccess superTypeAccess) {
         CompilerAsserts.neverPartOfCompilation();
-        WasmStructAccess previous = structAccessesByEquivalenceClass.putIfAbsent(equivalenceClass, structAccess);
-        return previous != null ? previous : structAccess;
+        WasmStructAccess structAccess = structAccessesByEquivalenceClass.get(equivalenceClass);
+        if (structAccess == null) {
+            structAccess = structAccessesByEquivalenceClass.computeIfAbsent(equivalenceClass,
+                            k -> WasmStructAccess.create(structType, superTypeAccess, this));
+        }
+        return structAccess;
     }
 
     /**
