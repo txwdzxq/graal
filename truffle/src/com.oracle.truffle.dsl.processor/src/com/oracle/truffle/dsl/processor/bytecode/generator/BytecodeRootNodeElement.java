@@ -842,6 +842,7 @@ public final class BytecodeRootNodeElement extends AbstractElement {
         }
 
         b.statement("boolean wasCompiled = CompilerDirectives.inCompiledCode()");
+        b.statement("CompilerDirectives.preserveFrameStateHere()");
 
         b.statement("long state = ", encodeState("bci", "sp"));
 
