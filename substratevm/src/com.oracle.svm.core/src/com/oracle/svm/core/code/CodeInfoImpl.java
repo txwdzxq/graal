@@ -198,10 +198,10 @@ interface CodeInfoImpl extends CodeInfo {
     void setCodeInfoIndexEntriesPerBlock(int entriesPerBlock);
 
     @RawField
-    NonmovableArray<Byte> getCodeInfoDefaultFrameInfos();
+    NonmovableArray<Byte> getCodeInfoDefaultFrameInfoIndexes();
 
     @RawField
-    void setCodeInfoDefaultFrameInfos(NonmovableArray<Byte> codeInfoDefaultFrameInfos);
+    void setCodeInfoDefaultFrameInfoIndexes(NonmovableArray<Byte> codeInfoDefaultFrameInfoIndexes);
 
     @RawField
     NonmovableArray<Byte> getFrameInfoEncodings();

@@ -339,10 +339,10 @@ public class CodeInfoEncoder {
 
     private NonmovableArray<Byte> codeInfoIndex;
     private NonmovableArray<Byte> codeInfoEncodings;
-    private NonmovableArray<Byte> codeInfoDefaultFrameInfos;
+    private NonmovableArray<Byte> codeInfoDefaultFrameInfoIndexes;
     private NonmovableArray<Byte> referenceMapEncoding;
     private int codeInfoIndexEntriesPerBlock = 1;
-    private final boolean useSpecialImageCodeInfoEncoding;
+    private final boolean useFinalImageCodeInfoEncoding;
 
     public CodeInfoEncoder(FrameInfoEncoder.Customization frameInfoCustomization, Encoders encoders) {
         this(frameInfoCustomization, encoders, FrameInfoDecoder.SubstrateConstantAccess);
@@ -352,7 +352,7 @@ public class CodeInfoEncoder {
         this.entries = new TreeMap<>();
         this.encoders = encoders;
         this.frameInfoEncoder = new FrameInfoEncoder(frameInfoCustomization, encoders, constantAccess);
-        this.useSpecialImageCodeInfoEncoding = useSpecialImageCodeInfoEncoding();
+        this.useFinalImageCodeInfoEncoding = useFinalImageCodeInfoEncoding();
     }
 
     public FrameInfoEncoder getFrameInfoEncoder() {
@@ -471,7 +471,7 @@ public class CodeInfoEncoder {
     }
 
     private void install(CodeInfo target) {
-        CodeInfoAccess.setCodeInfo(target, codeInfoIndex, codeInfoEncodings, codeInfoIndexEntriesPerBlock, codeInfoDefaultFrameInfos, referenceMapEncoding);
+        CodeInfoAccess.setCodeInfo(target, codeInfoIndex, codeInfoEncodings, codeInfoIndexEntriesPerBlock, codeInfoDefaultFrameInfoIndexes, referenceMapEncoding);
     }
 
     private void encodeReferenceMaps() {
@@ -520,7 +520,7 @@ public class CodeInfoEncoder {
         VMError.guarantee(prev != null, "Code info encoding requires at least one IP entry");
         int indexEntryCount = NumUtil.safeToInt(Long.divideUnsigned(prev.ip, CodeInfoDecoder.indexGranularity()) + 1);
         long[] indexOffsets = new long[indexEntryCount];
-        int[] defaultFrameInfoIndexes = useSpecialImageCodeInfoEncoding ? new int[indexEntryCount] : null;
+        int[] defaultFrameInfoIndexes = useFinalImageCodeInfoEncoding ? new int[indexEntryCount] : null;
         int nextIndexEntry = 0;
         long nextIndexIP = 0;
         int currentDefaultFrameInfoIndex = -1;
@@ -528,12 +528,12 @@ public class CodeInfoEncoder {
         UnsafeArrayTypeWriter encodingBuffer = UnsafeArrayTypeWriter.create(ByteArrayReader.supportsUnalignedMemoryAccess());
         for (IPData data = first; data != null; data = data.next) {
             assert data.ip <= nextIndexIP : data;
-            if (useSpecialImageCodeInfoEncoding && data.defaultFrameData != null) {
+            if (useFinalImageCodeInfoEncoding && data.defaultFrameData != null) {
                 currentDefaultFrameInfoIndex = TypeConversion.asS4(data.defaultFrameData.encodedFrameInfoIndex);
             }
             if (data.ip == nextIndexIP) {
                 indexOffsets[nextIndexEntry++] = encodingBuffer.getBytesWritten();
-                if (useSpecialImageCodeInfoEncoding) {
+                if (useFinalImageCodeInfoEncoding) {
                     VMError.guarantee(currentDefaultFrameInfoIndex >= 0, "Image code index entry is missing default frame info");
                     defaultFrameInfoIndexes[nextIndexEntry - 1] = currentDefaultFrameInfoIndex;
                     chunkDefaultFrameInfoIndex = currentDefaultFrameInfoIndex;
@@ -546,13 +546,15 @@ public class CodeInfoEncoder {
             entryFlags = entryFlags | flagsForExceptionOffset(data) << CodeInfoDecoder.EX_SHIFT;
             entryFlags = entryFlags | flagsForReferenceMapIndex(data) << CodeInfoDecoder.RM_SHIFT;
             entryFlags = entryFlags | flagsForDeoptFrameInfo(data) << CodeInfoDecoder.FI_SHIFT;
-            if (useSpecialImageCodeInfoEncoding) {
+            if (useFinalImageCodeInfoEncoding) {
                 entryFlags = encodeExtendedImageEntryFlags(data, entryFlags, currentDefaultFrameInfoIndex, chunkDefaultFrameInfoIndex);
             }
 
-            encodingBuffer.putU1(firstEntryFlags(entryFlags));
+            encodingBuffer.putU1(encodeBasicEntryFlags(entryFlags));
             encodingBuffer.putU1(data.next == null ? CodeInfoDecoder.DELTA_END_OF_TABLE : (data.next.ip - data.ip));
-            writeExtendedEntryFlags(encodingBuffer, entryFlags);
+            if (CodeInfoDecoder.isExtendedEntry(entryFlags)) {
+                writeExtendedEntryFlags(encodingBuffer, entryFlags);
+            }
 
             writeSizeEncoding(encodingBuffer, data, entryFlags);
             writeExceptionOffset(encodingBuffer, data, entryFlags);
@@ -569,22 +571,22 @@ public class CodeInfoEncoder {
         }
 
         VMError.guarantee(nextIndexEntry == indexOffsets.length, "Mismatched code info index entry count");
-        codeInfoIndexEntriesPerBlock = selectCodeInfoIndexEntriesPerBlock(indexOffsets, useSpecialImageCodeInfoEncoding);
+        codeInfoIndexEntriesPerBlock = selectCodeInfoIndexEntriesPerBlock(indexOffsets, useFinalImageCodeInfoEncoding);
         byte[] encodedIndex = encodeCodeInfoIndex(indexOffsets, codeInfoIndexEntriesPerBlock);
         codeInfoIndex = NonmovableArrays.createByteArray(encodedIndex.length, NmtCategory.Code);
         NonmovableArrays.asByteBuffer(codeInfoIndex).put(encodedIndex);
-        if (useSpecialImageCodeInfoEncoding) {
-            byte[] encodedDefaultFrameInfos = encodeImageCodeInfoDefaultFrameInfos(defaultFrameInfoIndexes);
-            codeInfoDefaultFrameInfos = NonmovableArrays.createByteArray(encodedDefaultFrameInfos.length, NmtCategory.Code);
-            NonmovableArrays.asByteBuffer(codeInfoDefaultFrameInfos).put(encodedDefaultFrameInfos);
+        if (useFinalImageCodeInfoEncoding) {
+            byte[] encodedDefaultFrameInfoIndexes = encodeImageCodeInfoDefaultFrameInfoIndexes(defaultFrameInfoIndexes);
+            codeInfoDefaultFrameInfoIndexes = NonmovableArrays.createByteArray(encodedDefaultFrameInfoIndexes.length, NmtCategory.Code);
+            NonmovableArrays.asByteBuffer(codeInfoDefaultFrameInfoIndexes).put(encodedDefaultFrameInfoIndexes);
         } else {
-            codeInfoDefaultFrameInfos = NonmovableArrays.nullArray();
+            codeInfoDefaultFrameInfoIndexes = NonmovableArrays.nullArray();
         }
         codeInfoEncodings = NonmovableArrays.createByteArray(TypeConversion.asU4(encodingBuffer.getBytesWritten()), NmtCategory.Code);
         encodingBuffer.toByteBuffer(NonmovableArrays.asByteBuffer(codeInfoEncodings));
     }
 
-    private static boolean useSpecialImageCodeInfoEncoding() {
+    private static boolean useFinalImageCodeInfoEncoding() {
         /*
          * The side table is part of the final runtime ImageCodeInfo layout. Non-final layered
          * builds persist metadata for later image generation, so keep their intermediate encoding
@@ -593,8 +595,8 @@ public class CodeInfoEncoder {
         return SubstrateUtil.HOSTED && ImageLayerBuildingSupport.lastImageBuild();
     }
 
-    private static int selectCodeInfoIndexEntriesPerBlock(long[] indexOffsets, boolean useSpecialImageCodeInfoEncoding) {
-        if (useSpecialImageCodeInfoEncoding && codeInfoIndexFits(indexOffsets, CodeInfoDecoder.CODE_INFO_INDEX_COMPRESSED_ENTRIES_PER_BLOCK)) {
+    private static int selectCodeInfoIndexEntriesPerBlock(long[] indexOffsets, boolean useFinalImageCodeInfoEncoding) {
+        if (useFinalImageCodeInfoEncoding && codeInfoIndexFits(indexOffsets, CodeInfoDecoder.CODE_INFO_INDEX_COMPRESSED_ENTRIES_PER_BLOCK)) {
             return CodeInfoDecoder.CODE_INFO_INDEX_COMPRESSED_ENTRIES_PER_BLOCK;
         }
         return 1;
@@ -647,7 +649,7 @@ public class CodeInfoEncoder {
         return true;
     }
 
-    private static byte[] encodeImageCodeInfoDefaultFrameInfos(int[] values) {
+    private static byte[] encodeImageCodeInfoDefaultFrameInfoIndexes(int[] values) {
         UnsafeArrayTypeWriter buffer = UnsafeArrayTypeWriter.create(ByteArrayReader.supportsUnalignedMemoryAccess());
         for (int value : values) {
             buffer.putS4(value);
@@ -766,26 +768,22 @@ public class CodeInfoEncoder {
         }
     }
 
-    private static int firstEntryFlags(int entryFlags) {
+    private static int encodeBasicEntryFlags(int entryFlags) {
         if (!CodeInfoDecoder.isExtendedEntry(entryFlags)) {
             return CodeInfoDecoder.basicEntryFlags(entryFlags);
         }
         return switch (CodeInfoDecoder.extendedEntryMode(entryFlags)) {
-            case CodeInfoDecoder.EXTENDED_ENTRY_LEGACY -> CodeInfoDecoder.EXTENDED_ENTRY_LEGACY_MARKER;
-            case CodeInfoDecoder.EXTENDED_ENTRY_FI_INFO_ONLY_S1 -> CodeInfoDecoder.EXTENDED_ENTRY_FI_INFO_ONLY_S1_MARKER;
-            case CodeInfoDecoder.EXTENDED_ENTRY_FI_INFO_ONLY_S2 -> CodeInfoDecoder.EXTENDED_ENTRY_FI_INFO_ONLY_S2_MARKER;
-            case CodeInfoDecoder.EXTENDED_ENTRY_FI_DEFAULT -> CodeInfoDecoder.EXTENDED_ENTRY_LEGACY_MARKER;
+            case CodeInfoDecoder.EXTENDED_ENTRY_LEGACY -> CodeInfoDecoder.BASIC_FLAGS_MARKER_FOR_EXTENDED_ENTRY_LEGACY;
+            case CodeInfoDecoder.EXTENDED_ENTRY_FI_INFO_ONLY_S1 -> CodeInfoDecoder.BASIC_FLAGS_MARKER_FOR_EXTENDED_ENTRY_FI_INFO_ONLY_S1;
+            case CodeInfoDecoder.EXTENDED_ENTRY_FI_INFO_ONLY_S2 -> CodeInfoDecoder.BASIC_FLAGS_MARKER_FOR_EXTENDED_ENTRY_FI_INFO_ONLY_S2;
+            case CodeInfoDecoder.EXTENDED_ENTRY_FI_DEFAULT -> CodeInfoDecoder.BASIC_FLAGS_MARKER_FOR_EXTENDED_ENTRY_LEGACY;
             default -> throw shouldNotReachHereUnexpectedInput(entryFlags);
         };
     }
 
     private void writeExtendedEntryFlags(UnsafeArrayTypeWriter writeBuffer, int entryFlags) {
-        if (!useSpecialImageCodeInfoEncoding) {
-            return;
-        }
-        if (!CodeInfoDecoder.isExtendedEntry(entryFlags)) {
-            return;
-        }
+        assert useFinalImageCodeInfoEncoding;
+        assert CodeInfoDecoder.isExtendedEntry(entryFlags);
         int basicFlags = CodeInfoDecoder.basicEntryFlags(entryFlags);
         switch (CodeInfoDecoder.extendedEntryMode(entryFlags)) {
             case CodeInfoDecoder.EXTENDED_ENTRY_LEGACY:
@@ -802,7 +800,7 @@ public class CodeInfoEncoder {
     }
 
     private int encodeExtendedImageEntryFlags(IPData data, int entryFlags, int currentDefaultFrameInfoIndex, int chunkDefaultFrameInfoIndex) {
-        assert useSpecialImageCodeInfoEncoding;
+        assert useFinalImageCodeInfoEncoding;
         boolean useChunkDefaultFrameInfo = currentDefaultFrameInfoIndex >= 0 && currentDefaultFrameInfoIndex == chunkDefaultFrameInfoIndex;
         /*
          * For image code, FI_DEFAULT can reuse the chunk side table entry and FI_INFO_ONLY can be
@@ -834,7 +832,7 @@ public class CodeInfoEncoder {
         switch (CodeInfoDecoder.extractFI(entryFlags)) {
             case CodeInfoDecoder.FI_DEFAULT_INFO_INDEX_S4:
                 if (CodeInfoDecoder.isExtendedFIDefault(entryFlags)) {
-                    assert useSpecialImageCodeInfoEncoding;
+                    assert useFinalImageCodeInfoEncoding;
                     break;
                 }
                 writeBuffer.putS4(data.frameData.encodedFrameInfoIndex);
@@ -875,7 +873,7 @@ class CodeInfoVerifier {
 
     void verifyMethod(SharedMethod method, CompilationResult compilation, int compilationOffset, int compilationSize, CodeInfo info) {
         CodeInfoQueryResult queryResult = new CodeInfoQueryResult();
-        boolean verifyFrameInfoCursor = CodeInfoAccess.hasCodeInfoDefaultFrameInfos(info);
+        boolean verifyFrameInfoCursor = CodeInfoAccess.usesFinalImageCodeInfoEncoding(info);
         int expectedRootMethodId = 0;
         CodeInfoDecoder.FrameInfoCursor frameInfoCursor = null;
         if (verifyFrameInfoCursor) {

@@ -237,7 +237,7 @@ public final class CodeInfoAccess {
             size = size.add(NonmovableArrays.byteSizeOf(impl.getObjectFields()))
                             .add(NonmovableArrays.byteSizeOf(impl.getCodeInfoIndex()))
                             .add(NonmovableArrays.byteSizeOf(impl.getCodeInfoEncodings()))
-                            .add(NonmovableArrays.byteSizeOf(impl.getCodeInfoDefaultFrameInfos()))
+                            .add(NonmovableArrays.byteSizeOf(impl.getCodeInfoDefaultFrameInfoIndexes()))
                             .add(NonmovableArrays.byteSizeOf(impl.getStackReferenceMapEncoding()))
                             .add(NonmovableArrays.byteSizeOf(impl.getFrameInfoEncodings()))
                             .add(NonmovableArrays.byteSizeOf(impl.getObjectConstants()))
@@ -275,7 +275,8 @@ public final class CodeInfoAccess {
         CodeInfoImpl impl = cast(info);
         UnsignedWord relativeIPWord = Word.unsigned(relativeIP);
         UnsignedWord offset = relativeIPWord.subtract(impl.getRelativeIPOffset());
-        assert relativeIP >= 0 && relativeIPWord.aboveOrEqual(impl.getRelativeIPOffset()) && offset.belowThan(impl.getCodeSize());
+        assert relativeIP >= 0 && relativeIPWord.aboveOrEqual(impl.getRelativeIPOffset()) && offset.belowThan(impl.getCodeSize()) : "relativeIP=" + relativeIP + ", relativeIPOffset=" +
+                        impl.getRelativeIPOffset().rawValue() + ", codeSize=" + impl.getCodeSize().rawValue();
         return absoluteIPFromCodeStartOffset(impl, offset);
     }
 
@@ -356,12 +357,12 @@ public final class CodeInfoAccess {
     }
 
     public static void setCodeInfo(CodeInfo info, NonmovableArray<Byte> index, NonmovableArray<Byte> encodings, int indexEntriesPerBlock,
-                    NonmovableArray<Byte> defaultFrameInfos, NonmovableArray<Byte> referenceMapEncoding) {
+                    NonmovableArray<Byte> defaultFrameInfoIndexes, NonmovableArray<Byte> referenceMapEncoding) {
         CodeInfoImpl impl = cast(info);
         impl.setCodeInfoIndex(index);
         impl.setCodeInfoEncodings(encodings);
         impl.setCodeInfoIndexEntriesPerBlock(indexEntriesPerBlock);
-        impl.setCodeInfoDefaultFrameInfos(defaultFrameInfos);
+        impl.setCodeInfoDefaultFrameInfoIndexes(defaultFrameInfoIndexes);
         impl.setStackReferenceMapEncoding(referenceMapEncoding);
     }
 
@@ -420,13 +421,13 @@ public final class CodeInfoAccess {
     }
 
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
-    public static NonmovableArray<Byte> getCodeInfoDefaultFrameInfos(CodeInfo info) {
-        return cast(info).getCodeInfoDefaultFrameInfos();
+    public static NonmovableArray<Byte> getCodeInfoDefaultFrameInfoIndexes(CodeInfo info) {
+        return cast(info).getCodeInfoDefaultFrameInfoIndexes();
     }
 
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
-    public static boolean hasCodeInfoDefaultFrameInfos(CodeInfo info) {
-        return cast(info).getCodeInfoDefaultFrameInfos().isNonNull();
+    public static boolean usesFinalImageCodeInfoEncoding(CodeInfo info) {
+        return cast(info).getCodeInfoDefaultFrameInfoIndexes().isNonNull();
     }
 
     @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)

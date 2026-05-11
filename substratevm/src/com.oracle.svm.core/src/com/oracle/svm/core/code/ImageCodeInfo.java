@@ -70,7 +70,7 @@ public class ImageCodeInfo {
     private final Object[] objectFields;
     @UnknownObjectField(availability = AfterCompilation.class) byte[] codeInfoIndex;
     @UnknownObjectField(availability = AfterCompilation.class) byte[] codeInfoEncodings;
-    @UnknownObjectField(availability = AfterCompilation.class, canBeNull = true) byte[] codeInfoDefaultFrameInfos;
+    @UnknownObjectField(availability = AfterCompilation.class, canBeNull = true) byte[] codeInfoDefaultFrameInfoIndexes;
     @UnknownObjectField(availability = AfterCompilation.class) byte[] referenceMapEncoding;
     @UnknownObjectField(availability = AfterCompilation.class) byte[] frameInfoEncodings;
     @UnknownObjectField(availability = AfterCompilation.class) Object[] objectConstants;
@@ -117,7 +117,7 @@ public class ImageCodeInfo {
         infoImpl.setCodeInfoIndex(NonmovableArrays.fromImageHeap(imageCodeInfo.codeInfoIndex));
         infoImpl.setCodeInfoEncodings(NonmovableArrays.fromImageHeap(imageCodeInfo.codeInfoEncodings));
         infoImpl.setCodeInfoIndexEntriesPerBlock(imageCodeInfo.codeInfoIndexEntriesPerBlock);
-        infoImpl.setCodeInfoDefaultFrameInfos(NonmovableArrays.fromImageHeap(imageCodeInfo.codeInfoDefaultFrameInfos));
+        infoImpl.setCodeInfoDefaultFrameInfoIndexes(NonmovableArrays.fromImageHeap(imageCodeInfo.codeInfoDefaultFrameInfoIndexes));
         infoImpl.setStackReferenceMapEncoding(NonmovableArrays.fromImageHeap(imageCodeInfo.referenceMapEncoding));
         infoImpl.setFrameInfoEncodings(NonmovableArrays.fromImageHeap(imageCodeInfo.frameInfoEncodings));
         infoImpl.setObjectConstants(NonmovableArrays.fromImageHeap(imageCodeInfo.objectConstants));
@@ -135,8 +135,8 @@ public class ImageCodeInfo {
         config.registerAsImmutable(this);
         config.registerAsImmutable(codeInfoIndex);
         config.registerAsImmutable(codeInfoEncodings);
-        if (codeInfoDefaultFrameInfos != null) {
-            config.registerAsImmutable(codeInfoDefaultFrameInfos);
+        if (codeInfoDefaultFrameInfoIndexes != null) {
+            config.registerAsImmutable(codeInfoDefaultFrameInfoIndexes);
         }
         config.registerAsImmutable(referenceMapEncoding);
         config.registerAsImmutable(frameInfoEncodings);
@@ -165,7 +165,7 @@ public class ImageCodeInfo {
         List<Integer> lengths = new ArrayList<>(6);
         addByteArrayLength(lengths, codeInfoIndex);
         addByteArrayLength(lengths, codeInfoEncodings);
-        addByteArrayLength(lengths, codeInfoDefaultFrameInfos);
+        addByteArrayLength(lengths, codeInfoDefaultFrameInfoIndexes);
         addByteArrayLength(lengths, referenceMapEncoding);
         addByteArrayLength(lengths, frameInfoEncodings);
         addByteArrayLength(lengths, methodTable);
@@ -290,13 +290,13 @@ public class ImageCodeInfo {
         }
 
         @Override
-        public NonmovableArray<Byte> getCodeInfoDefaultFrameInfos() {
-            return NonmovableArrays.fromImageHeap(codeInfoDefaultFrameInfos);
+        public NonmovableArray<Byte> getCodeInfoDefaultFrameInfoIndexes() {
+            return NonmovableArrays.fromImageHeap(codeInfoDefaultFrameInfoIndexes);
         }
 
         @Override
-        public void setCodeInfoDefaultFrameInfos(NonmovableArray<Byte> array) {
-            codeInfoDefaultFrameInfos = NonmovableArrays.getHostedArray(array);
+        public void setCodeInfoDefaultFrameInfoIndexes(NonmovableArray<Byte> array) {
+            codeInfoDefaultFrameInfoIndexes = NonmovableArrays.getHostedArray(array);
         }
 
         @Override

@@ -68,16 +68,17 @@ import jdk.graal.compiler.options.Option;
  * [s1|s2|s4 frameSizeEncoding]
  * [s1|s2|s4 exceptionOffset]
  * [u2|u4 referenceMapIndex]
- * [s1|s2|s4 deoptFrameInfoIndex]
+ * [s4 deoptFrameInfoIndex | s1|s2 frameInfoDeltaToChunkDefault | empty defaultFrameInfo]
  * </pre>
  *
  * The first byte, entryFlags, encodes which of the optional data fields are present and what size
  * they have. For image code, three otherwise valid entryFlags values are reserved to signal that
  * the real flags are stored in an extra extendedEntryFlags value. This allows smaller FI_INFO_ONLY
- * payloads and FI_DEFAULT entries that omit their payload when the chunk default side table already
- * provides the same frame info index. The size of the whole entry can be computed from the decoded
- * flags, which allows fast iteration of the table. The deltaIP is the difference of the IP for this
- * entry and the next entry. The first entry always corresponds to IP zero.
+ * payloads relative to the chunk default frame-info index and FI_DEFAULT entries that omit their
+ * payload when the chunk default side table already provides the same frame-info index. The size of
+ * the whole entry can be computed from the decoded flags, which allows fast iteration of the table.
+ * The deltaIP is the difference of the IP for this entry and the next entry. The first entry always
+ * corresponds to IP zero.
  *
  * This table structure allows linear search for the entry of a given IP. An
  * {@linkplain #loadEntryOffset index} is used to turn this into a constant time lookup. The index
@@ -98,9 +99,9 @@ public final class CodeInfoDecoder {
     static final int EXTENDED_ENTRY_FI_INFO_ONLY_S1 = 1 << EXTENDED_ENTRY_MODE_SHIFT;
     static final int EXTENDED_ENTRY_FI_INFO_ONLY_S2 = 2 << EXTENDED_ENTRY_MODE_SHIFT;
     static final int EXTENDED_ENTRY_FI_DEFAULT = 3 << EXTENDED_ENTRY_MODE_SHIFT;
-    static final int EXTENDED_ENTRY_LEGACY_MARKER = 0xFD;
-    static final int EXTENDED_ENTRY_FI_INFO_ONLY_S1_MARKER = 0xFE;
-    static final int EXTENDED_ENTRY_FI_INFO_ONLY_S2_MARKER = 0xFF;
+    static final int BASIC_FLAGS_MARKER_FOR_EXTENDED_ENTRY_LEGACY = 0xFD;
+    static final int BASIC_FLAGS_MARKER_FOR_EXTENDED_ENTRY_FI_INFO_ONLY_S1 = 0xFE;
+    static final int BASIC_FLAGS_MARKER_FOR_EXTENDED_ENTRY_FI_INFO_ONLY_S2 = 0xFF;
     private static final int EXTENDED_ENTRY_FLAGS_OFFSET = 2;
 
     public static class Options {
@@ -114,9 +115,11 @@ public final class CodeInfoDecoder {
             return NonmovableByteArrayReader.getU4(data, index * CODE_INFO_INDEX_RUNTIME_ENTRY_BYTES);
         }
 
-        VMError.guarantee(entriesPerBlock == CODE_INFO_INDEX_COMPRESSED_ENTRIES_PER_BLOCK, "Unexpected code info index block size");
-        long blockIndex = Long.divideUnsigned(index, entriesPerBlock);
-        int blockEntryIndex = (int) Long.remainderUnsigned(index, entriesPerBlock);
+        if (entriesPerBlock != CODE_INFO_INDEX_COMPRESSED_ENTRIES_PER_BLOCK) {
+            throw shouldNotReachHereUnexpectedInput(entriesPerBlock);
+        }
+        long blockIndex = index >>> 3;
+        int blockEntryIndex = (int) (index & 0b111);
         long blockOffset = blockIndex * CODE_INFO_INDEX_COMPRESSED_BLOCK_BYTES;
         long base = NonmovableByteArrayReader.getU4(data, blockOffset);
         if (blockEntryIndex == 0) {
@@ -330,21 +333,21 @@ public final class CodeInfoDecoder {
     static int loadEntryFlags(CodeInfo info, long curOffset) {
         counters().loadEntryFlagsCount.inc();
         int basicFlags = NonmovableByteArrayReader.getU1(CodeInfoAccess.getCodeInfoEncodings(info), curOffset);
-        if (!isExtendedEntryMarker(basicFlags) || !CodeInfoAccess.hasCodeInfoDefaultFrameInfos(info)) {
+        if (!isExtendedEntryMarker(basicFlags) || !CodeInfoAccess.usesFinalImageCodeInfoEncoding(info)) {
             return basicFlags;
         }
         /*
-         * Image code reserves three entryFlags marker values and moves the real FI shape into a
-         * second extendedEntryFlags value so FI_INFO_ONLY entries can use s1/s2 deltas and
+         * Final image code reserves three basic entryFlags byte values and moves the real FI shape
+         * into a second extendedEntryFlags value so FI_INFO_ONLY entries can use s1/s2 deltas and
          * FI_DEFAULT entries can omit the payload completely.
          */
         int extendedFlags = NonmovableByteArrayReader.getU1(CodeInfoAccess.getCodeInfoEncodings(info), curOffset + EXTENDED_ENTRY_FLAGS_OFFSET);
         return switch (basicFlags) {
-            case EXTENDED_ENTRY_LEGACY_MARKER -> extractFI(extendedFlags) == FI_NO_DEOPT
+            case BASIC_FLAGS_MARKER_FOR_EXTENDED_ENTRY_LEGACY -> extractFI(extendedFlags) == FI_NO_DEOPT
                             ? EXTENDED_ENTRY_MASK | EXTENDED_ENTRY_FI_DEFAULT | withFIDefault(extendedFlags)
                             : EXTENDED_ENTRY_MASK | EXTENDED_ENTRY_LEGACY | extendedFlags;
-            case EXTENDED_ENTRY_FI_INFO_ONLY_S1_MARKER -> EXTENDED_ENTRY_MASK | EXTENDED_ENTRY_FI_INFO_ONLY_S1 | withFIInfoOnly(extendedFlags);
-            case EXTENDED_ENTRY_FI_INFO_ONLY_S2_MARKER -> EXTENDED_ENTRY_MASK | EXTENDED_ENTRY_FI_INFO_ONLY_S2 | withFIInfoOnly(extendedFlags);
+            case BASIC_FLAGS_MARKER_FOR_EXTENDED_ENTRY_FI_INFO_ONLY_S1 -> EXTENDED_ENTRY_MASK | EXTENDED_ENTRY_FI_INFO_ONLY_S1 | withFIInfoOnly(extendedFlags);
+            case BASIC_FLAGS_MARKER_FOR_EXTENDED_ENTRY_FI_INFO_ONLY_S2 -> EXTENDED_ENTRY_MASK | EXTENDED_ENTRY_FI_INFO_ONLY_S2 | withFIInfoOnly(extendedFlags);
             default -> throw shouldNotReachHereUnexpectedInput(basicFlags);
         };
     }
@@ -517,9 +520,9 @@ public final class CodeInfoDecoder {
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     private static int loadDefaultFrameInfoIndex(CodeInfo info, long relativeIP) {
-        assert CodeInfoAccess.hasCodeInfoDefaultFrameInfos(info);
+        assert CodeInfoAccess.usesFinalImageCodeInfoEncoding(info);
         long index = Long.divideUnsigned(relativeIP, indexGranularity());
-        return NonmovableByteArrayReader.getS4(CodeInfoAccess.getCodeInfoDefaultFrameInfos(info), index * Integer.BYTES);
+        return NonmovableByteArrayReader.getS4(CodeInfoAccess.getCodeInfoDefaultFrameInfoIndexes(info), index * Integer.BYTES);
     }
 
     /**
@@ -711,7 +714,8 @@ public final class CodeInfoDecoder {
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
     static boolean isExtendedEntryMarker(int basicFlags) {
-        return basicFlags == EXTENDED_ENTRY_LEGACY_MARKER || basicFlags == EXTENDED_ENTRY_FI_INFO_ONLY_S1_MARKER || basicFlags == EXTENDED_ENTRY_FI_INFO_ONLY_S2_MARKER;
+        return basicFlags == BASIC_FLAGS_MARKER_FOR_EXTENDED_ENTRY_LEGACY || basicFlags == BASIC_FLAGS_MARKER_FOR_EXTENDED_ENTRY_FI_INFO_ONLY_S1 ||
+                        basicFlags == BASIC_FLAGS_MARKER_FOR_EXTENDED_ENTRY_FI_INFO_ONLY_S2;
     }
 
     @Uninterruptible(reason = CALLED_FROM_UNINTERRUPTIBLE_CODE, mayBeInlined = true)
