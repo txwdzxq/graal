@@ -30,6 +30,8 @@ import java.lang.module.ModuleReader;
 import java.lang.module.ModuleReference;
 import java.lang.ref.SoftReference;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
@@ -145,8 +147,24 @@ final class Target_jdk_internal_loader_BuiltinClassLoader {
     @TargetElement(onlyWith = ClassRegistries.RespectsClassLoader.class)
     @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+20/src/java.base/share/classes/jdk/internal/loader/BuiltinClassLoader.java#L483-L492")
     private URL findResourceOnClassPath(String name) {
-        URL url = hasClassPath() ? ucp.findResource(name) : null;
-        return url != null ? url : ResourcesHelper.nameToResourceURL(name);
+        URL url = ResourcesHelper.findEmbeddedResourceEntry(name) ? ResourcesHelper.nameToResourceURL(name) : null;
+        return url != null ? url : hasClassPath() ? ucp.findResource(name) : null;
+    }
+
+    @Substitute
+    @TargetElement(onlyWith = ClassRegistries.RespectsClassLoader.class)
+    @BasedOnJDKFile("https://github.com/openjdk/jdk/blob/jdk-25+20/src/java.base/share/classes/jdk/internal/loader/BuiltinClassLoader.java#L497-L504")
+    private Enumeration<URL> findResourcesOnClassPath(String name) throws IOException {
+        List<URL> embeddedResources = ResourcesHelper.findEmbeddedResourceEntry(name) ? ResourcesHelper.nameToResourceListURLs(name) : List.of();
+        if (embeddedResources.isEmpty()) {
+            return hasClassPath() ? ucp.findResources(name) : Collections.emptyEnumeration();
+        }
+        List<URL> resources = new ArrayList<>(embeddedResources);
+        Enumeration<URL> classPathResources = hasClassPath() ? ucp.findResources(name) : Collections.emptyEnumeration();
+        while (classPathResources.hasMoreElements()) {
+            resources.add(classPathResources.nextElement());
+        }
+        return Collections.enumeration(resources);
     }
 
     static final class NewConcurrentHashMap implements FieldValueTransformer {
