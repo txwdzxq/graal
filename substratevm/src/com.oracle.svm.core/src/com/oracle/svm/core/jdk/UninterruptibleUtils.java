@@ -926,6 +926,10 @@ public class UninterruptibleUtils {
 
     @FunctionalInterface
     public interface CharReplacer {
+        /**
+         * Replaces a single char before UTF-8 encoding. Valid surrogate pairs are encoded as code
+         * points and skip this replacement.
+         */
         @Uninterruptible(reason = "Called from uninterruptible code.", mayBeInlined = true)
         char replace(char val);
     }

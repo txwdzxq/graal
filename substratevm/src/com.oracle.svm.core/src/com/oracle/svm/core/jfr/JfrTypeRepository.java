@@ -299,7 +299,7 @@ public class JfrTypeRepository implements JfrRepository {
         }
         int encodedLength = UninterruptibleUtils.String.utf8Length(symbol, replaceDotWithSlash ? dotWithSlash : null);
 
-        Pointer buffer = NullableNativeMemory.malloc(encodedLength == 0 ? 1 : encodedLength, NmtCategory.JFR);
+        Pointer buffer = NullableNativeMemory.malloc(encodedLength, NmtCategory.JFR);
         if (buffer.isNull()) {
             return 0L;
         }
