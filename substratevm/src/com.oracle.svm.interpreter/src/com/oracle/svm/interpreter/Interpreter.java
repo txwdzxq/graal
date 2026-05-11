@@ -463,7 +463,7 @@ public final class Interpreter {
                                 ? method.getDeclaringClass().getJavaClass()
                                 : InterpreterFrameUtil.getThis(frame);
                 assert lockTarget != null;
-                InterpreterToVM.monitorEnter(frame, nullCheck(lockTarget));
+                InterpreterToVM.monitorEnter(frame, lockTarget);
             }
             SignaturePolymorphicIntrinsic intrinsic = method.getSignaturePolymorphicIntrinsic();
             if (intrinsic != null) {
