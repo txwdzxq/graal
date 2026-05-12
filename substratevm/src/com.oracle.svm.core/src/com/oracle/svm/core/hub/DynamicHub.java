@@ -131,10 +131,13 @@ import com.oracle.svm.core.meta.MethodRef;
 import com.oracle.svm.core.meta.SharedType;
 import com.oracle.svm.core.metadata.MetadataTracer;
 import com.oracle.svm.core.metaspace.Metaspace;
+import com.oracle.svm.core.reflect.CremaSerializationConstructorAccessor;
 import com.oracle.svm.core.reflect.MissingReflectionRegistrationUtils;
 import com.oracle.svm.core.reflect.RuntimeMetadataDecoder;
 import com.oracle.svm.core.reflect.fieldaccessor.UnsafeFieldAccessorFactory;
 import com.oracle.svm.core.reflect.serialize.SerializationSupport;
+import com.oracle.svm.core.reflect.target.Target_java_lang_reflect_Constructor;
+import com.oracle.svm.core.reflect.target.Target_jdk_internal_reflect_ConstructorAccessor;
 import com.oracle.svm.core.reflect.target.Target_jdk_internal_reflect_ConstantPool;
 import com.oracle.svm.core.util.LazyFinalReference;
 import com.oracle.svm.shared.AlwaysInline;
@@ -2614,13 +2617,41 @@ final class Target_jdk_internal_reflect_ReflectionFactory {
 
     @Substitute
     private Constructor<?> generateConstructor(Class<?> cl, Constructor<?> constructorToCall) {
-        ConstructorAccessor acc = (ConstructorAccessor) SerializationSupport.getRuntimeSerializationConstructorAccessor(cl, constructorToCall.getDeclaringClass());
+        ConstructorAccessor acc;
+        if (!Target_jdk_internal_reflect_MethodHandleAccessorFactory.constructorInSuperclass(cl, constructorToCall)) {
+            throw new UnsupportedOperationException(constructorToCall + " not a superclass of " + cl.getName());
+        }
+        /*
+         * Build-time serialization accessors are keyed by the target class and the first
+         * non-serializable superclass whose constructor must run. Runtime-loaded Crema classes are
+         * not in that build-time table. Crema can allocate the serialization target, then execute
+         * the selected superclass constructor directly. Other serialization constructors still use
+         * the normal registration checks and accessor lookup.
+         *
+         * RuntimeClassLoading.isSupported() folds during analysis. When it is false, the accessor
+         * allocation disappears before ConstructorAccessor.newInstance virtual dispatch can treat
+         * CremaSerializationConstructorAccessor.newInstance as reachable.
+         */
+        Class<?> constructorClass = constructorToCall.getDeclaringClass();
+        boolean runtimeClassLoadingSupported = RuntimeClassLoading.isSupported();
+        if (runtimeClassLoadingSupported && DynamicHub.fromClass(cl).isRuntimeLoaded()) {
+            acc = new CremaSerializationConstructorAccessor(cl, constructorToCall);
+        } else {
+            acc = (ConstructorAccessor) SerializationSupport.getRuntimeSerializationConstructorAccessor(cl, constructorClass);
+        }
         /*
          * Unlike other root constructors, this constructor is not copied for mutation but directly
          * mutated, as it is not cached. To cache this constructor, setAccessible call must be done
          * on a copy and return that copy instead.
          */
         Constructor<?> ctor = langReflectAccess.newConstructorWithAccessor(constructorToCall, acc);
+        /*
+         * Runtime-created serialization constructors need the same accessor indirection as
+         * image-built reflection metadata. The JDK-private constructorAccessor field is not enough
+         * for the substituted Constructor.newInstance path, which falls back to the injected
+         * metadata accessor when the direct accessor is not visible to SubstrateVM.
+         */
+        SubstrateUtil.cast(ctor, Target_java_lang_reflect_Constructor.class).constructorAccessorFromMetadata = SubstrateUtil.cast(acc, Target_jdk_internal_reflect_ConstructorAccessor.class);
         ctor.setAccessible(true);
         return ctor;
     }
@@ -2631,6 +2662,12 @@ final class Target_jdk_internal_reflect_ReflectionFactory {
         /* We don't have this information for our classes. */
         return null;
     }
+}
+
+@TargetClass(className = "jdk.internal.reflect.MethodHandleAccessorFactory")
+final class Target_jdk_internal_reflect_MethodHandleAccessorFactory {
+    @Alias //
+    static native boolean constructorInSuperclass(Class<?> cl, Constructor<?> constructorToCall);
 }
 
 /**
