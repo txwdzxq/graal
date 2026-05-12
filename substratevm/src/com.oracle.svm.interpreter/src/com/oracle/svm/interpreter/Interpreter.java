@@ -313,7 +313,20 @@ import jdk.vm.ci.meta.UnresolvedJavaMethod;
 import jdk.vm.ci.meta.UnresolvedJavaType;
 
 /**
- * Bytecode interpreter loop.
+ * Executes methods represented by Crema interpreter metadata.
+ *
+ * <p>
+ * This class is the Java entry point for interpreter execution. It creates or accepts an
+ * {@link InterpreterFrame}, initializes the local variables from Java-call arguments, checks that
+ * the target method has interpreter bytecodes, and then dispatches either to the ordinary bytecode
+ * loop in {@link Root} or to the intrinsic path used for signature-polymorphic method-handle
+ * operations.
+ *
+ * <p>
+ * Guest Java exceptions are kept distinct from interpreter implementation failures. Bytecodes that
+ * semantically throw a Java exception use {@link SemanticJavaException} while execution is inside
+ * the interpreter so exception handlers can be resolved against the interpreted method. Exceptions
+ * that escape back to compiled or reflective callers are rethrown as the original guest exception.
  */
 @InternalVMMethod
 public final class Interpreter {
@@ -419,38 +432,40 @@ public final class Interpreter {
 
     public static Object execute(InterpreterResolvedJavaMethod method, InterpreterFrame frame, int startBCI, int startTOP) {
         checkExecutable(method);
-        return execute0(method, frame, startBCI, startTOP, false);
+        return execute0(method, frame, startBCI, startTOP);
     }
 
-    private static Object execute0(InterpreterResolvedJavaMethod method, InterpreterFrame frame, int startBCI, int startTop, boolean stayInInterpreter) {
+    private static Object execute0(InterpreterResolvedJavaMethod method, InterpreterFrame frame, int startBCI, int startTop) {
+        Object synchronizedMethodLock = null;
         try {
             int executeBCI = startBCI;
             if (startBCI == jdk.vm.ci.code.BytecodeFrame.BEFORE_BCI) {
                 executeBCI = 0;
                 if (method.isSynchronized()) {
-                    Object lockTarget = method.isStatic()
+                    synchronizedMethodLock = method.isStatic()
                                     ? method.getDeclaringClass().getJavaClass()
                                     : frame.getObjectStatic(0);
-                    assert lockTarget != null;
-                    InterpreterToVM.monitorEnter(frame, nullCheck(lockTarget));
+                    assert synchronizedMethodLock != null;
+                    InterpreterToVM.monitorEnter(frame, synchronizedMethodLock);
                 }
             }
             assert method.getInterpretedCode() != null : "no bytecode stream for " + method;
-            return Root.executeBodyFromBCI(frame, method, executeBCI, startTop, stayInInterpreter);
+            return Root.executeBodyFromBCI(frame, method, executeBCI, startTop, false);
         } finally {
-            InterpreterToVM.releaseInterpreterFrameLocks(frame);
+            InterpreterToVM.releaseInterpreterFrameLocks(frame, synchronizedMethodLock);
         }
     }
 
     private static Object execute0(InterpreterResolvedJavaMethod method, InterpreterFrame frame, boolean stayInInterpreter) {
+        Object synchronizedMethodLock = null;
         try {
             assert method.isStatic() || InterpreterFrameUtil.getThis(frame) != null;
             if (method.isSynchronized()) {
-                Object lockTarget = method.isStatic()
+                synchronizedMethodLock = method.isStatic()
                                 ? method.getDeclaringClass().getJavaClass()
                                 : InterpreterFrameUtil.getThis(frame);
-                assert lockTarget != null;
-                InterpreterToVM.monitorEnter(frame, nullCheck(lockTarget));
+                assert synchronizedMethodLock != null;
+                InterpreterToVM.monitorEnter(frame, synchronizedMethodLock);
             }
             SignaturePolymorphicIntrinsic intrinsic = method.getSignaturePolymorphicIntrinsic();
             if (intrinsic != null) {
@@ -461,7 +476,7 @@ public final class Interpreter {
                 return Root.executeBodyFromBCI(frame, method, 0, startTop, stayInInterpreter);
             }
         } finally {
-            InterpreterToVM.releaseInterpreterFrameLocks(frame);
+            InterpreterToVM.releaseInterpreterFrameLocks(frame, synchronizedMethodLock);
         }
     }
 
@@ -702,8 +717,26 @@ public final class Interpreter {
         };
     }
 
+    /**
+     * Entry point for executing the ordinary bytecode body of an interpreted method.
+     *
+     * <p>
+     * The loop keeps the current bytecode index and operand-stack top as local variables while the
+     * {@link InterpreterFrame} stores locals, arguments, and stack slots. Each iteration reads the
+     * current opcode, handles debugger events that must be reported at that bytecode index, executes
+     * the bytecode, and then advances the bytecode index and stack top using the bytecode metadata.
+     *
+     * <p>
+     * Exceptions thrown by the guest Java code are wrapped by {@link SemanticJavaException}
+     * so they can be routed to guest exception handlers. If such an exception needs to unwind
+     * the current interpreter frame and be thrown to the caller, the {@link SemanticJavaException}
+     * is unwrapped and {@link #executeBodyFromBCI} throws the unwrapped exception.
+     * Other throwables that reach this loop are treated as interpreter implementation bugs
+     * unless they are VM errors that can be thrown by normal Java execution, such as
+     * {@link OutOfMemoryError} or {@link StackOverflowError}.
+     */
     public static final class Root {
-        @NeverInline("needed far stack walking")
+        @NeverInline("needed for stack walking")
         private static Object executeBodyFromBCI(InterpreterFrame frame, InterpreterResolvedJavaMethod method, int startBCI, int startTop,
                         boolean forceStayInInterpreter) {
             final MethodProfile methodProfile = RistrettoProfileSupport.profileMethodEntry(method);
