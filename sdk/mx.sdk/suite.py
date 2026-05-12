@@ -1374,6 +1374,7 @@ suite = {
       "distDependencies" : ["JNIUTILS"],
       "description" : "API and utility classes for nativebridge.",
       "allowsJavadocWarnings": True,
+      "useModulePath": True,
       "maven": {
           "tag": ["default", "public"],
       },

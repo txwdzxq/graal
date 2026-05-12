@@ -925,7 +925,11 @@ def _build_polyglot_isolate_library(target_folder, dist_names, native_image_opti
                 target_folder,
                 image_build_options,
                 add_tests,
-                additional_deps=mx_truffle.resolve_truffle_dist_names(True) + dist_names,
+                additional_deps=[
+                    'sdk:NATIVEBRIDGE',
+                    *mx_truffle.resolve_truffle_dist_names(True),
+                    *dist_names,
+                ],
                 shared_lib=True,
             )[0]
 
