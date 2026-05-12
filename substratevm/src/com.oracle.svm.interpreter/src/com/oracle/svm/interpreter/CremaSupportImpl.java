@@ -911,8 +911,7 @@ public class CremaSupportImpl implements CremaSupport {
     }
 
     private static boolean isSealed(ParserKlass parsed) {
-        PermittedSubclassesAttribute permittedSubclasses = parsed.getAttribute(PermittedSubclassesAttribute.NAME, PermittedSubclassesAttribute.class);
-        return permittedSubclasses != null && permittedSubclasses.getClasses().length > 0;
+        return parsed.getAttribute(PermittedSubclassesAttribute.NAME, PermittedSubclassesAttribute.class) != null;
     }
 
     private static boolean hasInheritedDefaultMethods(Class<?> superClass, Class<?>[] superInterfaces) {
@@ -1798,11 +1797,47 @@ public class CremaSupportImpl implements CremaSupport {
     }
 
     @Override
-    public void verifySuperAccesses(String externalName, ClassLoader loader, ByteSequence pkgName, Module module,
+    public void verifySuperAccesses(String externalName, Symbol<Name> internalName, int classModifiers, ClassLoader loader, ByteSequence pkgName, Module module,
                     Class<?> superClass, Class<?>[] superInterfaces) {
-        AccessChecks.ensureTypeAccess(externalName, loader, pkgName, module, InterpreterResolvedJavaType.fromClass(superClass));
+        InterpreterResolvedJavaType resolvedSuperClass = InterpreterResolvedJavaType.fromClass(superClass);
+        AccessChecks.ensureTypeAccess(externalName, loader, pkgName, module, resolvedSuperClass);
+        checkSealedSuper(externalName, internalName, classModifiers, pkgName, module, superClass, resolvedSuperClass);
         for (Class<?> superInterface : superInterfaces) {
-            AccessChecks.ensureTypeAccess(externalName, loader, pkgName, module, InterpreterResolvedJavaType.fromClass(superInterface));
+            InterpreterResolvedJavaType resolvedSuperInterface = InterpreterResolvedJavaType.fromClass(superInterface);
+            AccessChecks.ensureTypeAccess(externalName, loader, pkgName, module, resolvedSuperInterface);
+            checkSealedSuper(externalName, internalName, classModifiers, pkgName, module, superInterface, resolvedSuperInterface);
+        }
+    }
+
+    /**
+     * Checks that the runtime-defined class named by {@code externalName} and {@code internalName},
+     * with modifiers {@code classModifiers}, runtime package {@code pkgName}, and runtime module
+     * {@code module}, may directly extend or implement {@code sealedSuper}. The symbolic permitted
+     * subtype names in {@code resolvedSuper} are used because the runtime-defined class may not have
+     * a Java {@link Class} object yet.
+     */
+    private static void checkSealedSuper(String externalName,
+                    Symbol<Name> internalName,
+                    int classModifiers,
+                    ByteSequence pkgName,
+                    Module module,
+                    Class<?> sealedSuper,
+                    InterpreterResolvedJavaType resolvedSuper) {
+        InterpreterResolvedObjectType resolvedSuperType = (InterpreterResolvedObjectType) resolvedSuper;
+        if (!resolvedSuperType.hasPermittedSubclasses()) {
+            return;
+        }
+        if (sealedSuper.getModule() != module) {
+            throw new IncompatibleClassChangeError("Class " + externalName + " cannot inherit from sealed type " + sealedSuper.getName() +
+                            " because it is in a different runtime module");
+        }
+        if (!resolvedSuperType.declaresPermittedSubclass(internalName)) {
+            throw new IncompatibleClassChangeError("Class " + externalName + " is not a permitted subtype of sealed type " + sealedSuper.getName());
+        }
+        // A package-private permitted subtype is only accessible from a sealed type in the same runtime package.
+        if (!Modifier.isPublic(classModifiers) && !pkgName.equals(resolvedSuper.getSymbolicRuntimePackage())) {
+            throw new IncompatibleClassChangeError("Class " + externalName + " cannot inherit from sealed type " + sealedSuper.getName() +
+                            " because it is not accessible from the sealed type");
         }
     }
 
