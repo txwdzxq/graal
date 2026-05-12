@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021, 2021, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2026, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -22,8 +22,19 @@
  * or visit www.oracle.com if you need additional information or have any
  * questions.
  */
-module moduletests.hello.lib {
-    exports hello.lib;
-    exports hello.lib.unused;
-    requires java.xml;
+package hello.lib.unused;
+
+import javax.xml.namespace.QName;
+
+public final class RuntimeOnlyGreeter {
+    private RuntimeOnlyGreeter() {
+    }
+
+    public static String greet() {
+        QName name = new QName("urn:runtime-module-test", "element");
+        if (!"element".equals(name.getLocalPart())) {
+            throw new AssertionError(name);
+        }
+        return "hello from moduletests.hello.lib using element from java.xml";
+    }
 }

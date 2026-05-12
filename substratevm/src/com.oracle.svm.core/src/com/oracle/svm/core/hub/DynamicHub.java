@@ -108,6 +108,7 @@ import com.oracle.svm.core.annotate.KeepOriginal;
 import com.oracle.svm.core.annotate.RecomputeFieldValue;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
+import com.oracle.svm.core.annotate.TargetElement;
 import com.oracle.svm.core.classinitialization.ClassInitializationInfo;
 import com.oracle.svm.core.classinitialization.EnsureClassInitializedNode;
 import com.oracle.svm.core.code.RuntimeMetadataDecoderImpl;
@@ -1322,10 +1323,17 @@ public final class DynamicHub implements AnnotatedElement, java.lang.reflect.Typ
     public native URL getResource(String resourceName);
 
     @Substitute
-    public InputStream getResourceAsStream(String resourceName) {
+    @CallerSensitive
+    @TargetElement(name = "getResourceAsStream", onlyWith = ClassRegistries.IgnoresClassLoader.class)
+    public InputStream getResourceAsStreamSubstitution(String resourceName) {
         String resolvedName = resolveName(resourceName);
         return Resources.createInputStream(companion.module, resolvedName);
     }
+
+    @KeepOriginal
+    @CallerSensitive
+    @TargetElement(name = "getResourceAsStream", onlyWith = ClassRegistries.RespectsClassLoader.class)
+    public native InputStream getResourceAsStreamOriginal(String resourceName);
 
     @KeepOriginal
     private native String resolveName(String resourceName);
