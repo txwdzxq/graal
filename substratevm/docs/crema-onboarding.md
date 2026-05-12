@@ -13,7 +13,8 @@ with `-H:+RuntimeClassLoading`, and that option also configures the main prerequ
 * Enables open type world with `-H:-ClosedTypeWorld`. This handles subclasses and interfaces loaded after image build time.
 * Enables class-loader-aware lookup with `-H:+ClassForNameRespectsClassLoader`. This enables per-class-loader registries
   (see `ClassRegistries.java` and `Target_java_lang_ClassLoader.java`), so the runtime can preserve normal Java class-loader
-  delegation and namespace separation.
+  delegation and namespace separation. It also makes JDK class-loader state run-time initialized where needed, so app-loader
+  resource and class lookup can observe run-time class-path values.
 * Disables predefined-class support (see "Support For Predefined Classes" in `ExperimentalAgentsOptions.md`) with `-H:-SupportPredefinedClasses`.
 
 In addition to the above, `CremaFeature.java` builds on the existing Native Image bytecode interpreter and its metadata universe (`BuildTimeInterpreterUniverse.java`).
