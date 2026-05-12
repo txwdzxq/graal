@@ -57,7 +57,6 @@ import org.graalvm.wasm.WasmInstance;
 import org.graalvm.wasm.WasmModule;
 import org.graalvm.wasm.WasmStore;
 import org.graalvm.wasm.WasmType;
-import org.graalvm.wasm.collection.IntArrayList;
 import org.graalvm.wasm.constants.Bytecode;
 import org.graalvm.wasm.constants.BytecodeBitEncoding;
 import org.graalvm.wasm.constants.SegmentMode;
@@ -433,22 +432,23 @@ public abstract class BytecodeParser {
         }
         final int[] locals;
         if ((flags & BytecodeBitEncoding.CODE_ENTRY_LOCALS_FLAG) != 0) {
-            IntArrayList localsList = new IntArrayList();
-            for (; bytecode[effectiveOffset] != 0; effectiveOffset += 4) {
-                localsList.add(BinaryStreamParser.peek4(bytecode, effectiveOffset));
+            final int localCount = BinaryStreamParser.rawPeekI32(bytecode, effectiveOffset);
+            effectiveOffset += 4;
+            locals = new int[localCount];
+            for (int i = 0; i < localCount; i++, effectiveOffset += 4) {
+                locals[i] = BinaryStreamParser.peek4(bytecode, effectiveOffset);
             }
-            effectiveOffset++;
-            locals = localsList.toArray();
         } else {
             locals = WasmType.VOID_TYPE_ARRAY;
         }
         final int[] results;
         if ((flags & BytecodeBitEncoding.CODE_ENTRY_RESULT_FLAG) != 0) {
-            IntArrayList resultsList = new IntArrayList();
-            for (; bytecode[effectiveOffset] != 0; effectiveOffset += 4) {
-                resultsList.add(BinaryStreamParser.peek4(bytecode, effectiveOffset));
+            final int resultCount = BinaryStreamParser.rawPeekI32(bytecode, effectiveOffset);
+            effectiveOffset += 4;
+            results = new int[resultCount];
+            for (int i = 0; i < resultCount; i++, effectiveOffset += 4) {
+                results[i] = BinaryStreamParser.peek4(bytecode, effectiveOffset);
             }
-            results = resultsList.toArray();
         } else {
             results = WasmType.VOID_TYPE_ARRAY;
         }
