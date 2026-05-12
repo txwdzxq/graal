@@ -237,7 +237,7 @@ public class HostedDynamicLayerInfo extends DynamicImageLayerInfo {
                     /*
                      * First write out next layer number.
                      */
-                    var snapshotWriter = ((SVMImageLayerWriter.ImageSingletonWriterImpl) writer).getSnapshotWriter();
+                    var snapshotWriter = ((SVMImageSingletonWriter) writer).getSnapshotWriter();
                     snapshotWriter.setNextLayerNumber(singleton.nextLayerNumber);
 
                     /*

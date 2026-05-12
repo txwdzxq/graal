@@ -33,8 +33,9 @@ import org.graalvm.collections.EconomicMap;
 
 import com.oracle.svm.core.imagelayer.BuildingInitialLayerPredicate;
 import com.oracle.svm.core.jdk.LayeredModuleSingleton;
+import com.oracle.svm.hosted.imagelayer.SnapshotWriters;
+import com.oracle.svm.hosted.imagelayer.SVMImageSingletonWriter;
 import com.oracle.svm.hosted.imagelayer.SVMImageLayerSingletonLoader;
-import com.oracle.svm.hosted.imagelayer.SVMImageLayerWriter;
 import com.oracle.svm.hosted.snapshot.singleton.ModulePackagesData;
 import com.oracle.svm.hosted.snapshot.util.SnapshotAdapters;
 import com.oracle.svm.hosted.snapshot.util.SnapshotStructList;
@@ -72,7 +73,7 @@ public class HostedLayeredModuleSingleton extends LayeredModuleSingleton {
                 for (var packageEntry : value.entrySet()) {
                     var packageEntryBuilder = packagesBuilder.get(j);
                     packageEntryBuilder.setPackageKey(packageEntry.getKey());
-                    SVMImageLayerWriter.initStringList(packageEntryBuilder::initModules, packageEntry.getValue().stream());
+                    SnapshotWriters.initStringList(packageEntryBuilder::initModules, packageEntry.getValue().stream());
                     j++;
                 }
                 i++;
@@ -85,7 +86,7 @@ public class HostedLayeredModuleSingleton extends LayeredModuleSingleton {
 
                 @Override
                 public LayeredPersistFlags doPersist(ImageSingletonWriter writer, HostedLayeredModuleSingleton singleton) {
-                    SVMImageLayerWriter.ImageSingletonWriterImpl writerImpl = (SVMImageLayerWriter.ImageSingletonWriterImpl) writer;
+                    SVMImageSingletonWriter writerImpl = (SVMImageSingletonWriter) writer;
                     var builder = writerImpl.getSnapshotWriter().initLayeredModule();
                     persistModulePackages(builder.initOpenModulePackages(singleton.moduleOpenPackages.size()), singleton.moduleOpenPackages);
                     persistModulePackages(builder.initExportedModulePackages(singleton.moduleExportedPackages.size()), singleton.moduleExportedPackages);

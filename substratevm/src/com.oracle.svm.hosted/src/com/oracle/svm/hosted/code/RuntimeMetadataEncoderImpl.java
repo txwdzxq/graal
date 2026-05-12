@@ -94,8 +94,9 @@ import com.oracle.svm.core.reflect.target.Target_jdk_internal_reflect_ConstantPo
 import com.oracle.svm.core.util.ByteArrayReader;
 import com.oracle.svm.hosted.image.NativeImageCodeCache.ReflectionMetadataEncoderFactory;
 import com.oracle.svm.hosted.image.NativeImageCodeCache.RuntimeMetadataEncoder;
+import com.oracle.svm.hosted.imagelayer.SnapshotWriters;
+import com.oracle.svm.hosted.imagelayer.SVMImageSingletonWriter;
 import com.oracle.svm.hosted.imagelayer.SVMImageLayerSingletonLoader;
-import com.oracle.svm.hosted.imagelayer.SVMImageLayerWriter;
 import com.oracle.svm.hosted.meta.HostedField;
 import com.oracle.svm.hosted.meta.HostedMetaAccess;
 import com.oracle.svm.hosted.meta.HostedMethod;
@@ -1348,7 +1349,7 @@ public class RuntimeMetadataEncoderImpl implements RuntimeMetadataEncoder {
                     }
                 }
 
-                SVMImageLayerWriter.initInts(elementBuilderSupplier, elements.stream().mapToInt(i -> i));
+                SnapshotWriters.initInts(elementBuilderSupplier, elements.stream().mapToInt(i -> i));
 
                 Bool.Writer elementStatesBuilder = elementStatesBuilderSupplier.apply(elementStates.size());
                 for (int i = 0; i < elementStates.size(); ++i) {
@@ -1362,7 +1363,7 @@ public class RuntimeMetadataEncoderImpl implements RuntimeMetadataEncoder {
 
                     @Override
                     public LayeredPersistFlags doPersist(ImageSingletonWriter writer, LayeredRuntimeMetadataSingleton singleton) {
-                        SVMImageLayerWriter.ImageSingletonWriterImpl writerImpl = (SVMImageLayerWriter.ImageSingletonWriterImpl) writer;
+                        SVMImageSingletonWriter writerImpl = (SVMImageSingletonWriter) writer;
                         var builder = writerImpl.getSnapshotWriter().getLayeredRuntimeMetadataSingleton();
 
                         persistRegisteredElements(singleton.registeredMethods, singleton.previousLayerRegisteredMethods, builder::initMethods, builder::initMethodStates);
