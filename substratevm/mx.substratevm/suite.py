@@ -1203,6 +1203,7 @@ suite = {
             "requires": [
                 "java.compiler",
                 "jdk.jfr",
+                "java.xml",
                 "java.management",
                 "jdk.management.jfr",
                 "java.instrument",
