@@ -38,45 +38,36 @@ import static com.oracle.svm.hosted.xml.XMLParsersRegistration.XMLCryptoTransfor
 import org.graalvm.nativeimage.hosted.FieldValueTransformer;
 
 import com.oracle.svm.core.feature.InternalFeature;
+import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.core.jdk.JNIRegistrationUtil;
 import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
-import com.oracle.svm.shared.option.HostedOptionKey;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.util.ReflectionUtil;
 import com.oracle.svm.util.JVMCIReflectionUtil;
 
-import jdk.graal.compiler.options.Option;
-import jdk.graal.compiler.options.OptionStability;
-import jdk.graal.compiler.options.OptionType;
-
 @AutomaticallyRegisteredFeature
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
 public class JavaxXmlClassAndResourcesLoaderFeature extends JNIRegistrationUtil implements InternalFeature {
-    public static class Options {
-        @Option(help = "Skip build-time java.xml metadata registration because java.xml is loaded from runtime JDK modules.", type = OptionType.Expert, stability = OptionStability.EXPERIMENTAL)//
-        public static final HostedOptionKey<Boolean> RuntimeLoadJavaXml = new HostedOptionKey<>(false);
-    }
-
-    @Override
-    public boolean isInConfiguration(IsInConfigurationAccess access) {
-        if (Options.RuntimeLoadJavaXml.getValue()) {
-            /*
-             * libjvm uses this mode to load java.xml and java.xml.crypto from the runtime JDK
-             * modules instead of preserving their implementation classes and resources in the
-             * libjvm image. The registrations below are correct for ordinary Native Image builds,
-             * but they intentionally make build-time XML implementation metadata reachable. Keep
-             * this Crema-specific opt-out until runtime JDK module loading has a general metadata
-             * policy; see GR-27609.
-             */
-            return false;
-        }
-        return true;
-    }
-
     @Override
     public void beforeAnalysis(BeforeAnalysisAccess access) {
+        if (RuntimeClassLoading.isSupported()) {
+            /*
+             * With runtime class loading, XML implementation classes can be loaded dynamically from
+             * the runtime JDK. Do not make them AOT-reachable just because a public XML factory API
+             * is reachable. If an XML implementation class becomes AOT-reachable independently, add
+             * the same reflection metadata and resources that ordinary Native Image builds use.
+             */
+            registerImplementationClassReachabilityHandlers(access);
+            registerJdkCatalogInitializationOnReachability(access);
+        } else {
+            registerApiReachabilityHandlers(access);
+            initializeJdkCatalog();
+        }
+    }
+
+    private static void registerApiReachabilityHandlers(BeforeAnalysisAccess access) {
         access.registerReachabilityHandler(new SAXParserClasses()::registerConfigs,
                         method(access, "javax.xml.parsers.SAXParserFactory", "newInstance"));
 
@@ -104,8 +95,32 @@ public class JavaxXmlClassAndResourcesLoaderFeature extends JNIRegistrationUtil 
 
         access.registerReachabilityHandler(new BuiltinSchemaGrammarClasses()::registerConfigs,
                         constructor(access, "com.sun.org.apache.xerces.internal.impl.xs.SchemaGrammar$BuiltinSchemaGrammar", int.class, short.class));
+    }
 
-        initializeJdkCatalog();
+    private static void registerImplementationClassReachabilityHandlers(BeforeAnalysisAccess access) {
+        registerOnImplementationClassReachable(access, new SAXParserClasses());
+        registerOnImplementationClassReachable(access, new DOMParserClasses());
+        registerOnImplementationClassReachable(access, new StAXParserClasses());
+        registerOnImplementationClassReachable(access, new TransformerClassesAndResources());
+        registerOnImplementationClassReachable(access, new DOMImplementationRegistryClasses());
+        registerOnImplementationClassReachable(access, new DatatypeFactoryClasses());
+        registerOnImplementationClassReachable(access, new SchemaDVFactoryClasses());
+        registerOnImplementationClassReachable(access, new BuiltinSchemaGrammarClasses());
+
+        // TransformService of java.xml.crypto module
+        optionalMethod(access, "com.sun.org.apache.xml.internal.security.utils.I18n", "init", String.class, String.class)
+                        .ifPresent(method -> access.registerReachabilityHandler(new XMLCryptoTransformServiceClassesAndResources()::registerConfigs, method));
+    }
+
+    private static void registerOnImplementationClassReachable(BeforeAnalysisAccess access, XMLParsersRegistration registration) {
+        for (String className : registration.xmlParserClasses()) {
+            access.registerReachabilityHandler(a -> registration.registerConfig(a, className), type(access, className));
+        }
+    }
+
+    private static void registerJdkCatalogInitializationOnReachability(BeforeAnalysisAccess access) {
+        optionalType(access, "jdk.xml.internal.JdkXmlConfig$CatalogHolder")
+                        .ifPresent(catalogHolder -> access.registerReachabilityHandler(_ -> initializeJdkCatalog(), catalogHolder));
     }
 
     /**
