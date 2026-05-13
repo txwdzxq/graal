@@ -1160,7 +1160,7 @@ def _check_latest_jvmci_version():
     ``common.json`` file and issues a warning if not.
     """
     _ensure_jvmci_version_checked(jdk)
-    jvmci_re = re.compile(r'(?P<edition>ce|ee)-(?P<jdk_version>.+)-jvmci(?:-(?P<release_name>.+))?-b(?P<jvmci_build>\d+)')
+    jvmci_re = re.compile(r'(?:ce|ee)-(?P<jdk_version>.+)-jvmci(?:-(?P<release_name>.+))?-b(?P<jvmci_build>\d+)')
     common_path = os.path.normpath(join(_suite.dir, '..', 'common.json'))
 
     if _jdk_jvmci_version is None:
@@ -1171,17 +1171,14 @@ def _check_latest_jvmci_version():
         with open(common_path, encoding='utf-8') as common_file:
             common_cfg = json.load(common_file)
 
-        latest_by_family = {}
-        latest_source_by_family = {}
+        latest = 'not found'
         for distribution in common_cfg['jdks']:
             version = common_cfg['jdks'][distribution].get('version', None)
             if version and '-jvmci-' in version:
                 match = jvmci_re.match(version)
                 if not match:
                     mx.abort(f'Cannot parse version {version}')
-                jdk_version = match.group('jdk_version')
-                release_name = match.group('release_name')
-                jvmci_build = match.group('jvmci_build')
+                (jdk_version, release_name, jvmci_build) = match.groups(default=None)
                 if _jdk_jvmci_version.jvmci_build == 0:
                     # jvmci_build == 0 indicates an OpenJDK version has been specified in JVMCIVersionCheck.java.
                     # The JDK does not know the jvmci_build number that might have been specified in common.json,
@@ -1190,43 +1187,15 @@ def _check_latest_jvmci_version():
                 current = JVMCIVersionCheckVersion(JavaLangRuntimeVersion(jdk_version), release_name, int(jvmci_build))
                 if current.jdk_version.feature() == _jdk_jvmci_version.jdk_version.feature():
                     # only compare the same major versions
-                    if distribution.startswith('labsjdk-ce-latest'):
-                        family = 'labsjdk-ce-latest'
-                    elif distribution.startswith('labsjdk-ee-latest'):
-                        family = 'labsjdk-ee-latest'
-                    else:
-                        family = 'other'
-                    if family not in latest_by_family:
-                        latest_by_family[family] = current
-                        latest_source_by_family[family] = distribution
-                    elif latest_by_family[family] != current:
-                        # JVMCI JDK aliases in the same family are expected to have
-                        # the same JVMCI version.
+                    if latest == 'not found':
+                        latest = current
+                    elif latest != current:
+                        # All JVMCI JDKs in common.json with the same major version
+                        # are expected to have the same JVMCI version.
+                        # If they don't then the repo is in some transitionary state
+                        # (e.g. making a JVMCI release) so skip the check.
                         return False, distribution
-
-        if not latest_by_family:
-            return False, 'not found'
-
-        other_version = latest_by_family.get('other')
-        if other_version is not None:
-            # Keep strict behavior for non-latest entries: only CE/EE latest aliases may diverge.
-            for family in ('labsjdk-ce-latest', 'labsjdk-ee-latest'):
-                if family in latest_by_family and latest_by_family[family] != other_version:
-                    return False, latest_source_by_family[family]
-
-        candidates = list(latest_by_family.values())
-        if _jdk_jvmci_version in candidates:
-            # Allow CE and EE latest aliases to intentionally point to different JVMCI builds.
-            return True, _jdk_jvmci_version
-
-        latest = candidates[0]
-        for current in candidates[1:]:
-            try:
-                latest = max(latest, current)
-            except TypeError:
-                # Keep one candidate for reporting; compatibility is handled later.
-                pass
-        return True, latest
+        return not isinstance(latest, str), latest
 
     version_check_setting = os.environ.get('JVMCI_VERSION_CHECK', None)
 
