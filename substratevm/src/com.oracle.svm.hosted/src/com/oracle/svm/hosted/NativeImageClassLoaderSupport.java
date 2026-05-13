@@ -142,6 +142,11 @@ public final class NativeImageClassLoaderSupport {
     public final ModuleFinder upgradeAndSystemModuleFinder;
     public final ModuleLayer moduleLayerForImageBuild;
     public final ModuleFinder modulepathModuleFinder;
+    /**
+     * System modules that are transitively read by real application modules on the image module
+     * path. These modules are not necessarily explicit image roots, but runtime module metadata and
+     * runtime class loading can still need them in the image.
+     */
     public final Set<String> imageModulePathRequiredSystemModules;
 
     public final SubstrateAnnotationExtractor annotationExtractor;
@@ -550,6 +555,14 @@ public final class NativeImageClassLoaderSupport {
         return imagemp;
     }
 
+    /**
+     * Computes the system modules that are transitively read by application modules passed via
+     * {@code -imagemp}.
+     *
+     * @param configuration module graph resolved from the image module path
+     * @param applicationModuleNames module names discovered directly from the image module path
+     * @return names of system modules read transitively by application modules
+     */
     private Set<String> computeImageModulePathRequiredSystemModules(Configuration configuration, Set<String> applicationModuleNames) {
         Set<ResolvedModule> applicationModules = applicationModuleNames.stream()
                         .map(configuration::findModule)
@@ -563,6 +576,9 @@ public final class NativeImageClassLoaderSupport {
         return requiredSystemModules;
     }
 
+    /**
+     * Returns the transitive closure of {@link ResolvedModule#reads()} for {@code modules}.
+     */
     private static Set<ResolvedModule> transitiveReads(Collection<ResolvedModule> modules) {
         Set<ResolvedModule> reads = new LinkedHashSet<>();
         Deque<ResolvedModule> worklist = modules.stream()
@@ -577,6 +593,9 @@ public final class NativeImageClassLoaderSupport {
         return Set.copyOf(reads);
     }
 
+    /**
+     * Tests whether {@code module} has a {@code file:} location accepted by {@code matches}.
+     */
     private static boolean hasLocation(ResolvedModule module, Predicate<Path> matches) {
         return module.reference().location().stream()
                         .filter(uri -> "file".equalsIgnoreCase(uri.getScheme()))
