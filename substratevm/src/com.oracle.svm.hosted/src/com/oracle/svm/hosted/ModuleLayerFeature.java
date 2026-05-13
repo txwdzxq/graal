@@ -511,7 +511,7 @@ public class ModuleLayerFeature implements InternalFeature {
             finder = moduleLayerFeatureUtils.invokeModuleBootstrapLimitFinder(finder, limitModules, roots);
         }
 
-        if (mainModule == null || addAllDefaultModules) {
+        if (addAllDefaultModules) {
             roots.addAll(moduleLayerFeatureUtils.invokeDefaultRootsComputeMethod(systemModuleFinder, finder));
         }
 
