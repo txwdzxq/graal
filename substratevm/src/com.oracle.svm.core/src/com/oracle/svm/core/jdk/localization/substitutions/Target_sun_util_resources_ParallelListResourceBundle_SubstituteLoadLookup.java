@@ -32,10 +32,8 @@ import java.util.concurrent.atomic.AtomicMarkableReference;
 import org.graalvm.nativeimage.ImageSingletons;
 
 import com.oracle.svm.core.annotate.Alias;
-import com.oracle.svm.core.annotate.KeepOriginal;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
-import com.oracle.svm.core.annotate.TargetElement;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.core.jdk.localization.LocalizationSupport;
@@ -54,8 +52,6 @@ final class Target_sun_util_resources_ParallelListResourceBundle_SubstituteLoadL
     protected native Object[][] getContents();
 
     @Alias
-    @KeepOriginal
-    @TargetElement(name = "setParallelContents")
     private native void setParallelContents(OpenListResourceBundle rb);
 
     @Substitute

@@ -62,6 +62,14 @@ public class JavaxXmlClassAndResourcesLoaderFeature extends JNIRegistrationUtil 
     @Override
     public void beforeAnalysis(BeforeAnalysisAccess access) {
         if (Options.RuntimeLoadJavaXml.getValue()) {
+            /*
+             * libjvm uses this mode to load java.xml and java.xml.crypto from the runtime JDK
+             * modules instead of preserving their implementation classes and resources in the
+             * libjvm image. The registrations below are correct for ordinary Native Image builds,
+             * but they intentionally make build-time XML implementation metadata reachable. Keep
+             * this Crema-specific opt-out until runtime JDK module loading has a general metadata
+             * policy; see GR-27609.
+             */
             return;
         }
 

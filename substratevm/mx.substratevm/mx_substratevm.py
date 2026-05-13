@@ -2212,6 +2212,7 @@ lib_jvm_preserved_packages = [
     'jdk.internal.logger',
     'jdk.internal.misc',
     'sun.invoke.util',
+    'sun.security.util',
 ]
 
 mx_sdk_vm.register_graalvm_component(mx_sdk_vm.GraalVmJreComponent(
