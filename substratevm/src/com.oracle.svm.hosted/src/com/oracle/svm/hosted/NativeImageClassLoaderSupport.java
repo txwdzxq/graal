@@ -275,7 +275,7 @@ public final class NativeImageClassLoaderSupport {
 
         ModuleLayer moduleLayer = ModuleLayer.defineModules(configuration, List.of(ModuleLayer.boot()), _ -> classLoader).layer();
         adjustBootLayerQualifiedExports(moduleLayer);
-        imageModulePathRequiredSystemModules = computeImageModulePathRequiredSystemModules(configuration);
+        imageModulePathRequiredSystemModules = computeImageModulePathRequiredSystemModules(configuration, moduleNames);
         moduleLayerForImageBuild = moduleLayer;
         allLayers(moduleLayerForImageBuild).stream()
                         .flatMap(layer -> layer.modules().stream())
@@ -550,9 +550,11 @@ public final class NativeImageClassLoaderSupport {
         return imagemp;
     }
 
-    private Set<String> computeImageModulePathRequiredSystemModules(Configuration configuration) {
-        Set<ResolvedModule> applicationModules = configuration.modules().stream()
-                        .filter(this::isApplicationModule)
+    private Set<String> computeImageModulePathRequiredSystemModules(Configuration configuration, Set<String> applicationModuleNames) {
+        Set<ResolvedModule> applicationModules = applicationModuleNames.stream()
+                        .map(configuration::findModule)
+                        .flatMap(Optional::stream)
+                        .filter(module -> !hasLocation(module, imageProvidedJars::contains))
                         .collect(Collectors.toSet());
         Set<String> requiredSystemModules = transitiveReads(applicationModules).stream()
                         .map(ResolvedModule::name)
@@ -573,10 +575,6 @@ public final class NativeImageClassLoaderSupport {
             }
         }
         return Set.copyOf(reads);
-    }
-
-    private boolean isApplicationModule(ResolvedModule module) {
-        return !hasLocation(module, imageProvidedJars::contains) && hasLocation(module, imagemp::contains);
     }
 
     private static boolean hasLocation(ResolvedModule module, Predicate<Path> matches) {
