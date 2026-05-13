@@ -37,21 +37,34 @@ import static com.oracle.svm.hosted.xml.XMLParsersRegistration.XMLCryptoTransfor
 
 import org.graalvm.nativeimage.hosted.FieldValueTransformer;
 
-import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
 import com.oracle.svm.core.feature.InternalFeature;
 import com.oracle.svm.core.jdk.JNIRegistrationUtil;
+import com.oracle.svm.shared.feature.AutomaticallyRegisteredFeature;
+import com.oracle.svm.shared.option.HostedOptionKey;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.BuildtimeAccessOnly;
 import com.oracle.svm.shared.singletons.traits.BuiltinTraits.NoLayeredCallbacks;
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
-import com.oracle.svm.util.JVMCIReflectionUtil;
 import com.oracle.svm.shared.util.ReflectionUtil;
+import com.oracle.svm.util.JVMCIReflectionUtil;
+
+import jdk.graal.compiler.options.Option;
+import jdk.graal.compiler.options.OptionStability;
+import jdk.graal.compiler.options.OptionType;
 
 @AutomaticallyRegisteredFeature
 @SingletonTraits(access = BuildtimeAccessOnly.class, layeredCallbacks = NoLayeredCallbacks.class)
 public class JavaxXmlClassAndResourcesLoaderFeature extends JNIRegistrationUtil implements InternalFeature {
+    public static class Options {
+        @Option(help = "Skip build-time java.xml metadata registration because java.xml is loaded from runtime JDK modules.", type = OptionType.Expert, stability = OptionStability.EXPERIMENTAL)//
+        public static final HostedOptionKey<Boolean> RuntimeLoadJavaXml = new HostedOptionKey<>(false);
+    }
 
     @Override
     public void beforeAnalysis(BeforeAnalysisAccess access) {
+        if (Options.RuntimeLoadJavaXml.getValue()) {
+            return;
+        }
+
         access.registerReachabilityHandler(new SAXParserClasses()::registerConfigs,
                         method(access, "javax.xml.parsers.SAXParserFactory", "newInstance"));
 
@@ -96,4 +109,5 @@ public class JavaxXmlClassAndResourcesLoaderFeature extends JNIRegistrationUtil 
             ReflectionUtil.readStaticField(xmlSecurityManager, "JDKCATALOG");
         }
     }
+
 }
