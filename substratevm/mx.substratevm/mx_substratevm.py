@@ -2471,6 +2471,10 @@ def hellomodule(args):
         runtime_class_loading = any('RuntimeClassLoading' in arg for arg in args)
         class_loader_lookup = runtime_class_loading or any('ClassForNameRespectsClassLoader' in arg for arg in args)
         moduletest_build_args = list(moduletest_run_args)
+        if runtime_class_loading:
+            # Assert that QName is loaded from the runtime JRT filesystem by
+            # runtime-loaded code, not made AOT-reachable in the image build.
+            moduletest_build_args = svm_experimental_options(['-H:AbortOnTypeReachable=javax.xml.namespace.QName']) + moduletest_build_args
         built_image = native_image(
             ['--verbose'] + svm_experimental_options(['-H:Path=' + build_dir]) + args + moduletest_build_args
         )
