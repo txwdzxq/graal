@@ -60,7 +60,7 @@ public class JavaxXmlClassAndResourcesLoaderFeature extends JNIRegistrationUtil 
     }
 
     @Override
-    public void beforeAnalysis(BeforeAnalysisAccess access) {
+    public boolean isInConfiguration(IsInConfigurationAccess access) {
         if (Options.RuntimeLoadJavaXml.getValue()) {
             /*
              * libjvm uses this mode to load java.xml and java.xml.crypto from the runtime JDK
@@ -70,9 +70,13 @@ public class JavaxXmlClassAndResourcesLoaderFeature extends JNIRegistrationUtil 
              * this Crema-specific opt-out until runtime JDK module loading has a general metadata
              * policy; see GR-27609.
              */
-            return;
+            return false;
         }
+        return true;
+    }
 
+    @Override
+    public void beforeAnalysis(BeforeAnalysisAccess access) {
         access.registerReachabilityHandler(new SAXParserClasses()::registerConfigs,
                         method(access, "javax.xml.parsers.SAXParserFactory", "newInstance"));
 
