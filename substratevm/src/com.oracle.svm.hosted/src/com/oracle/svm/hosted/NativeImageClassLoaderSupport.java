@@ -1005,8 +1005,12 @@ public final class NativeImageClassLoaderSupport {
                 for (String moduleName : imageModulePathRequiredSystemModules) {
                     /*
                      * Application module-path entries can require system modules that are already
-                     * visible to the builder VM but still need to be loaded and linked for runtime
-                     * class loading from the image.
+                     * visible to the builder VM. ClassRegistries snapshots BootLoader.packages()
+                     * into ClassRegistries.bootPackageToModule, which BootClassRegistry uses to map
+                     * a runtime-loaded boot class' package to its jimage module, e.g.
+                     * javax.xml.namespace.QName to java.xml. Load and link these modules so their
+                     * packages are present in that map, without registering their classes as
+                     * analysis types.
                      */
                     modulesRequiringInitModule.putIfAbsent(moduleName, InitModuleAction.LoadLink);
                 }
