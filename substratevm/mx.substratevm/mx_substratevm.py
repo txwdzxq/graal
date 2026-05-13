@@ -2471,11 +2471,6 @@ def hellomodule(args):
         runtime_class_loading = any('RuntimeClassLoading' in arg for arg in args)
         class_loader_lookup = runtime_class_loading or any('ClassForNameRespectsClassLoader' in arg for arg in args)
         moduletest_build_args = list(moduletest_run_args)
-        if runtime_class_loading:
-            # GR-75374: This should not be needed: the "requires java.xml" in
-            # substratevm/src/native-image-module-tests/hello.lib/src/main/java/module-info.java
-            # should be enough to make java.xml available at image build time. Fix this.
-            moduletest_build_args.insert(0, '--add-modules=java.xml')
         built_image = native_image(
             ['--verbose'] + svm_experimental_options(['-H:Path=' + build_dir]) + args + moduletest_build_args
         )

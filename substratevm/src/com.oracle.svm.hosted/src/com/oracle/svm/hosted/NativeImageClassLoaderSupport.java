@@ -142,6 +142,7 @@ public final class NativeImageClassLoaderSupport {
     public final ModuleFinder upgradeAndSystemModuleFinder;
     public final ModuleLayer moduleLayerForImageBuild;
     public final ModuleFinder modulepathModuleFinder;
+    public final Set<String> imageModulePathRequiredSystemModules;
 
     public final SubstrateAnnotationExtractor annotationExtractor;
 
@@ -274,6 +275,7 @@ public final class NativeImageClassLoaderSupport {
 
         ModuleLayer moduleLayer = ModuleLayer.defineModules(configuration, List.of(ModuleLayer.boot()), _ -> classLoader).layer();
         adjustBootLayerQualifiedExports(moduleLayer);
+        imageModulePathRequiredSystemModules = computeImageModulePathRequiredSystemModules(configuration);
         moduleLayerForImageBuild = moduleLayer;
         allLayers(moduleLayerForImageBuild).stream()
                         .flatMap(layer -> layer.modules().stream())
@@ -546,6 +548,42 @@ public final class NativeImageClassLoaderSupport {
 
     protected List<Path> applicationModulePath() {
         return imagemp;
+    }
+
+    private Set<String> computeImageModulePathRequiredSystemModules(Configuration configuration) {
+        Set<ResolvedModule> applicationModules = configuration.modules().stream()
+                        .filter(this::isApplicationModule)
+                        .collect(Collectors.toSet());
+        Set<String> requiredSystemModules = transitiveReads(applicationModules).stream()
+                        .map(ResolvedModule::name)
+                        .filter(moduleName -> upgradeAndSystemModuleFinder.find(moduleName).isPresent())
+                        .collect(Collectors.toUnmodifiableSet());
+        return requiredSystemModules;
+    }
+
+    private static Set<ResolvedModule> transitiveReads(Collection<ResolvedModule> modules) {
+        Set<ResolvedModule> reads = new LinkedHashSet<>();
+        Deque<ResolvedModule> worklist = modules.stream()
+                        .flatMap(module -> module.reads().stream())
+                        .collect(Collectors.toCollection(ArrayDeque::new));
+        while (!worklist.isEmpty()) {
+            ResolvedModule module = worklist.removeFirst();
+            if (reads.add(module)) {
+                module.reads().forEach(worklist::add);
+            }
+        }
+        return Set.copyOf(reads);
+    }
+
+    private boolean isApplicationModule(ResolvedModule module) {
+        return !hasLocation(module, imageProvidedJars::contains) && hasLocation(module, imagemp::contains);
+    }
+
+    private static boolean hasLocation(ResolvedModule module, Predicate<Path> matches) {
+        return module.reference().location().stream()
+                        .filter(uri -> "file".equalsIgnoreCase(uri.getScheme()))
+                        .map(Path::of)
+                        .anyMatch(matches);
     }
 
     public Optional<Module> findModule(String moduleName) {
@@ -964,6 +1002,14 @@ public final class NativeImageClassLoaderSupport {
                                 .distinct().forEach(mn -> modulesRequiringInitModule.putIfAbsent(mn, InitModuleAction.LoadLinkAndRegisterTypes));
 
                 Set<String> explicitlyAddedModules = HostedModuleSupport.parseModuleSetModifierProperty(HostedModuleSupport.PROPERTY_IMAGE_EXPLICITLY_ADDED_MODULES);
+                for (String moduleName : imageModulePathRequiredSystemModules) {
+                    /*
+                     * Application module-path entries can require system modules that are already
+                     * visible to the builder VM but still need to be loaded and linked for runtime
+                     * class loading from the image.
+                     */
+                    modulesRequiringInitModule.putIfAbsent(moduleName, InitModuleAction.LoadLink);
+                }
 
                 for (ModuleReference moduleReference : upgradeAndSystemModuleFinder.findAll()) {
                     String moduleName = moduleReference.descriptor().name();
