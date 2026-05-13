@@ -25,6 +25,8 @@
 package com.oracle.svm.core.jdk;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.lang.module.Configuration;
 import java.lang.module.FindException;
 import java.lang.module.ModuleDescriptor;
@@ -34,7 +36,11 @@ import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
 import java.lang.module.ResolutionException;
 import java.lang.module.ResolvedModule;
+import java.net.URI;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.Provider;
+import java.security.Security;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -42,6 +48,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Properties;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -85,6 +92,7 @@ final class RuntimeBootModuleLayerFeature implements InternalFeature {
 final class RuntimeBootModuleLayerStartupHook implements RuntimeSupport.Hook {
     @Override
     public void execute(boolean isFirstIsolate) {
+        RuntimeBootModuleLayerSupport.applyExtraSecurityProperties();
         RuntimeBootModuleLayerSupport.initialize();
     }
 }
@@ -107,6 +115,8 @@ public final class RuntimeBootModuleLayerSupport {
     public static final String ADD_EXPORTS_OPTION = "--add-exports";
     public static final String ADD_OPENS_OPTION = "--add-opens";
     public static final String ENABLE_NATIVE_ACCESS_OPTION = "--enable-native-access";
+    private static final String OVERRIDE_SECURITY_PROPERTIES_FILE = "security.overridePropertiesFile";
+    private static final String EXTRA_SECURITY_PROPERTIES = "java.security.properties";
 
     /// Used by `ModuleBootstrap#boot2` and `ModulePathValidator#scanAllModules`.
     public static final String UPGRADE_MODULE_PATH_PROPERTY = "jdk.module.upgrade.path";
@@ -136,6 +146,55 @@ public final class RuntimeBootModuleLayerSupport {
     public static final String ALL_SYSTEM = "ALL-SYSTEM";
 
     private RuntimeBootModuleLayerSupport() {
+    }
+
+    static void applyExtraSecurityProperties() {
+        /*
+         * libjvm currently snapshots java.security.Security properties at image build time. Replay
+         * runtime security property file overrides here before runtime-loaded modules such as
+         * java.xml.crypto initialize their security policy classes.
+         */
+        if (!"true".equalsIgnoreCase(Security.getProperty(OVERRIDE_SECURITY_PROPERTIES_FILE))) {
+            return;
+        }
+        String propertiesPath = System.getProperty(EXTRA_SECURITY_PROPERTIES);
+        if (propertiesPath == null || propertiesPath.isEmpty()) {
+            return;
+        }
+        if (propertiesPath.startsWith("=")) {
+            throw VMError.unsupportedFeature("libjvm does not support full replacement of java.security properties at runtime. Use -Djava.security.properties=<file> to append properties.");
+        }
+        try (InputStream stream = openExtraSecurityProperties(propertiesPath)) {
+            Properties extraProperties = new Properties();
+            extraProperties.load(stream);
+            applySecurityProperties(extraProperties);
+        } catch (IOException | IllegalArgumentException e) {
+            // Match the JDK's behavior: ignore an unreadable extra security properties file.
+        }
+    }
+
+    private static void applySecurityProperties(Properties properties) {
+        synchronized (Security.class) {
+            properties.stringPropertyNames().forEach(name -> Security.setProperty(name, properties.getProperty(name)));
+        }
+    }
+
+    private static InputStream openExtraSecurityProperties(String propertiesPath) throws IOException {
+        try {
+            Path path = Path.of(propertiesPath);
+            if (Files.exists(path)) {
+                return Files.newInputStream(path);
+            }
+        } catch (IllegalArgumentException ignored) {
+        }
+        URI uri = URI.create(propertiesPath);
+        if ("file".equalsIgnoreCase(uri.getScheme())) {
+            return Files.newInputStream(Path.of(uri));
+        } else if (uri.getScheme() == null) {
+            throw new IOException("Security properties path does not exist: " + propertiesPath);
+        } else {
+            return uri.toURL().openStream();
+        }
     }
 
     /// Resolves runtime module launcher options and folds any newly resolved modules into the
@@ -202,6 +261,7 @@ public final class RuntimeBootModuleLayerSupport {
         Target_jdk_internal_module_ModuleBootstrap.addExtraExportsAndOpens(bootLayer);
         ModuleBootstrapSubstitutionsSupport.mergeRuntimeEnableNativeAccessModules();
         Target_jdk_internal_module_ModuleBootstrap.addEnableNativeAccess(bootLayer);
+        installRuntimeLoadedSecurityProviders();
     }
 
     /// Resolves the runtime root modules against the existing boot configuration.
@@ -501,6 +561,26 @@ public final class RuntimeBootModuleLayerSupport {
         // Filter out modules already present in the build-time boot layer
         roots.removeIf(moduleName -> originalBootConfiguration.findModule(moduleName).isPresent());
         return roots;
+    }
+
+    private static void installRuntimeLoadedSecurityProviders() {
+        if (Security.getProvider("XMLDSig") != null) {
+            return;
+        }
+        try {
+            Module javaXmlCryptoModule = ModuleLayer.boot().findModule("java.xml.crypto").orElse(null);
+            if (javaXmlCryptoModule == null) {
+                return;
+            }
+            Class<?> providerClass = Class.forName(javaXmlCryptoModule, "org.jcp.xml.dsig.internal.dom.XMLDSigRI");
+            if (providerClass == null) {
+                return;
+            }
+            javaLangAccess().addExports(javaXmlCryptoModule, "org.jcp.xml.dsig.internal.dom", RuntimeBootModuleLayerSupport.class.getModule());
+            Security.addProvider((Provider) providerClass.getDeclaredConstructor().newInstance());
+        } catch (ReflectiveOperationException | LinkageError e) {
+            /* If java.xml.crypto is unavailable at runtime, ordinary provider lookup will fail. */
+        }
     }
 
     /// Creates the system-module finder used at runtime, with upgrade-path modules searched before

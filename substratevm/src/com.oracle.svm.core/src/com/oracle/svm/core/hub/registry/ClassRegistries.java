@@ -72,7 +72,6 @@ import com.oracle.svm.shared.singletons.traits.SingletonLayeredInstallationKind.
 import com.oracle.svm.shared.singletons.traits.SingletonTraits;
 import com.oracle.svm.shared.util.SubstrateUtil;
 import com.oracle.svm.shared.util.VMError;
-import com.oracle.svm.util.JVMCIReflectionUtil;
 
 import jdk.graal.compiler.api.replacements.Fold;
 import jdk.graal.compiler.options.Option;
@@ -158,7 +157,22 @@ public final class ClassRegistries implements ParsingContext {
 
     private static EconomicMap<String, String> computeBootPackageToModuleMap() {
         EconomicMap<String, String> bootPackageToModule = EconomicMap.create();
-        JVMCIReflectionUtil.bootLoaderPackages().forEach(p -> bootPackageToModule.put(p.getName(), p.module().getName()));
+        /*
+         * Restrict the map to modules that are actually defined to the runtime boot class loader.
+         * Platform-loader modules can also be present in the boot layer, but adding their packages
+         * here would make Class.forName(..., null) resolve classes that HotSpot does not expose
+         * through the bootstrap loader. Boot-loader modules such as java.xml can still be resolved
+         * from the runtime jimage when runtime class loading is enabled.
+         */
+        for (Module module : ModuleLayer.boot().modules()) {
+            String moduleName = module.getName();
+            if (moduleName == null || module.getClassLoader() != null) {
+                continue;
+            }
+            for (String packageName : module.getPackages()) {
+                bootPackageToModule.put(packageName, moduleName);
+            }
+        }
         return bootPackageToModule;
     }
 
