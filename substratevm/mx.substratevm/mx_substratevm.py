@@ -2159,10 +2159,10 @@ libsvmjdwp = mx_sdk_vm.GraalVmJreComponent(
 
 mx_sdk_vm.register_graalvm_component(libsvmjdwp)
 
-# At the moment this list is mostly driven by tests and use-cases.
-# Packages get added as needed based on errors such as
-# "Trying to dispatch to compiled code for AOT method ..."
-# or "Cannot load undefined field: ..."
+# Only add packages here to work around the fact that libjvm currently splits AOT and dynamically
+# loaded JDK code at class granularity, not at method or field granularity. Packages get added as
+# needed based on partial-class errors such as "Trying to dispatch to compiled code for AOT method
+# ..." or "Cannot load undefined field: ...". This list must not be used for optimization.
 lib_jvm_preserved_packages = [
     'java.io',
     'java.lang',
@@ -2188,6 +2188,7 @@ lib_jvm_preserved_packages = [
     'java.security',
     'java.security.cert',
     'java.security.spec',
+    'java.text',
     'java.time',
     'java.time.chrono',
     'java.time.format',
@@ -2198,15 +2199,20 @@ lib_jvm_preserved_packages = [
     'java.util.concurrent.locks',
     'java.util.function',
     'java.util.jar',
+    'java.util.logging',
     'java.util.regex',
     'java.util.stream',
     'java.util.zip',
     'javax.net',
+    'javax.crypto.spec',
+    'javax.security.auth.x500',
     'jdk.internal.access',
     'jdk.internal.classfile.impl',
     'jdk.internal.constant',
+    'jdk.internal.logger',
     'jdk.internal.misc',
     'sun.invoke.util',
+    'sun.security.util',
 ]
 
 mx_sdk_vm.register_graalvm_component(mx_sdk_vm.GraalVmJreComponent(
