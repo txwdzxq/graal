@@ -32,14 +32,14 @@ import java.util.concurrent.atomic.AtomicMarkableReference;
 import org.graalvm.nativeimage.ImageSingletons;
 
 import com.oracle.svm.core.annotate.Alias;
+import com.oracle.svm.core.annotate.KeepOriginal;
 import com.oracle.svm.core.annotate.Substitute;
 import com.oracle.svm.core.annotate.TargetClass;
+import com.oracle.svm.core.annotate.TargetElement;
 import com.oracle.svm.core.hub.DynamicHub;
 import com.oracle.svm.core.hub.RuntimeClassLoading;
 import com.oracle.svm.core.jdk.localization.LocalizationSupport;
 import com.oracle.svm.core.jdk.localization.substitutions.modes.SubstituteLoadLookup;
-import com.oracle.svm.shared.util.SubstrateUtil;
-import com.oracle.svm.shared.util.VMError;
 
 import sun.util.resources.OpenListResourceBundle;
 
@@ -53,15 +53,10 @@ final class Target_sun_util_resources_ParallelListResourceBundle_SubstituteLoadL
     @Alias
     protected native Object[][] getContents();
 
-    @Substitute
-    private void setParallelContents(OpenListResourceBundle rb) {
-        if (RuntimeClassLoading.isSupported() && DynamicHub.fromClass(getClass()).isRuntimeLoaded()) {
-            Object[][] contents = rb == null ? null : ParallelListResourceBundleSupport.getContentsReflectively(rb);
-            parallelContents.compareAndSet(null, contents, false, rb == null);
-            return;
-        }
-        throw VMError.unsupportedFeature("Resource bundle lookup must be loaded during native image generation: " + getClass().getTypeName());
-    }
+    @Alias
+    @KeepOriginal
+    @TargetElement(name = "setParallelContents")
+    private native void setParallelContents(OpenListResourceBundle rb);
 
     @Substitute
     private boolean areParallelContentsComplete() {
@@ -131,7 +126,4 @@ final class ParallelListResourceBundleSupport {
         }
     }
 
-    static Object[][] getContentsReflectively(OpenListResourceBundle rb) {
-        return SubstrateUtil.cast(rb, Target_sun_util_resources_OpenListResourceBundle_SubstituteLoadLookup.class).getContents();
-    }
 }
