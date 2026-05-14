@@ -40,36 +40,70 @@
  */
 package com.oracle.truffle.runtime.jfr.impl;
 
-import jdk.jfr.BooleanFlag;
+import com.oracle.truffle.runtime.jfr.CompilationDequeuedEvent;
+
 import jdk.jfr.Category;
 import jdk.jfr.Description;
+import jdk.jfr.Enabled;
 import jdk.jfr.Label;
 import jdk.jfr.Name;
 import jdk.jfr.StackTrace;
+import jdk.jfr.Unsigned;
 
-@Name("jdk.graal.compiler.truffle.CompilationFailure")
+@Name("jdk.graal.compiler.truffle.CompilationDequeued")
 @Category("Truffle Compiler")
-@Label("Compilation Failure")
-@Description("Truffe Compilation Failures")
+@Label("Compilation Dequeued")
+@Description("Truffle Compilation Dequeued")
+@Enabled(false)
 @StackTrace(false)
-class CompilationFailureEventImpl extends RootFunctionEventImpl {
+class CompilationDequeuedEventImpl extends RootFunctionEventImpl implements CompilationDequeuedEvent {
 
-    @Label("Permanent Failure") @Description("Permanent Failure") @BooleanFlag public boolean permanentFailure;
+    @Label("Tier") @Description("The Tier of the Truffle Compiler") public int tier;
+    @Label("Count") @Description("Compilation Count") @Unsigned public int count;
+    @Label("Threshold") @Description("Compilation Threshold") @Unsigned public int threshold;
+    @Label("Queue Size") @Description("Compilation Queue Size") @Unsigned public int queueSize;
+    @Label("Queue Change") @Description("Compilation Queue Size Change") public int queueChange;
+    @Label("Queue Load") @Description("Compilation Queue Load") public double queueLoad;
+    @Label("Queue Time") @Description("Compilation Queue Time in Microseconds") @Unsigned public long queueTime;
+    @Label("Reason") @Description("Dequeue Reason") public String reason;
 
-    @Label("Failure Reason") @Description("Failure Reason") public String failureReason;
-
-    @Label("Tier") @Description("The Tier of the Truffle Compiler") public int truffleTier;
-
-    @Label("Exception Stack Trace") @Description("Exception Stack Trace") public String stackTrace;
-
-    CompilationFailureEventImpl(long engineId, long id, String source, String sourceHash, String language, String rootFunction, int astSize) {
-        super(engineId, id, source, sourceHash, language, rootFunction, astSize);
+    @Override
+    public void setTier(int tier) {
+        this.tier = tier;
     }
 
-    void setFailureData(int tier, boolean permanent, String reason, String stackTrace) {
-        truffleTier = tier;
-        permanentFailure = permanent;
-        failureReason = reason;
-        this.stackTrace = stackTrace;
+    @Override
+    public void setCompilationCount(int count) {
+        this.count = count;
+    }
+
+    @Override
+    public void setCompilationThreshold(int threshold) {
+        this.threshold = threshold;
+    }
+
+    @Override
+    public void setQueueSize(int size) {
+        this.queueSize = size;
+    }
+
+    @Override
+    public void setQueueChange(int change) {
+        this.queueChange = change;
+    }
+
+    @Override
+    public void setQueueLoad(double load) {
+        this.queueLoad = load;
+    }
+
+    @Override
+    public void setQueueTime(long time) {
+        this.queueTime = time;
+    }
+
+    @Override
+    public void setReason(String reason) {
+        this.reason = reason;
     }
 }
