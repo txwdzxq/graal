@@ -567,7 +567,7 @@ public final class NativeImageClassLoaderSupport {
         Set<ResolvedModule> applicationModules = applicationModuleNames.stream()
                         .map(configuration::findModule)
                         .flatMap(Optional::stream)
-                        .filter(module -> !hasLocation(module, imageProvidedJars::contains))
+                        .filter(module -> !hasFileLocation(module, imageProvidedJars::contains))
                         .collect(Collectors.toSet());
         Set<String> requiredSystemModules = transitiveReads(applicationModules).stream()
                         .map(ResolvedModule::name)
@@ -596,7 +596,7 @@ public final class NativeImageClassLoaderSupport {
     /**
      * Tests whether {@code module} has a {@code file:} location accepted by {@code matches}.
      */
-    private static boolean hasLocation(ResolvedModule module, Predicate<Path> matches) {
+    private static boolean hasFileLocation(ResolvedModule module, Predicate<Path> matches) {
         return module.reference().location().stream()
                         .filter(uri -> "file".equalsIgnoreCase(uri.getScheme()))
                         .map(Path::of)
