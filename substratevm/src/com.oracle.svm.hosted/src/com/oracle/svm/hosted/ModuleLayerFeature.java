@@ -345,10 +345,12 @@ public class ModuleLayerFeature implements InternalFeature {
         Set<Module> runtimeImageUnnamedModules = runtimeImageModules.stream().filter(Predicate.not(Module::isNamed)).collect(Collectors.toSet()); // noEconomicSet(streaming)
 
         /*
-         * Parse explicitly added modules via --add-modules. This is done early as this information
-         * is required when filtering the analysis reachable module set.
+         * Parse explicitly added modules via --add-modules and add the system modules required by
+         * application module-path entries. This is done early as this information is required when
+         * filtering the analysis reachable module set.
          */
         Set<String> extraModules = HostedModuleSupport.parseModuleSetModifierProperty(HostedModuleSupport.PROPERTY_IMAGE_EXPLICITLY_ADDED_MODULES);
+        extraModules.addAll(accessImpl.imageClassLoader.classLoaderSupport.imageModulePathRequiredSystemModules);
         extraModules.addAll(Resources.getIncludedResourcesModules());
         extraModules.stream().filter(Predicate.not(HostedModuleSupport.nonExplicitModules::contains)).forEach(moduleName -> {
             Optional<?> module = accessImpl.imageClassLoader.findModule(moduleName);

@@ -2478,10 +2478,9 @@ def hellomodule(args):
         class_loader_lookup = runtime_class_loading or any('ClassForNameRespectsClassLoader' in arg for arg in args)
         moduletest_build_args = list(moduletest_run_args)
         if runtime_class_loading:
-            # GR-75374: This should not be needed: the "requires java.xml" in
-            # substratevm/src/native-image-module-tests/hello.lib/src/main/java/module-info.java
-            # should be enough to make java.xml available at image build time. Fix this.
-            moduletest_build_args.insert(0, '--add-modules=java.xml')
+            # Assert that QName is loaded from the runtime JRT filesystem by
+            # runtime-loaded code, not made AOT-reachable in the image build.
+            moduletest_build_args = svm_experimental_options(['-H:AbortOnTypeReachable=javax.xml.namespace.QName']) + moduletest_build_args
         built_image = native_image(
             ['--verbose'] + svm_experimental_options(['-H:Path=' + build_dir]) + args + moduletest_build_args
         )
