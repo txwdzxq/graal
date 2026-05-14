@@ -865,6 +865,7 @@ class NativeImageVM(StageAwareGraalVm):
         # When this is set, run the instrumentation-image and instrumentation-run stages.
         # Does not necessarily do instrumentation.
         self.pgo_instrumentation = False
+        self.pgo_layouting = False
         self.pgo_exclude_conditional = False
         self.pgo_sampler_only = False
         self.pgo_use_perf = False
@@ -961,7 +962,9 @@ class NativeImageVM(StageAwareGraalVm):
             config += ["pgo-sampler"]
             is_pgo_set = True
         # pylint: disable=too-many-boolean-expressions
-        if not is_pgo_set and self.pgo_instrumentation is True \
+        if self.pgo_layouting is True:
+            config += ["pgo-layouting"]
+        elif not is_pgo_set and self.pgo_instrumentation is True \
                 and self.jdk_profiles_collect is False \
                 and self.adopted_jdk_pgo is False \
                 and self.safepoint_sampler is False \
@@ -1027,7 +1030,7 @@ class NativeImageVM(StageAwareGraalVm):
         rule = r'^(?P<native_architecture>native-architecture-)?(?P<string_inlining>string-inlining-)?(?P<static>mostly-static-|static-)?(?P<otw>otw-)?(?P<copyingoldgen_oldpolicy>copyingoldgen-oldpolicy-)?(?P<crema>crema-)?' \
                r'(?P<preserve_all>preserve-all-)?(?P<preserve_classpath>preserve-classpath-)?(?P<graalos>graalos-)?(?P<graalhost_graalos>graalhost-graalos-)?(?P<layered>layered-)?' \
                r'(?P<future_defaults_all>future-defaults-all-)?(?P<gate>gate-)?(?P<upx>upx-)?(?P<quickbuild>quickbuild-)?(?P<gc>g1gc-)?' \
-               r'(?P<llvm>llvm-)?(?P<pgo>pgo-|pgo-sampler-|pgo-perf-sampler-invoke-multiple-|pgo-perf-sampler-invoke-|pgo-perf-sampler-)?(?P<inliner>inline-)?' \
+               r'(?P<llvm>llvm-)?(?P<pgo>pgo-|pgo-layouting-|pgo-sampler-|pgo-perf-sampler-invoke-multiple-|pgo-perf-sampler-invoke-|pgo-perf-sampler-)?(?P<inliner>inline-)?' \
                r'(?P<analysis_context_sensitivity>insens-|allocsens-|1obj-|2obj1h-|3obj2h-|4obj3h-)?(?P<jdk_profiles>jdk-profiles-collect-|adopted-jdk-pgo-)?' \
                r'(?P<profile_inference>profile-inference-feature-extraction-|profile-inference-call-count-|profile-inference-call-count-conservative-|profile-inference-call-count-aggressive-|profile-inference-pgo-|profile-inference-debug-)?' \
                r'(?P<sampler>safepoint-sampler-|async-sampler-)?(?P<optimization_level>O0-|O1-|O2-|O3-|Os-)?(default-)?(?P<edition>ce-|ee-)?$'
@@ -1122,6 +1125,9 @@ class NativeImageVM(StageAwareGraalVm):
             if pgo_mode == "pgo":
                 mx.logv(f"'pgo' is enabled for {config_name}")
                 self.pgo_instrumentation = True
+            elif pgo_mode == "pgo-layouting":
+                self.pgo_instrumentation = True
+                self.pgo_layouting = True
             elif pgo_mode == "pgo-sampler":
                 self.pgo_instrumentation = True
                 self.pgo_sampler_only = True
@@ -1689,6 +1695,8 @@ class NativeImageVM(StageAwareGraalVm):
             instrument_args += svm_experimental_options([f'-H:PGOPerfSourceMappings={self.config.source_mappings_path}'])
         else:
             instrument_args += ['--pgo-sampling' if self.pgo_sampler_only else '--pgo-instrument', f"-R:ProfilesDumpFile={self.config.profile_path}"]
+            if self.pgo_layouting:
+                instrument_args += svm_experimental_options(['-H:+ProfileMethodTimestamps', '-H:-IncludeCallingContextInMethodTimestampProfiles', '-H:+ProfileObjectAccesses', '-H:+PrintAccessedCAHPsStats'])
 
         if self.jdk_profiles_collect:
             instrument_args += svm_experimental_options(['-H:+AOTPriorityInline', '-H:-SamplingCollect',
@@ -1853,6 +1861,8 @@ class NativeImageVM(StageAwareGraalVm):
             jdk_profiles_args = []
         if self.pgo_exclude_conditional:
             pgo_args += svm_experimental_options(['-H:PGOExcludeProfiles=CONDITIONAL'])
+        if self.pgo_layouting:
+            pgo_args += svm_experimental_options(['-H:CodeSectionLayoutOptimization=OrderByFirstCall', '-H:ImageHeapObjectSortStrategy=ClusterAccessed', '-H:+PGOIgnoreVersionCheck', '-H:+PrintImageHeapSortDiagnostics'])
 
         if self.profile_inference_feature_extraction:
             ml_args = svm_experimental_options(['-H:+MLGraphFeaturesExtraction', '-H:+ProfileInferenceDumpFeatures'])
