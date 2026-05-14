@@ -43,8 +43,8 @@ suite = {
   "mxversion": "7.65.0",
   "name" : "wasm",
   "groupId" : "org.graalvm.wasm",
-  "version" : "25.1.0",
-  "release" : False,
+  "version_from" : "truffle",
+  "release_from" : "truffle",
   "versionConflictResolution" : "latest",
   "url" : "http://graalvm.org/webassembly",
   "developer" : {
