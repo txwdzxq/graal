@@ -40,37 +40,24 @@
  */
 package com.oracle.truffle.runtime.jfr;
 
-import java.lang.annotation.Annotation;
+/**
+ * The JFR event describing a started Truffle compilation.
+ */
+public interface CompilationStartedEvent extends RootFunctionEvent {
 
-public interface EventFactory {
+    void setTier(int tier);
 
-    Class<? extends Annotation> getRequiredAnnotation();
+    void setPriority(long priority);
 
-    boolean isInitialized();
+    void setRate(String rate);
 
-    void addInitializationListener(Runnable listener);
+    void setQueueSize(int size);
 
-    CompilationEvent createCompilationEvent();
+    void setQueueChange(int change);
 
-    CompilationQueuedEvent createCompilationQueuedEvent();
+    void setQueueLoad(double load);
 
-    CompilationDequeuedEvent createCompilationDequeuedEvent();
+    void setQueueTime(long time);
 
-    CompilationStartedEvent createCompilationStartedEvent();
-
-    DeoptimizationEvent createDeoptimizationEvent();
-
-    ProfileResetEvent createProfileResetEvent();
-
-    InvalidationEvent createInvalidationEvent();
-
-    CompilationStatisticsEvent createCompilationStatisticsEvent();
-
-    void addPeriodicEvent(Class<? extends Event> event, Runnable producer);
-
-    void removePeriodicEvent(Class<? extends Event> event, Runnable producer);
-
-    interface Provider {
-        EventFactory getEventFactory();
-    }
+    void setBonuses(String bonuses);
 }

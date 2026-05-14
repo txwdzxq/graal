@@ -38,39 +38,66 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package com.oracle.truffle.runtime.jfr;
+package com.oracle.truffle.runtime.jfr.impl;
 
-import java.lang.annotation.Annotation;
+import com.oracle.truffle.runtime.jfr.CompilationQueuedEvent;
 
-public interface EventFactory {
+import jdk.jfr.Category;
+import jdk.jfr.Description;
+import jdk.jfr.Enabled;
+import jdk.jfr.Label;
+import jdk.jfr.Name;
+import jdk.jfr.StackTrace;
+import jdk.jfr.Unsigned;
 
-    Class<? extends Annotation> getRequiredAnnotation();
+@Name("jdk.graal.compiler.truffle.CompilationQueued")
+@Category("Truffle Compiler")
+@Label("Compilation Queued")
+@Description("Truffle Compilation Queued")
+@Enabled(false)
+@StackTrace(false)
+class CompilationQueuedEventImpl extends RootFunctionEventImpl implements CompilationQueuedEvent {
 
-    boolean isInitialized();
+    @Label("Tier") @Description("The Tier of the Truffle Compiler") public int tier;
+    @Label("Count") @Description("Compilation Count") @Unsigned public int count;
+    @Label("Threshold") @Description("Compilation Threshold") @Unsigned public int threshold;
+    @Label("Queue Size") @Description("Compilation Queue Size") @Unsigned public int queueSize;
+    @Label("Queue Change") @Description("Compilation Queue Size Change") public int queueChange;
+    @Label("Queue Load") @Description("Compilation Queue Load") public double queueLoad;
+    @Label("Queue Time") @Description("Compilation Queue Time in Microseconds") @Unsigned public long queueTime;
 
-    void addInitializationListener(Runnable listener);
+    @Override
+    public void setTier(int tier) {
+        this.tier = tier;
+    }
 
-    CompilationEvent createCompilationEvent();
+    @Override
+    public void setCompilationCount(int count) {
+        this.count = count;
+    }
 
-    CompilationQueuedEvent createCompilationQueuedEvent();
+    @Override
+    public void setCompilationThreshold(int threshold) {
+        this.threshold = threshold;
+    }
 
-    CompilationDequeuedEvent createCompilationDequeuedEvent();
+    @Override
+    public void setQueueSize(int size) {
+        this.queueSize = size;
+    }
 
-    CompilationStartedEvent createCompilationStartedEvent();
+    @Override
+    public void setQueueChange(int change) {
+        this.queueChange = change;
+    }
 
-    DeoptimizationEvent createDeoptimizationEvent();
+    @Override
+    public void setQueueLoad(double load) {
+        this.queueLoad = load;
+    }
 
-    ProfileResetEvent createProfileResetEvent();
-
-    InvalidationEvent createInvalidationEvent();
-
-    CompilationStatisticsEvent createCompilationStatisticsEvent();
-
-    void addPeriodicEvent(Class<? extends Event> event, Runnable producer);
-
-    void removePeriodicEvent(Class<? extends Event> event, Runnable producer);
-
-    interface Provider {
-        EventFactory getEventFactory();
+    @Override
+    public void setQueueTime(long time) {
+        this.queueTime = time;
     }
 }
