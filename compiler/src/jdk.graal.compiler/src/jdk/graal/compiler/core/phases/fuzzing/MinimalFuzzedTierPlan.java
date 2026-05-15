@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2022, 2026, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -272,7 +272,7 @@ class MinimalFuzzedTierPlan<C> extends AbstractTierPlan<C> {
     protected boolean insertPhaseAtIndex(BasePhase<? super C> phase, int index, GraphState graphState) {
         PhaseSuite<C> newFuzzedPhaseSuite = getPhaseSuite().copy();
         newFuzzedPhaseSuite.insertAtIndex(index, phase);
-        Optional<NotApplicable> suiteNotApplicable = newFuzzedPhaseSuite.notApplicableTo(graphState.copy());
+        Optional<NotApplicable> suiteNotApplicable = PhaseSuiteContractVerifier.verifiedNotApplicableTo(newFuzzedPhaseSuite, graphState.copy());
         if (suiteNotApplicable.isEmpty()) {
             getIgnoredPhases().remove(phase);
             setPhaseSuite(newFuzzedPhaseSuite);
