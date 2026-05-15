@@ -49,7 +49,9 @@ import org.graalvm.wasm.parser.bytecode.RuntimeBytecodeGen;
  * Represents exception handlers in the same range during parsing.
  */
 public final class ExceptionTable {
+    /** First bytecode offset protected by this table. */
     private final int from;
+    /** First bytecode offset after the protected range. */
     private final int to;
     private final ExceptionHandler[] handlers;
 

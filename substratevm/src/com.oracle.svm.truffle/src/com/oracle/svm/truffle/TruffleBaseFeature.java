@@ -109,6 +109,8 @@ import com.oracle.svm.core.heap.Pod;
 import com.oracle.svm.core.log.Log;
 import com.oracle.svm.core.meta.MethodPointer;
 import com.oracle.svm.core.reflect.target.ReflectionSubstitutionSupport;
+import com.oracle.svm.core.thread.ThreadListenerSupport;
+import com.oracle.svm.core.threadlocal.VMThreadLocalOffsetProvider;
 import com.oracle.svm.core.util.UserError;
 import com.oracle.svm.graal.hosted.runtimecompilation.GraalGraphObjectReplacer;
 import com.oracle.svm.graal.hosted.runtimecompilation.SubstrateGraalCompilerSetup;
@@ -171,6 +173,7 @@ import jdk.graal.compiler.nodes.graphbuilderconf.InvocationPlugin.RequiredInvoca
 import jdk.graal.compiler.nodes.graphbuilderconf.InvocationPlugins;
 import jdk.graal.compiler.nodes.graphbuilderconf.InvocationPlugins.Registration;
 import jdk.graal.compiler.options.Option;
+import jdk.graal.compiler.options.OptionType;
 import jdk.graal.compiler.phases.tiers.Suites;
 import jdk.graal.compiler.phases.util.Providers;
 import jdk.graal.compiler.truffle.BytecodeHandlerConfig;
@@ -236,6 +239,10 @@ public final class TruffleBaseFeature implements InternalFeature {
 
         @Option(help = "Enable tail call threading on Truffle interpreter bytecode handlers.", stability = EXPERIMENTAL) //
         public static final HostedOptionKey<Boolean> TruffleInterpreterTailCallThreading = new HostedOptionKey<>(true);
+
+        @Option(help = "Fill and rewrite bytecode-handler pending-state slots with debug sentinels. Defaults to enabled when assertions are enabled.", //
+                        type = OptionType.Debug, stability = EXPERIMENTAL) //
+        public static final HostedOptionKey<Boolean> TruffleBytecodeHandlerSlotSentinel = new HostedOptionKey<>(SubstrateUtil.assertionsEnabled());
     }
 
     public static final class IsEnabled implements BooleanSupplier {
@@ -308,6 +315,7 @@ public final class TruffleBaseFeature implements InternalFeature {
      */
     private final EconomicMap<BytecodeHandlerStubKey, ResolvedJavaMethod> registeredBytecodeHandlers = EconomicMap.create();
     private EconomicSet<ResolvedJavaMethod> bytecodeHandlers;
+    private final AtomicInteger maxHandlerAbiArity = new AtomicInteger();
 
     private static void initializeTruffleReflectively(ClassLoader imageClassLoader) {
         invokeStaticMethod("com.oracle.truffle.api.impl.Accessor", "getTVMCI", Collections.emptyList());
@@ -427,6 +435,10 @@ public final class TruffleBaseFeature implements InternalFeature {
         invokeStaticMethod("com.oracle.truffle.polyglot.InternalResourceCacheSymbol", "initialize", List.of());
 
         profilingEnabled = false;
+        if (!ImageSingletons.contains(PendingExceptionStateSupport.class)) {
+            ImageSingletons.add(PendingExceptionStateSupport.class, new PendingExceptionStateSupport());
+        }
+        ThreadListenerSupport.get().register(PendingExceptionStateSupport.singleton());
     }
 
     private static boolean hasTruffleAPIFeature(AfterRegistrationAccess a) {
@@ -705,7 +717,8 @@ public final class TruffleBaseFeature implements InternalFeature {
 
     @Override
     public void registerGraphBuilderPlugins(Providers providers, GraphBuilderConfiguration.Plugins plugins, ParsingReason reason) {
-        plugins.appendNodePlugin(new TruffleBytecodeHandlerInvokePlugin(registeredBytecodeHandlers, stubHelper, TruffleInterpreterTailCallThreading.getValue()));
+        plugins.appendNodePlugin(new TruffleBytecodeHandlerInvokePlugin(registeredBytecodeHandlers, stubHelper, TruffleInterpreterTailCallThreading.getValue(),
+                        arity -> maxHandlerAbiArity.updateAndGet(current -> Math.max(current, arity))));
     }
 
     public boolean isBytecodeHandler(ResolvedJavaMethod method) {
@@ -876,6 +889,11 @@ public final class TruffleBaseFeature implements InternalFeature {
 
     @Override
     public void beforeCompilation(BeforeCompilationAccess access) {
+        if (ImageSingletons.contains(VMThreadLocalOffsetProvider.class)) {
+            PendingExceptionStateSupport.singleton().setMaxSlots(maxHandlerAbiArity.get());
+            PendingExceptionStateSupport.singleton().setUseSlotSentinel(Options.TruffleBytecodeHandlerSlotSentinel.getValue());
+            PendingExceptionStateSupport.singleton().initializeThreadLocalOffset();
+        }
         if (TruffleInterpreterTailCallThreading.getValue()) {
             // Will be placed at read-only section and disallow overwriting
             for (MethodPointer[] handlers : stubHelper.getAllBytecodeHandlers()) {

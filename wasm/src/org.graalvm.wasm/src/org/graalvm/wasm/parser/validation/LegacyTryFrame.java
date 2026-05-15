@@ -120,7 +120,7 @@ public final class LegacyTryFrame extends ControlFrame {
         if (protectedRegionEnd == -1) {
             delegateLabelFixups.add(fixup);
         } else {
-            fixup.patch(protectedRegionEnd);
+            fixup.patch(delegateContinuationOffset());
         }
     }
 
@@ -132,8 +132,18 @@ public final class LegacyTryFrame extends ControlFrame {
         }
         protectedRegionEnd = bytecode.location();
         for (BytecodeFixup labelFixup : delegateLabelFixups) {
-            labelFixup.patch(protectedRegionEnd);
+            labelFixup.patch(delegateContinuationOffset());
         }
+    }
+
+    private int delegateContinuationOffset() {
+        /*
+         * Runtime exception-table lookup uses [from, to) ranges and normal throws use the throwing
+         * instruction's start offset. Legacy delegate, however, targets the selected label after a
+         * protected region. Use an offset inside that target region so lookup resumes at the
+         * enclosing try without reintroducing a separate exception-offset field.
+         */
+        return protectedRegionEnd > protectedRegionStart ? protectedRegionEnd - 1 : protectedRegionEnd;
     }
 
     void enterCatchClause(ParserState state, RuntimeBytecodeGen bytecode, int opcode, int tag, int[] paramTypes) {

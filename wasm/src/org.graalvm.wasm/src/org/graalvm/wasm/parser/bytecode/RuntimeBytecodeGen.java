@@ -579,8 +579,8 @@ public class RuntimeBytecodeGen extends BytecodeGen {
      * from (4 byte) | to (4 byte) | type (1 byte) | tag (4 byte) | target (4 byte)
      * </pre>
      *
-     * @param from start offset of the bytecode range caught by the exception handler (exclusive)
-     * @param to end offset of the bytecode range caught by the exception handler (inclusive)
+     * @param from start offset of the bytecode range caught by the exception handler (inclusive)
+     * @param to end offset of the bytecode range caught by the exception handler (exclusive)
      * @param type The opcode of the exception handler (see
      *            {@link org.graalvm.wasm.constants.ExceptionHandlerType}).
      * @param tag The tag of the exception handler.

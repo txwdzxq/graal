@@ -27,8 +27,13 @@ package com.oracle.svm.truffle;
 import static com.oracle.svm.truffle.SubstrateTruffleBytecodeHandlerStub.asTruffleBytecodeHandlerTypes;
 import static com.oracle.svm.truffle.SubstrateTruffleBytecodeHandlerStub.unwrap;
 
+import java.lang.ref.WeakReference;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
+import java.util.function.IntConsumer;
+import java.util.function.Supplier;
 
 import org.graalvm.collections.EconomicMap;
 
@@ -39,39 +44,60 @@ import com.oracle.svm.common.meta.MethodVariant;
 
 import jdk.graal.compiler.annotation.AnnotationValue;
 import jdk.graal.compiler.annotation.AnnotationValueSupport;
+import jdk.graal.compiler.bytecode.Bytecode;
+import jdk.graal.compiler.bytecode.BytecodeStream;
+import jdk.graal.compiler.bytecode.Bytecodes;
 import jdk.graal.compiler.debug.GraalError;
+import jdk.graal.compiler.java.FrameStateBuilder;
+import jdk.graal.compiler.nodes.FixedWithNextNode;
+import jdk.graal.compiler.nodes.FrameState;
+import jdk.graal.compiler.nodes.StructuredGraph;
 import jdk.graal.compiler.nodes.ValueNode;
 import jdk.graal.compiler.nodes.graphbuilderconf.GraphBuilderContext;
 import jdk.graal.compiler.nodes.graphbuilderconf.NodePlugin;
 import jdk.graal.compiler.truffle.BytecodeHandlerConfig;
+import jdk.graal.compiler.truffle.BytecodeHandlerConfig.ArgumentInfo;
 import jdk.graal.compiler.truffle.TruffleBytecodeHandlerCallsite.TruffleBytecodeHandlerTypes;
 import jdk.graal.compiler.truffle.TruffleBytecodeHandlerStubHelper;
 import jdk.graal.compiler.truffle.host.TruffleHostEnvironment;
+import jdk.vm.ci.meta.JavaKind;
+import jdk.vm.ci.meta.ResolvedJavaField;
 import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
+import jdk.vm.ci.meta.Signature;
 
 /**
  * A {@link NodePlugin} implementation that collects invocations of Truffle bytecode handlers and
  * generates stubs for them.
  * <p>
  * This plugin is responsible for detecting invocations of methods annotated with
- * {@code @BytecodeInterpreterHandler} within methods annotated with
- * {@code @BytecodeInterpreterSwitch}. It generates a stub for the handler method and registers that
- * stub as a root method in the analysis universe.
+ * {@code @BytecodeInterpreterHandler} within methods that declare bytecode-handler metadata. It
+ * generates a stub for the handler method, registers that stub as a root method in the analysis
+ * universe, and records parser-time information needed to repair {@code copyFromReturn} locals on
+ * generated-stub exception edges.
  */
 public final class TruffleBytecodeHandlerInvokePlugin implements NodePlugin {
 
     private final EconomicMap<BytecodeHandlerStubKey, ResolvedJavaMethod> registeredBytecodeHandlers;
+    /*
+     * Keep callsite metadata scoped by graph: method and bci identify the bytecode, but the
+     * copyFromReturn value is graph-local. The graph key and stored value reference are weak so
+     * parser metadata cannot keep temporary graphs or values alive when no matching exception edge
+     * is emitted.
+     */
+    private final Map<StructuredGraph, EconomicMap<BytecodeHandlerInvokeKey, BytecodeHandlerInvoke>> registeredHandlerInvokes = new WeakHashMap<>();
     private final SubstrateTruffleBytecodeHandlerStubHelper stubHolder;
     private final boolean threadingEnabled;
+    private final IntConsumer handlerArityConsumer;
 
     private final EconomicMap<ResolvedJavaMethod, ResolvedJavaMethod> nextOpcodeCache = EconomicMap.create();
 
     public TruffleBytecodeHandlerInvokePlugin(EconomicMap<BytecodeHandlerStubKey, ResolvedJavaMethod> registeredBytecodeHandlers,
-                    SubstrateTruffleBytecodeHandlerStubHelper stubHolder, boolean threadingEnabled) {
+                    SubstrateTruffleBytecodeHandlerStubHelper stubHolder, boolean threadingEnabled, IntConsumer handlerArityConsumer) {
         this.registeredBytecodeHandlers = registeredBytecodeHandlers;
         this.stubHolder = stubHolder;
         this.threadingEnabled = threadingEnabled;
+        this.handlerArityConsumer = handlerArityConsumer;
     }
 
     private static ResolvedJavaMethod nextOpcodeMethod(ResolvedJavaType typeBytecodeInterpreterFetchOpcode, ResolvedJavaType holder) {
@@ -79,25 +105,25 @@ public final class TruffleBytecodeHandlerInvokePlugin implements NodePlugin {
                         .filter(m -> AnnotationValueSupport.isAnnotationPresent(typeBytecodeInterpreterFetchOpcode, m))
                         .toList();
         GraalError.guarantee(nextOpcodeAnnotated.size() == 1, "Expected exactly one method annotated with BytecodeInterpreterFetchOpcode, found %d", nextOpcodeAnnotated.size());
-        return nextOpcodeAnnotated.getFirst();
+        ResolvedJavaMethod nextOpcode = nextOpcodeAnnotated.getFirst();
+        GraalError.guarantee(nextOpcode.getSignature().getReturnType(nextOpcode.getDeclaringClass()).getJavaKind() != JavaKind.Void,
+                        "Method annotated with BytecodeInterpreterFetchOpcode must not return void: %s", nextOpcode);
+        return nextOpcode;
     }
 
     @Override
     public boolean handleInvoke(GraphBuilderContext b, ResolvedJavaMethod target, ValueNode[] oldArguments) {
         ResolvedJavaMethod enclosingMethod = b.getMethod();
-        if (enclosingMethod instanceof MethodVariant sm && !sm.isOriginalMethod()) {
-            return false;
-        }
+        boolean originalMethod = !(enclosingMethod instanceof MethodVariant sm) || sm.isOriginalMethod();
 
         TruffleHostEnvironment truffleHostEnvironment = TruffleHostEnvironment.get(enclosingMethod);
         if (truffleHostEnvironment == null) {
             // TruffleHostEnvironment is not initialized yet
             return false;
         }
-        // Test if in an @BytecodeInterpreterSwitch annotated method
         TruffleBytecodeHandlerTypes truffleTypes = asTruffleBytecodeHandlerTypes(truffleHostEnvironment.types());
 
-        if (!AnnotationValueSupport.isAnnotationPresent(truffleTypes.typeBytecodeInterpreterSwitch(), enclosingMethod)) {
+        if (originalMethod && tryRegisterSwitchExtensionInvoke(b, enclosingMethod, truffleTypes, target, oldArguments)) {
             return false;
         }
 
@@ -107,10 +133,26 @@ public final class TruffleBytecodeHandlerInvokePlugin implements NodePlugin {
             return false;
         }
 
+        BytecodeHandlerConfig handlerConfig = BytecodeHandlerConfig.getHandlerConfig(enclosingMethod, target, truffleTypes);
+        if (handlerConfig == null) {
+            return false;
+        }
+
         boolean threading = threadingEnabled && handlerAnnotationValue.getBoolean("threading");
         boolean safepoint = handlerAnnotationValue.getBoolean("safepoint");
 
-        BytecodeHandlerConfig handlerConfig = BytecodeHandlerConfig.getHandlerConfig(enclosingMethod, target, truffleTypes);
+        if (handlerArityConsumer != null) {
+            handlerArityConsumer.accept(handlerConfig.getArgumentInfos().size());
+        }
+        if (!originalMethod) {
+            /*
+             * Non-original variants are not processed by SubstrateOutlineBytecodeHandlerPhase, so
+             * these handler invokes stay direct Java calls. Do not register pending-state metadata:
+             * there will be no outlined callee stub running writeOnCallee() for the exception edge
+             * to consume.
+             */
+            return false;
+        }
         ResolvedJavaType interpreterHolder = unwrap(enclosingMethod.getDeclaringClass());
         String stubName = TruffleBytecodeHandlerStubHelper.getStubName(target);
 
@@ -147,8 +189,261 @@ public final class TruffleBytecodeHandlerInvokePlugin implements NodePlugin {
                 }
             }
         }
+        /*
+         * The parser's exception-dispatch hook receives only the current bci and dispatch state.
+         * Record the graph-local invoke argument here so the later hook can insert an
+         * exception-path proxy for copyFromReturn values if the bytecode stores the invoke result
+         * back to a local.
+         */
+        registerHandlerInvoke(b, enclosingMethod, handlerConfig, oldArguments);
 
         return false;
+    }
+
+    private boolean tryRegisterSwitchExtensionInvoke(GraphBuilderContext b, ResolvedJavaMethod enclosingMethod, TruffleBytecodeHandlerTypes truffleTypes, ResolvedJavaMethod target,
+                    ValueNode[] arguments) {
+        if (!threadingEnabled) {
+            return false;
+        }
+        AnnotationValue handlerConfigAnnotation = AnnotationValueSupport.getDeclaredAnnotationValue(truffleTypes.typeBytecodeInterpreterHandlerConfig(), target);
+        AnnotationValue enclosingHandlerConfigAnnotation = AnnotationValueSupport.getDeclaredAnnotationValue(truffleTypes.typeBytecodeInterpreterHandlerConfig(), enclosingMethod);
+        if (handlerConfigAnnotation == null ||
+                        !handlerConfigAnnotation.equals(enclosingHandlerConfigAnnotation)) {
+            return false;
+        }
+        if (!hasTrailingArgumentsAfterAnnotatedPrefix(handlerConfigAnnotation, target)) {
+            return false;
+        }
+
+        /*
+         * Switch partition helpers are generated as extensions of the enclosing switch, not as
+         * handler targets to outline again. They carry the same handler-config prefix followed by
+         * private selector state, so detect this shape before the regular handler-stub path. For
+         * exception dispatch we only need copyFromReturn metadata, not a complete generated-stub
+         * ABI model. If the helper is later inlined, the SVM outline phase decides per cloned
+         * exception path whether a generated stub actually published pending state or whether the
+         * original input value must be kept.
+         */
+        CopyFromReturnInfo copyFromReturnInfo = findCopyFromReturnInfo(handlerConfigAnnotation, target);
+        if (copyFromReturnInfo != null) {
+            registerHandlerInvoke(b, enclosingMethod, copyFromReturnInfo, arguments, PendingExceptionStateValueNode.Source.INFER);
+        }
+        return true;
+    }
+
+    private static boolean hasTrailingArgumentsAfterAnnotatedPrefix(AnnotationValue handlerConfigAnnotation, ResolvedJavaMethod target) {
+        int annotatedArgumentCount = handlerConfigAnnotation.getList("arguments", AnnotationValue.class).size();
+        int actualArgumentCount = target.getSignature().getParameterCount(false) + (target.isStatic() ? 0 : 1);
+        return actualArgumentCount > annotatedArgumentCount;
+    }
+
+    @Override
+    public FixedWithNextNode instrumentExceptionDispatch(StructuredGraph graph, int bci, FixedWithNextNode afterExceptionLoaded, FrameStateBuilder dispatchState,
+                    Supplier<FrameState> frameStateFunction) {
+        /*
+         * Invoke exception edges are built immediately after parsing the invoke bytecode. Consume
+         * the recorded metadata for this graph/method/bci so duplicated bytecodes or later parses
+         * cannot accidentally reuse it.
+         */
+        BytecodeHandlerInvoke handlerInvoke = removeHandlerInvoke(graph, dispatchState.getMethod(), bci);
+        if (handlerInvoke == null) {
+            return afterExceptionLoaded;
+        }
+        FixedWithNextNode insertAfter = afterExceptionLoaded;
+
+        ValueNode copyFromReturnArgument = handlerInvoke.copyFromReturnArgument();
+        if (copyFromReturnArgument != null) {
+            int returnLocalIndex = findCopyFromReturnLocalIndex(handlerInvoke.bytecode(), bci, handlerInvoke.returnLocalKind());
+            if (returnLocalIndex >= 0) {
+                PendingExceptionStateValueNode pendingExceptionValue = graph.add(new PendingExceptionStateValueNode(copyFromReturnArgument, handlerInvoke.copyFromReturnSlotIndex(),
+                                handlerInvoke.copyFromReturnKind(), handlerInvoke.source()));
+                insertAfter.setNext(pendingExceptionValue);
+                insertAfter = pendingExceptionValue;
+                dispatchState.storeLocal(returnLocalIndex, handlerInvoke.returnLocalKind(), pendingExceptionValue);
+            }
+        }
+        return insertAfter;
+    }
+
+    private void registerHandlerInvoke(GraphBuilderContext b, ResolvedJavaMethod enclosingMethod, BytecodeHandlerConfig handlerConfig, ValueNode[] arguments) {
+        registerHandlerInvoke(b, enclosingMethod, handlerConfig, arguments, PendingExceptionStateValueNode.Source.STUB);
+    }
+
+    private void registerHandlerInvoke(GraphBuilderContext b, ResolvedJavaMethod enclosingMethod, BytecodeHandlerConfig handlerConfig,
+                    ValueNode[] arguments, PendingExceptionStateValueNode.Source source) {
+        ArgumentInfo copyFromReturn = handlerConfig.getCopyFromReturnArgument();
+        if (copyFromReturn == null) {
+            return;
+        }
+        registerHandlerInvoke(b, enclosingMethod,
+                        new CopyFromReturnInfo(copyFromReturn.originalIndex(), copyFromReturn.index(), copyFromReturn.type().getJavaKind()),
+                        arguments, source);
+    }
+
+    private void registerHandlerInvoke(GraphBuilderContext b, ResolvedJavaMethod enclosingMethod, CopyFromReturnInfo copyFromReturnInfo,
+                    ValueNode[] arguments, PendingExceptionStateValueNode.Source source) {
+        /*
+         * Record only copyFromReturn. Mutable virtual-expanded fields are restored at
+         * generated-stub invoke exception edges, not through parser-local pending-state proxies.
+         */
+        GraalError.guarantee(copyFromReturnInfo.originalParameterIndex() < arguments.length, "copyFromReturn argument %s is missing from %s",
+                        copyFromReturnInfo, b.getMethod());
+        BytecodeHandlerInvokeKey key = new BytecodeHandlerInvokeKey(enclosingMethod, b.bci());
+        BytecodeHandlerInvoke handlerInvoke = new BytecodeHandlerInvoke(b.getCode(),
+                        copyFromReturnInfo.kind().getStackKind(),
+                        copyFromReturnInfo.abiSlotIndex(),
+                        copyFromReturnInfo.kind(),
+                        new WeakReference<>(arguments[copyFromReturnInfo.originalParameterIndex()]),
+                        source);
+        synchronized (registeredHandlerInvokes) {
+            EconomicMap<BytecodeHandlerInvokeKey, BytecodeHandlerInvoke> graphInvokes = registeredHandlerInvokes.computeIfAbsent(b.getGraph(), _ -> EconomicMap.create());
+            graphInvokes.put(key, handlerInvoke);
+        }
+    }
+
+    private static CopyFromReturnInfo findCopyFromReturnInfo(AnnotationValue handlerConfigAnnotation, ResolvedJavaMethod target) {
+        List<AnnotationValue> argumentAnnotations = handlerConfigAnnotation.getList("arguments", AnnotationValue.class);
+        ResolvedJavaType declaringClass = target.getDeclaringClass();
+        Signature signature = target.getSignature();
+        JavaKind returnKind = signature.getReturnType(declaringClass).getJavaKind();
+
+        int originalParameterIndex = 0;
+        int abiSlotIndex = 0;
+        if (!target.isStatic()) {
+            GraalError.guarantee(!argumentAnnotations.isEmpty(), "Missing receiver argument config for %s", target);
+            abiSlotIndex = nextAbiSlotIndex(argumentAnnotations.get(originalParameterIndex), declaringClass, abiSlotIndex, true);
+            originalParameterIndex++;
+        }
+
+        int parameterCount = signature.getParameterCount(false);
+        CopyFromReturnInfo copyFromReturnInfo = null;
+        for (int parameterIndex = 0; parameterIndex < parameterCount && originalParameterIndex < argumentAnnotations.size(); parameterIndex++, originalParameterIndex++) {
+            AnnotationValue parameterConfig = argumentAnnotations.get(originalParameterIndex);
+            ResolvedJavaType parameterType = signature.getParameterType(parameterIndex, declaringClass).resolve(declaringClass);
+            String expansionKind = expansionKind(parameterConfig);
+            if (!"VIRTUAL".equals(expansionKind) && parameterConfig.getBoolean("returnValue")) {
+                GraalError.guarantee(copyFromReturnInfo == null, "Multiple arguments with returnValue set to true in %s", target);
+                GraalError.guarantee(returnKind != JavaKind.Void, "returnValue argument in %s cannot copy from void return", target);
+                GraalError.guarantee(parameterType.getJavaKind().getStackKind() == returnKind.getStackKind(),
+                                "returnValue argument type %s does not match return type %s", parameterType.getJavaKind(), returnKind);
+                copyFromReturnInfo = new CopyFromReturnInfo(originalParameterIndex, abiSlotIndex, returnKind);
+            }
+            abiSlotIndex = nextAbiSlotIndex(parameterConfig, parameterType, abiSlotIndex, false);
+        }
+        GraalError.guarantee(originalParameterIndex == argumentAnnotations.size(), "Unused argument config for %s", target);
+        return copyFromReturnInfo;
+    }
+
+    private static int nextAbiSlotIndex(AnnotationValue argumentConfig, ResolvedJavaType argumentType, int currentAbiSlotIndex, boolean receiver) {
+        return switch (expansionKind(argumentConfig)) {
+            case "NONE" -> currentAbiSlotIndex + 1;
+            case "MATERIALIZED" -> currentAbiSlotIndex + 1 + countMaterializedFields(argumentConfig, argumentType);
+            case "VIRTUAL" -> {
+                GraalError.guarantee(!receiver, "Receiver cannot be VIRTUAL");
+                yield currentAbiSlotIndex + argumentType.getInstanceFields(true).length;
+            }
+            default -> throw GraalError.shouldNotReachHere("Unknown expansion kind " + expansionKind(argumentConfig));
+        };
+    }
+
+    private static int countMaterializedFields(AnnotationValue materializedConfig, ResolvedJavaType expandedType) {
+        int count = 0;
+        List<AnnotationValue> fields = materializedConfig.getList("fields", AnnotationValue.class);
+        for (ResolvedJavaField javaField : expandedType.getInstanceFields(true)) {
+            if (findFieldConfig(fields, javaField.getName()) != null) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static AnnotationValue findFieldConfig(List<AnnotationValue> fields, String name) {
+        for (AnnotationValue fieldConfig : fields) {
+            if (fieldConfig.getString("name").equals(name)) {
+                return fieldConfig;
+            }
+        }
+        return null;
+    }
+
+    private static String expansionKind(AnnotationValue argumentConfig) {
+        return argumentConfig.getEnum("expand").name;
+    }
+
+    private BytecodeHandlerInvoke removeHandlerInvoke(StructuredGraph graph, ResolvedJavaMethod enclosingMethod, int bci) {
+        synchronized (registeredHandlerInvokes) {
+            EconomicMap<BytecodeHandlerInvokeKey, BytecodeHandlerInvoke> graphInvokes = registeredHandlerInvokes.get(graph);
+            if (graphInvokes == null) {
+                return null;
+            }
+            return graphInvokes.removeKey(new BytecodeHandlerInvokeKey(enclosingMethod, bci));
+        }
+    }
+
+    private static int findCopyFromReturnLocalIndex(Bytecode bytecode, int invokeBci, JavaKind returnLocalKind) {
+        /*
+         * The generated shape should be bci = handler(bci, ...), where the bytecode local store
+         * gives us the exact local to update on the exception path. If the invoke has no matching
+         * local store, do not inject a copyFromReturn proxy.
+         */
+        return findNextLocalStoreIndex(bytecode, invokeBci, returnLocalKind);
+    }
+
+    private static int findNextLocalStoreIndex(Bytecode bytecode, int invokeBci, JavaKind storeKind) {
+        BytecodeStream stream = new BytecodeStream(bytecode.getCode());
+        stream.setBCI(invokeBci);
+        int storeBci = stream.nextBCI();
+        if (storeBci >= stream.endBCI()) {
+            return -1;
+        }
+        stream.setBCI(storeBci);
+        return localStoreIndex(stream, storeKind);
+    }
+
+    private static int localStoreIndex(BytecodeStream stream, JavaKind storeKind) {
+        int opcode = stream.currentBC();
+        return switch (storeKind) {
+            case Int -> localStoreIndex(stream, opcode, Bytecodes.ISTORE, Bytecodes.ISTORE_0);
+            case Long -> localStoreIndex(stream, opcode, Bytecodes.LSTORE, Bytecodes.LSTORE_0);
+            case Float -> localStoreIndex(stream, opcode, Bytecodes.FSTORE, Bytecodes.FSTORE_0);
+            case Double -> localStoreIndex(stream, opcode, Bytecodes.DSTORE, Bytecodes.DSTORE_0);
+            case Object -> localStoreIndex(stream, opcode, Bytecodes.ASTORE, Bytecodes.ASTORE_0);
+            default -> -1;
+        };
+    }
+
+    private static int localStoreIndex(BytecodeStream stream, int opcode, int indexedStoreOpcode, int compactStoreOpcode0) {
+        if (opcode == indexedStoreOpcode) {
+            return stream.readLocalIndex();
+        }
+        if (opcode >= compactStoreOpcode0 && opcode <= compactStoreOpcode0 + 3) {
+            return opcode - compactStoreOpcode0;
+        }
+        return -1;
+    }
+
+    /**
+     * Minimal copyFromReturn metadata needed to insert a {@link PendingExceptionStateValueNode}.
+     */
+    private record CopyFromReturnInfo(int originalParameterIndex, int abiSlotIndex, JavaKind kind) {
+    }
+
+    /**
+     * Identifies the bytecode instruction for a recorded handler invoke within one graph-local
+     * metadata map.
+     */
+    private record BytecodeHandlerInvokeKey(ResolvedJavaMethod method, int bci) {
+    }
+
+    /**
+     * Graph-local data needed later when the parser visits the corresponding exception dispatch
+     * edge.
+     */
+    private record BytecodeHandlerInvoke(Bytecode bytecode, JavaKind returnLocalKind, int copyFromReturnSlotIndex, JavaKind copyFromReturnKind,
+                    WeakReference<ValueNode> copyFromReturnArgumentReference, PendingExceptionStateValueNode.Source source) {
+        ValueNode copyFromReturnArgument() {
+            return copyFromReturnArgumentReference == null ? null : copyFromReturnArgumentReference.get();
+        }
     }
 
 }
