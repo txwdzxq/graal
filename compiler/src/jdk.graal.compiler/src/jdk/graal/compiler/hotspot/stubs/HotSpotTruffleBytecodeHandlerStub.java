@@ -63,7 +63,7 @@ public class HotSpotTruffleBytecodeHandlerStub extends Stub {
     protected StructuredGraph getGraph(DebugContext debug, CompilationIdentifier compilationId) {
         try {
             HotSpotGraphKit kit = new HotSpotGraphKit(debug, callsite.getEnclosingMethod(), providers, providers.getGraphBuilderPlugins(), compilationId, callsite.getStubName(), false, true);
-            return TruffleBytecodeHandlerStubHelper.createStub(kit, callsite.getEnclosingMethod(), callsite.getBci(), false, null, null, callsite.getHandlerConfig(), callsite.getTargetMethod());
+            return TruffleBytecodeHandlerStubHelper.createStub(kit, callsite.getEnclosingMethod(), callsite.getBci(), false, null, null, callsite.getHandlerConfig(), callsite.getTargetMethod(), null);
         } catch (Exception e) {
             throw GraalError.shouldNotReachHere(e); // ExcludeFromJacocoGeneratedReport
         }
@@ -71,7 +71,7 @@ public class HotSpotTruffleBytecodeHandlerStub extends Stub {
 
     @Override
     protected ResolvedJavaMethod getInstalledCodeOwner() {
-        return callsite.getTargetMethod();
+        return null;
     }
 
     @Override

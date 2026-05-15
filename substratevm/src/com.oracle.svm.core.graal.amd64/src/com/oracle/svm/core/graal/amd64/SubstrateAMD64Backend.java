@@ -666,7 +666,7 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
         public void emitReturn(JavaKind kind, Value input, AllocatableValue tailCallTarget, AllocatableValue[] additionalReturns) {
             AllocatableValue operand = Value.ILLEGAL;
             if (input != null) {
-                operand = resultOperandFor(kind, input.getValueKind());
+                operand = resultOperandForReturn(kind, input);
                 emitMove(operand, input);
             }
             append(emitReturnOp(operand, tailCallTarget, additionalReturns));
@@ -684,6 +684,17 @@ public class SubstrateAMD64Backend extends SubstrateBackendWithAssembler<AMD64Ma
         @Override
         public SubstrateRegisterConfig getRegisterConfig() {
             return (SubstrateRegisterConfig) super.getRegisterConfig();
+        }
+
+        private AllocatableValue resultOperandForReturn(JavaKind kind, Value input) {
+            if (getResult().getCallingConvention() instanceof SubstrateCallingConvention callingConvention &&
+                            callingConvention.getType() instanceof SubstrateCallingConventionType callingConventionType && callingConventionType.customABI()) {
+                AllocatableValue returnLocation = callingConvention.getReturn();
+                if (!Value.ILLEGAL.equals(returnLocation)) {
+                    return returnLocation;
+                }
+            }
+            return resultOperandFor(kind, input.getValueKind());
         }
 
         protected boolean getDestroysCallerSavedRegisters(ResolvedJavaMethod targetMethod) {

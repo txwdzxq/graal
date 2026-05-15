@@ -40,6 +40,7 @@ import jdk.graal.compiler.nodes.StructuredGraph;
 import jdk.graal.compiler.nodes.ValueNode;
 import jdk.graal.compiler.phases.BasePhase;
 import jdk.graal.compiler.phases.tiers.HighTierContext;
+import jdk.graal.compiler.truffle.BytecodeHandlerConfig;
 import jdk.graal.compiler.truffle.TruffleBytecodeHandlerCallsite;
 import jdk.graal.compiler.truffle.TruffleBytecodeHandlerCallsite.TruffleBytecodeHandlerTypes;
 import jdk.vm.ci.meta.MetaAccessProvider;
@@ -98,8 +99,8 @@ public abstract class OutlineBytecodeHandlerPhase extends BasePhase<HighTierCont
         }
 
         TruffleBytecodeHandlerTypes truffleTypes = getTruffleBytecodeHandlerTypes(env.types());
-        // Outlining only takes place at @BytecodeInterpreterSwitch-annotated method
-        if (!AnnotationValueSupport.isAnnotationPresent(truffleTypes.typeBytecodeInterpreterSwitch(), enclosingMethod)) {
+        // Outlining only takes place in methods that declare bytecode-handler metadata.
+        if (!AnnotationValueSupport.isAnnotationPresent(truffleTypes.typeBytecodeInterpreterHandlerConfig(), enclosingMethod)) {
             return;
         }
 
@@ -110,13 +111,16 @@ public abstract class OutlineBytecodeHandlerPhase extends BasePhase<HighTierCont
         for (Node node : graph.getNodes()) {
             if (node instanceof Invoke invoke) {
                 ResolvedJavaMethod targetMethod = invoke.callTarget().targetMethod();
+                GraalError.guarantee(targetMethod != null, "Missing target method for handler invoke %s in %s", invoke, graph);
                 if (!AnnotationValueSupport.isAnnotationPresent(truffleTypes.typeBytecodeInterpreterHandler(), targetMethod)) {
                     continue;
                 }
+                BytecodeHandlerConfig handlerConfig = BytecodeHandlerConfig.getHandlerConfig(enclosingMethod, targetMethod, truffleTypes);
 
-                // targetMethod is annotated with @BytecodeInterpreterHandler, replace the invoke
-                // with stub call. Use the invoke's frame-state owner so split inlinees keep their
-                // original caller method after host inlining into another interpreter method.
+                // targetMethod is annotated with @BytecodeInterpreterHandler, replace the
+                // invoke with stub call. Use the invoke's frame-state owner so split inlinees
+                // keep their original caller method after host inlining into another
+                // interpreter method.
                 FrameState invokeState = invoke.stateAfter();
                 if (invokeState == null) {
                     invokeState = invoke.stateDuring();
@@ -124,6 +128,7 @@ public abstract class OutlineBytecodeHandlerPhase extends BasePhase<HighTierCont
                 GraalError.guarantee(invokeState != null, "Missing frame state for handler invoke %s in %s", invoke, graph);
                 ResolvedJavaMethod invokeEnclosingMethod = invokeState.getMethod();
                 GraalError.guarantee(invokeEnclosingMethod != null, "Missing context method for handler invoke %s in %s", invoke, graph);
+                guaranteeConsistentHandlerConfig(handlerConfig, enclosingMethod, invokeEnclosingMethod, targetMethod, truffleTypes);
                 TruffleBytecodeHandlerCallsite callsite = getTruffleBytecodeHandlerCallsite(invokeEnclosingMethod, invoke.bci(), targetMethod, truffleTypes);
                 ValueNode[] oldArguments = invoke.callTarget().arguments().toArray(ValueNode.EMPTY_ARRAY);
                 ValueNode[] newArguments = callsite.createCallerArguments(oldArguments, invoke.asFixedNode(), getFieldMap(context.getMetaAccess()));
@@ -132,9 +137,34 @@ public abstract class OutlineBytecodeHandlerPhase extends BasePhase<HighTierCont
                 callsite.updateCallerReturns(newInvoke, oldArguments, next, getFieldMap(context.getMetaAccess()));
             }
         }
+        afterProcessGraph(context, graph);
     }
 
-    protected boolean applicableTo(@SuppressWarnings("unused") ResolvedJavaMethod enclosingMethod) {
+    /**
+     * Verifies that a handler invoke whose frame state comes from an inlined interpreter method uses
+     * the same {@code @BytecodeInterpreterHandlerConfig} as the current graph method. Outlining
+     * derives the stub ABI from {@code enclosingMethod}, but uses the invoke frame-state owner as the
+     * actual callsite method. A mismatch would outline the invoke with one argument layout while
+     * updating caller state as if it belonged to another layout.
+     */
+    private static void guaranteeConsistentHandlerConfig(BytecodeHandlerConfig enclosingConfig, ResolvedJavaMethod enclosingMethod, ResolvedJavaMethod invokeEnclosingMethod,
+                    ResolvedJavaMethod targetMethod, TruffleBytecodeHandlerTypes truffleTypes) {
+        if (enclosingMethod.equals(invokeEnclosingMethod)) {
+            return;
+        }
+        BytecodeHandlerConfig invokeConfig = BytecodeHandlerConfig.getHandlerConfig(invokeEnclosingMethod, targetMethod, truffleTypes);
+        GraalError.guarantee(invokeConfig != null, "Missing BytecodeInterpreterHandlerConfig for handler %s in switch method %s",
+                        targetMethod.format("%H.%n(%p)"), invokeEnclosingMethod.format("%H.%n(%p)"));
+        GraalError.guarantee(enclosingConfig.equals(invokeConfig), "Inconsistent BytecodeInterpreterHandlerConfig for handler %s between switch methods %s and %s",
+                        targetMethod.format("%H.%n(%p)"), enclosingMethod.format("%H.%n(%p)"), invokeEnclosingMethod.format("%H.%n(%p)"));
+    }
+
+    @SuppressWarnings("unused")
+    protected boolean applicableTo(ResolvedJavaMethod enclosingMethod) {
         return true;
+    }
+
+    @SuppressWarnings("unused")
+    protected void afterProcessGraph(HighTierContext context, StructuredGraph graph) {
     }
 }

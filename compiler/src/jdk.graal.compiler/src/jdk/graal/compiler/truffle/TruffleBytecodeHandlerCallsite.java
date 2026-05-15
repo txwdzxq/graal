@@ -47,14 +47,9 @@ import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
 
 /**
- * Represents a call site for a Truffle bytecode handler, describing the target method, its
- * arguments, return type, and context within the enclosing method. This class is responsible for
- * managing argument transformations for Truffle interpreter handler methods. It also provides logic
- * to generate stubs for Truffle bytecode handlers, determine calling/register conventions, and
- * manage return/argument transformations between the caller and callee.
- * <p>
- * Construction and use of this class is based on detection of specific annotations (such as
- * {@code BytecodeInterpreterSwitch} and {@code BytecodeInterpreterHandler}) on methods and types.
+ * Represents one call from an interpreter method to a Truffle bytecode handler. The callsite owns
+ * the handler metadata resolved in the context of the enclosing interpreter method and uses it to
+ * translate between the Java call shape and the generated stub ABI.
  */
 public final class TruffleBytecodeHandlerCallsite {
 
@@ -73,8 +68,6 @@ public final class TruffleBytecodeHandlerCallsite {
     private final BytecodeHandlerConfig handlerConfig;
 
     public TruffleBytecodeHandlerCallsite(ResolvedJavaMethod enclosingMethod, int bci, ResolvedJavaMethod targetMethod, TruffleBytecodeHandlerTypes truffleTypes) {
-        GraalError.guarantee(AnnotationValueSupport.isAnnotationPresent(truffleTypes.typeBytecodeInterpreterSwitch, enclosingMethod),
-                        "Enclosing method %s is not annotated by @BytecodeInterpreterSwitch", enclosingMethod.format("%H.%n(%p)"));
         this.enclosingMethod = enclosingMethod;
         this.bci = bci;
 
@@ -83,6 +76,8 @@ public final class TruffleBytecodeHandlerCallsite {
         this.targetMethod = targetMethod;
 
         this.handlerConfig = BytecodeHandlerConfig.getHandlerConfig(enclosingMethod, targetMethod, truffleTypes);
+        GraalError.guarantee(this.handlerConfig != null, "Enclosing method %s is not annotated by @BytecodeInterpreterHandlerConfig",
+                        enclosingMethod.format("%H.%n(%p)"));
     }
 
     public List<ResolvedJavaType> getArgumentTypes() {
@@ -118,8 +113,8 @@ public final class TruffleBytecodeHandlerCallsite {
     }
 
     /**
-     * Constructs the expanded list of caller argument {@link ValueNode}s for invoking a Truffle
-     * bytecode handler stub.
+     * Constructs the stub ABI argument list at the caller. Expanded arguments are lowered to field
+     * loads from their Java owner objects; non-expanded arguments are forwarded unchanged.
      */
     public ValueNode[] createCallerArguments(ValueNode[] oldArguments, FixedNode insertBefore, Function<ResolvedJavaField, ResolvedJavaField> fieldMap) {
         List<ArgumentInfo> argumentInfos = handlerConfig.getArgumentInfos();
@@ -143,8 +138,8 @@ public final class TruffleBytecodeHandlerCallsite {
     }
 
     /**
-     * Updates mutable expanded arguments in the caller frame with new return values produced by the
-     * Truffle handler stub.
+     * Writes mutable expanded argument values returned by the stub's multi-return payload back into
+     * their Java owner objects on the normal return path.
      */
     public void updateCallerReturns(FixedNode newInvoke, ValueNode[] oldArguments, FixedNode insertBefore, Function<ResolvedJavaField, ResolvedJavaField> fieldMap) {
         StructuredGraph graph = insertBefore.graph();

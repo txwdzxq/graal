@@ -39,7 +39,6 @@ import jdk.graal.compiler.hotspot.HotSpotForeignCallLinkage;
 import jdk.graal.compiler.hotspot.meta.HotSpotHostForeignCallsProvider;
 import jdk.graal.compiler.hotspot.meta.HotSpotProviders;
 import jdk.graal.compiler.hotspot.stubs.HotSpotTruffleBytecodeHandlerStub;
-import jdk.graal.compiler.nodes.AbstractBeginNode;
 import jdk.graal.compiler.nodes.FixedNode;
 import jdk.graal.compiler.nodes.Invoke;
 import jdk.graal.compiler.nodes.InvokeNode;
@@ -125,14 +124,7 @@ public class HotSpotOutlineBytecodeHandlerPhase extends OutlineBytecodeHandlerPh
             foreignCallWithExceptionNode.setBci(callsite.getBci());
             foreignCallWithExceptionNode.setStateAfter(invoke.stateAfter());
 
-            AbstractBeginNode next = invokeWithExceptionNode.next();
-            AbstractBeginNode exceptionEdge = invokeWithExceptionNode.exceptionEdge();
-
-            invokeWithExceptionNode.setNext(null);
-            invokeWithExceptionNode.setExceptionEdge(null);
-
-            foreignCallWithExceptionNode.setNext(next);
-            foreignCallWithExceptionNode.setExceptionEdge(exceptionEdge);
+            graph.replaceWithExceptionSplit(invokeWithExceptionNode, foreignCallWithExceptionNode);
             return foreignCallWithExceptionNode;
         }
     }

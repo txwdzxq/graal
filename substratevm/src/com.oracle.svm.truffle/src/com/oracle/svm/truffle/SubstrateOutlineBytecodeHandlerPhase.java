@@ -33,17 +33,18 @@ import org.graalvm.collections.EconomicMap;
 import org.graalvm.nativeimage.Platform;
 import org.graalvm.nativeimage.Platforms;
 
+import com.oracle.svm.common.meta.MethodVariant;
 import com.oracle.svm.core.nodes.SubstrateMethodCallTargetNode;
 import com.oracle.svm.hosted.meta.HostedMetaAccess;
 import com.oracle.svm.hosted.meta.HostedMethod;
 import com.oracle.svm.hosted.meta.HostedUniverse;
-import com.oracle.svm.common.meta.MethodVariant;
 
 import jdk.graal.compiler.core.common.type.StampFactory;
 import jdk.graal.compiler.debug.GraalError;
 import jdk.graal.compiler.nodes.CallTargetNode;
 import jdk.graal.compiler.nodes.FixedNode;
 import jdk.graal.compiler.nodes.Invoke;
+import jdk.graal.compiler.nodes.InvokeWithExceptionNode;
 import jdk.graal.compiler.nodes.StructuredGraph;
 import jdk.graal.compiler.nodes.ValueNode;
 import jdk.graal.compiler.phases.tiers.HighTierContext;
@@ -124,11 +125,19 @@ public final class SubstrateOutlineBytecodeHandlerPhase extends OutlineBytecodeH
         SubstrateMethodCallTargetNode newCallTargetNode = graph.add(new SubstrateMethodCallTargetNode(CallTargetNode.InvokeKind.Static, hostedStub, arguments,
                         StampFactory.forDeclaredType(graph.getAssumptions(), targetMethod.getSignature().getReturnType(targetMethod.getDeclaringClass()), false)));
         invoke.asNode().replaceAllInputs(oldCallTargetNode, newCallTargetNode);
+        if (invoke instanceof InvokeWithExceptionNode invokeWithExceptionNode) {
+            SubstrateTruffleBytecodeHandlerUnwindPath.readOnCaller(context.getMetaAccess(), callsite.getHandlerConfig(), invokeWithExceptionNode, arguments);
+        }
         return (FixedNode) invoke;
     }
 
     @Override
     protected boolean applicableTo(ResolvedJavaMethod enclosingMethod) {
         return !(enclosingMethod instanceof MethodVariant mm) || mm.isOriginalMethod();
+    }
+
+    @Override
+    protected void afterProcessGraph(HighTierContext context, StructuredGraph graph) {
+        SubstrateTruffleBytecodeHandlerUnwindPath.processPendingExceptionStateValues(context.getMetaAccess(), graph);
     }
 }

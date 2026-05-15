@@ -41,8 +41,9 @@ import jdk.vm.ci.meta.Signature;
 
 /**
  * Aggregates metadata derived from a {@code BytecodeInterpreterHandlerConfig} annotation which is
- * resolved against a concrete bytecode handler signature. This includes information about
- * parameters and the maximum opcode for which a handler exists.
+ * resolved against a concrete bytecode handler signature. The resulting model describes the stub
+ * ABI: argument expansion, non-null guarantees, {@code returnValue}/copy-from-return slots, mutable
+ * expanded fields, and the maximum opcode for which a handler exists.
  */
 public final class BytecodeHandlerConfig {
 
@@ -88,15 +89,18 @@ public final class BytecodeHandlerConfig {
         int currentIndex = 0;
 
         if (!targetMethod.isStatic()) {
+            GraalError.guarantee(originalIndex < argumentAnnotations.size(), "Missing receiver argument config for %s", targetMethod);
             currentIndex = appendReceiver(arguments, argumentAnnotations.get(originalIndex), declaringClass, originalIndex, currentIndex);
             originalIndex++;
         }
 
         int parameterCount = signature.getParameterCount(false);
         for (int i = 0; i < parameterCount; i++, originalIndex++) {
+            GraalError.guarantee(originalIndex < argumentAnnotations.size(), "Missing argument config for parameter %d of %s", i, targetMethod);
             ResolvedJavaType parameterType = signature.getParameterType(i, declaringClass).resolve(declaringClass);
             currentIndex = appendParameter(arguments, argumentAnnotations.get(originalIndex), parameterType, declaringClass, originalIndex, currentIndex);
         }
+        GraalError.guarantee(originalIndex == argumentAnnotations.size(), "Unused argument config for %s", targetMethod);
 
         return new BytecodeHandlerConfig(maximumOperationCode, returnType, arguments);
     }
@@ -104,10 +108,14 @@ public final class BytecodeHandlerConfig {
     /**
      * Derives the {@link BytecodeHandlerConfig} used for stubs targeting {@code targetMethod} when
      * called from {@code enclosingMethod}. The annotation is read from the enclosing interpreter
-     * method, not from the handler method itself.
+     * method, not from the handler method itself. Returns {@code null} if {@code enclosingMethod}
+     * does not declare bytecode-handler metadata.
      */
     public static BytecodeHandlerConfig getHandlerConfig(ResolvedJavaMethod enclosingMethod, ResolvedJavaMethod targetMethod, TruffleBytecodeHandlerTypes truffleTypes) {
         AnnotationValue configAnnotation = AnnotationValueSupport.getDeclaredAnnotationValue(truffleTypes.typeBytecodeInterpreterHandlerConfig(), enclosingMethod);
+        if (configAnnotation == null) {
+            return null;
+        }
         return BytecodeHandlerConfig.fromAnnotation(configAnnotation, targetMethod);
     }
 
@@ -123,15 +131,7 @@ public final class BytecodeHandlerConfig {
             case VIRTUAL -> throw GraalError.shouldNotReachHere("Receiver cannot be VIRTUAL");
             case MATERIALIZED -> {
                 arguments.add(new ArgumentInfo(declaringClass, nextIndex++, originalIndex, false, true, false, null, null, false, true, nonNull));
-                List<AnnotationValue> fields = receiverConfig.getList("fields", AnnotationValue.class);
-                for (ResolvedJavaField javaField : declaringClass.getInstanceFields(true)) {
-                    AnnotationValue fieldConfig = findFieldConfig(fields, javaField.getName());
-                    if (fieldConfig != null) {
-                        ResolvedJavaType fieldType = javaField.getType().resolve(declaringClass);
-                        boolean fieldNonNull = !fieldType.isPrimitive() && fieldConfig.getBoolean("nonNull");
-                        arguments.add(new ArgumentInfo(fieldType, nextIndex++, originalIndex, false, false, true, declaringClass, javaField, false, javaField.isFinal(), fieldNonNull));
-                    }
-                }
+                nextIndex = appendMaterializedFields(arguments, receiverConfig, declaringClass, declaringClass, originalIndex, nextIndex);
             }
             default -> throw GraalError.shouldNotReachHere("Unknown expansion kind " + expansionKind);
         }
@@ -163,17 +163,24 @@ public final class BytecodeHandlerConfig {
             }
             case MATERIALIZED -> {
                 arguments.add(new ArgumentInfo(parameterType, nextIndex++, originalIndex, copyFromReturn, true, false, null, null, false, true, nonNull));
-                List<AnnotationValue> fields = parameterConfig.getList("fields", AnnotationValue.class);
-                for (ResolvedJavaField javaField : parameterType.getInstanceFields(true)) {
-                    AnnotationValue fieldConfig = findFieldConfig(fields, javaField.getName());
-                    if (fieldConfig != null) {
-                        ResolvedJavaType fieldType = javaField.getType().resolve(declaringClass);
-                        boolean fieldNonNull = !fieldType.isPrimitive() && fieldConfig.getBoolean("nonNull");
-                        arguments.add(new ArgumentInfo(fieldType, nextIndex++, originalIndex, false, false, true, declaringClass, javaField, false, javaField.isFinal(), fieldNonNull));
-                    }
-                }
+                nextIndex = appendMaterializedFields(arguments, parameterConfig, parameterType, declaringClass, originalIndex, nextIndex);
             }
             default -> throw GraalError.shouldNotReachHere("Unknown expansion kind " + expansionKind);
+        }
+        return nextIndex;
+    }
+
+    private static int appendMaterializedFields(List<ArgumentInfo> arguments, AnnotationValue materializedConfig, ResolvedJavaType expandedType, ResolvedJavaType declaringClass, int originalIndex,
+                    int currentIndex) {
+        int nextIndex = currentIndex;
+        List<AnnotationValue> fields = materializedConfig.getList("fields", AnnotationValue.class);
+        for (ResolvedJavaField javaField : expandedType.getInstanceFields(true)) {
+            AnnotationValue fieldConfig = findFieldConfig(fields, javaField.getName());
+            if (fieldConfig != null) {
+                ResolvedJavaType fieldType = javaField.getType().resolve(declaringClass);
+                boolean fieldNonNull = !fieldType.isPrimitive() && fieldConfig.getBoolean("nonNull");
+                arguments.add(new ArgumentInfo(fieldType, nextIndex++, originalIndex, false, false, true, declaringClass, javaField, false, javaField.isFinal(), fieldNonNull));
+            }
         }
         return nextIndex;
     }
@@ -238,12 +245,46 @@ public final class BytecodeHandlerConfig {
         return getArgumentInfos().get(index).isImmutable();
     }
 
+    public boolean hasPendingExceptionState() {
+        for (ArgumentInfo argumentInfo : argumentInfos) {
+            if (argumentInfo.needsPendingExceptionState()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns {@code true} if one argument receives the handler return value.
+     */
+    public boolean hasCopyFromReturnArgument() {
+        return getCopyFromReturnArgument() != null;
+    }
+
+    /**
+     * Returns the argument that receives the handler return value, or {@code null} if this handler
+     * has no {@code returnValue} argument.
+     */
+    public ArgumentInfo getCopyFromReturnArgument() {
+        for (ArgumentInfo argumentInfo : argumentInfos) {
+            if (argumentInfo.copyFromReturn()) {
+                return argumentInfo;
+            }
+        }
+        return null;
+    }
+
     private enum ExpansionKind {
         NONE,
         MATERIALIZED,
         VIRTUAL
     }
 
+    /**
+     * Describes one argument slot in the bytecode-handler stub ABI. Expanded Java parameters can
+     * produce multiple {@link ArgumentInfo}s that share the same {@link #originalIndex()} but map to
+     * different stub ABI {@link #index()} values.
+     */
     public record ArgumentInfo(ResolvedJavaType type,
                     int index,
                     int originalIndex,
@@ -255,5 +296,12 @@ public final class BytecodeHandlerConfig {
                     boolean isOwnerVirtual,
                     boolean isImmutable,
                     boolean nonNull) {
+        /**
+         * Returns {@code true} for values that must be recoverable on a generated stub's exception
+         * edge: the {@code copyFromReturn} value and mutable fields of virtual-expanded arguments.
+         */
+        public boolean needsPendingExceptionState() {
+            return copyFromReturn || (isExpanded && isOwnerVirtual && !isImmutable);
+        }
     }
 }

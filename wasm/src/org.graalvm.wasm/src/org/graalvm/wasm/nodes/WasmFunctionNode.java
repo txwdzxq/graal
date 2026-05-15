@@ -327,7 +327,6 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
             this.language = WasmLanguage.get(thiz);
             this.memoryLibs = thiz.memoryLibs;
             this.notifyFunction = thiz.notifyFunction;
-            this.exceptionOffset = 0;
             this.activeLegacyCatchCount = activeLegacyCatchCount;
         }
 
@@ -345,11 +344,6 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
         final WasmLanguage language;
         final WasmMemoryLibrary[] memoryLibs;
         final WasmNotifyFunction notifyFunction;
-        /**
-         * Used for communicating the current offset (bci) in case of an exception. Should be set
-         * before calls (and unset after) and at throws and unset if caught.
-         */
-        int exceptionOffset;
         int activeLegacyCatchCount;
     }
 
@@ -1443,15 +1437,12 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
             } catch (WasmOSRException osrExc) {
                 return osrExc.osrResult;
             } catch (WasmRuntimeException e) {
-                assert state.exceptionOffset != 0 : "exceptionOffset not properly set up. Must be non-0.";
-
                 codeEntry.exceptionBranch();
                 CompilerAsserts.partialEvaluationConstant(virtualState.stackPointer);
                 CompilerAsserts.partialEvaluationConstant(offset);
-                CompilerAsserts.partialEvaluationConstant(state.exceptionOffset);
 
                 int exceptionTableOffset = this.exceptionTableOffset;
-                int handlerLookupOffset = state.exceptionOffset;
+                int handlerLookupOffset = offset;
 
                 if (exceptionTableOffset == BytecodeBitEncoding.INVALID_EXCEPTION_TABLE_OFFSET) {
                     // no exception table, directly throw to the next function on the call stack
@@ -1463,11 +1454,12 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
                  *
                  * from | to | type | tag index | target
                  *
-                 * The values from (exclusive) and to (inclusive) define a range. If source is
-                 * inside this range, the entry defines a possible exception handler for the
-                 * exception. If the type of the exception handler is catch or catch_ref, we check
-                 * whether the expected tag defined by the tag index and the tag of the exception
-                 * object match. For catch_all and catch_all_ref we don't have this check.
+                 * The values from (inclusive) and to (exclusive) define a range. If the current
+                 * bytecode offset is inside this range, the entry defines a possible exception
+                 * handler for the exception. If the type of the exception handler is catch or
+                 * catch_ref, we check whether the expected tag defined by the tag index and the tag
+                 * of the exception object match. For catch_all and catch_all_ref we don't have this
+                 * check.
                  *
                  * The catch and catch_ref types push the fields of the exception onto the stack,
                  * catch_ref also pushes a reference to the exception itself, while catch_all_ref
@@ -1485,7 +1477,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
                     final int to = exceptionHandlerTo(handlerOffset);
                     exceptionTableOffset = nextExceptionHandlerOffset(handlerOffset);
 
-                    if (handlerLookupOffset <= from || handlerLookupOffset > to) {
+                    if (handlerLookupOffset < from || handlerLookupOffset >= to) {
                         continue;
                     }
 
@@ -1725,9 +1717,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
         int paramCount = function.paramCount();
         Object[] args = state.thiz.createArgumentsForCall(frame, function.typeIndex(), paramCount, virtualState.stackPointer);
         virtualState.stackPointer -= paramCount;
-        state.exceptionOffset = offset + 3;
         virtualState.stackPointer = state.thiz.executeDirectCall(frame, virtualState.stackPointer, state.instance, callNodeIndex, function, args);
-        state.exceptionOffset = 0;
         CompilerAsserts.partialEvaluationConstant(virtualState.stackPointer);
         return offset + 3;
     }
@@ -1742,9 +1732,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
         int paramCount = function.paramCount();
         Object[] args = state.thiz.createArgumentsForCall(frame, function.typeIndex(), paramCount, virtualState.stackPointer);
         virtualState.stackPointer -= paramCount;
-        state.exceptionOffset = offset + 9;
         virtualState.stackPointer = state.thiz.executeDirectCall(frame, virtualState.stackPointer, state.instance, callNodeIndex, function, args);
-        state.exceptionOffset = 0;
         CompilerAsserts.partialEvaluationConstant(virtualState.stackPointer);
         return offset + 9;
     }
@@ -1785,9 +1773,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
         Object[] args = state.thiz.createArgumentsForCall(frame, expectedFunctionTypeIndex, paramCount, virtualState.stackPointer);
         virtualState.stackPointer -= paramCount;
         WasmArguments.setModuleInstance(args, functionInstance.moduleInstance());
-        state.exceptionOffset = offset + 4;
         final Object result = state.thiz.executeIndirectCallNode(callNodeIndex, target, args);
-        state.exceptionOffset = 0;
         virtualState.stackPointer = state.thiz.pushIndirectCallResult(frame, virtualState.stackPointer, expectedFunctionTypeIndex, result, state.language);
         CompilerAsserts.partialEvaluationConstant(virtualState.stackPointer);
         return offset + 4;
@@ -1829,9 +1815,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
         Object[] args = state.thiz.createArgumentsForCall(frame, expectedFunctionTypeIndex, paramCount, virtualState.stackPointer);
         virtualState.stackPointer -= paramCount;
         WasmArguments.setModuleInstance(args, functionInstance.moduleInstance());
-        state.exceptionOffset = offset + 13;
         final Object result = state.thiz.executeIndirectCallNode(callNodeIndex, target, args);
-        state.exceptionOffset = 0;
         virtualState.stackPointer = state.thiz.pushIndirectCallResult(frame, virtualState.stackPointer, expectedFunctionTypeIndex, result, state.language);
         CompilerAsserts.partialEvaluationConstant(virtualState.stackPointer);
         return offset + 13;
@@ -1856,9 +1840,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
         Object[] args = state.thiz.createArgumentsForCall(frame, expectedFunctionTypeIndex, paramCount, virtualState.stackPointer);
         virtualState.stackPointer -= paramCount;
         WasmArguments.setModuleInstance(args, functionInstance.moduleInstance());
-        state.exceptionOffset = offset + 3;
         final Object result = state.thiz.executeIndirectCallNode(callNodeIndex, target, args);
-        state.exceptionOffset = 0;
         virtualState.stackPointer = state.thiz.pushIndirectCallResult(frame, virtualState.stackPointer, expectedFunctionTypeIndex, result, state.language);
         CompilerAsserts.partialEvaluationConstant(virtualState.stackPointer);
         return offset + 3;
@@ -1883,9 +1865,7 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
         Object[] args = state.thiz.createArgumentsForCall(frame, expectedFunctionTypeIndex, paramCount, virtualState.stackPointer);
         virtualState.stackPointer -= paramCount;
         WasmArguments.setModuleInstance(args, functionInstance.moduleInstance());
-        state.exceptionOffset = offset + 9;
         final Object result = state.thiz.executeIndirectCallNode(callNodeIndex, target, args);
-        state.exceptionOffset = 0;
         virtualState.stackPointer = state.thiz.pushIndirectCallResult(frame, virtualState.stackPointer, expectedFunctionTypeIndex, result, state.language);
         CompilerAsserts.partialEvaluationConstant(virtualState.stackPointer);
         return offset + 9;
@@ -4562,7 +4542,6 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
                 final int numFields = state.module.functionTypeParamCount(functionTypeIndex);
                 final Object[] fields = state.thiz.createFieldsForException(frame, functionTypeIndex, numFields, virtualState.stackPointer);
                 virtualState.stackPointer -= numFields;
-                state.exceptionOffset = offset + 6;
                 throw state.thiz.createException(state.instance.tag(tagIndex), fields);
             }
             case Bytecode.THROW_REF: {
@@ -4574,7 +4553,6 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
                     throw WasmException.create(Failure.NULL_REFERENCE);
                 }
                 assert exception instanceof WasmRuntimeException : "Only wasm exceptions can be thrown by throw_ref";
-                state.exceptionOffset = offset + 2;
                 throw (WasmRuntimeException) exception;
             }
             case Bytecode.RETHROW: {
@@ -4587,7 +4565,6 @@ public final class WasmFunctionNode<V128> extends Node implements BytecodeOSRNod
                 final WasmRuntimeException exception = (WasmRuntimeException) frame.getObjectStatic(exceptionSlot);
                 // Rethrow selects the active legacy exception by depth, then dispatches it like a
                 // normal throw from the current bytecode location.
-                state.exceptionOffset = offset + 6;
                 throw exception;
             }
             case Bytecode.LEGACY_CATCH_DROP: {

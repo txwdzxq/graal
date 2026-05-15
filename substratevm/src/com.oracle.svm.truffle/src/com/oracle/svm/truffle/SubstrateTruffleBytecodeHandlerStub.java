@@ -30,7 +30,6 @@ import static com.oracle.svm.core.graal.code.SubstrateCallingConventionType.Subs
 import static com.oracle.svm.util.AnnotationUtil.newAnnotationValue;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import com.oracle.graal.pointsto.infrastructure.ResolvedSignature;
@@ -61,19 +60,15 @@ import com.oracle.truffle.api.HostCompilerDirectives.BytecodeInterpreterHandler;
 import jdk.graal.compiler.annotation.AnnotationValue;
 import jdk.graal.compiler.debug.DebugContext;
 import jdk.graal.compiler.debug.GraalError;
-import jdk.graal.compiler.nodes.MultiReturnNode;
-import jdk.graal.compiler.nodes.ParameterNode;
-import jdk.graal.compiler.nodes.ReturnNode;
 import jdk.graal.compiler.nodes.StructuredGraph;
-import jdk.graal.compiler.nodes.ValueNode;
-import jdk.graal.compiler.replacements.GraphKit;
-import jdk.graal.compiler.replacements.nodes.ReadRegisterNode;
 import jdk.graal.compiler.truffle.BytecodeHandlerConfig;
 import jdk.graal.compiler.truffle.BytecodeHandlerConfig.ArgumentInfo;
 import jdk.graal.compiler.truffle.TruffleBytecodeHandlerCallsite.TruffleBytecodeHandlerTypes;
 import jdk.graal.compiler.truffle.TruffleBytecodeHandlerStubHelper;
 import jdk.graal.compiler.truffle.host.TruffleKnownHostTypes;
+import jdk.vm.ci.aarch64.AArch64;
 import jdk.vm.ci.amd64.AMD64;
+import jdk.vm.ci.code.Architecture;
 import jdk.vm.ci.code.Register;
 import jdk.vm.ci.code.RegisterConfig;
 import jdk.vm.ci.meta.JavaKind;
@@ -81,7 +76,7 @@ import jdk.vm.ci.meta.ResolvedJavaMethod;
 import jdk.vm.ci.meta.ResolvedJavaType;
 
 /**
- * A substrate stub implementation for calling Truffle bytecode handler.
+ * Substrate implementation of generated stubs for Truffle bytecode handlers.
  *
  * To minimize the overhead in the prologue and epilogue of the generated code, we inject the
  * {@link SkipStackOverflowCheck} annotation to eliminate the stack overflow check, and the
@@ -129,46 +124,11 @@ public final class SubstrateTruffleBytecodeHandlerStub extends NonBytecodeMethod
     public StructuredGraph buildGraph(DebugContext debug, AnalysisMethod method, HostedProviders providers, Purpose purpose) {
         HostedGraphKit kit = new HostedGraphKit(debug, providers, method);
         if (isDefault) {
-            return createEmptyStub(kit);
+            Register fallbackReturnRegister = config.hasCopyFromReturnArgument() ? null : getReturnRegister(getRegisterConfig());
+            return TruffleBytecodeHandlerStubHelper.createEmptyStub(kit, config, fallbackReturnRegister);
         }
-        return TruffleBytecodeHandlerStubHelper.createStub(kit, method, 0, threading, nextOpcodeMethod, () -> stubHolder.getBytecodeHandlers(interpreterHolder, config), config, targetMethod);
-    }
-
-    /**
-     * Generates a graph for a default bytecode handler stub that serves as a fallback when no
-     * specific handler is available.
-     *
-     * The generated graph returns the value from the return register and passes the original
-     * parameters as additional return results. This stub effectively terminates the threading and
-     * triggers a re-dispatch of the bytecode in the caller.
-     */
-    private StructuredGraph createEmptyStub(GraphKit kit) {
-        StructuredGraph graph = kit.getGraph();
-        graph.getGraphState().forceDisableFrameStateVerification();
-
-        ParameterNode[] parameterNodes = TruffleBytecodeHandlerStubHelper.collectParameterNodes(config, kit);
-        ValueNode returnResult = null;
-
-        for (ArgumentInfo argumentInfo : config.getArgumentInfos()) {
-            if (argumentInfo.copyFromReturn()) {
-                returnResult = parameterNodes[argumentInfo.index()];
-                break;
-            }
-        }
-
-        if (returnResult == null) {
-            JavaKind returnKind = config.getReturnType().getJavaKind();
-            if (returnKind != JavaKind.Void) {
-                returnResult = kit.append(new ReadRegisterNode(getReturnRegister(getRegisterConfig()), returnKind, false, true));
-            }
-        }
-
-        MultiReturnNode multiReturnNode = kit.unique(new MultiReturnNode(returnResult, null));
-        multiReturnNode.getAdditionalReturnResults().addAll(Arrays.asList(parameterNodes));
-
-        kit.append(new ReturnNode(multiReturnNode));
-        graph.getDebug().dump(DebugContext.VERBOSE_LEVEL, graph, "Initial graph for default bytecode handler stub");
-        return graph;
+        return TruffleBytecodeHandlerStubHelper.createStub(kit, method, 0, threading, nextOpcodeMethod, () -> stubHolder.getBytecodeHandlers(interpreterHolder, config), config, targetMethod,
+                        SubstrateTruffleBytecodeHandlerUnwindPath::writeOnCallee);
     }
 
     /**
@@ -198,86 +158,166 @@ public final class SubstrateTruffleBytecodeHandlerStub extends NonBytecodeMethod
         return returnRegister;
     }
 
-    private static boolean isBasePointerRegister(SubstrateTarget target, Register register) {
-        return target.arch instanceof AMD64 && register.equals(AMD64.rbp);
+    private record AllocatableRegisters(Architecture arch, List<Register> gpRegisters, List<Register> floatRegisters) {
+
+        AssignedLocation allocate(JavaKind kind) {
+            Register register = switch (kind) {
+                case Float, Double -> removeRegister(floatRegisters, kind);
+                default -> removeRegister(gpRegisters, kind);
+            };
+            assert arch.canStoreValue(register.getRegisterCategory(), arch.getPlatformKind(kind)) : register + " cannot store " + kind;
+            return AssignedLocation.forRegister(register, toAssignedLocationJavaKind(kind));
+        }
+
+        private static Register removeRegister(List<Register> registers, JavaKind kind) {
+            GraalError.guarantee(!registers.isEmpty(), "no register available for %s", kind);
+            return registers.removeFirst();
+        }
+
+        static AllocatableRegisters create(RegisterConfig registerConfig, boolean hasPendingExceptionState, Register reservedReturnRegister) {
+            Architecture arch = SubstrateTarget.singleton().arch;
+            List<Register> gpRegisters = getOrderedAllocatableRegisters(registerConfig, arch, hasPendingExceptionState);
+            List<Register> floatRegisters = getOrderedFloatAllocatableRegisters(registerConfig, arch);
+            if (reservedReturnRegister != null) {
+                gpRegisters.remove(reservedReturnRegister);
+                floatRegisters.remove(reservedReturnRegister);
+            }
+            return new AllocatableRegisters(arch, gpRegisters, floatRegisters);
+        }
+
+        /*
+         * Prefer registers that do not overlap with the normal platform ABI argument registers,
+         * including floating-point/vector argument registers. Handler values then have a better
+         * chance to stay in bytecode-handler ABI locations across ordinary calls inside the stub,
+         * avoiding moves and spills. The normal ABI registers remain fallbacks when the preferred
+         * registers are exhausted. These lists define only the order within each register class;
+         * actual selection is restricted to registers exposed by RegisterConfig, so platform-owned
+         * reserved registers stay controlled by the platform register configuration. The AMD64 GP
+         * list intentionally does not include rbp.
+         */
+        private static final List<String> AMD64_BYTECODE_HANDLER_GP_ARGUMENT_ORDER = List.of(
+                        "rbx", "r11", "r10", "r14", "r13", "r12",
+                        "r9", "r8", "rcx", "rdx", "rsi", "rdi", "rax");
+
+        private static final List<String> AMD64_BYTECODE_HANDLER_FP_ARGUMENT_ORDER = List.of(
+                        "xmm8", "xmm9", "xmm10", "xmm11", "xmm12", "xmm13", "xmm14", "xmm15",
+                        "xmm7", "xmm6", "xmm5", "xmm4", "xmm3", "xmm2", "xmm1", "xmm0");
+
+        /*
+         * On AArch64, prefer caller-saved registers for values that may be live on exception edges.
+         * The exception far-return path does not restore ordinary callee-saved registers from these
+         * custom stub frames, while caller-saved registers are killed by invokes and therefore force
+         * the compiler to preserve exception-edge live values explicitly.
+         */
+        private static final List<String> AARCH64_BYTECODE_HANDLER_GP_ARGUMENT_ORDER = List.of(
+                        "r11", "r12", "r13", "r14", "r15", "r16", "r17",
+                        "r18", "r19", "r20", "r21", "r22", "r23", "r24",
+                        "r25", "r26", "r27", "r28",
+                        "r10", "r9", "r8", "r7", "r6", "r5", "r4",
+                        "r3", "r2", "r1", "r0");
+
+        private static final List<String> AARCH64_BYTECODE_HANDLER_FP_ARGUMENT_ORDER = List.of(
+                        "v8", "v9", "v10", "v11", "v12", "v13", "v14", "v15",
+                        "v16", "v17", "v18", "v19", "v20", "v21", "v22", "v23",
+                        "v24", "v25", "v26", "v27", "v28", "v29", "v30", "v31",
+                        "v7", "v6", "v5", "v4", "v3", "v2", "v1", "v0");
+
+        private static List<Register> getOrderedAllocatableRegisters(RegisterConfig registerConfig, Architecture arch, boolean hasPendingExceptionState) {
+            List<Register> allocatableRegisters = new ArrayList<>(registerConfig.filterAllocatableRegisters(arch.getPlatformKind(JavaKind.Long), registerConfig.getAllocatableRegisters()));
+
+            if (hasPendingExceptionState) {
+                /*
+                 * The object return register carries the exception object on exception edges. Do not
+                 * allocate it to a bytecode-handler argument when pending state can be live there.
+                 */
+                allocatableRegisters.remove(registerConfig.getReturnRegister(JavaKind.Object));
+            }
+            if (SubstrateControlFlowIntegrity.useSoftwareCFI()) {
+                allocatableRegisters.remove(SubstrateControlFlowIntegrity.singleton().getCFITargetRegister());
+            }
+            return switch (arch) {
+                case AMD64 _ -> selectOrderedPreferredRegisters(allocatableRegisters, AMD64_BYTECODE_HANDLER_GP_ARGUMENT_ORDER);
+                case AArch64 _ -> selectOrderedPreferredRegisters(allocatableRegisters, AARCH64_BYTECODE_HANDLER_GP_ARGUMENT_ORDER);
+                default -> allocatableRegisters;
+            };
+        }
+
+        private static List<Register> getOrderedFloatAllocatableRegisters(RegisterConfig registerConfig, Architecture arch) {
+            List<Register> allocatableRegisters = new ArrayList<>(registerConfig.filterAllocatableRegisters(arch.getPlatformKind(JavaKind.Double), registerConfig.getAllocatableRegisters()));
+            return switch (arch) {
+                case AMD64 _ -> selectOrderedPreferredRegisters(allocatableRegisters, AMD64_BYTECODE_HANDLER_FP_ARGUMENT_ORDER);
+                case AArch64 _ -> selectOrderedPreferredRegisters(allocatableRegisters, AARCH64_BYTECODE_HANDLER_FP_ARGUMENT_ORDER);
+                default -> allocatableRegisters;
+            };
+        }
+
+        private static List<Register> selectOrderedPreferredRegisters(List<Register> allocatableRegisters, List<String> preferredRegisterNames) {
+            List<Register> orderedRegisters = new ArrayList<>(allocatableRegisters.size());
+            for (String registerName : preferredRegisterNames) {
+                for (Register register : allocatableRegisters) {
+                    if (register.name.equals(registerName)) {
+                        orderedRegisters.add(register);
+                        break;
+                    }
+                }
+            }
+            return orderedRegisters;
+        }
+    }
+
+    private AssignedLocation[] allocateArgumentLocations(RegisterConfig registerConfig, Register reservedReturnRegister) {
+        List<ArgumentInfo> argumentInfos = config.getArgumentInfos();
+        AssignedLocation[] argumentLocations = new AssignedLocation[argumentInfos.size()];
+        AllocatableRegisters allocatableRegisters = AllocatableRegisters.create(registerConfig, config.hasPendingExceptionState(), reservedReturnRegister);
+
+        /*
+         * Values published as pending exception state must remain available at the throwing call.
+         * Allocate them first so they receive the target architecture's preferred locations.
+         */
+        for (ArgumentInfo argumentInfo : argumentInfos) {
+            if (argumentInfo.needsPendingExceptionState()) {
+                argumentLocations[argumentInfo.index()] = allocatableRegisters.allocate(argumentInfo.type().getJavaKind());
+            }
+        }
+        for (ArgumentInfo argumentInfo : argumentInfos) {
+            if (!argumentInfo.needsPendingExceptionState()) {
+                argumentLocations[argumentInfo.index()] = allocatableRegisters.allocate(argumentInfo.type().getJavaKind());
+            }
+        }
+        return argumentLocations;
     }
 
     @Override
     public SubstrateCallingConventionType getCallingConvention() {
-        SubstrateTarget target = SubstrateTarget.singleton();
         RegisterConfig registerConfig = getRegisterConfig();
-        Register returnRegister = getReturnRegister(registerConfig);
+        ArgumentInfo copyFromReturnArgument = config.getCopyFromReturnArgument();
+        Register fallbackReturnRegister = copyFromReturnArgument == null ? getReturnRegister(registerConfig) : null;
 
-        List<Register> argumentRegisters = new ArrayList<>();
+        /*
+         * Without copyFromReturn, the normal platform return register is independent from all
+         * bytecode-handler arguments and must not be allocated to one of them.
+         */
+        AssignedLocation[] parameters = allocateArgumentLocations(registerConfig, fallbackReturnRegister);
 
-        for (ArgumentInfo argumentInfo : config.getArgumentInfos()) {
-            // For arguments configured with returnValue=true, reuse the return register as their
-            // register allocation. This avoids unnecessary register moves by ensuring the handler's
-            // return value is already placed into the correct argument location upon return.
-            if (argumentInfo.copyFromReturn()) {
-                argumentRegisters.add(returnRegister);
-                continue;
-            }
-
-            /*
-             * Bytecode handler parameters cannot consume all allocatable registers. Tail call
-             * threading needs one register to hold the next handler target, so the practical
-             * parameter budget is at most MAX_REGISTERS - 1. The effective budget can be even
-             * smaller when the architecture-specific base pointer register must stay unavailable,
-             * for example because the caller or the handler needs it for frame-pointer preservation
-             * around rsp-modifying code.
-             */
-            // Find next available register
-            Register registerForCurrentArgument = null;
-            List<Register> filteredAllocatableRegisters = registerConfig.filterAllocatableRegisters(target.arch.getPlatformKind(argumentInfo.type().getJavaKind()),
-                            registerConfig.getAllocatableRegisters());
-            for (Register register : filteredAllocatableRegisters) {
-                if (argumentRegisters.contains(register)) {
-                    // register is used as preceding argument
-                    continue;
-                }
-                if (register.equals(returnRegister)) {
-                    // register is used as return register
-                    continue;
-                }
-                if ((SubstrateControlFlowIntegrity.useSoftwareCFI() && register.equals(SubstrateControlFlowIntegrity.singleton().getCFITargetRegister()))) {
-                    // register is used as software CFI register
-                    continue;
-                }
-                if (isBasePointerRegister(target, register)) {
-                    /*
-                     * Some bytecode interpreter callers keep the architecture-specific base pointer
-                     * register live across custom handler stub calls, so do not hand it out as part
-                     * of the handler stub ABI.
-                     */
-                    continue;
-                }
-
-                registerForCurrentArgument = register;
-                break;
-            }
-
-            GraalError.guarantee(registerForCurrentArgument != null, "no register available");
-            argumentRegisters.add(registerForCurrentArgument);
-        }
-
-        List<ResolvedJavaType> argumentTypes = config.getArgumentTypes();
-        AssignedLocation[] parameters = new AssignedLocation[argumentTypes.size()];
-        SubstrateCallingConventionArgumentKind[] parameterKinds = new SubstrateCallingConventionArgumentKind[argumentTypes.size()];
-
+        SubstrateCallingConventionArgumentKind[] parameterKinds = new SubstrateCallingConventionArgumentKind[parameters.length];
         for (int i = 0; i < parameters.length; i++) {
-            parameters[i] = AssignedLocation.forRegister(argumentRegisters.get(i), toAssignedLocationJavaKind(argumentTypes.get(i).getJavaKind()));
             // TruffleBytecodeHandlerCallsite either preserves the value or returns the updated
             // value in the same argument location
             parameterKinds[i] = config.isArgumentImmutable(i) ? IMMUTABLE : VALUE_REFERENCE;
         }
 
-        AssignedLocation[] returnLoations = AssignedLocation.EMPTY_ARRAY;
-        if (returnRegister != null) {
-            returnLoations = new AssignedLocation[]{AssignedLocation.forRegister(returnRegister, toAssignedLocationJavaKind(config.getReturnType().getJavaKind()))};
+        AssignedLocation[] returnLocations = AssignedLocation.EMPTY_ARRAY;
+        if (copyFromReturnArgument != null) {
+            GraalError.guarantee(copyFromReturnArgument.type().getJavaKind().getStackKind() == config.getReturnType().getJavaKind().getStackKind(),
+                            "returnValue argument type %s does not match return type %s", copyFromReturnArgument.type().getJavaKind(), config.getReturnType().getJavaKind());
+            returnLocations = new AssignedLocation[]{parameters[copyFromReturnArgument.index()]};
+        } else {
+            if (fallbackReturnRegister != null) {
+                returnLocations = new AssignedLocation[]{AssignedLocation.forRegister(fallbackReturnRegister, toAssignedLocationJavaKind(config.getReturnType().getJavaKind()))};
+            }
         }
 
-        return SubstrateCallingConventionType.makeCustom(false, parameters, returnLoations, parameterKinds, false, false);
+        return SubstrateCallingConventionType.makeCustom(false, parameters, returnLocations, parameterKinds, false, false);
     }
 
     private static final List<AnnotationValue> INJECTED_ANNOTATIONS = List.of(
